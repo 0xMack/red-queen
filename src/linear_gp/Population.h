@@ -13,6 +13,8 @@
 
 using namespace std;
 
+double testBind(int a);
+
 class Population {
     vector<Individual> individuals;
     vector<vector<float>> data;
@@ -22,10 +24,14 @@ class Population {
     float crossoverRate{};
 
 public:
-    explicit Population(vector<vector<float>>* dataset);
+    Population(vector<vector<float>> *dataset);
 
-    void evaluate();
+    void predict();
 };
 
+extern "C" {
+//  Population* LGP_Population(vector<vector<float>> *dataset){ return new Population(dataset);}
+//  void predict();
+};
 
 #endif //REDQUEEN_POPULATION_H
