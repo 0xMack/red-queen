@@ -1,7 +1,6 @@
 //
 // Created by mackp on 2023-01-13.
 //
-#include <pybind11/pybind11.h>
 #include <cstdio>
 #include "Population.h"
 #include "Individual.h"
@@ -30,11 +29,11 @@ void Population::predict() {
     }
 }
 
-
-namespace py = pybind11;
-
-PYBIND11_MODULE(redqueen, m) {
-    py::class_<Population>(m, "Population")
-    .def(py::init<std::vector<std::vector<float>> *>())
-    .def("predict", &Population::predict);
-}
+//
+//namespace py = pybind11;
+//
+//PYBIND11_MODULE(redqueen, m) {
+//    py::class_<Population>(m, "Population")
+//    .def(py::init<std::vector<std::vector<float>> *>())
+//    .def("predict", &Population::predict);
+//}

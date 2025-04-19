@@ -1,2 +1,4 @@
 import redqueen
-print(redqueen.testBind(123))
+print(redqueen.__file__)
+print(dir(redqueen))
+print(redqueen.add(1, 2))
