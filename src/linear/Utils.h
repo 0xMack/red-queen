@@ -30,7 +30,7 @@ class Utils {
 
 class GrayCoder {
     vector<unsigned int> grayCode;
-    vector<uint8_t> reverseGrayCode;
+    vector<unsigned short> reverseGrayCode;
 public:
     explicit GrayCoder(int nBits);
     unsigned int toGrayCode(unsigned int v);

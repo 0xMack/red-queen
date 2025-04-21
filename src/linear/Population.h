@@ -24,9 +24,9 @@ class Population {
     float crossoverRate{};
 
 public:
-    Population(vector<vector<float>> *dataset);
+    explicit Population(vector<vector<float>> *dataset);
 
-    void predict();
+    vector<vector<vector<float>>> predict();
 };
 
 extern "C" {

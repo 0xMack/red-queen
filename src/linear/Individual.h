@@ -12,14 +12,14 @@
 using namespace std;
 #define N_REGISTERS 8
 
-uint8_t generateRandomUint8();
+unsigned short generateRandomShort();
 
 struct Instruction {
-    uint8_t inputSelector = generateRandomUint8();
-    uint8_t arg1 = generateRandomUint8();
-    uint8_t op = generateRandomUint8();
-    uint8_t arg2 = generateRandomUint8();
-    uint8_t output = generateRandomUint8();
+    unsigned short inputSelector = generateRandomShort();
+    unsigned short arg1 = generateRandomShort();
+    unsigned short op = generateRandomShort();
+    unsigned short arg2 = generateRandomShort();
+    unsigned short output = generateRandomShort();
 };
 
 class Individual {
@@ -27,7 +27,7 @@ class Individual {
     int numInstructions = 16;
     float mutationRate = 0.1;
     int numRegisters = N_REGISTERS;
-    float registers[N_REGISTERS];
+    float registers[N_REGISTERS]{};
     GrayCoder *grayCoder{};
     vector<FloatOperation> ops{};
     int numOps;

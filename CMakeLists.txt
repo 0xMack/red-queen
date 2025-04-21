@@ -23,14 +23,12 @@ list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_MODULE_PATH})
 
 find_package(pybind11 REQUIRED CONFIG)
 
-file (GLOB SOURCE_FILES "src/bindtest.cpp")
-message(STATUS "Source files: ${SOURCE_FILES}")
-#pybind11_add_module(redqueen ${SOURCE_FILES})
-pybind11_add_module(redqueen "src/bindtest.cpp")
-#target_compile_definitions(redqueen PRIVATE VERSION_INFO=${PROJECT_VERSION})
-install(TARGETS redqueen DESTINATION .)
-#install(TARGETS redqueen
-#        LIBRARY DESTINATION .  # installs to site-packages root
-#        ARCHIVE DESTINATION .  # needed for Windows static libs
-#        RUNTIME DESTINATION .) # for Windows .dlls / .pyds
-#
+file (GLOB SOURCE_FILES "src/linear/*.cpp")
+file (GLOB HEADER_FILES "src/linear/*.h")
+
+pybind11_add_module(redqueen ${SOURCE_FILES} ${HEADER_FILES})
+target_compile_definitions(redqueen PRIVATE VERSION_INFO=${PROJECT_VERSION})
+install(TARGETS redqueen
+        LIBRARY DESTINATION .  # installs to site-packages root
+        ARCHIVE DESTINATION .  # needed for Windows static libs
+        RUNTIME DESTINATION .) # for Windows .dlls / .pyds

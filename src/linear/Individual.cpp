@@ -12,18 +12,16 @@
 
 using namespace std;
 
-uint8_t generateRandomUint8() {
+unsigned short generateRandomShort() {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<uint8_t> dis;
+    std::uniform_int_distribution<unsigned short> dis;
     return dis(gen);
 }
 
 
 
 Individual::Individual(int id, GrayCoder *grayCoder, vector<FloatOperation> *operators, float mutationRate) {
-    grayCoder = grayCoder;
-    id = id;
     ops = *operators;
     mutationRate = mutationRate;
     numOps = ops.size();
