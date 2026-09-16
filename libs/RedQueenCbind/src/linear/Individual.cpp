@@ -13,9 +13,8 @@
 using namespace std;
 
 unsigned short generateRandomShort() {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<unsigned short> dis;
+    static std::mt19937 gen{std::random_device{}()};
+    static std::uniform_int_distribution<unsigned short> dis;
     return dis(gen);
 }
 
@@ -23,11 +22,10 @@ unsigned short generateRandomShort() {
 
 Individual::Individual(int id, GrayCoder *grayCoder, vector<FloatOperation> *operators, float mutationRate) {
     ops = *operators;
-    mutationRate = mutationRate;
+    this->mutationRate = mutationRate;
     numOps = ops.size();
     for (int i = 0; i < numInstructions; i++) {
-        auto inst = new Instruction();
-        program.push_back(*inst);
+        program.emplace_back();
     }
     reset();
 }
@@ -37,12 +35,12 @@ void Individual::reset() {
 };
 
 void Individual::predict(vector<float>& inputData, vector<float>& outputData) {
-    for (auto i: program) {
-        auto data = inputData;
-        executeInstruction(&i, &data[0],data.size());
+    reset();
+    for (auto &instruction: program) {
+        executeInstruction(&instruction, &inputData[0], inputData.size());
     }
 
-    copy(&registers[0], &registers[sizeof(registers)/sizeof(float)], back_inserter(outputData));
+    copy(&registers[0], &registers[numRegisters], outputData.begin());
 }
 
 void Individual::predict(vector<vector<float>>& inputData, vector<vector<float>>& outputData) {

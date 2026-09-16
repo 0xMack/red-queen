@@ -17,6 +17,7 @@ Population::Population(vector<vector<float>>* dataset) {
     auto grayCoder = GrayCoder(16);
     vector<FloatOperation> ops = {add, sub, multiply};
     data = *dataset;
+    numRegisters = N_REGISTERS;
     auto popSize = 32;
     for (int i = 0; i < popSize; i++) {
         auto ind = Individual(i, &grayCoder, &ops, 0.1);
