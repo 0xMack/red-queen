@@ -128,6 +128,37 @@ trace.steps                  # list of (instruction, registers_before, registers
 Exact shape TBD as this gets built — the key commitment is that `evolve()` doesn't require
 tracing to run fast, and `trace()` is a separate, on-demand call.
 
+### Decoupling from telemetry (same shape, one layer up)
+
+The `on_generation` callback above is deliberately the *only* connection point to
+[`libs/telemetry`](0002-realtime-visualization-architecture.md) — the evolution loop itself
+(whether that's this pybind11-driven Python orchestration layer, or a pure-Python prototype built
+first per the incremental plan) has **no import of and no dependency on `telemetry`**. This is the
+same decoupling principle as the hot-loop/`trace()` split above and doc 0002's log-then-serve
+split, applied one layer up: the thing doing the work stays ignorant of who's watching.
+
+Concretely:
+
+- The loop defines its own minimal, telemetry-agnostic type, e.g.
+  `GenerationSummary(generation, best_fitness, mean_fitness, worst_fitness, diversity, champion)`
+  — where `champion` is the actual in-memory best individual, *not* a `champion_ref` string.
+  `run_id` and `champion_ref` are registry/artifact-store concepts the algorithm has no reason to
+  know about.
+- `evolve(..., on_generation=[])` costs nothing — no filesystem, no SQLite — so the core algorithm
+  gets fast, pure-function unit tests, independent of any telemetry backend.
+- A separate **adapter** (living in `libs/telemetry` or in the `jobs/` runner that owns a specific
+  run) converts `GenerationSummary` → `telemetry.GenerationStats`: it serializes `champion` into
+  `ArtifactStore` to get a ref, stitches in `run_id`, and calls `MetricsSink.record_generation`.
+  This adapter is the only code that imports both the evolution engine and `telemetry` — the
+  dependency points from glue code toward both leaves, never from the algorithm toward telemetry.
+- `on_generation` accepts a *list* of callbacks (Keras/Lightning-style), so telemetry, a notebook
+  plot, and (later) an early-stopping check can all be independent, additive hooks rather than one
+  hardcoded concern.
+- Left open for now: whether callbacks stay strictly observational, or later gain a control signal
+  (e.g. return `STOP`, mirroring Keras' `model.stop_training`) so pause/step from doc 0002's control
+  API could reuse this same mechanism. Deferring this the same way migration was deferred in doc
+  0002 — noted, not decided.
+
 ## Open questions
 
 - What should the environment interface (`reset`/`step`/`done`) look like concretely, and should
