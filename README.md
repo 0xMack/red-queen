@@ -17,5 +17,5 @@ Each top-level directory has its own README describing its contents in more deta
 
 ## Current contents
 
-- `libs/redqueen` — a C++/pybind11 linear genetic programming (LGP) implementation (the original
+- `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the original
   code this repo started from)

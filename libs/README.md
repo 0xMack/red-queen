@@ -5,4 +5,4 @@ simulations they run against, and common utilities used across `../apps`, `../ap
 
 ## Contents
 
-- `redqueen/` — C++/pybind11 linear genetic programming (LGP) implementation
+- `RedQueenCbind/` — C++/pybind11 linear genetic programming (LGP) implementation
