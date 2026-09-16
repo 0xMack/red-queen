@@ -12,6 +12,7 @@ easier.
 - `apis/` — backend APIs (e.g. serving simulations/training runs to front-ends)
 - `libs/` — shared libraries/packages (algorithm implementations, games/simulations, common utilities)
 - `jobs/` — short- or long-running jobs, tasks, and workers (e.g. training runs)
+- `docs/` — design documents and cross-cutting write-ups
 
 Each top-level directory has its own README describing its contents in more detail as they fill in.
 
@@ -19,3 +20,4 @@ Each top-level directory has its own README describing its contents in more deta
 
 - `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the original
   code this repo started from)
+- `docs/design/0001-fast-cpp-gp-pybind11.md` — design doc for the GP engine (first use-case)
