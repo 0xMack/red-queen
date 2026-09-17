@@ -14,5 +14,10 @@ a notebook is the narrative on top explaining what a comparison shows.
   `ParetoSelection` vs `TournamentSelection` on the same fixed benchmark, using
   `LinearProgram.effective_instruction_count()` as the complexity objective. An honest tradeoff,
   not a strict improvement — smaller programs, at a real accuracy cost on this benchmark.
+- `0003-linear-vs-tree.ipynb` — the complementary axis to 0001/0002 (docs/design/0003 phase 4):
+  same selection strategy, different genome representation (`LinearProgram` vs. `TreeProgram`).
+  The main point is architectural — `evolve()` and every selection strategy worked unchanged
+  against a structurally different genome — with a real (if benchmark-specific) accuracy result
+  alongside it.
 
 Re-run any notebook in place with `uv run jupyter execute --inplace notebooks/<name>.ipynb`.

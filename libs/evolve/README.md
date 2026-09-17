@@ -12,9 +12,11 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   reimplementation of the same idea as `libs/RedQueenCbind`, not a port of it), plus
   `effective_instruction_count()` — a standard linear-GP "structural intron" analysis giving a
   naturally-varying complexity measure with no representation change needed.
-- `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based). Returns
-  **per-test-case** fitness (higher is better), not a single aggregate — `LexicaseSelection` needs
-  the breakdown; anything that wants one scalar (elitism, telemetry) reduces it itself.
+- `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based, genome-
+  generic via an injected `run: (genome, x) -> float`, defaulting to `LinearProgram`'s
+  `.output()`). Returns **per-test-case** fitness (higher is better), not a single aggregate —
+  `LexicaseSelection` needs the breakdown; anything that wants one scalar (elitism, telemetry)
+  reduces it itself.
 - `selection.py` — `SelectionStrategy` protocol + `TournamentSelection`, `LexicaseSelection`, and
   `ParetoSelection`. The first two are genome-generic — operate only on fitness values, so they
   work unchanged for any future representation. Lexicase can prefer a "specialist" over a
@@ -24,8 +26,15 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   for a genuinely different thing, a tradeoff curve rather than a single "better" — see
   `notebooks/0002-pareto-selection.ipynb`.
 - `variation.py` — `VariationStrategy` protocol + `LinearCrossoverMutation`. Representation-specific
-  by nature (see docs/design/0003) — this is the interface tree GP, ES, or LLM-driven mutation will
-  plug into as peers later.
+  by nature (see docs/design/0003) — this is the interface tree GP, ES, or LLM-driven mutation
+  plugs into as peers.
+- `tree.py` — `TreeProgram`: the second genome representation (docs/design/0003 phase 4), a
+  Koza-style expression tree, plus `TreeCrossoverMutation` (subtree crossover/mutation, depth-
+  limited to control bloat) and `node_count()` (this representation's complexity measure, the
+  `ParetoSelection` counterpart to `effective_instruction_count()`). Added to prove
+  `evolve()`/`TournamentSelection`/`LexicaseSelection`/`ParetoSelection` are genuinely
+  genome-generic, not just written to look that way — see `libs/evolve/tests/test_tree.py` and
+  `notebooks/0003-linear-vs-tree.ipynb`.
 - `population.py` — `evolve()`, the orchestration loop, and `GenerationSummary` (this package's own
   telemetry-agnostic per-generation type — see docs/design/0001 "Decoupling from telemetry").
 
