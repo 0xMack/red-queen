@@ -159,6 +159,34 @@ and produces a concrete comparison experiment, not just code:
 8. **Islands, PBT-style exploit/explore, coevolution** — combination techniques, once the pieces
    they combine already exist individually.
 
+## Datasets and games: near-term concrete plan
+
+Decided (2026-09), after discussion:
+
+- **Datasets**: a small named catalog (`evolve.benchmarks` or `libs/benchmarks`) of known-ground-
+  truth synthetic problems (Nguyen/Koza-style symbolic regression) plus Iris, replacing inline
+  lambda targets scattered across notebooks/jobs — synthetic-first, real-world datasets expanded
+  later rather than prioritized now.
+- **Next environment: Snake.** Cheap to simulate (matters — fitness evaluation runs it thousands of
+  times per generation), trivially human-playable, obvious visual representation, a natural next
+  step up from `libs/reach1d`. Same `Environment` protocol, own `libs/` package.
+- **Parked for later, not forgotten**: a 2D driving/sensor-casting task (single-agent, more visually
+  impressive showcase material) and predator/prey pursuit (the thematic flagship — a literal Red
+  Queen coevolutionary arms race, and already `phase 8`'s coevolution item) — both real candidates,
+  deliberately not next because of added implementation risk (sensor casting; two-sided reward
+  shaping and genuine coevolutionary dynamics) relative to Snake.
+- **`apps/`/`apis/` (doc 0002's visualization/live-play layer) stay deferred.** Build out one or two
+  more `Environment`s on the existing protocol first, so the eventual rendering contract (what
+  state a frontend needs each step) and live-play API are designed against more than one game's
+  shape, not guessed at from Snake alone.
+- **Two concrete architectural extensions this implies, whenever `apps/`/`apis/` work starts** (not
+  yet, per the above): `ArtifactStore` needs a trajectory artifact type (a full episode's
+  states/actions/rewards, not just a stored program) for replay/rendering; and a live API (not just
+  a replay one) is required for "play against the agent," reusing the control-API slot doc 0002
+  already sketched. Recorded human play is also a candidate training corpus for phase 6/7's
+  from-scratch model (an imitation-learning baseline, or literal sequence-training data) — noted
+  here so it isn't lost by the time `apps/`/`apis/` actually get built.
+
 ## Open questions
 
 - What the curated-showcase layer needs beyond raw `RunRegistry` — deferred until a few real
