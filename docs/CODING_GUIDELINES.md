@@ -54,6 +54,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   larger than the reward for progress, so standing still is strictly worse than seeking the goal,
   not merely no-better. Check what a policy can gain by doing nothing before trusting a shaped
   reward is safe.
+- Selecting on aggregate/mean fitness across multiple cases can make the population better on
+  average while making a specific champion worse on a specific case than an earlier, weaker-on-
+  average one was — not a bug, a real property of aggregate selection (the same tension
+  `LexicaseSelection` exists to address, docs/design/0003). Seen scaling up `games/snake.py`
+  training: mean fitness rose and a total-failure scenario got fixed, but one previously-fine
+  scenario got worse. Don't assume "better on average" implies "better everywhere" when reporting
+  or comparing runs.
 
 ## Lessons
 
