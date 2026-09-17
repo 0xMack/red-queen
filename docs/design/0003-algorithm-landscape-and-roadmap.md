@@ -63,6 +63,16 @@ shaped now, and a phased plan for adding complexity incrementally rather than al
    text prompt, scored by running it against an LLM). Fits the existing pluggable
    `FitnessEvaluator` directly, no change to the GA loop.
 
+**Revised priority (2026-09):** all three above assume an existing, external LLM — call an API, get
+a result. That's a real, valid direction eventually, but it skips the thing every other technique
+in this doc got built the hard way for: understanding the mechanism from scratch, not just wiring
+up someone else's. Before any of the three, build a **small transformer/language model from
+scratch** — same spirit as `RedQueenCbind`/`evolve` existing at all instead of just calling a
+GP library. Only once that exists and is understood does it make sense to ask which of the three
+fits above (or something else entirely — e.g. a small *locally-trained* model standing in for the
+"LLM" in fit #1, no external API involved) is worth pursuing for this repo specifically. See the
+roadmap below.
+
 ## Synthesis: what's shared, what stays separate
 
 Genuinely shared across all of this: the **environment/evaluator interface**, the
@@ -76,8 +86,9 @@ GP/GA machinery.
 to "sequence of linear-GP instructions" anywhere above the C++ hot loop. ES, neuroevolution, and
 prompt-as-genome all need `Population`/selection/variation to be genuinely generic over genome
 type — a weight vector and an instruction sequence both need to fit the same shape. `VariationStrategy`
-carries the most weight here: it has to accommodate crossover, Gaussian noise (ES), an LLM call,
-and eventually a PBT-style exploit/explore step, all as peers behind one interface.
+carries the most weight here: it has to accommodate crossover, Gaussian noise (ES), sampling from a
+trained model (once one exists), and eventually a PBT-style exploit/explore step, all as peers
+behind one interface.
 
 ## Incremental, educational, replayable experimentation
 
@@ -90,10 +101,10 @@ A few things this implies, without over-building them before they're needed:
 
 - **Fixed benchmark problems as an anchor.** Comparisons ("tournament vs lexicase," "linear GP vs
   tree GP," "GA vs ES on the same task") are only meaningful if the problem stays constant while
-  the algorithm varies. A small, deliberately reused set of toy problems/environments (start with
-  something like the current Iris regression case, plus one toy simulation once
-  `SimulationFitnessEvaluator` exists) should exist early and get reused across every subsequent
-  experiment, rather than each experiment inventing its own task.
+  the algorithm varies. A small, deliberately reused set of toy problems/environments — the
+  polynomial regression benchmark (`jobs/baseline_gp_run.py`) and `libs/reach1d` for
+  simulation-based fitness — gets reused across every subsequent experiment, rather than each one
+  inventing its own task.
 - **Raw runs vs. curated showcases are different concerns** — same "don't conflate" principle as
   `MetricsSink` vs `ArtifactStore` in 0002. `RunRegistry` already gives replay of any run; a
   "showcase" (a narrative explaining what a run or comparison of runs demonstrates, for teaching/
@@ -128,15 +139,32 @@ and produces a concrete comparison experiment, not just code:
 5. **Neuroevolution/ES on a toy simulation** — first use of `SimulationFitnessEvaluator` and the
    first genome type that isn't program-shaped at all (a weight vector); tests genome-genericity
    from a completely different angle.
-6. **LLM-in-the-loop variation** (FunSearch-style) on an existing evaluator — tests
-   `VariationStrategy` pluggability with a fundamentally different kind of operator.
-7. **Islands, PBT-style exploit/explore, coevolution** — combination techniques, once the pieces
+6. **A small transformer/language model, built from scratch** (own `libs/` package, no external
+   API) — tokenization, embeddings, attention, a training loop, generation. Not wired into
+   `evolve` yet and not required to be useful for anything else immediately — the point is
+   understanding the mechanism, the same reason `RedQueenCbind` and `evolve` exist as from-scratch
+   implementations rather than calls to an existing library. Likely warrants its own design doc
+   once it starts (probably `0004`), the way the GP engine and telemetry did.
+7. **Explore applying it to this project's domain** — deliberately left open until phase 6 exists
+   and is understood, rather than committed to now. Candidates, roughly in order of how well they
+   fit what's already built: a learned `VariationStrategy` trained on the programs already sitting
+   in `ArtifactStore` from prior runs (a self-contained, no-external-API analog to FunSearch's
+   LLM-driven mutation); a transformer-based policy representation (Decision-Transformer-style,
+   trained via gradient descent — a sibling to the GP/GA machinery per the synthesis above, not a
+   subclass of it); a learned fitness/judge. External-API-based LLM-in-the-loop (FunSearch/
+   AlphaEvolve-style, or an "LLM as judge" `FitnessEvaluator`) is explicitly **deferred**, not
+   planned near-term — it's a real, valid direction eventually, but it's the one place on this
+   roadmap that would break from every other technique here being built and understood from
+   scratch rather than wired up to something external.
+8. **Islands, PBT-style exploit/explore, coevolution** — combination techniques, once the pieces
    they combine already exist individually.
 
 ## Open questions
 
 - What the curated-showcase layer needs beyond raw `RunRegistry` — deferred until a few real
   experiments exist to see what's actually missing.
-- Exact fixed benchmark set beyond the Iris-derived regression case — decide the first toy
-  simulation once `SimulationFitnessEvaluator` is being built (phase 5, or earlier if a simple one
-  is useful sooner).
+- ~~Exact fixed benchmark set beyond the Iris-derived regression case~~ — resolved: `libs/reach1d`
+  (phase 5) is the first toy simulation; `reach1d.benchmark_environments()` is its fixed set.
+- Scope for the from-scratch transformer/LM (phase 6): a minimal char-level model (nanoGPT-style)
+  vs. something more ambitious; what corpus to start on — deferred until that work actually
+  starts, same as every other phase's specifics were decided when reached, not in advance.
