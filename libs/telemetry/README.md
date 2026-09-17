@@ -8,15 +8,19 @@ for the reasoning behind the split.
 
 ## Contents
 
-- `RunRegistry` (`registry.py`) — run metadata (config, status, timestamps). SQLite-backed.
-- `MetricsSink` / `MetricsSource` (`metrics.py`) — append-only per-generation stats, with
-  backfill-then-live `subscribe()`. File-backed (JSON Lines).
-- `ArtifactStore` (`artifacts.py`) — on-demand key/value store for programs and traces.
-  File-backed.
+- `RunRegistry` (`registry.py`) — run metadata (config, status, timestamps), as the pydantic model
+  `RunInfo`. SQLite-backed.
+- `MetricsSink` / `MetricsSource` (`metrics.py`) — append-only per-generation stats, as the
+  pydantic model `GenerationStats`, with backfill-then-live `subscribe()`. File-backed (JSON Lines).
+- `ArtifactStore` (`artifacts.py`) — on-demand key/value store for programs and traces (plain
+  bytes — no schema at this layer). File-backed.
 
 All three are defined as `typing.Protocol`s so a hosted/scaled backend (e.g. Redis-backed) can be
 swapped in later without changing any code that depends on them. The local implementations here
-are the default for single-user, single-machine runs.
+are the default for single-user, single-machine runs. `RunInfo` and `GenerationStats` are pydantic
+models with `Field(..., description=...)` and validation on every field (see
+[../../docs/CODING_GUIDELINES.md](../../docs/CODING_GUIDELINES.md)) — constructing one with bad
+data (e.g. a negative `generation`) raises immediately instead of failing silently or downstream.
 
 ## Usage
 
@@ -34,5 +38,5 @@ metrics.record_generation(GenerationStats(
 ))
 
 for stats in metrics.subscribe(run_id):
-    print(stats)
+    print(stats.generation, stats.best_fitness)
 ```

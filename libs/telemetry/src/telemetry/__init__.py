@@ -1,6 +1,6 @@
 from telemetry.artifacts import ArtifactStore, FileArtifactStore
 from telemetry.metrics import FileMetricsStore, MetricsSink, MetricsSource
-from telemetry.registry import RunInfo, RunRegistry, SqliteRunRegistry
+from telemetry.registry import RunInfo, RunRegistry, RunStatus, SqliteRunRegistry
 from telemetry.types import GenerationStats
 
 __all__ = [
@@ -12,5 +12,6 @@ __all__ = [
     "MetricsSource",
     "RunInfo",
     "RunRegistry",
+    "RunStatus",
     "SqliteRunRegistry",
 ]

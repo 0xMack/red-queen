@@ -3,21 +3,29 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Protocol, TypedDict
+from typing import Any, Literal, Protocol
+
+from pydantic import BaseModel, Field
+
+RunStatus = Literal["running", "paused", "completed", "failed"]
 
 
-class RunInfo(TypedDict):
-    run_id: str
-    config: dict[str, Any]
-    status: str  # "running" | "paused" | "completed" | "failed"
-    created_at: float
-    updated_at: float
-    summary: dict[str, Any] | None
+class RunInfo(BaseModel):
+    """Metadata for one evolution run, as stored in the RunRegistry."""
+
+    run_id: str = Field(..., min_length=1, description="Unique id for this run, assigned at creation.")
+    config: dict[str, Any] = Field(..., description="Run configuration/hyperparameters as provided at creation.")
+    status: RunStatus = Field(..., description="Current lifecycle status of the run.")
+    created_at: float = Field(..., gt=0, description="Unix timestamp when the run was created.")
+    updated_at: float = Field(..., gt=0, description="Unix timestamp of the last status/summary update.")
+    summary: dict[str, Any] | None = Field(
+        default=None, description="Final summary metrics once the run completes, if set."
+    )
 
 
 class RunRegistry(Protocol):
     def create_run(self, config: dict[str, Any]) -> str: ...
-    def update_status(self, run_id: str, status: str) -> None: ...
+    def update_status(self, run_id: str, status: RunStatus) -> None: ...
     def set_summary(self, run_id: str, summary: dict[str, Any]) -> None: ...
     def get_run(self, run_id: str) -> RunInfo: ...
     def list_runs(self) -> list[RunInfo]: ...
@@ -69,7 +77,7 @@ class SqliteRunRegistry:
             conn.close()
         return run_id
 
-    def update_status(self, run_id: str, status: str) -> None:
+    def update_status(self, run_id: str, status: RunStatus) -> None:
         conn = self._connect()
         try:
             conn.execute(

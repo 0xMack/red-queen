@@ -1,4 +1,3 @@
-import json
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -35,22 +34,22 @@ class FileMetricsStore:
         return self._base_dir / f"{run_id}.jsonl"
 
     def record_generation(self, stats: GenerationStats) -> None:
-        path = self._path(stats["run_id"])
+        path = self._path(stats.run_id)
         with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(stats) + "\n")
+            f.write(stats.model_dump_json() + "\n")
             f.flush()
 
     def _read_all(self, path: Path) -> list[GenerationStats]:
         if not path.exists():
             return []
         with path.open(encoding="utf-8") as f:
-            return [json.loads(line) for line in f if line.strip()]
+            return [GenerationStats.model_validate_json(line) for line in f if line.strip()]
 
     def history(self, run_id: str, since_generation: int = 0) -> list[GenerationStats]:
         return [
             stats
             for stats in self._read_all(self._path(run_id))
-            if stats["generation"] >= since_generation
+            if stats.generation >= since_generation
         ]
 
     def subscribe(self, run_id: str, since_generation: int = 0) -> Iterator[GenerationStats]:
@@ -58,7 +57,7 @@ class FileMetricsStore:
         last_generation = since_generation - 1
         while True:
             for stats in self._read_all(path):
-                if stats["generation"] > last_generation:
-                    last_generation = stats["generation"]
+                if stats.generation > last_generation:
+                    last_generation = stats.generation
                     yield stats
             time.sleep(self._poll_interval)

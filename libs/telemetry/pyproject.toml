@@ -10,6 +10,9 @@ authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/telemetry"]

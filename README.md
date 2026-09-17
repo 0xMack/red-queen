@@ -15,9 +15,14 @@ easier.
 - `docs/` — design documents and cross-cutting write-ups
 
 Each top-level directory has its own README describing its contents in more detail as they fill in.
+Contributing (human or agent)? Start with [AGENTS.md](AGENTS.md) — project map, working notes, and
+a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 
 ## Current contents
 
-- `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the original
-  code this repo started from)
-- `docs/design/0001-fast-cpp-gp-pybind11.md` — design doc for the GP engine (first use-case)
+- `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the
+  original code this repo started from)
+- `libs/telemetry` — run registry, metrics stream, and artifact store for observing
+  evolving/training populations
+- `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
+  architecture), `0003` (algorithm landscape and roadmap)
