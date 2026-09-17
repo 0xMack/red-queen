@@ -9,14 +9,20 @@ where they're cheap to iterate on and easy to introspect, before anything is com
 ## Contents
 
 - `genome.py` — `LinearProgram`: a fixed-length register-machine individual (from-scratch Python
-  reimplementation of the same idea as `libs/RedQueenCbind`, not a port of it).
+  reimplementation of the same idea as `libs/RedQueenCbind`, not a port of it), plus
+  `effective_instruction_count()` — a standard linear-GP "structural intron" analysis giving a
+  naturally-varying complexity measure with no representation change needed.
 - `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based). Returns
   **per-test-case** fitness (higher is better), not a single aggregate — `LexicaseSelection` needs
   the breakdown; anything that wants one scalar (elitism, telemetry) reduces it itself.
-- `selection.py` — `SelectionStrategy` protocol + `TournamentSelection` and `LexicaseSelection`.
-  Genome-generic — operates only on fitness values, so it works unchanged for any future
-  representation. Lexicase can prefer a "specialist" over a higher-mean "generalist" — a real
-  tradeoff (see the docstring and `notebooks/0001-tournament-vs-lexicase.ipynb`), not a bug.
+- `selection.py` — `SelectionStrategy` protocol + `TournamentSelection`, `LexicaseSelection`, and
+  `ParetoSelection`. The first two are genome-generic — operate only on fitness values, so they
+  work unchanged for any future representation. Lexicase can prefer a "specialist" over a
+  higher-mean "generalist" — a real tradeoff (see the docstring and
+  `notebooks/0001-tournament-vs-lexicase.ipynb`), not a bug. `ParetoSelection` (accuracy vs. an
+  injected `complexity` function — for `LinearProgram`, `effective_instruction_count`) optimizes
+  for a genuinely different thing, a tradeoff curve rather than a single "better" — see
+  `notebooks/0002-pareto-selection.ipynb`.
 - `variation.py` — `VariationStrategy` protocol + `LinearCrossoverMutation`. Representation-specific
   by nature (see docs/design/0003) — this is the interface tree GP, ES, or LLM-driven mutation will
   plug into as peers later.

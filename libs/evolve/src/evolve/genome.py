@@ -70,6 +70,27 @@ class LinearProgram:
     def output(self, inputs: Sequence[float], register: int = 0) -> float:
         return self.run(inputs)[register]
 
+    def effective_instruction_count(self, output_register: int = 0) -> int:
+        """Counts instructions that actually contribute to `output_register`'s final value --
+        the standard backward-liveness "structural intron" analysis for linear GP (Brameier &
+        Banzhaf). A fixed-length genome still has a naturally varying *effective* size, since
+        later writes to a register can make earlier ones dead code without changing the genome's
+        length -- this is what ParetoSelection uses as the complexity objective, no genome
+        structural change needed (docs/design/0003 phase 3).
+        """
+        live = {output_register % self.num_registers}
+        count = 0
+        for instr in reversed(self.instructions):
+            dst = instr.dst % self.num_registers
+            if dst in live:
+                count += 1
+                live.discard(dst)
+                live.add(instr.src_a % self.num_registers)
+                b_idx = instr.src_b % (self.num_registers + self.num_inputs)
+                if b_idx < self.num_registers:
+                    live.add(b_idx)
+        return count
+
 
 def random_instruction(
     num_registers: int, num_inputs: int, num_ops: int, rng: random.Random

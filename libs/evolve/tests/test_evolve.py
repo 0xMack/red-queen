@@ -7,6 +7,7 @@ from evolve import (
     LexicaseSelection,
     LinearCrossoverMutation,
     LinearProgram,
+    ParetoSelection,
     SymbolicRegressionFitness,
     TournamentSelection,
     evolve,
@@ -36,6 +37,34 @@ def test_linear_program_output_matches_hand_traced_execution():
     )
 
     assert program.output([3.5]) == 3.5
+
+
+def test_effective_instruction_count_ignores_dead_code():
+    # 2 registers, 1 input. instr0 writes r1, but instr1 overwrites r1 before it's ever read --
+    # instr0 is dead code. instr1 and instr2 (which reads r1 into the output register) are both
+    # effective.
+    dead_write = Instruction(op=0, dst=1, src_a=0, src_b=2)  # r1 = r0 + input0 -- never read
+    live_write = Instruction(op=0, dst=1, src_a=0, src_b=2)  # r1 = r0 + input0 -- overwrites, then read
+    read_into_output = Instruction(op=0, dst=0, src_a=1, src_b=2)  # r0 = r1 + input0
+    program = LinearProgram(
+        instructions=(dead_write, live_write, read_into_output),
+        num_registers=2,
+        num_inputs=1,
+        ops=(op_add,),
+    )
+
+    assert program.effective_instruction_count(output_register=0) == 2
+
+
+def test_effective_instruction_count_counts_everything_when_nothing_is_dead():
+    program = LinearProgram(
+        instructions=(Instruction(op=0, dst=0, src_a=0, src_b=1),),
+        num_registers=1,
+        num_inputs=1,
+        ops=(op_add,),
+    )
+
+    assert program.effective_instruction_count(output_register=0) == 1
 
 
 def test_symbolic_regression_fitness_is_zero_per_case_for_a_perfect_fit():
@@ -133,6 +162,38 @@ def test_tournament_selection_favors_the_generalist_on_the_same_data():
     assert counts["generalist"] > counts["specialist_c"]
 
 
+def test_pareto_selection_never_returns_a_dominated_individual():
+    # "dominated" is strictly worse than "dominator" on both fitness and complexity -- it should
+    # never win, regardless of which other candidates land in a given tournament draw. k=20 (well
+    # above the population size of 3) makes it astronomically unlikely a tournament ever consists
+    # of "dominated" alone, which is the only way it could otherwise be trivially non-dominated.
+    population = ["dominated", "dominator", "unrelated"]
+    case_fitnesses = [[1.0], [2.0], [2.0]]
+    complexity = {"dominated": 5.0, "dominator": 3.0, "unrelated": 3.0}
+    selection = ParetoSelection(complexity=lambda g: complexity[g], k=20)
+    rng = random.Random(5)
+
+    picks = {selection.select(population, case_fitnesses, rng) for _ in range(200)}
+
+    assert "dominated" not in picks
+
+
+def test_pareto_selection_keeps_both_of_two_non_dominated_individuals():
+    # neither dominates the other: "accurate_but_big" wins on fitness, "small_but_inaccurate" wins
+    # on complexity -- both should remain selectable, unlike a single-scalar strategy which would
+    # have to pick a side.
+    population = ["accurate_but_big", "small_but_inaccurate"]
+    case_fitnesses = [[2.0], [1.0]]
+    complexity = {"accurate_but_big": 10.0, "small_but_inaccurate": 2.0}
+    selection = ParetoSelection(complexity=lambda g: complexity[g], k=2)
+    rng = random.Random(9)
+
+    picks = Counter(selection.select(population, case_fitnesses, rng) for _ in range(200))
+
+    assert picks["accurate_but_big"] > 0
+    assert picks["small_but_inaccurate"] > 0
+
+
 def test_linear_crossover_mutation_preserves_shape():
     rng = random.Random(1)
     a = random_program(num_instructions=10, num_registers=4, num_inputs=1, rng=rng)
@@ -202,3 +263,28 @@ def test_evolve_also_improves_with_lexicase_selection():
     assert statistics.fmean(s.best_fitness for s in summaries[-5:]) > statistics.fmean(
         s.best_fitness for s in summaries[:5]
     )
+
+
+def test_evolve_works_with_pareto_selection():
+    rng = random.Random(13)
+    population = [
+        random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)
+    ]
+    fitness = SymbolicRegressionFitness(
+        target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)]
+    )
+    selection = ParetoSelection(complexity=lambda p: p.effective_instruction_count(), k=3)
+    summaries = []
+
+    final_population = evolve(
+        population,
+        fitness=fitness,
+        selection=selection,
+        variation=LinearCrossoverMutation(mutation_rate=0.1),
+        generations=60,
+        on_generation=[summaries.append],
+        rng=rng,
+    )
+
+    assert summaries[-1].best_fitness > summaries[0].best_fitness
+    assert all(0 <= p.effective_instruction_count() <= 12 for p in final_population)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import random
 import statistics
+from collections.abc import Callable
 from typing import Protocol, TypeVar
 
 Genome = TypeVar("Genome")
@@ -79,3 +80,43 @@ class LexicaseSelection:
 def _median_absolute_deviation(values: list[float]) -> float:
     center = statistics.median(values)
     return statistics.median([abs(v - center) for v in values])
+
+
+class ParetoSelection:
+    """Pareto tournament selection: draws `k` random candidates and returns a uniformly-random
+    choice among those not dominated by any other candidate in the same tournament, on two
+    objectives -- mean case fitness, and `-complexity(genome)` (so "higher is better" holds for
+    both, consistent with the rest of this package).
+
+    Unlike TournamentSelection/LexicaseSelection, this is **not** genome-generic by default --
+    `complexity` is injected rather than assumed, so the strategy itself stays generic (any
+    `Genome -> float`) while the actual coupling to a specific representation (for LinearProgram,
+    `effective_instruction_count`) happens at the call site. See docs/design/0003 phase 3
+    ("accuracy vs. program size").
+
+    A dominates B if it's at least as good on both objectives and strictly better on at least one.
+    With no dominance pressure at all (a size-blind fitness function), linear GP populations
+    typically "bloat" -- programs grow dead code with no accuracy benefit, since nothing
+    discourages it; Pareto selection is one standard way to push back on that.
+    """
+
+    def __init__(self, complexity: Callable[[Genome], float], k: int = 3):
+        self._complexity = complexity
+        self._k = k
+
+    def select(
+        self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random
+    ) -> Genome:
+        indices = [rng.randrange(len(population)) for _ in range(self._k)]
+        unique = list(dict.fromkeys(indices))
+        objectives = {
+            i: (statistics.fmean(case_fitnesses[i]), -self._complexity(population[i])) for i in unique
+        }
+        non_dominated = [
+            i for i in unique if not any(_dominates(objectives[j], objectives[i]) for j in unique if j != i)
+        ]
+        return population[rng.choice(non_dominated)]
+
+
+def _dominates(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    return a[0] >= b[0] and a[1] >= b[1] and (a[0] > b[0] or a[1] > b[1])
