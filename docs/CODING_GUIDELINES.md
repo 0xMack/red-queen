@@ -87,6 +87,19 @@ what belongs here and how to add to it). Read before writing code, not after.
   logic directly (call the async generator function, `async for` a bounded number of items, then
   `await gen.aclose()` under `anyio.fail_after(...)` to confirm cancellation is clean) rather than
   through the full ASGI stack. See `apis/backend/tests/test_runs.py`.
+- A dict with non-string keys (e.g. `games.snake.Snake.render_state()`'s `cells: dict[(x, y): str]`)
+  is not valid JSON and will fail to serialize once it reaches a pydantic `dict[str, Any]` response
+  field — Python's tuple keys aren't coercible the way int/float/bool/None keys are. Convert at the
+  API boundary (`game_sessions.json_safe_render_state()` flattens it to a list of `{x, y, label}`
+  records), not in the game library itself — `render_state()`'s shape is also consumed by
+  `games.rendering.render_grid_ascii()`, which wants the dict form.
+- **`app.dependency_overrides[dep] = lambda: SomeStore()` creates a *new* instance on every
+  request**, not once per test — FastAPI calls the override callable fresh per resolution the same
+  way it would the real dependency. For in-memory state that must persist *across* requests within
+  one test (e.g. a game session created in one POST and read back in the next), the override must
+  close over a single instance created once (`store = SomeStore(); app.dependency_overrides[dep] =
+  lambda: store`), not construct one inside the lambda. Silent symptom: a resource created in one
+  request 404s in the next, as if it never existed. See `apis/backend/tests/test_games.py`.
 
 ## Lessons
 

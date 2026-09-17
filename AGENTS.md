@@ -15,12 +15,13 @@ made.
 - `apps/` — front-end apps (visualization of runs/simulations)
   - `frontend/` — the one Nuxt 4 app (docs/design/0005: one app, not one per concern). Run list +
     live run-detail (backfill via REST, then an `EventSource` against `apis/backend`'s SSE route)
-    with a hand-rolled SVG chart — no charting library dependency yet. Pinia stores live in
-    `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/telemetry.ts` mirrors
-    `telemetry.RunInfo`/`GenerationStats` and must be kept in sync by hand if those change. No
+    with a hand-rolled SVG chart, plus `/play/{game}` (`snake` today) — server-side simulation via
+    per-tick REST calls to `routers/games.py`, not client-side yet (that's docs/design/0005 step 5,
+    Pyodide). Pinia stores live in `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/*.ts`
+    mirror `apis/backend`'s response models and must be kept in sync by hand if those change. No
     automated test suite yet — verified so far with a live backend + an ad hoc headless-browser
-    (Playwright) check, not a checked-in test. Game viewing/interaction (docs/design/0005 steps 4-7)
-    not started yet.
+    (Playwright) check, not a checked-in test. Interaction mode 3 and the control API
+    (docs/design/0005 steps 6-7) not started yet.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -30,7 +31,9 @@ made.
     abandon_on_cancel=True)`; see `apis/backend/README.md` for why that route's happy path is
     tested at the generator level, not through a live `TestClient` request (Starlette's TestClient
     doesn't reliably simulate a mid-stream disconnect, so a full request hangs). `routers/games.py`
-    not started yet (docs/design/0005 step 4).
+    runs a game session's `Environment` server-side in an in-memory `GameSessionStore`
+    (`game_sessions.py`) — no telemetry/persistence, a session doesn't survive a restart. Only
+    games implementing `games.rendering.Renderable` are registered (`snake` today).
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).

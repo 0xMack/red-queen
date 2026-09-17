@@ -339,8 +339,16 @@ All in the one `apps/frontend` deployment for now:
    generations, and updates the chart with zero console errors. Chart is a hand-rolled SVG
    polyline, not a charting library, to keep the dependency list to exactly what's named above. No
    frontend test suite yet — a gap noted in `apps/frontend/README.md`, not silently skipped.
-4. `routers/games.py` + game viewing via `render_state()` rendered in plain Canvas/SVG (no Pyodide
-   yet) — prove the game data contract before adding Pyodide's complexity.
+4. ✅ `routers/games.py` (session create/action/trajectory, server-side `Environment` in an
+   in-memory `GameSessionStore`) + `apps/frontend`'s `/play/[game].vue` rendering `render_state()`
+   via SVG (no Pyodide yet) — proved the game data contract, including a real wrinkle:
+   `render_state()`'s `cells` uses tuple keys, not valid JSON as-is, fixed by flattening to a list
+   at the API boundary (`game_sessions.json_safe_render_state()`, see
+   `docs/CODING_GUIDELINES.md`). Controls are Snake's native relative action space directly
+   (&larr;/&rarr;), not the absolute-direction/client-tracked-heading scheme below — that's specific
+   to step 5, where the simulation actually moves client-side. Verified with a live backend + a
+   headless-browser check that actually sends keyboard input and watches the snake's path change,
+   die, and restart.
 5. Pyodide-based client-side simulation (interaction modes 1 and 2 above), once the JS-rendered
    version has proven the contract — main-thread Pyodide first (simpler, proves the tick-loop and
    keypress-to-action translation work at all), then move it into a Web Worker once that's

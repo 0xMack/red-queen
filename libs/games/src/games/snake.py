@@ -54,7 +54,9 @@ class Snake:
         if not self.alive:
             return self._observation(), 0.0, True
 
-        self._direction_index = (self._direction_index + action) % 4
+        # int(): a caller across a JSON boundary (apis/backend) can only send a float, never a
+        # Python int -- action is conceptually discrete (-1/0/1) regardless of wire type.
+        self._direction_index = (self._direction_index + int(action)) % 4
         dx, dy = _DIRECTIONS[self._direction_index]
         head_x, head_y = self.body[0]
         new_head = (head_x + dx, head_y + dy)

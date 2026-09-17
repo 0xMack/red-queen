@@ -36,11 +36,12 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
   end to end (`uv run python jobs/baseline_gp_run.py`)
 - `apis/backend` — a FastAPI service exposing `libs/telemetry` (runs, metrics history, a live SSE
-  metrics stream, artifacts) — see `apis/backend/README.md`.
+  metrics stream, artifacts) and `libs/games` (server-side game sessions: create, step, trajectory)
+  — see `apis/backend/README.md`.
 - `apps/frontend` — a Nuxt 4 app: a run list and a live run-detail view (SSE-backed chart) over
-  `apis/backend` — see `apis/backend/README.md` to run the API it depends on, and
-  `apps/frontend/README.md` for this app. Game viewing/interaction (doc 0005 steps 4-7) not
-  started yet.
+  `apis/backend`, plus a `/play/snake` page (server-side simulation via per-tick REST calls) — see
+  `apis/backend/README.md` to run the API it depends on, and `apps/frontend/README.md` for this
+  app. Client-side (Pyodide) simulation and the control API (doc 0005 steps 5-7) not started yet.
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
   `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result),

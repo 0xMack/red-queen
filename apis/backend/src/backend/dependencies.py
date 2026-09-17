@@ -1,8 +1,9 @@
-"""FastAPI dependency providers over telemetry's storage backends.
+"""FastAPI dependency providers.
 
-Routers depend on the Protocol types (`RunRegistry`/`MetricsSource`/`ArtifactStore`), not the
-concrete `Sqlite*`/`File*` classes -- so swapping storage backends later (docs/design/0002) never
-touches router code, only the factory functions here.
+Telemetry-backed dependencies use the Protocol types (`RunRegistry`/`MetricsSource`/
+`ArtifactStore`), not the concrete `Sqlite*`/`File*` classes -- so swapping storage backends later
+(docs/design/0002) never touches router code, only the factory functions here. `GameSessionStore`
+has no such Protocol -- it's in-memory, single-implementation, app-specific state (game_sessions.py).
 """
 
 from functools import lru_cache
@@ -18,6 +19,7 @@ from telemetry import (
     SqliteRunRegistry,
 )
 
+from backend.game_sessions import GameSessionStore
 from backend.settings import run_data_dir
 
 
@@ -36,6 +38,12 @@ def _artifact_store() -> FileArtifactStore:
     return FileArtifactStore(run_data_dir() / "artifacts")
 
 
+@lru_cache
+def _game_session_store() -> GameSessionStore:
+    return GameSessionStore()
+
+
 RunRegistryDep = Annotated[RunRegistry, Depends(_run_registry)]
 MetricsSourceDep = Annotated[MetricsSource, Depends(_metrics_source)]
 ArtifactStoreDep = Annotated[ArtifactStore, Depends(_artifact_store)]
+GameSessionStoreDep = Annotated[GameSessionStore, Depends(_game_session_store)]
