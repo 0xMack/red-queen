@@ -1,7 +1,7 @@
 from evolve.fitness import FitnessEvaluator, SymbolicRegressionFitness
 from evolve.genome import DEFAULT_OPS, Instruction, LinearProgram, random_instruction, random_program
 from evolve.population import GenerationCallback, GenerationSummary, evolve
-from evolve.selection import SelectionStrategy, TournamentSelection
+from evolve.selection import LexicaseSelection, SelectionStrategy, TournamentSelection
 from evolve.variation import LinearCrossoverMutation, VariationStrategy
 
 __all__ = [
@@ -10,6 +10,7 @@ __all__ = [
     "GenerationCallback",
     "GenerationSummary",
     "Instruction",
+    "LexicaseSelection",
     "LinearCrossoverMutation",
     "LinearProgram",
     "SelectionStrategy",

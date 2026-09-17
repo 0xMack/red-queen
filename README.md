@@ -28,5 +28,7 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   evolving/training populations
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
   end to end (`uv run python jobs/baseline_gp_run.py`)
+- `notebooks/0001-tournament-vs-lexicase.ipynb` — the first algorithm comparison, template for
+  every later one
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap)

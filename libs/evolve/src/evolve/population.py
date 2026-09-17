@@ -55,15 +55,18 @@ def evolve(
     callbacks = list(on_generation)
 
     for generation in range(generations):
-        fitnesses = [fitness.evaluate(genome) for genome in population]
-        ranked = sorted(range(len(population)), key=lambda i: fitnesses[i], reverse=True)
+        # per-test-case fitness (needed by LexicaseSelection); `aggregate` reduces it to one
+        # scalar per individual for elitism ranking and the generation summary/telemetry.
+        case_fitnesses = [fitness.evaluate(genome) for genome in population]
+        aggregate = [statistics.fmean(cf) for cf in case_fitnesses]
+        ranked = sorted(range(len(population)), key=lambda i: aggregate[i], reverse=True)
 
         summary: GenerationSummary[Genome] = GenerationSummary(
             generation=generation,
-            best_fitness=fitnesses[ranked[0]],
-            mean_fitness=statistics.fmean(fitnesses),
-            worst_fitness=fitnesses[ranked[-1]],
-            diversity=statistics.pstdev(fitnesses) if len(fitnesses) > 1 else 0.0,
+            best_fitness=aggregate[ranked[0]],
+            mean_fitness=statistics.fmean(aggregate),
+            worst_fitness=aggregate[ranked[-1]],
+            diversity=statistics.pstdev(aggregate) if len(aggregate) > 1 else 0.0,
             champion=population[ranked[0]],
         )
         for callback in callbacks:
@@ -72,8 +75,8 @@ def evolve(
         next_population = [population[i] for i in ranked[:elitism]]
         while len(next_population) < len(population):
             parents = [
-                selection.select(population, fitnesses, rng),
-                selection.select(population, fitnesses, rng),
+                selection.select(population, case_fitnesses, rng),
+                selection.select(population, case_fitnesses, rng),
             ]
             next_population.append(variation.vary(parents, rng))
         population = next_population

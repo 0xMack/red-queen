@@ -46,6 +46,10 @@ Each directory has its own README with specifics — this file is the map, not t
   interpreter directly (`.venv/Scripts/python.exe` on Windows) — the workspace `.venv` has no
   `pip` bootstrapped into it; use `uv pip install <pkg>` for one-off additions, but prefer adding
   real dependencies to the relevant `pyproject.toml` so `uv sync` stays reproducible.
+- `notebooks/` needs `uv sync --all-packages --group notebooks` (jupyter + matplotlib — not
+  installed by default, so plain `uv sync` won't have them). Re-execute a notebook in place with
+  `uv run jupyter execute --inplace notebooks/<name>.ipynb` so it ships with real baked-in output,
+  not empty cells.
 
 ## Keeping this file and CODING_GUIDELINES.md useful
 

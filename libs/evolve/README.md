@@ -10,10 +10,13 @@ where they're cheap to iterate on and easy to introspect, before anything is com
 
 - `genome.py` — `LinearProgram`: a fixed-length register-machine individual (from-scratch Python
   reimplementation of the same idea as `libs/RedQueenCbind`, not a port of it).
-- `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based, -MSE
-  against a target function). Fitness is always "higher is better" throughout this package.
-- `selection.py` — `SelectionStrategy` protocol + `TournamentSelection`. Genome-generic — operates
-  only on fitness values, so it works unchanged for any future representation.
+- `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based). Returns
+  **per-test-case** fitness (higher is better), not a single aggregate — `LexicaseSelection` needs
+  the breakdown; anything that wants one scalar (elitism, telemetry) reduces it itself.
+- `selection.py` — `SelectionStrategy` protocol + `TournamentSelection` and `LexicaseSelection`.
+  Genome-generic — operates only on fitness values, so it works unchanged for any future
+  representation. Lexicase can prefer a "specialist" over a higher-mean "generalist" — a real
+  tradeoff (see the docstring and `notebooks/0001-tournament-vs-lexicase.ipynb`), not a bug.
 - `variation.py` — `VariationStrategy` protocol + `LinearCrossoverMutation`. Representation-specific
   by nature (see docs/design/0003) — this is the interface tree GP, ES, or LLM-driven mutation will
   plug into as peers later.
