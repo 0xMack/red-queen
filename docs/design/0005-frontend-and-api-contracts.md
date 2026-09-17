@@ -219,9 +219,10 @@ shape at first glance. It turns out there are three genuinely different interact
 only one of them actually needs the server involved per-step at all:
 
 1. **Human plays a game.** Fully client-side after the initial page load. Pyodide steps the game
-   the instant a key is pressed — no round trip, no server involvement in the interaction loop
-   itself. `POST .../actions` (if called at all) or `POST .../trajectory` happens once, after the
-   episode ends, purely for recording — off the interaction's critical path entirely.
+   locally, driven by a client-side tick loop (worked example below) — no round trip, no server
+   involvement in the interaction loop itself. `POST .../actions` (if called at all) or
+   `POST .../trajectory` happens once, after the episode ends, purely for recording — off the
+   interaction's critical path entirely.
 2. **Watching an already-trained policy play.** Same answer as (1). Ship the policy's serialized
    weights/program to the client once, alongside the game; `WeightVector.forward()` /
    `LinearProgram.run()` are both pure NumPy/Python and both run under Pyodide exactly like the game
@@ -233,6 +234,48 @@ only one of them actually needs the server involved per-step at all:
    when it changes (`GET /runs/{id}/artifacts/{ref}`) and re-runs it locally via the same Pyodide
    mechanism as (2). This reuses infrastructure that exists for a different reason (the metrics
    stream) rather than inventing a new one.
+
+### Worked example: Snake's keyboard controls
+
+Concrete, since "runs client-side" glosses over real mechanics worth pinning down before they're
+needed. Snake specifically doesn't move once per keypress — it moves on a fixed tick, and a
+keypress just sets the pending direction for the next tick, the same as every Snake implementation
+(true of the arcade version of the game, not something this architecture adds):
+
+- **A JS timer drives movement, not the keypress.** `setInterval(tick, 120)` (~120ms per grid-move)
+  is the actual clock. `keydown` doesn't move the snake — it updates a `pendingAction` variable that
+  whichever tick fires next will consume. Fast enough that a keypress feels instant to the player,
+  but mechanically it's "queued, applied within one tick" — which is also what stops a rapid
+  double-tap from causing a double-move.
+- **Arrow keys are absolute; `Snake.step()` is relative** (`-1`/`0`/`1`, left/straight/right) — a
+  real translation the client has to do, not something `games.snake` handles. It needs the snake's
+  *current heading* (from the last state) to turn "player pressed Up, snake is heading right" into
+  "that's a left turn." This conversion lives in the JS/Pyodide glue, never in `games.snake` itself.
+- **Pyodide runs in a Web Worker, not the main thread**, so a Python-side hiccup or Pyodide's call
+  overhead can never jank input handling or rendering. The worker owns the `Snake` instance *and*
+  the tick timer entirely; the main thread only forwards `keydown` events in and redraws the canvas
+  from whatever `render_state()` comes back out:
+
+  ```
+  keydown (Up/Down/Left/Right)
+    -> main thread: translate to a relative turn using the last-known heading
+    -> postMessage({ type: "input", action }) to the worker
+    -> worker: pendingAction = action
+
+  worker's tick timer (every ~120ms):
+    -> snake.step(pendingAction)
+    -> postMessage({ type: "state", render_state, reward, done }) to the main thread
+    -> main thread: redraw the canvas
+  ```
+
+  Neither side blocks the other. This is also why it's genuinely real-time: there's no network hop
+  anywhere in that loop, only in-browser message passing and a local Python call — Pyodide's call
+  overhead and `postMessage` marshalling are both sub-millisecond for something this small, negligible
+  against a 120ms tick. The server only re-enters the picture once, at episode end, for the
+  trajectory upload.
+- **Phasing**: build the main-thread version first (simpler — proves the tick-loop and
+  action-translation logic work at all) and move Pyodide into a Worker as the next step once that's
+  confirmed, same incremental style as everything else in this doc.
 
 This also validates rather than contradicts the original SSE-only decision: nothing above needs a
 genuinely bidirectional, low-latency transport, because gameplay execution itself moved client-side
@@ -288,7 +331,9 @@ All in the one `apps/frontend` deployment for now:
 4. `routers/games.py` + game viewing via `render_state()` rendered in plain Canvas/SVG (no Pyodide
    yet) — prove the game data contract before adding Pyodide's complexity.
 5. Pyodide-based client-side simulation (interaction modes 1 and 2 above), once the JS-rendered
-   version has proven the contract.
+   version has proven the contract — main-thread Pyodide first (simpler, proves the tick-loop and
+   keypress-to-action translation work at all), then move it into a Web Worker once that's
+   confirmed (see the Snake worked example above for why the Worker matters).
 6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
    existing.
 7. Control API (pause/step) in `routers/runs.py`, extending `evolve()`'s `on_generation` mechanism.
