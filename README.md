@@ -22,7 +22,11 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 
 - `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the
   original code this repo started from)
+- `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
+  the baseline being validated before anything is ported to C++
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
+- `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
+  end to end (`uv run python jobs/baseline_gp_run.py`)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap)

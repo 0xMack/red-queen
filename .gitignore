@@ -49,3 +49,6 @@ dist/
 
 # IDE
 .idea/
+
+# job run output (telemetry-store data written by running jobs/ scripts)
+run-data/

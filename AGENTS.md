@@ -15,10 +15,13 @@ with a decision already made.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
+  - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
+    zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
-  never import `telemetry` directly — see docs/design/0001 §"Decoupling from telemetry")
+  never import `telemetry` directly). `baseline_gp_run.py` is the reference example — run with
+  `uv run python jobs/<script>.py` from the repo root.
 - `docs/` — `design/000N-*.md` (numbered, one per major decision) and
   [CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) (standards + accumulated lessons)
 
@@ -31,9 +34,11 @@ Each directory has its own README with specifics — this file is the map, not t
   shared `.venv`/`uv.lock` for every `libs/*` package). `uv sync --all-packages` installs
   everything into that one venv — plain `uv sync` only installs the (virtual, package-less) root
   project, since nothing declares the members as dependencies. Add `--extra examples` to also pull
-  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). New `libs/`/`apis/`/`jobs/`
-  Python packages join the workspace automatically (`members = ["libs/*"]`); add their own
-  `pyproject.toml` and run `uv sync --all-packages` again.
+  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). Workspace `members` is currently
+  just `["libs/*"]` — new `libs/` packages join automatically; `apis/`/`jobs/` don't yet (nothing
+  there needs its own `pyproject.toml` so far — `jobs/` scripts just import already-installed
+  workspace packages) — add `"apis/*"`/`"jobs/*"` to `members` if/when one of them needs its own
+  installable package.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.
