@@ -41,4 +41,4 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   `0006` (a transformer LM trained entirely from scratch, first gradient-trained thing in this repo)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
-  scratch)
+  scratch), `0005` (frontend + API contracts/endpoint definitions)

@@ -5,8 +5,9 @@ from-scratch implementations — tested against purpose-built games/simulations,
 visualization to see what's happening internally and make debugging easier. See
 [README.md](README.md) for the pitch and [docs/design/](docs/design/) for the numbered design docs
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
-landscape and roadmap, 0004: small transformer/LM from scratch) — read the relevant one before an
-architectural change that might conflict with a decision already made.
+landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts) —
+read the relevant one before an architectural change that might conflict with a decision already
+made.
 
 ## Layout
 
