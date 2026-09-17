@@ -31,6 +31,8 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   fast training path — see `libs/games/README.md`
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
+- `libs/tinylm` — a small transformer LM, built on `libs/autodiff` — character-level, causal
+  self-attention, trained by gradients (not evolution) on *Alice's Adventures in Wonderland*
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
   end to end (`uv run python jobs/baseline_gp_run.py`)
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`

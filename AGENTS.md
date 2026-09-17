@@ -16,8 +16,8 @@ architectural change that might conflict with a decision already made.
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
-    The first `libs/` package another package depends on (`tinylm`, once built) — every other
-    package so far is a leaf.
+    The first `libs/` package another package depends on (`tinylm` depends on it) — every other
+    package is a leaf.
   - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
     zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
   - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
@@ -25,6 +25,9 @@ architectural change that might conflict with a decision already made.
     rather than one `libs/` package per game, so shared utilities have an obvious home.
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
+  - `tinylm/` — a small transformer LM, built on `autodiff` (docs/design/0004). Trained by
+    gradients, not evolution — the odd one out relative to every other `libs/` package so far, and
+    deliberately not wired into `evolve`/`telemetry` yet (see the doc for why).
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example — run with
   `uv run python jobs/<script>.py` from the repo root.

@@ -152,6 +152,82 @@ def test_transpose_and_reshape_gradient_match_numerical():
     assert np.allclose(x_r.grad, np.ones_like(x_data))
 
 
+def test_4d_transpose_gradient_matches_numerical():
+    # the permutation multi-head attention uses: (batch, seq, heads, head_dim) -> (batch, heads, seq, head_dim)
+    rng = np.random.default_rng(12)
+    x_data = rng.normal(size=(2, 5, 3, 4))
+    weights = rng.normal(size=(2, 3, 5, 4))
+
+    x = Tensor(x_data.copy())
+    (x.transpose(0, 2, 1, 3) * weights).sum().backward()
+
+    def loss(x_perturbed):
+        return (x_perturbed.transpose(0, 2, 1, 3) * weights).sum()
+
+    assert np.allclose(x.grad, numerical_grad(loss, x_data.copy()), atol=1e-4)
+
+
+def test_batched_matmul_gradient_matches_numerical():
+    # (batch, heads, seq, head_dim) @ (batch, heads, head_dim, seq) -- attention score shape
+    rng = np.random.default_rng(13)
+    a_data = rng.normal(size=(2, 3, 4, 5))
+    b_data = rng.normal(size=(2, 3, 5, 4))
+
+    a, b = Tensor(a_data.copy()), Tensor(b_data.copy())
+    a.matmul(b).sum().backward()
+
+    assert np.allclose(a.grad, numerical_grad(lambda x: (x @ b_data).sum(), a_data.copy()), atol=1e-4)
+    assert np.allclose(b.grad, numerical_grad(lambda x: (a_data @ x).sum(), b_data.copy()), atol=1e-4)
+
+
+def test_matmul_with_mismatched_batch_rank_broadcasts_correctly():
+    # a Linear layer's shape: a 2D (in, out) weight applied to a 3D (batch, seq, in) input --
+    # NumPy broadcasts this in the forward pass automatically; the weight's gradient must sum
+    # contributions over the broadcast batch dimension, the same way +/* already handle broadcasting.
+    rng = np.random.default_rng(17)
+    x_data = rng.normal(size=(2, 5, 3))  # (batch, seq, in)
+    w_data = rng.normal(size=(3, 4))  # (in, out), no batch dim
+
+    x, w = Tensor(x_data.copy()), Tensor(w_data.copy())
+    x.matmul(w).sum().backward()
+
+    assert np.allclose(x.grad, numerical_grad(lambda v: (v @ w_data).sum(), x_data.copy()), atol=1e-4)
+    assert np.allclose(w.grad, numerical_grad(lambda v: (x_data @ v).sum(), w_data.copy()), atol=1e-4)
+
+
+def test_getitem_gradient_accumulates_for_repeated_indices():
+    # the embedding-lookup case: if the same row is selected more than once, gradient must
+    # accumulate from every occurrence, not just the last (plain assignment would silently drop
+    # earlier contributions -- np.add.at is what makes this correct).
+    table_data = np.random.default_rng(14).normal(size=(5, 3))
+    idx = np.array([1, 3, 1, 1])  # row 1 selected three times
+
+    table = Tensor(table_data.copy())
+    weights = np.random.default_rng(15).normal(size=(4, 3))
+    (table[idx] * weights).sum().backward()
+
+    expected = np.zeros_like(table_data)
+    for i, row in zip(idx, weights):
+        expected[i] += row
+    assert np.allclose(table.grad, expected)
+
+
+def test_getitem_row_col_gather_gradient_matches_numerical():
+    # the cross-entropy case: probs[(rows, cols)] gathers one value per row at a per-row column.
+    rng = np.random.default_rng(16)
+    x_data = rng.normal(size=(4, 6))
+    cols = np.array([2, 0, 5, 3])
+    rows = np.arange(4)
+
+    x = Tensor(x_data.copy())
+    x[(rows, cols)].sum().backward()
+
+    def loss(x_perturbed):
+        return x_perturbed[(rows, cols)].sum()
+
+    assert np.allclose(x.grad, numerical_grad(loss, x_data.copy()), atol=1e-4)
+
+
 def test_softmax_gradient_matches_numerical():
     def numpy_softmax(x, axis=-1):
         shifted = x - np.max(x, axis=axis, keepdims=True)

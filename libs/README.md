@@ -13,3 +13,5 @@ simulations they run against, and common utilities used across `../apps`, `../ap
   implementing `evolve`'s `Environment` interface (but not depending on `evolve` itself)
 - `telemetry/` — run registry, metrics stream, and artifact store interfaces for observing
   evolving/training populations
+- `tinylm/` — a small transformer language model, built from scratch on `autodiff`
+  (docs/design/0004) — the first thing in this repo trained by gradients, not evolution

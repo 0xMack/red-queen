@@ -103,13 +103,29 @@ class Tensor:
         out = Tensor(self.data @ other.data, (self, other), "matmul")
 
         def _backward():
-            self.grad += out.grad @ other.data.swapaxes(-1, -2)
-            other.grad += self.data.swapaxes(-1, -2) @ out.grad
+            # matmul broadcasts leading (batch) dims just like +/* do -- e.g. a Linear layer's
+            # 2D (in, out) weight applied to a 3D (batch, seq, in) input -- so both gradients need
+            # the same _unbroadcast reduction back to their original (pre-broadcast) shape.
+            self.grad += _unbroadcast(out.grad @ other.data.swapaxes(-1, -2), self.data.shape)
+            other.grad += _unbroadcast(self.data.swapaxes(-1, -2) @ out.grad, other.data.shape)
 
         out._backward = _backward
         return out
 
     __matmul__ = matmul
+
+    def __getitem__(self, idx) -> Tensor:
+        """Fancy indexing (e.g. an embedding table looked up by an array of token ids, or a
+        `(rows, cols)` gather). Backward scatter-adds into the selected positions via
+        `np.add.at`, which -- unlike plain assignment -- correctly accumulates when the same
+        index appears more than once (e.g. a repeated token in a sequence)."""
+        out = Tensor(self.data[idx], (self,), "getitem")
+
+        def _backward():
+            np.add.at(self.grad, idx, out.grad)
+
+        out._backward = _backward
+        return out
 
     def sum(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
         out = Tensor(self.data.sum(axis=axis, keepdims=keepdims), (self,), "sum")
