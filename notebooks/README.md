@@ -25,6 +25,11 @@ a notebook is the narrative on top explaining what a comparison shows.
   fitness (`SimulationFitnessEvaluator` against `games.reach1d`) instead of a static dataset.
   Includes a real bug found by running it — the environment's first version made two benchmark
   scenarios observationally indistinguishable — fixed, not edited out of the story.
+- `0005-neuroevolution-snake.ipynb` — `games.snake`, a harder learning problem than `reach1d`
+  (100-float flattened-grid observation vs. 2 floats) and an honestly modest result: real
+  improvement (best fitness -1.08 → +0.65) but inconsistent across scenarios, not a clean win.
+  Includes a second real bug found by running it, not designed around in advance — an initial
+  symmetric shaping reward let the evolved policy oscillate in place forever for ~0 net reward.
 
 Re-run any notebook in place with `PYTHONUTF8=1 uv run jupyter execute --inplace
 notebooks/<name>.ipynb` (see AGENTS.md for why `PYTHONUTF8=1` is needed on Windows).

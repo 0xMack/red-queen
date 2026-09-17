@@ -33,6 +33,6 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   end to end (`uv run python jobs/baseline_gp_run.py`)
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
-  `0004` (neuroevolution on a toy simulation)
+  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap)
