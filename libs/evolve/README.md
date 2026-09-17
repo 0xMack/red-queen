@@ -45,8 +45,8 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value
   per environment/episode, same per-test-case contract as `SymbolicRegressionFitness` so
   `LexicaseSelection` works on simulation fitness with no changes. A concrete environment (e.g.
-  `libs/reach1d`) implements `Environment` but never imports this module — same dependency
-  direction as `evolve`/`telemetry`.
+  `games.reach1d` in `libs/games`) implements `Environment` but never imports this module — same
+  dependency direction as `evolve`/`telemetry`.
 - `population.py` — `evolve()`, the orchestration loop, and `GenerationSummary` (this package's own
   telemetry-agnostic per-generation type — see docs/design/0001 "Decoupling from telemetry").
 

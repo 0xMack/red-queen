@@ -1,4 +1,4 @@
-from reach1d import ReachTarget1D, benchmark_environments
+from games.reach1d import ReachTarget1D, benchmark_environments
 
 
 def test_reset_returns_position_relative_to_target():

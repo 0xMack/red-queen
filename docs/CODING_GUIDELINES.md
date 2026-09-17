@@ -42,10 +42,11 @@ what belongs here and how to add to it). Read before writing code, not after.
 
 - An environment's observation must contain enough information to determine the correct action —
   two episodes that differ only in something not exposed in the observation (e.g. the target, in
-  `libs/reach1d`) are indistinguishable to any policy, no matter how it's trained/evolved. Found by
-  running neuroevolution against `reach1d` and noticing two symmetric benchmark scenarios could
-  never both improve; fixed by making the observation relative to the goal instead of absolute.
-  Check this before spending compute tuning an algorithm against a new environment.
+  `libs/games/src/games/reach1d.py`) are indistinguishable to any policy, no matter how it's
+  trained/evolved. Found by running neuroevolution against `reach1d` and noticing two symmetric
+  benchmark scenarios could never both improve; fixed by making the observation relative to the
+  goal instead of absolute. Check this before spending compute tuning an algorithm against a new
+  environment.
 
 ## Lessons
 

@@ -102,9 +102,9 @@ A few things this implies, without over-building them before they're needed:
 - **Fixed benchmark problems as an anchor.** Comparisons ("tournament vs lexicase," "linear GP vs
   tree GP," "GA vs ES on the same task") are only meaningful if the problem stays constant while
   the algorithm varies. A small, deliberately reused set of toy problems/environments — the
-  polynomial regression benchmark (`jobs/baseline_gp_run.py`) and `libs/reach1d` for
-  simulation-based fitness — gets reused across every subsequent experiment, rather than each one
-  inventing its own task.
+  polynomial regression benchmark (`jobs/baseline_gp_run.py`) and `games.reach1d` (`libs/games`)
+  for simulation-based fitness — gets reused across every subsequent experiment, rather than each
+  one inventing its own task.
 - **Raw runs vs. curated showcases are different concerns** — same "don't conflate" principle as
   `MetricsSink` vs `ArtifactStore` in 0002. `RunRegistry` already gives replay of any run; a
   "showcase" (a narrative explaining what a run or comparison of runs demonstrates, for teaching/
@@ -169,7 +169,10 @@ Decided (2026-09), after discussion:
   later rather than prioritized now.
 - **Next environment: Snake.** Cheap to simulate (matters — fitness evaluation runs it thousands of
   times per generation), trivially human-playable, obvious visual representation, a natural next
-  step up from `libs/reach1d`. Same `Environment` protocol, own `libs/` package.
+  step up from `games.reach1d`. Same `Environment` protocol, a new module in `libs/games` (one
+  shared package per games/simulations, not one `libs/` package per game — reconsidered after
+  `reach1d` shipped as its own package; grouping them makes shared utilities have an obvious home
+  as more games are added instead of duplicating them per package).
 - **Parked for later, not forgotten**: a 2D driving/sensor-casting task (single-agent, more visually
   impressive showcase material) and predator/prey pursuit (the thematic flagship — a literal Red
   Queen coevolutionary arms race, and already `phase 8`'s coevolution item) — both real candidates,
@@ -191,8 +194,9 @@ Decided (2026-09), after discussion:
 
 - What the curated-showcase layer needs beyond raw `RunRegistry` — deferred until a few real
   experiments exist to see what's actually missing.
-- ~~Exact fixed benchmark set beyond the Iris-derived regression case~~ — resolved: `libs/reach1d`
-  (phase 5) is the first toy simulation; `reach1d.benchmark_environments()` is its fixed set.
+- ~~Exact fixed benchmark set beyond the Iris-derived regression case~~ — resolved: `games.reach1d`
+  (phase 5, `libs/games`) is the first toy simulation; `reach1d.benchmark_environments()` is its
+  fixed set.
 - Scope for the from-scratch transformer/LM (phase 6): a minimal char-level model (nanoGPT-style)
   vs. something more ambitious; what corpus to start on — deferred until that work actually
   starts, same as every other phase's specifics were decided when reached, not in advance.

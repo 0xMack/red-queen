@@ -17,8 +17,9 @@ with a decision already made.
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
     zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
-  - `reach1d/` — toy 1D continuous-control environment (implements `evolve`'s `Environment`
-    interface; doesn't depend on `evolve`)
+  - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
+    `evolve`'s `Environment` interface without depending on `evolve`. One package for every game
+    rather than one `libs/` package per game, so shared utilities have an obvious home.
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
@@ -51,7 +52,10 @@ Each directory has its own README with specifics — this file is the map, not t
 - `notebooks/` needs `uv sync --all-packages --group notebooks` (jupyter + matplotlib — not
   installed by default, so plain `uv sync` won't have them). Re-execute a notebook in place with
   `uv run jupyter execute --inplace notebooks/<name>.ipynb` so it ships with real baked-in output,
-  not empty cells.
+  not empty cells. On this Windows setup, `jupyter execute` reads the notebook file using the
+  system locale (cp1252), not UTF-8 — it'll crash with `UnicodeDecodeError` on notebooks containing
+  non-ASCII characters (e.g. em dashes) even though the file itself is valid UTF-8. Set
+  `PYTHONUTF8=1` (e.g. `PYTHONUTF8=1 uv run jupyter execute --inplace ...`) to fix it.
 
 ## Keeping this file and CODING_GUIDELINES.md useful
 

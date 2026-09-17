@@ -22,8 +22,9 @@ a notebook is the narrative on top explaining what a comparison shows.
 
 - `0004-neuroevolution-reach1d.ipynb` — the biggest jump yet (docs/design/0003 phase 5): a
   non-program-shaped genome (`WeightVector`, a neural network's weights) and simulation-based
-  fitness (`SimulationFitnessEvaluator` against `libs/reach1d`) instead of a static dataset.
+  fitness (`SimulationFitnessEvaluator` against `games.reach1d`) instead of a static dataset.
   Includes a real bug found by running it — the environment's first version made two benchmark
   scenarios observationally indistinguishable — fixed, not edited out of the story.
 
-Re-run any notebook in place with `uv run jupyter execute --inplace notebooks/<name>.ipynb`.
+Re-run any notebook in place with `PYTHONUTF8=1 uv run jupyter execute --inplace
+notebooks/<name>.ipynb` (see AGENTS.md for why `PYTHONUTF8=1` is needed on Windows).

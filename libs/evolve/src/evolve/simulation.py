@@ -2,9 +2,9 @@
 SymbolicRegressionFitness (docs/design/0002/0003).
 
 `Environment` is the interface this module depends on; a concrete game/simulation (e.g.
-libs/reach1d) implements it but never imports from here -- the dependency points from the
-evaluator to the interface, not from a game to the algorithm (same shape as evolve/telemetry in
-docs/design/0001).
+games.reach1d in libs/games) implements it but never imports from here -- the dependency points
+from the evaluator to the interface, not from a game to the algorithm (same shape as
+evolve/telemetry in docs/design/0001).
 """
 
 from __future__ import annotations
