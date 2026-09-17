@@ -41,61 +41,60 @@ search results can be slightly stale or approximate)
 
 ## Architecture overview
 
-### `apis/` and `apps/` are containers of independent modules, like `libs/`
+### `apis/` and `apps/` are containers of independent modules, like `libs/` — but start with one each
 
-Per feedback on the draft: `apis/` and `apps/` shouldn't each be *one* service/deployment —
+Per feedback on the draft: `apis/` and `apps/` shouldn't each be *one* service/deployment forever —
 they should hold *modules*, the same convention `libs/<name>/` already establishes (each one
 self-contained: its own `pyproject.toml`/`package.json`, own tests, independently deployable), so
 adding a second API service or a second UI deployment later is "add another directory," not a
-refactor. Concretely, proposed for the first pass — split along the seam that already exists in
-the endpoint table below (training/observability vs. games), rather than inventing an arbitrary
-one:
+refactor. A first revision of this doc jumped straight to *two* of each (split along
+training/observability vs. games) — corrected per review: **start with one API module and one UI
+module**, and get the *separation-readiness* from how each one is organized internally, not from
+having multiple of them on day one.
 
 ```
 apis/
-  README.md                index of API services
-  training_api/            runs, metrics, artifacts, control -- watching/controlling evolution runs
+  README.md                index of API services (one today)
+  backend/                  the one API service -- runs, metrics, artifacts, control, game sessions
     pyproject.toml
-    src/training_api/
+    src/backend/
       main.py
-      routers/runs.py
+      routers/
+        runs.py             training/observability endpoints
+        games.py            game session/trajectory endpoints
       schemas.py
     tests/
-  games_api/                game sessions, trajectories -- playing/replaying/recording games
-    pyproject.toml
-    src/games_api/
-      main.py
-      routers/sessions.py
-      schemas.py
-    tests/
+      test_runs.py
+      test_games.py
 
 apps/
-  README.md                index of UI deployments
-  dashboard/                run list/detail, live metrics charts -- consumes training_api
+  README.md                index of UI deployments (one today)
+  frontend/                 the one UI deployment -- run dashboard + game arcade pages
     package.json
     pages/
-      index.vue
-      runs/[id].vue
+      index.vue             run list
+      runs/[id].vue          one run's live metrics
+      play/[game].vue        watch/play a game (Pyodide)
     stores/
       useRunsStore.ts
       useMetricsStream.ts
-  arcade/                    game play/replay -- consumes games_api, loads Pyodide
-    package.json
-    pages/
-      play/[game].vue
-    stores/
       useGameSession.ts
     wasm/                    Pyodide bootstrapping, shared game-loader glue
 ```
 
-This is a concrete proposal, not the only valid split — easy to collapse back to one API/one app if
-a hard boundary between "training" and "games" doesn't earn its keep in practice. Once the first
-service's `pyproject.toml` exists, the uv workspace `members` glob (currently just `["libs/*"]`,
-per AGENTS.md) needs `"apis/*"` added, exactly as already anticipated there.
+The separation-readiness is in the internal layout, not the directory count: `routers/games.py` +
+its slice of `schemas.py` + `tests/test_games.py` are already the exact set of files that would
+move into a new `apis/games_api/` package if/when games ever earns its own service — a mechanical
+extraction, not a redesign, same idea on the frontend side with `useGameSession.ts` and
+`play/[game].vue`. Splitting happens when something actually forces it (different deploy cadence,
+different scaling needs, a second team) — not speculatively now.
 
-Dependency direction stays consistent with every other decision in this repo: `apis/*` services
-depend on `libs/telemetry`, `libs/evolve`, and `libs/games`; none of those know any `apis/` service
-exists. `apps/*` deployments only ever talk to `apis/*` over HTTP/SSE — they never import Python.
+Once `apis/backend/pyproject.toml` exists, the uv workspace `members` glob (currently just
+`["libs/*"]`, per AGENTS.md) needs `"apis/*"` added, exactly as already anticipated there.
+
+Dependency direction stays consistent with every other decision in this repo: `apis/backend`
+depends on `libs/telemetry`, `libs/evolve`, and `libs/games`; none of those know it exists.
+`apps/frontend` only ever talks to `apis/backend` over HTTP/SSE — it never imports Python.
 
 ## API contracts
 
@@ -157,7 +156,11 @@ class TrajectoryArtifact(BaseModel):
 
 ### Endpoints
 
-**`training_api`**
+All served by the one `apis/backend` service, grouped by router below (`routers/runs.py`,
+`routers/games.py`) — the grouping is exactly the seam a future split would cut along, but there's
+one service, one process, one `pyproject.toml` for now.
+
+**`routers/runs.py`**
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
@@ -168,7 +171,7 @@ class TrajectoryArtifact(BaseModel):
 | GET | `/runs/{run_id}/artifacts/{ref}` | raw bytes | `ArtifactStore.get_program`/`get_trace` |
 | POST | `/runs/{run_id}/control` | 202 | `ControlRequest` — pause/resume/step (see open question) |
 
-**`games_api`**
+**`routers/games.py`**
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
@@ -225,7 +228,7 @@ only one of them actually needs the server involved per-step at all:
    logic does. Zero server calls per frame — the whole episode plays out client-side.
 3. **Watching training's *current* best individual play, live, as training progresses.** This is
    the one case that genuinely needs the server — but only once per *generation*, not once per
-   *frame*. The existing `training_api` metrics SSE stream already announces every new
+   *frame*. The existing metrics SSE stream (`routers/runs.py`) already announces every new
    `GenerationStats`, which already carries a `champion_ref`; the client fetches that one artifact
    when it changes (`GET /runs/{id}/artifacts/{ref}`) and re-runs it locally via the same Pyodide
    mechanism as (2). This reuses infrastructure that exists for a different reason (the metrics
@@ -245,15 +248,18 @@ for speculatively now.
 
 ## Frontend architecture
 
-- **`apps/dashboard`** (consumes `training_api`): `useRunsStore` (list + selected run),
-  `useMetricsStream` (owns the `EventSource` connection to `/runs/{id}/metrics/stream`, exposes
-  reactive `GenerationStats[]`). Pages: a run list, and a run detail page with a live chart —
-  the same shape as the notebooks' matplotlib plots, but live.
-- **`apps/arcade`** (consumes `games_api`, loads Pyodide): `useGameSession` (owns a Pyodide worker
-  instance + the current session's state, per the real-time interaction design above — the worker
-  runs both the game and, when watching an agent, its policy). Pages: a game page that boots the
-  Pyodide worker and either replays a `TrajectoryArtifact`, accepts live human input, or polls
-  `training_api` for a live-updating champion (interaction mode 3, above).
+All in the one `apps/frontend` deployment for now:
+
+- **Pinia stores**: `useRunsStore` (list + selected run), `useMetricsStream` (owns the
+  `EventSource` connection to `/runs/{id}/metrics/stream`, exposes reactive `GenerationStats[]`),
+  `useGameSession` (owns a Pyodide worker instance + the current session's state, per the real-time
+  interaction design above — the worker runs both the game and, when watching an agent, its
+  policy). Each store only ever talks to its own router's endpoints, which is exactly what keeps a
+  future split mechanical.
+- **Pages**: a run list (`index.vue`), a run detail page with a live chart — the same shape as the
+  notebooks' matplotlib plots, but live — and a game page (`play/[game].vue`) that boots the
+  Pyodide worker and either replays a `TrajectoryArtifact`, accepts live human input, or polls for
+  a live-updating champion (interaction mode 3, above).
 - **Tailwind**: utility-first, no separate component library decision made here — deferred until
   there's an actual page to style.
 - Nothing here is prescriptive about visual design — this doc is about the data contract between
@@ -261,11 +267,6 @@ for speculatively now.
 
 ## Open questions
 
-- **API/app module split** (above) — proposed as `training_api`+`dashboard` /
-  `games_api`+`arcade`, but this is the part of the restructuring most worth a second look: does
-  this boundary actually match how you'll want to deploy/iterate on these, or would one API/one app
-  now (with the module convention in place for *whenever* a second one is actually needed) be
-  better than committing to two from the start?
 - **Control API scope**: `POST /runs/{run_id}/control` (pause/resume/step) needs `evolve()` itself
   to support cooperative pausing. The cheapest path is extending the existing `on_generation`
   callback mechanism (docs/design/0001) to check a shared flag each generation and block if paused
@@ -277,17 +278,17 @@ for speculatively now.
 
 ## Incremental plan
 
-1. `apis/training_api` skeleton, wired directly to existing `libs/telemetry` backends — no new
-   persistence, just endpoints over what already exists. `/runs`, `/runs/{id}`,
+1. `apis/backend` skeleton (`routers/runs.py` first), wired directly to existing `libs/telemetry`
+   backends — no new persistence, just endpoints over what already exists. `/runs`, `/runs/{id}`,
    `/runs/{id}/metrics/history` first (plain REST, no SSE yet — prove the read path before adding
    streaming). Add `"apis/*"` to the uv workspace `members` glob at this point.
 2. Add `/runs/{id}/metrics/stream` (SSE), including the sync-to-async adaptation noted above.
-3. `apps/dashboard` skeleton (Nuxt 4 + Pinia + Tailwind), one page: run list → run detail with a
+3. `apps/frontend` skeleton (Nuxt 4 + Pinia + Tailwind), one page: run list → run detail with a
    live chart. This is the first true end-to-end vertical slice.
-4. `apis/games_api` skeleton + `apps/arcade` game viewing via `render_state()` rendered in plain
-   Canvas/SVG (no Pyodide yet) — prove the game data contract before adding Pyodide's complexity.
-5. Pyodide-based client-side simulation in `arcade` (interaction modes 1 and 2 above), once the
-   JS-rendered version has proven the contract.
+4. `routers/games.py` + game viewing via `render_state()` rendered in plain Canvas/SVG (no Pyodide
+   yet) — prove the game data contract before adding Pyodide's complexity.
+5. Pyodide-based client-side simulation (interaction modes 1 and 2 above), once the JS-rendered
+   version has proven the contract.
 6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
    existing.
-7. Control API (pause/step) in `training_api`, extending `evolve()`'s `on_generation` mechanism.
+7. Control API (pause/step) in `routers/runs.py`, extending `evolve()`'s `on_generation` mechanism.
