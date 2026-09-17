@@ -22,6 +22,8 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 
 - `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the
   original code this repo started from)
+- `libs/autodiff` — reverse-mode automatic differentiation, built from scratch (`Tensor`,
+  NumPy-array-valued, not scalar-valued) — the foundation for `libs/tinylm`'s transformer
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
   the baseline being validated before anything is ported to C++
 - `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
@@ -35,4 +37,5 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
   `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
-  architecture), `0003` (algorithm landscape and roadmap)
+  architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
+  scratch)

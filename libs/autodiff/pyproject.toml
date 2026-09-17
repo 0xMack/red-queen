@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "autodiff"
+version = "0.1.0"
+description = "A small reverse-mode automatic differentiation engine, built from scratch (NumPy-array-valued, not scalar-valued)."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autodiff"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "PGH", # pygrep-hooks
+    "RUF", # Ruff-specific
+    "UP",  # pyupgrade
+]

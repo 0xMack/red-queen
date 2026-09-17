@@ -5,8 +5,8 @@ from-scratch implementations — tested against purpose-built games/simulations,
 visualization to see what's happening internally and make debugging easier. See
 [README.md](README.md) for the pitch and [docs/design/](docs/design/) for the numbered design docs
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
-landscape and roadmap) — read the relevant one before an architectural change that might conflict
-with a decision already made.
+landscape and roadmap, 0004: small transformer/LM from scratch) — read the relevant one before an
+architectural change that might conflict with a decision already made.
 
 ## Layout
 
@@ -15,6 +15,9 @@ with a decision already made.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
+  - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
+    The first `libs/` package another package depends on (`tinylm`, once built) — every other
+    package so far is a leaf.
   - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
     zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
   - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
