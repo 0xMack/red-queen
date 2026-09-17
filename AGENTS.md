@@ -27,10 +27,20 @@ Each directory has its own README with specifics — this file is the map, not t
 ## Working in this repo
 
 - **Read [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) before writing code, not after.**
+- **Python tooling is `uv`**, as a workspace (root `pyproject.toml`, `[tool.uv.workspace]`, one
+  shared `.venv`/`uv.lock` for every `libs/*` package). `uv sync --all-packages` installs
+  everything into that one venv — plain `uv sync` only installs the (virtual, package-less) root
+  project, since nothing declares the members as dependencies. Add `--extra examples` to also pull
+  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). New `libs/`/`apis/`/`jobs/`
+  Python packages join the workspace automatically (`members = ["libs/*"]`); add their own
+  `pyproject.toml` and run `uv sync --all-packages` again.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
-  default) — run through `vcvarsall.bat x64`, then `pip install -e .` (scikit-build-core handles
-  the rest).
-- Every `libs/` package is `pip install -e .`-able independently; there's no repo-wide build step.
+  default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
+  actual CMake/pybind11 build once the compiler is on PATH.
+- Run tests/scripts via `uv run` (e.g. `uv run pytest libs/telemetry/tests`) or the venv's
+  interpreter directly (`.venv/Scripts/python.exe` on Windows) — the workspace `.venv` has no
+  `pip` bootstrapped into it; use `uv pip install <pkg>` for one-off additions, but prefer adding
+  real dependencies to the relevant `pyproject.toml` so `uv sync` stays reproducible.
 
 ## Keeping this file and CODING_GUIDELINES.md useful
 

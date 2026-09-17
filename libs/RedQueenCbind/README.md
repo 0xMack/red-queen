@@ -13,8 +13,13 @@ register-machine programs against a dataset (currently exercised against Iris) a
 
 ## Build
 
+From the repo root, as part of the `uv` workspace (see [AGENTS.md](../../AGENTS.md)):
+
 ```
-pip install -e .
+uv sync --all-packages --extra examples
+uv run python examples/gp.py
 ```
 
-(from this directory — scikit-build-core drives the CMake/pybind11 build)
+On Windows, run those through an MSVC dev environment (no `cl.exe` on PATH by default) —
+`vcvarsall.bat x64` first, then the commands above; scikit-build-core drives the actual
+CMake/pybind11 build.

@@ -22,6 +22,9 @@ models with `Field(..., description=...)` and validation on every field (see
 [../../docs/CODING_GUIDELINES.md](../../docs/CODING_GUIDELINES.md)) — constructing one with bad
 data (e.g. a negative `generation`) raises immediately instead of failing silently or downstream.
 
+Part of the repo's `uv` workspace (see [AGENTS.md](../../AGENTS.md)) — `uv sync --all-packages`
+from the repo root installs this alongside every other `libs/*` package into one shared `.venv`.
+
 ## Usage
 
 ```python

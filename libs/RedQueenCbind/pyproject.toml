@@ -14,7 +14,10 @@ description = "Simple C++ bindings to the Red Queen Genetic Algorithm library."
 authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"}]
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">3.7"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+examples = ["scikit-learn", "numpy"]
 
 [tool.scikit-build]
 build-dir = "build"
