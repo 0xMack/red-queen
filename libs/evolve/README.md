@@ -35,11 +35,26 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `evolve()`/`TournamentSelection`/`LexicaseSelection`/`ParetoSelection` are genuinely
   genome-generic, not just written to look that way — see `libs/evolve/tests/test_tree.py` and
   `notebooks/0003-linear-vs-tree.ipynb`.
+- `neuro.py` — `WeightVector`: the third genome representation (docs/design/0003 phase 5), and the
+  first that isn't program-shaped at all — a small feedforward network's flattened weights,
+  evolved directly (Evolution Strategies). `GaussianMutation` is mutation-only, deliberately no
+  crossover — averaging two networks' weights doesn't generally combine their behavior the way
+  swapping GP instructions/subtrees does. `l2_norm()` is this representation's `ParetoSelection`
+  complexity measure.
+- `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
+  `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value
+  per environment/episode, same per-test-case contract as `SymbolicRegressionFitness` so
+  `LexicaseSelection` works on simulation fitness with no changes. A concrete environment (e.g.
+  `libs/reach1d`) implements `Environment` but never imports this module — same dependency
+  direction as `evolve`/`telemetry`.
 - `population.py` — `evolve()`, the orchestration loop, and `GenerationSummary` (this package's own
   telemetry-agnostic per-generation type — see docs/design/0001 "Decoupling from telemetry").
 
 `evolve()` has **no import of and no dependency on `libs/telemetry`**. Wiring a run to telemetry is
 an adapter that lives outside this package — see `jobs/baseline_gp_run.py`.
+
+See `notebooks/0004-neuroevolution-reach1d.ipynb` for `WeightVector` +
+`SimulationFitnessEvaluator` actually solving a toy environment end to end.
 
 ## Usage
 

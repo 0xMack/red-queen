@@ -17,6 +17,8 @@ with a decision already made.
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
     zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
+  - `reach1d/` — toy 1D continuous-control environment (implements `evolve`'s `Environment`
+    interface; doesn't depend on `evolve`)
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs

@@ -24,11 +24,13 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   original code this repo started from)
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
   the baseline being validated before anything is ported to C++
+- `libs/reach1d` — a toy 1D continuous-control environment for simulation-based fitness
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
   end to end (`uv run python jobs/baseline_gp_run.py`)
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
-  (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation)
+  (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
+  `0004` (neuroevolution on a toy simulation)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap)

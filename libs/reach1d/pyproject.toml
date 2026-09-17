@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reach1d"
+version = "0.1.0"
+description = "A toy 1D continuous-control environment, implementing evolve.simulation.Environment."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reach1d"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "PGH", # pygrep-hooks
+    "RUF", # Ruff-specific
+    "UP",  # pyupgrade
+]
