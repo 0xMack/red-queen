@@ -12,8 +12,18 @@ made.
 ## Layout
 
 - `notebooks/` — exploration, experiments, write-ups
-- `apps/` — front-end apps (visualization of runs/simulations)
+- `apps/` — front-end apps (visualization of runs/simulations) — not started yet (docs/design/0005
+  step 3)
 - `apis/` — backend APIs serving runs/simulations to `apps/`
+  - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
+    something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
+    models (`RunInfo`, `GenerationStats`) as response models rather than duplicating schemas. The
+    `/metrics/stream` SSE route adapts `telemetry.FileMetricsStore.subscribe()` — a synchronous,
+    never-returning polling generator — to async via `anyio.to_thread.run_sync(...,
+    abandon_on_cancel=True)`; see `apis/backend/README.md` for why that route's happy path is
+    tested at the generator level, not through a live `TestClient` request (Starlette's TestClient
+    doesn't reliably simulate a mid-stream disconnect, so a full request hangs). `routers/games.py`
+    not started yet (docs/design/0005 step 4).
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
@@ -44,11 +54,10 @@ Each directory has its own README with specifics — this file is the map, not t
   shared `.venv`/`uv.lock` for every `libs/*` package). `uv sync --all-packages` installs
   everything into that one venv — plain `uv sync` only installs the (virtual, package-less) root
   project, since nothing declares the members as dependencies. Add `--extra examples` to also pull
-  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). Workspace `members` is currently
-  just `["libs/*"]` — new `libs/` packages join automatically; `apis/`/`jobs/` don't yet (nothing
-  there needs its own `pyproject.toml` so far — `jobs/` scripts just import already-installed
-  workspace packages) — add `"apis/*"`/`"jobs/*"` to `members` if/when one of them needs its own
-  installable package.
+  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). Workspace `members` is
+  `["libs/*", "apis/*"]` — new packages under either join automatically. `jobs/` still doesn't have
+  its own `pyproject.toml` (scripts there just import already-installed workspace packages) — add
+  `"jobs/*"` to `members` if that changes.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.

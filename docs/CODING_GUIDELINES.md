@@ -62,6 +62,32 @@ what belongs here and how to add to it). Read before writing code, not after.
   scenario got worse. Don't assume "better on average" implies "better everywhere" when reporting
   or comparing runs.
 
+## Web / API (`apis/backend`)
+
+- Reuse an existing pydantic model as a FastAPI `response_model`/return type directly (e.g.
+  `telemetry.RunInfo`, `telemetry.GenerationStats` in `apis/backend/src/backend/routers/runs.py`)
+  instead of redefining an API-layer schema that just mirrors it — one source of truth for the
+  shape, one place to add a field.
+- Type FastAPI dependency-injected params against the `Protocol` (`RunRegistry`/`MetricsSource`/
+  `ArtifactStore`), not the concrete `Sqlite*`/`File*` class — only `dependencies.py`'s factory
+  functions should know which concrete backend is in use.
+- Adapting a synchronous, blocking, never-returning generator (e.g.
+  `FileMetricsStore.subscribe()`, which polls via `time.sleep`) to an async SSE stream: offload each
+  `next()` call with `anyio.to_thread.run_sync(next, iterator, abandon_on_cancel=True)` rather than
+  running the sync generator directly on the event loop — otherwise its `time.sleep` blocks every
+  other request. `abandon_on_cancel=True` (renamed from `cancellable=` in AnyIO 4.1+) lets a client
+  disconnect interrupt promptly instead of waiting out a full poll interval.
+- **Don't test a live-tailing SSE endpoint by driving it end-to-end through `TestClient`/`app.routes`
+  introspection assumptions** — two real gotchas hit building `apis/backend`: (1) Starlette's
+  `TestClient` doesn't reliably simulate a mid-stream client disconnect, so a full request against
+  an endpoint that never terminates on its own hangs forever waiting for data that isn't coming; (2)
+  recent FastAPI versions don't eagerly flatten `include_router()`'s routes into `app.routes` (an
+  internal `_IncludedRouter` wrapper defers it), so route-registration checks must go through
+  `app.openapi()["paths"][...]` instead of iterating `app.routes`. Test the tricky async-adaptation
+  logic directly (call the async generator function, `async for` a bounded number of items, then
+  `await gen.aclose()` under `anyio.fail_after(...)` to confirm cancellation is clean) rather than
+  through the full ASGI stack. See `apis/backend/tests/test_runs.py`.
+
 ## Lessons
 
 Freeform notes that don't fit a section above yet. Once a pattern shows up twice, fold it into the

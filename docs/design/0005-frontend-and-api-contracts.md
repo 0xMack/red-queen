@@ -321,11 +321,17 @@ All in the one `apps/frontend` deployment for now:
 
 ## Incremental plan
 
-1. `apis/backend` skeleton (`routers/runs.py` first), wired directly to existing `libs/telemetry`
-   backends — no new persistence, just endpoints over what already exists. `/runs`, `/runs/{id}`,
-   `/runs/{id}/metrics/history` first (plain REST, no SSE yet — prove the read path before adding
-   streaming). Add `"apis/*"` to the uv workspace `members` glob at this point.
-2. Add `/runs/{id}/metrics/stream` (SSE), including the sync-to-async adaptation noted above.
+1. ✅ `apis/backend` skeleton (`routers/runs.py` first), wired directly to existing
+   `libs/telemetry` backends — no new persistence, just endpoints over what already exists.
+   `/runs`, `/runs/{id}`, `/runs/{id}/metrics/history` first (plain REST). Added `"apis/*"` to the
+   uv workspace `members` glob at this point.
+2. ✅ Added `/runs/{id}/metrics/stream` (SSE) and `/runs/{id}/artifacts/{ref}`, including the
+   sync-to-async adaptation noted above (`anyio.to_thread.run_sync(..., abandon_on_cancel=True)`
+   over `FileMetricsStore.subscribe()`). Tested at the generator level rather than through a live
+   `TestClient` request — Starlette's TestClient doesn't reliably simulate a mid-stream client
+   disconnect, so a full request through it hangs waiting for a generation that never arrives; see
+   `apis/backend/README.md` and `apis/backend/tests/test_runs.py`. Verified against real data from
+   `jobs/baseline_gp_run.py` with a live `uvicorn` process, not just tests.
 3. `apps/frontend` skeleton (Nuxt 4 + Pinia + Tailwind), one page: run list → run detail with a
    live chart. This is the first true end-to-end vertical slice.
 4. `routers/games.py` + game viewing via `render_state()` rendered in plain Canvas/SVG (no Pyodide
