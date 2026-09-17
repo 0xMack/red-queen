@@ -28,7 +28,7 @@ search results can be slightly stale or approximate)
 | UI framework | Vue | 3.5.x (stable) | Not the 3.6 release-candidate line (in RC as of this writing) — flagging as a choice worth your input: stable foundation vs. tracking the RC |
 | State | Pinia | 4.x | Note: Pinia 4 is ESM-only and requires `@vue/devtools-api` installed alongside it — a real breaking change from 3.x, not just a version bump |
 | Styling | Tailwind CSS | 4.3.x | |
-| Client-side game execution | WebAssembly | — | See the dedicated section below — this is the one open architectural question in this doc, not just a version pin |
+| Client-side game execution | WebAssembly (Pyodide) | latest | **Decided.** See the dedicated section below for why. |
 
 [FastAPI](https://pypi.org/project/fastapi/) ·
 [Pydantic](https://github.com/pydantic/pydantic/releases) ·
@@ -41,26 +41,61 @@ search results can be slightly stale or approximate)
 
 ## Architecture overview
 
-```
-apis/          FastAPI app -- reads/writes libs/telemetry directly, no new persistence layer
-  routers/
-    runs.py       RunRegistry + MetricsSource + ArtifactStore endpoints
-    games.py      live game sessions (new -- see below)
-  schemas.py     API-only models (RunRegistry/MetricsSource/ArtifactStore models are reused as-is)
-  main.py
+### `apis/` and `apps/` are containers of independent modules, like `libs/`
 
-apps/          Nuxt 4 app
-  pages/
-    index.vue          run list
-    runs/[id].vue       one run's live metrics (SSE) + champion trace
-    play/[game].vue     watch/play a game (WASM-rendered)
-  stores/            Pinia: useRunsStore, useMetricsStream, useGameSession
-  wasm/              compiled game modules (see WebAssembly section)
+Per feedback on the draft: `apis/` and `apps/` shouldn't each be *one* service/deployment —
+they should hold *modules*, the same convention `libs/<name>/` already establishes (each one
+self-contained: its own `pyproject.toml`/`package.json`, own tests, independently deployable), so
+adding a second API service or a second UI deployment later is "add another directory," not a
+refactor. Concretely, proposed for the first pass — split along the seam that already exists in
+the endpoint table below (training/observability vs. games), rather than inventing an arbitrary
+one:
+
+```
+apis/
+  README.md                index of API services
+  training_api/            runs, metrics, artifacts, control -- watching/controlling evolution runs
+    pyproject.toml
+    src/training_api/
+      main.py
+      routers/runs.py
+      schemas.py
+    tests/
+  games_api/                game sessions, trajectories -- playing/replaying/recording games
+    pyproject.toml
+    src/games_api/
+      main.py
+      routers/sessions.py
+      schemas.py
+    tests/
+
+apps/
+  README.md                index of UI deployments
+  dashboard/                run list/detail, live metrics charts -- consumes training_api
+    package.json
+    pages/
+      index.vue
+      runs/[id].vue
+    stores/
+      useRunsStore.ts
+      useMetricsStream.ts
+  arcade/                    game play/replay -- consumes games_api, loads Pyodide
+    package.json
+    pages/
+      play/[game].vue
+    stores/
+      useGameSession.ts
+    wasm/                    Pyodide bootstrapping, shared game-loader glue
 ```
 
-Dependency direction stays consistent with every other decision in this repo: `apis/` depends on
-`libs/telemetry`, `libs/evolve`, and `libs/games`; none of those know `apis/` exists. `apps/` only
-ever talks to `apis/` over HTTP/SSE — it never imports Python.
+This is a concrete proposal, not the only valid split — easy to collapse back to one API/one app if
+a hard boundary between "training" and "games" doesn't earn its keep in practice. Once the first
+service's `pyproject.toml` exists, the uv workspace `members` glob (currently just `["libs/*"]`,
+per AGENTS.md) needs `"apis/*"` added, exactly as already anticipated there.
+
+Dependency direction stays consistent with every other decision in this repo: `apis/*` services
+depend on `libs/telemetry`, `libs/evolve`, and `libs/games`; none of those know any `apis/` service
+exists. `apps/*` deployments only ever talk to `apis/*` over HTTP/SSE — they never import Python.
 
 ## API contracts
 
@@ -122,6 +157,8 @@ class TrajectoryArtifact(BaseModel):
 
 ### Endpoints
 
+**`training_api`**
+
 | Method | Path | Returns | Notes |
 |---|---|---|---|
 | GET | `/runs` | `list[RunInfo]` | `RunRegistry.list_runs()` |
@@ -130,10 +167,19 @@ class TrajectoryArtifact(BaseModel):
 | GET | `/runs/{run_id}/metrics/stream` | SSE of `GenerationStats` | backfill-then-live, `MetricsSource.subscribe()` (see adaptation note below) |
 | GET | `/runs/{run_id}/artifacts/{ref}` | raw bytes | `ArtifactStore.get_program`/`get_trace` |
 | POST | `/runs/{run_id}/control` | 202 | `ControlRequest` — pause/resume/step (see open question) |
+
+**`games_api`**
+
+| Method | Path | Returns | Notes |
+|---|---|---|---|
 | POST | `/games/{game}/sessions` | `GameSessionState` | `GameSessionCreate` — start a live session |
-| POST | `/games/{game}/sessions/{id}/actions` | `GameSessionState` | `ActionRequest` — one step, human or scripted |
-| GET | `/games/{game}/sessions/{id}/stream` | SSE of `GameSessionState` | for an agent playing continuously, or replay |
-| GET | `/games/{game}/sessions/{id}/trajectory` | `TrajectoryArtifact` | full recorded episode, e.g. for WASM client-side replay or as training data (doc 0003 phase 6/7) |
+| POST | `/games/{game}/sessions/{id}/actions` | `GameSessionState` | `ActionRequest` — one step, human or scripted; not on the interaction's critical path once gameplay moves client-side (see "Real-time player interaction" below) — used for recording/archival, not driving the loop |
+| GET | `/games/{game}/sessions/{id}/trajectory` | `TrajectoryArtifact` | full recorded episode — the seed + action sequence a client re-simulates locally, or training data (doc 0003 phase 6/7) |
+
+Note what's *not* here relative to the original draft: a per-frame `GET .../stream` for game state.
+Working through real-time interaction (below) concluded gameplay itself doesn't need server
+round-trips at all once Pyodide is in the picture — removed rather than left in as an unused,
+untested "just in case" endpoint.
 
 ### A real integration detail worth flagging now, not discovering later
 
@@ -144,27 +190,14 @@ loop with `asyncio.sleep`), but it's real work, not a detail to wave away — `l
 deliberately built with zero dependency on this layer (docs/design/0002), so it doesn't and
 shouldn't know about async/FastAPI itself; the adaptation belongs in `apis/`, not in `telemetry`.
 
-## WebAssembly for game rendering — the actual open question in this doc
+## WebAssembly for game rendering — decided: Pyodide
 
-Two honest options for what "WebAssembly for game rendering" means concretely:
-
-1. **Pyodide**: compile/run the actual `libs/games` Python code in the browser via Pyodide (CPython
-   compiled to WASM). Reuses the exact simulation code already written and tested — `games.snake`
-   and `games.reach1d` behave identically client-side and server-side, zero risk of drift between
-   two implementations. Cost: a multi-MB runtime download, and Pyodide's own startup overhead —
-   probably fine for a local single-user tool, worth confirming before committing.
-2. **A from-scratch lightweight reimplementation** (Rust or AssemblyScript, compiled to WASM):
-   smaller payload, likely faster, but now the same game logic exists in two languages that must be
-   kept in sync — a real, ongoing maintenance cost and a real correctness risk (the two could
-   silently diverge) for games this small.
-
-**Recommendation: Pyodide**, specifically because the games here are deliberately tiny (that's
-what made them cheap to evolve against in the first place) — the payload-size argument against
-Pyodide matters far more for a large app than for occasionally loading one interactive demo page,
-and "the client runs the identical, already-tested simulation" is a correctness property worth
-paying for. This is the one recommendation in this doc I'd most want checked against your own
-intuition before it's built, since it trades off differently depending on how snappy the play
-experience needs to feel.
+Confirmed. Compile/run the actual `libs/games` Python code in the browser via Pyodide (CPython
+compiled to WASM), rather than a from-scratch Rust/AssemblyScript reimplementation. Reuses the
+exact simulation code already written and tested — `games.snake` and `games.reach1d` behave
+identically client-side and server-side, zero risk of the two silently diverging, which matters
+more for correctness here than the alternative's smaller payload/faster startup would save, given
+how tiny these games already are.
 
 What this enables concretely: a human playing against a live agent doesn't need a network
 round-trip per frame — the browser steps its own Pyodide-run copy of the simulation from an action
@@ -172,16 +205,55 @@ immediately, and only syncs with the server (submitting the resulting trajectory
 via `POST /games/{game}/sessions/{id}/trajectory` or similar. Replay of a stored `TrajectoryArtifact`
 also becomes cheap: ship the seed + action sequence, not every frame's full state, and let the
 client re-simulate deterministically (every game here already resets deterministically from a
-seed, per docs/design/0003's fixed-benchmark-environments principle).
+seed, per docs/design/0003's fixed-benchmark-environments principle). The next section works out
+just how far this reasoning goes.
+
+## Real-time player interaction
+
+Worth working through explicitly rather than assuming SSE (one-directional, server → client)
+"just handles" it — a player's keypress needs a response *now*, and that doesn't sound like an SSE
+shape at first glance. It turns out there are three genuinely different interaction modes here, and
+only one of them actually needs the server involved per-step at all:
+
+1. **Human plays a game.** Fully client-side after the initial page load. Pyodide steps the game
+   the instant a key is pressed — no round trip, no server involvement in the interaction loop
+   itself. `POST .../actions` (if called at all) or `POST .../trajectory` happens once, after the
+   episode ends, purely for recording — off the interaction's critical path entirely.
+2. **Watching an already-trained policy play.** Same answer as (1). Ship the policy's serialized
+   weights/program to the client once, alongside the game; `WeightVector.forward()` /
+   `LinearProgram.run()` are both pure NumPy/Python and both run under Pyodide exactly like the game
+   logic does. Zero server calls per frame — the whole episode plays out client-side.
+3. **Watching training's *current* best individual play, live, as training progresses.** This is
+   the one case that genuinely needs the server — but only once per *generation*, not once per
+   *frame*. The existing `training_api` metrics SSE stream already announces every new
+   `GenerationStats`, which already carries a `champion_ref`; the client fetches that one artifact
+   when it changes (`GET /runs/{id}/artifacts/{ref}`) and re-runs it locally via the same Pyodide
+   mechanism as (2). This reuses infrastructure that exists for a different reason (the metrics
+   stream) rather than inventing a new one.
+
+This also validates rather than contradicts the original SSE-only decision: nothing above needs a
+genuinely bidirectional, low-latency transport, because gameplay execution itself moved client-side
+— a WebSocket would be solving a problem this design doesn't have.
+
+**Explicitly out of scope, not silently ignored**: all of this assumes a single trusted local user.
+Server-authoritative gameplay — needed if this ever became adversarial/competitive, or needed
+multiple simultaneous viewers watching one genuinely synchronized shared session — is a different,
+harder problem this design does not solve. That would need the server to be the source of truth
+with a real bidirectional transport (WebSocket), not client-side Pyodide execution. Worth
+remembering if multiplayer or shared-viewing ever becomes an actual goal, not something to design
+for speculatively now.
 
 ## Frontend architecture
 
-- **Pinia stores**: `useRunsStore` (list + selected run), `useMetricsStream` (owns the
-  `EventSource` connection to `/runs/{id}/metrics/stream`, exposes reactive `GenerationStats[]`),
-  `useGameSession` (owns a Pyodide worker instance + the current session's state).
-- **Pages**: a run list, a run detail page (live chart, backed by `useMetricsStream`, same shape as
-  the notebooks' matplotlib plots but live), and a game page that boots a Pyodide worker and either
-  replays a `TrajectoryArtifact` or accepts live human input.
+- **`apps/dashboard`** (consumes `training_api`): `useRunsStore` (list + selected run),
+  `useMetricsStream` (owns the `EventSource` connection to `/runs/{id}/metrics/stream`, exposes
+  reactive `GenerationStats[]`). Pages: a run list, and a run detail page with a live chart —
+  the same shape as the notebooks' matplotlib plots, but live.
+- **`apps/arcade`** (consumes `games_api`, loads Pyodide): `useGameSession` (owns a Pyodide worker
+  instance + the current session's state, per the real-time interaction design above — the worker
+  runs both the game and, when watching an agent, its policy). Pages: a game page that boots the
+  Pyodide worker and either replays a `TrajectoryArtifact`, accepts live human input, or polls
+  `training_api` for a live-updating champion (interaction mode 3, above).
 - **Tailwind**: utility-first, no separate component library decision made here — deferred until
   there's an actual page to style.
 - Nothing here is prescriptive about visual design — this doc is about the data contract between
@@ -189,28 +261,33 @@ seed, per docs/design/0003's fixed-benchmark-environments principle).
 
 ## Open questions
 
-- **WebAssembly approach** (above) — the one thing in this doc most worth your review before any
-  code gets written, since it shapes both `apps/wasm/` and how much of `libs/games` needs touching.
+- **API/app module split** (above) — proposed as `training_api`+`dashboard` /
+  `games_api`+`arcade`, but this is the part of the restructuring most worth a second look: does
+  this boundary actually match how you'll want to deploy/iterate on these, or would one API/one app
+  now (with the module convention in place for *whenever* a second one is actually needed) be
+  better than committing to two from the start?
 - **Control API scope**: `POST /runs/{run_id}/control` (pause/resume/step) needs `evolve()` itself
   to support cooperative pausing. The cheapest path is extending the existing `on_generation`
   callback mechanism (docs/design/0001) to check a shared flag each generation and block if paused
   — no change to `evolve()`'s core contract, reusing the exact decoupling point already designed
-  for observability. Worth confirming this is actually wanted before building it — doc 0003's games
-  plan treated this as a "whenever `apps/`/`apis/` work starts" item, not a hard requirement of the
-  first version.
-- **Auth/deployment**: out of scope for this doc — assumed local, single-user, no auth, same as
+  for observability. Confirmed as wanted; not yet built — doc 0003's games plan treated this as a
+  "whenever `apps/`/`apis/` work starts" item, and that point has now arrived.
+- **Auth/deployment**: confirmed out of scope — assumed local, single-user, no auth, same as
   everything else in this repo so far.
 
 ## Incremental plan
 
-1. FastAPI skeleton in `apis/` wired directly to existing `libs/telemetry` backends — no new
+1. `apis/training_api` skeleton, wired directly to existing `libs/telemetry` backends — no new
    persistence, just endpoints over what already exists. `/runs`, `/runs/{id}`,
    `/runs/{id}/metrics/history` first (plain REST, no SSE yet — prove the read path before adding
-   streaming).
+   streaming). Add `"apis/*"` to the uv workspace `members` glob at this point.
 2. Add `/runs/{id}/metrics/stream` (SSE), including the sync-to-async adaptation noted above.
-3. Nuxt 4 skeleton in `apps/`, Pinia + Tailwind scaffolding, one page: run list → run detail with a
+3. `apps/dashboard` skeleton (Nuxt 4 + Pinia + Tailwind), one page: run list → run detail with a
    live chart. This is the first true end-to-end vertical slice.
-4. Game viewing via `render_state()` rendered in plain Canvas/SVG (no WASM yet) — prove the game
-   data contract before adding Pyodide's complexity on top of it.
-5. Pyodide-based client-side simulation, once the JS-rendered version has proven the contract.
-6. Control API (pause/step), only once actually wanted.
+4. `apis/games_api` skeleton + `apps/arcade` game viewing via `render_state()` rendered in plain
+   Canvas/SVG (no Pyodide yet) — prove the game data contract before adding Pyodide's complexity.
+5. Pyodide-based client-side simulation in `arcade` (interaction modes 1 and 2 above), once the
+   JS-rendered version has proven the contract.
+6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
+   existing.
+7. Control API (pause/step) in `training_api`, extending `evolve()`'s `on_generation` mechanism.
