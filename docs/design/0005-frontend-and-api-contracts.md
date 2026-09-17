@@ -332,8 +332,13 @@ All in the one `apps/frontend` deployment for now:
    disconnect, so a full request through it hangs waiting for a generation that never arrives; see
    `apis/backend/README.md` and `apis/backend/tests/test_runs.py`. Verified against real data from
    `jobs/baseline_gp_run.py` with a live `uvicorn` process, not just tests.
-3. `apps/frontend` skeleton (Nuxt 4 + Pinia + Tailwind), one page: run list → run detail with a
-   live chart. This is the first true end-to-end vertical slice.
+3. ✅ `apps/frontend` skeleton (Nuxt 4.5, Pinia 4, Tailwind CSS 4 via `@tailwindcss/vite`): run
+   list (`/`) → run detail (`/runs/[id]`) with a live chart. The first true end-to-end vertical
+   slice — verified with a live backend + a headless-browser (Playwright) check, not just SSR HTML
+   inspection: navigating to a run detail page actually opens the SSE connection, backfills real
+   generations, and updates the chart with zero console errors. Chart is a hand-rolled SVG
+   polyline, not a charting library, to keep the dependency list to exactly what's named above. No
+   frontend test suite yet — a gap noted in `apps/frontend/README.md`, not silently skipped.
 4. `routers/games.py` + game viewing via `render_state()` rendered in plain Canvas/SVG (no Pyodide
    yet) — prove the game data contract before adding Pyodide's complexity.
 5. Pyodide-based client-side simulation (interaction modes 1 and 2 above), once the JS-rendered

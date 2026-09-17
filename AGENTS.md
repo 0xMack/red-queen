@@ -12,8 +12,15 @@ made.
 ## Layout
 
 - `notebooks/` — exploration, experiments, write-ups
-- `apps/` — front-end apps (visualization of runs/simulations) — not started yet (docs/design/0005
-  step 3)
+- `apps/` — front-end apps (visualization of runs/simulations)
+  - `frontend/` — the one Nuxt 4 app (docs/design/0005: one app, not one per concern). Run list +
+    live run-detail (backfill via REST, then an `EventSource` against `apis/backend`'s SSE route)
+    with a hand-rolled SVG chart — no charting library dependency yet. Pinia stores live in
+    `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/telemetry.ts` mirrors
+    `telemetry.RunInfo`/`GenerationStats` and must be kept in sync by hand if those change. No
+    automated test suite yet — verified so far with a live backend + an ad hoc headless-browser
+    (Playwright) check, not a checked-in test. Game viewing/interaction (docs/design/0005 steps 4-7)
+    not started yet.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -58,6 +65,9 @@ Each directory has its own README with specifics — this file is the map, not t
   `["libs/*", "apis/*"]` — new packages under either join automatically. `jobs/` still doesn't have
   its own `pyproject.toml` (scripts there just import already-installed workspace packages) — add
   `"jobs/*"` to `members` if that changes.
+- **`apps/frontend` is a separate `pnpm` project**, not part of the `uv` workspace — its own
+  `node_modules`/`pnpm-lock.yaml`. `pnpm install` / `pnpm dev` from `apps/frontend/`. No JS
+  workspace at the repo root yet since there's only one JS package.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.
