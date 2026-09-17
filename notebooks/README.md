@@ -34,6 +34,13 @@ a notebook is the narrative on top explaining what a comparison shows.
   failure scenario gets fixed) but plateaus with a healthy, non-collapsed population and isn't
   uniformly better (one scenario regresses) — reported as measured, including the diversity-vs-
   plateau analysis pointing at a representation ceiling rather than a compute shortage.
+- `0006-tinylm-from-scratch.ipynb` — the first thing in this repo trained by gradients, not
+  evolution (docs/design/0003 phase 6, docs/design/0004): a transformer language model built
+  entirely from scratch on `libs/autodiff` (a from-scratch reverse-mode autodiff engine) and
+  `libs/tinylm` (tokenizer, attention, transformer blocks, Adam), trained on *Alice's Adventures in
+  Wonderland*. Loss drops from the random-guess baseline to well below it in ~2.6 minutes of pure
+  NumPy training, with generated text visibly progressing from noise to real English word fragments
+  with book-appropriate punctuation — shown as a sequence of snapshots, not just a final result.
 
 Re-run any notebook in place with `PYTHONUTF8=1 uv run jupyter execute --inplace
 notebooks/<name>.ipynb` (see AGENTS.md for why `PYTHONUTF8=1` is needed on Windows).
