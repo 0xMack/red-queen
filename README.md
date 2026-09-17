@@ -24,8 +24,9 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   original code this repo started from)
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
   the baseline being validated before anything is ported to C++
-- `libs/games` — toy games/simulations, one module per game (starting with `reach1d`, a 1D
-  continuous-control environment), for simulation-based fitness
+- `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
+  environment; `snake`, a grid game), each also exposing a `render_state()` decoupled from the
+  fast training path — see `libs/games/README.md`
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`

@@ -47,6 +47,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   benchmark scenarios could never both improve; fixed by making the observation relative to the
   goal instead of absolute. Check this before spending compute tuning an algorithm against a new
   environment.
+- A symmetric shaping reward (`+x` for progress, `-x` for regress) can be reward-hacked into
+  oscillating in place forever for ~0 net reward — a real, lower-risk local optimum than continuing
+  to pursue the sparse objective. Found in `games/snake.py`: an evolved policy learned to bounce
+  between two cells instead of continuing toward food. Fixed by making the penalty for regress
+  larger than the reward for progress, so standing still is strictly worse than seeking the goal,
+  not merely no-better. Check what a policy can gain by doing nothing before trusting a shaped
+  reward is safe.
 
 ## Lessons
 

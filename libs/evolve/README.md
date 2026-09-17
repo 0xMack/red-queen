@@ -40,7 +40,9 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   evolved directly (Evolution Strategies). `GaussianMutation` is mutation-only, deliberately no
   crossover — averaging two networks' weights doesn't generally combine their behavior the way
   swapping GP instructions/subtrees does. `l2_norm()` is this representation's `ParetoSelection`
-  complexity measure.
+  complexity measure. `act()` returns just the first output (a bounded scalar, e.g. `reach1d`);
+  `forward()` returns every output, for multi-output policies that pick a discrete action via
+  argmax (e.g. `games.snake`'s left/straight/right).
 - `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value
   per environment/episode, same per-test-case contract as `SymbolicRegressionFitness` so

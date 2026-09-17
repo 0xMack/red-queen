@@ -167,12 +167,12 @@ Decided (2026-09), after discussion:
   truth synthetic problems (Nguyen/Koza-style symbolic regression) plus Iris, replacing inline
   lambda targets scattered across notebooks/jobs — synthetic-first, real-world datasets expanded
   later rather than prioritized now.
-- **Next environment: Snake.** Cheap to simulate (matters — fitness evaluation runs it thousands of
-  times per generation), trivially human-playable, obvious visual representation, a natural next
-  step up from `games.reach1d`. Same `Environment` protocol, a new module in `libs/games` (one
-  shared package per games/simulations, not one `libs/` package per game — reconsidered after
-  `reach1d` shipped as its own package; grouping them makes shared utilities have an obvious home
-  as more games are added instead of duplicating them per package).
+- ~~Next environment: Snake~~ — done: `games.snake` (`libs/games`), a grid game, flattened-grid
+  observation, relative-turn action space (left/straight/right, so reversing into your own body is
+  structurally impossible). Also shipped `games.rendering` (`Renderable` protocol +
+  `render_grid_ascii()`) as the first shared, cross-game utility — validating the whole reason for
+  consolidating into one package. Found and fixed a real reward-hacking failure mode by actually
+  training against it (see docs/CODING_GUIDELINES.md "Simulations / RL environments").
 - **Parked for later, not forgotten**: a 2D driving/sensor-casting task (single-agent, more visually
   impressive showcase material) and predator/prey pursuit (the thematic flagship — a literal Red
   Queen coevolutionary arms race, and already `phase 8`'s coevolution item) — both real candidates,

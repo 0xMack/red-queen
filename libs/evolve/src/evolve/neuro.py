@@ -45,8 +45,14 @@ class WeightVector:
     weights: tuple[float, ...]
     layer_sizes: tuple[int, ...]
 
+    def forward(self, observation: Sequence[float]) -> list[float]:
+        return _forward(self.weights, self.layer_sizes, observation)
+
     def act(self, observation: Sequence[float]) -> float:
-        return _forward(self.weights, self.layer_sizes, observation)[0]
+        """Convenience for single-output policies (a bounded scalar action, e.g. reach1d) --
+        returns just the first output. Multi-output policies (e.g. discrete action selection via
+        argmax, e.g. games.snake) should call forward() directly."""
+        return self.forward(observation)[0]
 
     def l2_norm(self) -> float:
         """A complexity/regularization measure for ParetoSelection -- "simpler" here means
