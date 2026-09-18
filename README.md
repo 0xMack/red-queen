@@ -25,11 +25,17 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 - `libs/autodiff` — reverse-mode automatic differentiation, built from scratch (`Tensor`,
   NumPy-array-valued, not scalar-valued) — the foundation for `libs/tinylm`'s transformer
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
-  the baseline being validated before anything is ported to C++
+  the baseline being validated before anything is ported to C++. `match.py` is the two-player
+  sibling of the single-agent `simulation.py`: `MultiAgentEnvironment`, `play_match()` (pit any
+  strategy against any strategy — static heuristic, evolved genome, classifier, all the same
+  `(observation, legal_moves) -> move` shape), and `MatchFitnessEvaluator` (fitness from match
+  outcomes against reference opponents)
 - `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
   environment; `snake`, a grid game — observation is 11 hand-engineered features, not a raw
-  flattened grid, after a retrained result confirmed representation was the ceiling, not compute),
-  each also exposing a `render_state()` decoupled from the fast training path — see
+  flattened grid, after a retrained result confirmed representation was the ceiling, not compute;
+  `checkers`, the first two-player game — real rules including mandatory captures/multi-jump
+  chains, reuses `render_state()`'s exact shape with just a wider piece-label vocabulary), each
+  also exposing a `render_state()` decoupled from the fast training path — see
   `libs/games/README.md`
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
@@ -61,4 +67,6 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   gradient-trained thing in this repo)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
-  scratch), `0005` (frontend + API contracts/endpoint definitions)
+  scratch), `0005` (frontend + API contracts/endpoint definitions), `0006` (multi-agent games and
+  the strategy/match framework, checkers as the first exercise of it — phase 1 of 4 done: the
+  framework and the game, pure Python, no API/frontend yet)

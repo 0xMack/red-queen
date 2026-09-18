@@ -1,8 +1,26 @@
 from evolve.fitness import FitnessEvaluator, SymbolicRegressionFitness
-from evolve.genome import DEFAULT_OPS, Instruction, LinearProgram, random_instruction, random_program
+from evolve.genome import (
+    DEFAULT_OPS,
+    Instruction,
+    LinearProgram,
+    random_instruction,
+    random_program,
+)
+from evolve.match import (
+    MatchFitnessEvaluator,
+    MatchResult,
+    MultiAgentEnvironment,
+    Strategy,
+    play_match,
+)
 from evolve.neuro import GaussianMutation, WeightVector, random_weight_vector
 from evolve.population import GenerationCallback, GenerationSummary, evolve
-from evolve.selection import LexicaseSelection, ParetoSelection, SelectionStrategy, TournamentSelection
+from evolve.selection import (
+    LexicaseSelection,
+    ParetoSelection,
+    SelectionStrategy,
+    TournamentSelection,
+)
 from evolve.simulation import Environment, SimulationFitnessEvaluator
 from evolve.tree import (
     FunctionNode,
@@ -26,9 +44,13 @@ __all__ = [
     "LexicaseSelection",
     "LinearCrossoverMutation",
     "LinearProgram",
+    "MatchFitnessEvaluator",
+    "MatchResult",
+    "MultiAgentEnvironment",
     "ParetoSelection",
     "SelectionStrategy",
     "SimulationFitnessEvaluator",
+    "Strategy",
     "SymbolicRegressionFitness",
     "Terminal",
     "TournamentSelection",
@@ -37,6 +59,7 @@ __all__ = [
     "VariationStrategy",
     "WeightVector",
     "evolve",
+    "play_match",
     "random_instruction",
     "random_node",
     "random_program",

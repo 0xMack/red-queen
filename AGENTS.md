@@ -5,9 +5,9 @@ from-scratch implementations — tested against purpose-built games/simulations,
 visualization to see what's happening internally and make debugging easier. See
 [README.md](README.md) for the pitch and [docs/design/](docs/design/) for the numbered design docs
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
-landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts) —
-read the relevant one before an architectural change that might conflict with a decision already
-made.
+landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts,
+0006: multi-agent games and the strategy/match framework) — read the relevant one before an
+architectural change that might conflict with a decision already made.
 
 ## Layout
 
@@ -66,13 +66,28 @@ made.
     package client-side, docs/design/0005 step 6) — no numpy, no external deps.
     `WeightVector.to_json()`/`from_json()` is the real (round-trippable) wire format for a trained
     policy — `jobs/snake_neuro_run.py` writes it, the Pyodide bridge loads it back with the exact
-    same code.
+    same code. `match.py` (docs/design/0006) is the two-player sibling of `simulation.py`'s
+    single-agent `Environment`/`SimulationFitnessEvaluator`: `MultiAgentEnvironment`
+    (`reset()`/`legal_moves()`/`current_player()`/`step(move)`/`winner()`), `play_match()` (the
+    "pit any strategy against any strategy" mechanic, reusable across every multi-agent game, not
+    checkers-specific), and `MatchFitnessEvaluator` (fitness from match outcomes against reference
+    opponents). No new `Strategy` class hierarchy — just `(observation, legal_moves) -> move`, the
+    same shape `act(genome, observation) -> action` already used for Snake, just wider.
   - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
-    `evolve`'s `Environment` interface without depending on `evolve`. One package for every game
+    `evolve`'s `Environment` interface (or, for the one two-player game so far,
+    `evolve.match.MultiAgentEnvironment`) without depending on `evolve`. One package for every game
     rather than one `libs/` package per game, so shared utilities have an obvious home. `snake.py`'s
     observation is 11 hand-engineered features (danger/heading/food-direction), not a raw flattened
     grid — swapped after a real trained result confirmed the earlier representation, not compute,
-    was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments").
+    was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments"). `checkers.py`
+    (docs/design/0006 phase 1) — real rules (mandatory captures, mandatory multi-jump chains,
+    kinging), a `Move` is a whole turn so `current_player()` alternates strictly every `step()`;
+    `render_state()` reuses `snake.py`'s exact `{width, height, cells}` shape, just a wider label
+    vocabulary (`"black_man"`/`"red_king"`/...) — no protocol changes needed for two-colored,
+    two-typed pieces. Validated: two static strategies play a full match via `play_match()`, and a
+    small evolved population measurably improves against a randomized opponent via
+    `MatchFitnessEvaluator` (noisy with too few opponent samples, clean with more — see
+    docs/CODING_GUIDELINES.md).
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
   - `tinylm/` — a small transformer LM, built on `autodiff` (docs/design/0004). Trained by

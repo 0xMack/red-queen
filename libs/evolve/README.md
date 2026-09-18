@@ -57,6 +57,19 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   dependency direction as `evolve`/`telemetry`.
 - `population.py` — `evolve()`, the orchestration loop, and `GenerationSummary` (this package's own
   telemetry-agnostic per-generation type — see docs/design/0001 "Decoupling from telemetry").
+- `match.py` — `MultiAgentEnvironment` (docs/design/0006), the two-player (player-count-generic)
+  sibling of `simulation.py`'s single-agent `Environment` — `reset()`/`legal_moves()`/
+  `current_player()`/`step(move)`/`winner()` instead of `reset()`/`step(action)`, since a board
+  game's legal actions depend on state and there's more than one reward stream. `play_match()` runs
+  one match between any two `Strategy` callables (`(observation, legal_moves) -> move` — no new
+  class hierarchy; a static heuristic, an evolved genome via `functools.partial(act, genome)`, or a
+  classifier are all just functions with this shape) — the reusable "pit any strategy against any
+  strategy" mechanic requested as first-class infrastructure, not built into `games.checkers`
+  specifically. `MatchFitnessEvaluator` is `SimulationFitnessEvaluator` with "N fixed environments"
+  replaced by "N fixed reference opponents" (one fitness value per opponent per seat, so
+  `LexicaseSelection` works unchanged). A concrete game (e.g. `games.checkers`) implements
+  `MultiAgentEnvironment` but never imports this module — same dependency direction as
+  `Environment`/`games`.
 
 `evolve()` has **no import of and no dependency on `libs/telemetry`**. Wiring a run to telemetry is
 an adapter that lives outside this package — see `jobs/baseline_gp_run.py`.

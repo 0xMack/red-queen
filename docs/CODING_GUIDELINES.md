@@ -89,6 +89,16 @@ what belongs here and how to add to it). Read before writing code, not after.
   generation-class budget: best_fitness 17.28, and the policy actually eats food instead of dying
   almost immediately. Hand a small evolved/RL network the structure a human would notice at a
   glance, don't make it re-derive that structure from pixels/cells as a side effect of the main task.
+- Match-outcome fitness (win/draw/loss per opponent, `evolve.match.MatchFitnessEvaluator`) is a much
+  coarser signal than a continuous per-step reward, and gets noisier still when the opponent itself
+  has randomness in it (a `rng.choice()`-based strategy) — one match's outcome partly reflects the
+  opponent's luck, not just the genome's quality. First `games/checkers.py` evolutionary smoke test
+  (2 opponents × 2 seats = 4 fitness values per genome) showed no clean trend over 25 generations;
+  the *same* setup with one randomized opponent repeated 6× in the opponent pool (6 independent
+  samples of that opponent's luck, still 1 fitness value per match) showed a clear one
+  (mean fitness ~0.09 → ~0.21 over 40 generations). If evolution against a match-outcome fitness
+  looks stuck, check whether there's enough independent opponent sampling before concluding the
+  representation or algorithm is at fault.
 
 ## Web / API (`apis/backend`)
 
