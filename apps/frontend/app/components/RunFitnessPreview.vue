@@ -24,5 +24,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <FitnessChart v-if="history" :history="history" />
+  <figure v-if="history" class="card my-8 p-5">
+    <FitnessChart :history="history" :height="260" />
+    <figcaption class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
+      <span>A real recorded run -- {{ history.length }} generations, straight from the telemetry store.</span>
+      <NuxtLink :to="`/runs/${runId}`" class="link">Open this run →</NuxtLink>
+    </figcaption>
+  </figure>
 </template>

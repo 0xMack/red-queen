@@ -1,48 +1,42 @@
 <script setup lang="ts">
 import type { GenerationStats } from "~/types/telemetry"
 
-const props = defineProps<{ history: GenerationStats[] }>()
+// Best/mean fitness vs. generation, with the population's full worst..best spread shaded behind --
+// the spread collapsing is the visual tell for premature convergence. Built on LineChart.vue; used
+// by the live run page and (statically) by RunFitnessPreview in the Learn chapters.
+const props = withDefaults(
+  defineProps<{ history: GenerationStats[]; height?: number; marker?: number | null; clickable?: boolean }>(),
+  { height: 300, marker: null, clickable: false },
+)
+defineEmits<{ select: [generation: number] }>()
 
-const width = 640
-const height = 240
-const padding = 32
-
-// A hand-rolled SVG polyline rather than a charting library dependency -- this skeleton only needs
-// two lines against generation, and it keeps apps/frontend's dependency footprint to exactly what
-// doc 0005 named (Nuxt/Vue/Pinia/Tailwind), not an undiscussed addition.
-const points = computed(() => {
-  const data = props.history
-  if (data.length === 0) return { best: "", mean: "" }
-
-  const xs = data.map((d) => d.generation)
-  const ys = data.flatMap((d) => [d.best_fitness, d.mean_fitness])
-  const xMin = Math.min(...xs)
-  const xMax = Math.max(...xs)
-  const yMin = Math.min(...ys)
-  const yMax = Math.max(...ys)
-  const xSpan = xMax - xMin || 1
-  const ySpan = yMax - yMin || 1
-
-  const scaleX = (x: number) => padding + ((x - xMin) / xSpan) * (width - 2 * padding)
-  const scaleY = (y: number) => height - padding - ((y - yMin) / ySpan) * (height - 2 * padding)
-
-  const toPolyline = (key: "best_fitness" | "mean_fitness") =>
-    data.map((d) => `${scaleX(d.generation)},${scaleY(d[key])}`).join(" ")
-
-  return { best: toPolyline("best_fitness"), mean: toPolyline("mean_fitness") }
-})
+const x = computed(() => props.history.map((h) => h.generation))
+const series = computed(() => [
+  { key: "mean", label: "mean", color: "#60a5fa", values: props.history.map((h) => h.mean_fitness), width: 1.5 },
+  { key: "best", label: "best", color: "#ff5c7a", values: props.history.map((h) => h.best_fitness), width: 2.25 },
+])
+const band = computed(() => ({
+  lower: props.history.map((h) => h.worst_fitness),
+  upper: props.history.map((h) => h.best_fitness),
+  color: "rgb(255 92 122 / 0.08)",
+}))
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${width} ${height}`" class="w-full rounded-lg border border-slate-200 bg-white">
-    <template v-if="history.length > 0">
-      <polyline :points="points.mean" fill="none" stroke="#94a3b8" stroke-width="1.5" />
-      <polyline :points="points.best" fill="none" stroke="#2563eb" stroke-width="2" />
-      <text x="8" y="16" class="fill-blue-600 text-xs">best fitness</text>
-      <text x="8" y="30" class="fill-slate-400 text-xs">mean fitness</text>
-    </template>
-    <text v-else x="50%" y="50%" text-anchor="middle" class="fill-slate-400 text-sm">
-      waiting for the first generation...
-    </text>
-  </svg>
+  <div>
+    <div class="mb-2 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
+      <span class="flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-queen-400" />best</span>
+      <span class="flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-signal-400" />mean</span>
+      <span class="flex items-center gap-1.5"><span class="h-2.5 w-4 rounded-sm bg-queen-400/15" />worst..best spread</span>
+    </div>
+    <LineChart
+      :x="x"
+      :series="series"
+      :band="band"
+      :height="height"
+      :marker="marker"
+      :clickable="clickable"
+      @select="$emit('select', $event)"
+    />
+  </div>
 </template>

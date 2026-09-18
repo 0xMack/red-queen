@@ -9,22 +9,30 @@ const props = withDefaults(defineProps<{ variant?: Variant; title?: string }>(),
   variant: "note",
 })
 
-const STYLES: Record<Variant, { border: string; bg: string; label: string }> = {
-  note: { border: "border-blue-200", bg: "bg-blue-50", label: "Note" },
-  warning: { border: "border-amber-200", bg: "bg-amber-50", label: "Watch out" },
-  finding: { border: "border-emerald-200", bg: "bg-emerald-50", label: "Found by running it" },
+const STYLES: Record<Variant, { border: string; bg: string; label: string; accent: string; icon: string }> = {
+  note: { border: "border-signal-400/25", bg: "bg-signal-400/[0.06]", label: "Note", accent: "text-signal-300", icon: "i" },
+  warning: { border: "border-gold-400/25", bg: "bg-gold-400/[0.06]", label: "Watch out", accent: "text-gold-300", icon: "!" },
+  finding: { border: "border-life-400/25", bg: "bg-life-400/[0.06]", label: "Found by running it", accent: "text-life-300", icon: "✓" },
 }
 
 const style = computed(() => STYLES[props.variant])
 </script>
 
 <template>
-  <div class="my-6 rounded-lg border px-4 py-3" :class="[style.border, style.bg]">
-    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-      {{ title ?? style.label }}
-    </p>
-    <div class="mt-1.5 text-sm leading-relaxed text-slate-700">
-      <slot />
+  <aside class="my-8 flex gap-4 rounded-xl border px-5 py-4" :class="[style.border, style.bg]">
+    <span
+      class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-current font-mono text-xs font-bold"
+      :class="style.accent"
+    >
+      {{ style.icon }}
+    </span>
+    <div class="min-w-0">
+      <p class="font-display text-[15px] font-semibold" :class="style.accent">
+        {{ title ?? style.label }}
+      </p>
+      <div class="mt-1.5 text-sm leading-relaxed text-fg-muted">
+        <slot />
+      </div>
     </div>
-  </div>
+  </aside>
 </template>

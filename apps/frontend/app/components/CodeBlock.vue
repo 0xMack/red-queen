@@ -30,14 +30,17 @@ async function copyCode() {
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-lg border border-slate-800 bg-[#0d1117]">
-    <div class="flex items-center justify-between border-b border-slate-800 px-4 py-1.5">
-      <span class="font-mono text-xs text-slate-400">{{ lang }}</span>
-      <button class="text-xs text-slate-400 transition hover:text-slate-200" @click="copyCode">
+  <div class="overflow-hidden rounded-xl border border-line bg-sunken">
+    <div class="flex items-center justify-between border-b border-line bg-surface px-4 py-2">
+      <span class="flex items-center gap-2 font-mono text-xs text-fg-subtle">
+        <span class="flex gap-1"><span class="size-2 rounded-full bg-queen-500/60" /><span class="size-2 rounded-full bg-gold-400/60" /><span class="size-2 rounded-full bg-life-400/60" /></span>
+        {{ lang }}
+      </span>
+      <button class="text-xs text-fg-subtle transition hover:text-fg" @click="copyCode">
         {{ copied ? "Copied!" : "Copy" }}
       </button>
     </div>
-    <div v-if="html" class="overflow-x-auto p-4 text-sm leading-relaxed [&_pre]:!bg-transparent" v-html="html" />
-    <pre v-else class="overflow-x-auto p-4 text-sm leading-relaxed text-slate-300">{{ code.trim() }}</pre>
+    <div v-if="html" class="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed [&_pre]:!bg-transparent" v-html="html" />
+    <pre v-else class="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-fg-muted">{{ code.trim() }}</pre>
   </div>
 </template>

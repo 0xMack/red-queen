@@ -31,17 +31,22 @@ type InboundMessage =
   | { type: "restart" }
   | { type: "load_policy"; policyJson: string }
   | { type: "stop" }
+  | { type: "set_speed"; intervalMs: number }
 
 type OutboundMessage =
   | { type: "ready" }
-  | { type: "state"; renderState: RenderState; reward: number; done: boolean; step: number }
+  // observation: watch mode only -- the 11 features the policy will decide its *next* move from, so
+  // the page can visualize the network's live activations without a second Python round trip.
+  | { type: "state"; renderState: RenderState; reward: number; done: boolean; step: number; observation?: number[] }
   | { type: "error"; message: string }
 
 // Pinned to match the `pyodide` npm package version exactly -- the JS loader and the CDN-hosted
 // runtime files (wasm binary, stdlib zip) must be the same version.
 const PYODIDE_VERSION = "314.0.7"
 const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
-const TICK_INTERVAL_MS = 110
+const DEFAULT_TICK_INTERVAL_MS = 110
+// Adjustable (watch-mode speed control): clamped so a bad message can't spin the worker.
+let tickIntervalMs = DEFAULT_TICK_INTERVAL_MS
 
 let pyodide: PyodideInterface | null = null
 let mode: "play" | "watch" = "play"
@@ -134,6 +139,7 @@ function watchTickOnce() {
     reward: result.reward,
     done: result.done,
     step: stepCount,
+    observation: result.observation as number[],
   })
 
   if (result.done && lastPolicyJson) {
@@ -245,7 +251,7 @@ async function initialize(policyJson: string | undefined) {
     snake = newSnake!()
     stepCount = 0
     post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
-    timer = setInterval(tick, TICK_INTERVAL_MS)
+    timer = setInterval(tick, tickIntervalMs)
   }
 }
 
@@ -272,8 +278,15 @@ async function loadPolicy(policyJson: string) {
   resetProxy.destroy()
 
   stepCount = 0
-  post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
-  timer = setInterval(tick, TICK_INTERVAL_MS)
+  post({
+    type: "state",
+    renderState: readRenderState(),
+    reward: 0,
+    done: false,
+    step: 0,
+    observation: currentObservation as number[],
+  })
+  timer = setInterval(tick, tickIntervalMs)
 }
 
 function restart() {
@@ -286,7 +299,7 @@ function restart() {
   pendingAction = 0
   stepCount = 0
   post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
-  timer = setInterval(tick, TICK_INTERVAL_MS)
+  timer = setInterval(tick, tickIntervalMs)
 }
 
 self.onmessage = (event: MessageEvent<InboundMessage>) => {
@@ -303,6 +316,12 @@ self.onmessage = (event: MessageEvent<InboundMessage>) => {
     loadPolicy(message.policyJson).catch((e) =>
       post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
     )
+  } else if (message.type === "set_speed") {
+    tickIntervalMs = Math.min(1000, Math.max(20, message.intervalMs))
+    if (timer !== null) {
+      stopTicking()
+      timer = setInterval(tick, tickIntervalMs)
+    }
   } else if (message.type === "stop") {
     // Pauses without tearing anything down -- used when a page using a reused worker (see
     // app/composables/useSnakeWorker.ts) unmounts, so it doesn't keep ticking/posting messages

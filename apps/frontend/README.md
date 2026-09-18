@@ -7,21 +7,36 @@ for the full contract and incremental plan this implements (steps 3-6).
 
 ## Site map
 
-- `/` — landing page: hero/pitch, an embedded live `LiveSnakeDemo`, links into Games/Learn/Runs.
-- `/games` — hub of playable games (`app/data/games.ts` drives the card grid; Checkers shows as
-  "coming soon" until doc 0006 phases 2-4 land).
-- `/learn` — an interactive-textbook "wiki" covering how the project's techniques actually work,
-  foundations first (`app/data/learnChapters.ts` drives the chapter index; most chapters are
-  "coming soon" placeholders, filled in incrementally). Three chapters are fully written today:
+- `/` — landing page: hero/pitch + stats, then a **watch-mode** demo: the best (or a currently
+  training) Snake run's champion playing via `WatchChampion`, next to an "about this champion"
+  panel (network, selection, population, fitness curve) -- visitors watch an evolved policy first
+  rather than being asked to play. Then games, recent runs, and Learn chapters.
+- `/games` — hub of playable games (`app/data/games.ts` drives `GameCard`s with cover images and
+  facts; Checkers shows as "coming soon" until doc 0006 phases 2-4 land).
+- `/learn` — an interactive textbook. `app/pages/learn.vue` is the parent route: the index renders
+  full-width (search, part filter, `ChapterCard` grid with covers); a chapter gets a sidebar (chapter
+  nav grouped by part + `LearnSearch`), a header generated from `app/data/learnChapters.ts`
+  (number, cover, tags, prerequisites), prev/next links, a reading-progress bar, and an "on this
+  page" outline built at runtime from the chapter's `<h2>`s (ids = `slugify(text)`, the same
+  anchors the search's `sections` index links to). Chapter pages themselves are just the body --
+  one root `<article class="prose-chapter">` (page transitions need a single root; a template
+  comment next to it counts as a second one in dev). Three chapters are written:
   `genetic-algorithms.vue`, `selection-strategies.vue`, `teaching-a-snake.vue` — each cites real
-  code from `libs/evolve`/`games/snake.py` and real notebook/training results (via `Callout`), not
-  invented examples. `teaching-a-snake.vue` embeds a live, playable `LiveSnakeDemo`.
-- `/runs` — the run list (`GET /runs`), links to each run's detail page. Moved here from `/` when
-  `/` became the landing page above — behavior unchanged.
+  code and real results (via `Callout`), not invented examples.
+- `/runs` — the run list (`GET /runs`) as a sortable/filterable table: status (with a "stalled?"
+  flag for `running` runs untouched for 15+ min), selection/variation, population, genome shape,
+  generations vs. target, best fitness, a best-fitness sparkline, start time, duration. Sparklines
+  need each run's history, fetched client-side per run (`runsStore.fetchHistories()`) -- there's no
+  aggregate endpoint. Run config is interpreted in one place, `app/utils/runMeta.ts`.
 - `app/pages/runs/[id].vue` — one run's live metrics: backfills history
   (`GET /runs/{id}/metrics/history`), then opens an `EventSource` against
-  `GET /runs/{id}/metrics/stream` for live updates, tearing the connection down on unmount. Links
-  to `/watch/{id}` when `run.config.game === "snake"`.
+  `GET /runs/{id}/metrics/stream` for live updates, tearing the connection down on unmount. Stat
+  tiles, fitness chart (best/mean + worst..best band) and diversity chart (`LineChart.vue`), config
+  + summary, a recent-generations table, and pause/resume/step controls for live runs. The
+  **champion runs on the same page**: Snake runs embed `WatchChampion` (with
+  `manageStream: false` -- the page already owns the stream); clicking the chart or a table row pins
+  that generation's champion. Linear-GP runs show the champion program instead (`ChampionProgram`,
+  parsing the artifact's `repr()` with introns marked -- `app/utils/linearProgram.ts`).
 - `app/pages/play/[game].vue` — play a game (`/play/snake` today) entirely client-side via Pyodide,
   running in a Web Worker (doc 0005 step 5). This thread only translates absolute arrow-key presses
   into Snake's relative action space using a client-tracked heading (doc 0005's worked example) and
@@ -40,6 +55,21 @@ for the full contract and incremental plan this implements (steps 3-6).
   `WeightVector` is just opaque bytes to `ArtifactStore`, same as a `LinearProgram`'s `repr()`. Now
   a thin page composing `useWatchSession(runId)` (below).
 
+### Visual design
+
+Dark "lab" theme defined as semantic tokens in `app/assets/css/main.css` (`@theme`: `bg`/`surface`/
+`raised`/`line`/`fg`/`fg-muted`, accent `queen-*`, series colors `life`/`signal`/`gold`) plus a few
+`@utility` classes (`card`, `btn-primary`, `btn-ghost`, `chip`, `eyebrow`, `link`, `num`) -- use
+those rather than raw Tailwind palette colors. Fonts (Space Grotesk / Inter / JetBrains Mono) load
+from Google Fonts in `nuxt.config.ts`. The header is `sticky`; pages use `max-w-[1600px]` and
+responsive grids, and embeddable widgets (`WatchChampion`) use container queries so they adapt to
+the column they're placed in, not the viewport.
+
+Game/chapter cover images in `public/screenshots/` are **real captures** of the running app,
+regenerated with `scripts/capture_screenshots.py` (see its docstring); chapter covers without a
+screenshot use `ChapterArt.vue`'s diagrams of the chapter's actual mechanism, and the Checkers card
+renders a real position generated by `games.checkers` (`app/data/checkersSnapshot.ts`).
+
 ### Reusable components and session composables
 
 Session logic (loading/error/`renderState`/`reward`/`done`/`stepCount`, and the worker-message
@@ -53,12 +83,18 @@ pages, plus the landing page and the "Teaching a Snake" Learn chapter -- shares 
   the whole viewport, e.g. a dedicated page) via `useSnakeControls.ts`'s `createHeadingTracker()`.
 - `app/composables/useWatchSession.ts` — wraps it with the `metricsStream`-driven champion-reload
   logic described above.
-- `app/components/LiveSnakeDemo.vue` — an embeddable play-only widget (used on the landing page and
-  in the Snake Learn chapter) that calls `useSnakeSession()` + `createHeadingTracker()` directly,
-  **not** `usePlaySession()`: it needs **element-scoped** keydown capture (`tabindex="0"` +
-  `event.preventDefault()` only on recognized keys) so it doesn't hijack page scroll/arrow keys
-  until a visitor actually clicks into it. It's deliberately play-mode only for now -- nothing
-  embeds a watch-mode demo yet, and `useWatchSession` is proven and ready whenever something does.
+- `app/components/LiveSnakeDemo.vue` — an embeddable play-only widget (the Snake Learn chapter, and
+  the landing page's fallback when no trained run is reachable) that calls `useSnakeSession()` +
+  `createHeadingTracker()` directly, **not** `usePlaySession()`: it needs **element-scoped** keydown
+  capture (`tabindex="0"` + `event.preventDefault()` only on recognized keys) so it doesn't hijack
+  page scroll/arrow keys. Starts on first click, not on mount (it's usually below the fold).
+- `app/components/WatchChampion.vue` — the embeddable watch-mode counterpart, on
+  `useWatchSession(runId, { manageStream })`: board, playback speed (the worker's `set_speed`
+  message), per-episode score stats, and `NetworkDiagram` -- the champion's actual weights with
+  live activations. The worker posts the policy's current `observation` with each watch-mode state,
+  and `app/utils/snakePolicy.ts` mirrors `evolve.neuro._forward` in JS purely to *visualize* it (the
+  Python copy still decides every move). `pin(generation)` loads any generation's stored champion.
+  Only one Snake widget can be live per page -- they share the single worker.
 
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),
@@ -130,8 +166,9 @@ Revisit if the chapter count grows enough that hand-authoring markup becomes the
   accepted minor artifact: the segment nearest the head can snap instead of glide for one frame
   right after eating, since growth shifts every index by one. Generic over any grid game's cell
   labels, not Snake-specific; reused unchanged across every play-mode version and the watch page.
-- `app/components/FitnessChart.vue` — a hand-rolled SVG polyline chart (best/mean fitness vs.
-  generation). No charting library dependency for this skeleton -- doc 0005 named
+- `app/components/LineChart.vue` / `FitnessChart.vue` / `Sparkline.vue` — hand-rolled SVG charts
+  (axes with nice ticks, optional band, hover tooltip, click-to-select, a ResizeObserver for crisp
+  text at any width). Still no charting library dependency -- doc 0005 named
   Nuxt/Vue/Pinia/Tailwind specifically; a charting library is a separate decision to make later if
   the hand-rolled version stops being enough.
 - `app/stores/runs.ts`, `app/stores/metricsStream.ts` — Pinia stores (auto-imported by

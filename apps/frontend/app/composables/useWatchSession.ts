@@ -1,34 +1,71 @@
 import type { RunInfo } from "~/types/telemetry"
 
-// The /watch/[runId].vue page's session, also usable by LiveSnakeDemo.vue in "watch" mode. Modes
-// 2 (a finished run) and 3 (a still-training run's live current-best) turn out to be the same
-// mechanism: reuse useMetricsStreamStore and reload whichever champion is latest whenever it
-// changes -- see doc 0005 step 6.
-export function useWatchSession(runId: string) {
+export interface LoadedPolicy {
+  ref: string
+  generation: number | null
+  weights: number[]
+  layerSizes: number[]
+}
+
+// Watch a trained Snake policy play. Modes 2 (a finished run) and 3 (a still-training run's live
+// current-best) turn out to be the same mechanism: reuse useMetricsStreamStore and reload whichever
+// champion is latest whenever it changes -- see doc 0005 step 6.
+//
+// `manageStream: false` is for a page that already owns the metrics stream for the same run (the
+// run detail page shows the chart from it too) -- this composable then only reads it, rather than
+// restarting/stopping it. `pin(generation)` switches from "follow the latest champion" to a fixed
+// generation's champion (every generation's champion is stored as an artifact); `pin(null)` goes
+// back to following.
+export function useWatchSession(runId: string, options: { manageStream?: boolean } = {}) {
+  const manageStream = options.manageStream ?? true
   const session = useSnakeSession()
   const metricsStream = useMetricsStreamStore()
   const config = useRuntimeConfig()
 
   const run = ref<RunInfo | null>(null)
   const lastLoadedRef = ref<string | null>(null)
+  const policy = ref<LoadedPolicy | null>(null)
+  const pinnedGeneration = ref<number | null>(null)
   let workerStarted = false
+  let active = false
 
-  async function loadLatestChampionIfNew() {
-    const latest = metricsStream.history.at(-1)
-    if (!latest || latest.champion_ref === lastLoadedRef.value) return
+  const targetStats = computed(() => {
+    const history = metricsStream.runId === runId ? metricsStream.history : []
+    if (pinnedGeneration.value === null) return history.at(-1) ?? null
+    return history.find((h) => h.generation === pinnedGeneration.value) ?? null
+  })
+
+  async function loadTargetChampionIfNew() {
+    if (!active) return
+    const target = targetStats.value
+    if (!target || target.champion_ref === lastLoadedRef.value) return
 
     let policyJson: string
     try {
-      policyJson = await $fetch<string>(`/runs/${runId}/artifacts/${latest.champion_ref}`, {
+      policyJson = await $fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, {
         baseURL: config.public.apiBase,
         responseType: "text",
       })
     } catch (e) {
       session.error.value = e instanceof Error ? e.message : String(e)
+      session.loading.value = false
       return // lastLoadedRef stays unset for this ref, so a retry (or the next SSE tick) tries again
     }
-    lastLoadedRef.value = latest.champion_ref
+    lastLoadedRef.value = target.champion_ref
 
+    try {
+      const parsed = JSON.parse(policyJson) as { weights: number[]; layer_sizes: number[] }
+      policy.value = {
+        ref: target.champion_ref,
+        generation: target.generation,
+        weights: parsed.weights,
+        layerSizes: parsed.layer_sizes,
+      }
+    } catch {
+      policy.value = null // the worker will report the real error if the artifact is unusable
+    }
+
+    session.resetStats()
     if (!workerStarted) {
       workerStarted = true
       session.start(policyJson)
@@ -37,11 +74,17 @@ export function useWatchSession(runId: string) {
     }
   }
 
-  watch(() => metricsStream.history.length, loadLatestChampionIfNew)
+  watch(targetStats, loadTargetChampionIfNew)
 
   async function start() {
+    active = true
     session.loading.value = true
     session.error.value = null
+
+    if (!manageStream) {
+      await loadTargetChampionIfNew()
+      return
+    }
 
     try {
       run.value = await $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase })
@@ -62,6 +105,10 @@ export function useWatchSession(runId: string) {
     await metricsStream.start(runId)
   }
 
+  function pin(generation: number | null) {
+    pinnedGeneration.value = generation
+  }
+
   function retry() {
     workerStarted = false
     lastLoadedRef.value = null
@@ -69,9 +116,10 @@ export function useWatchSession(runId: string) {
   }
 
   onUnmounted(() => {
-    metricsStream.stop()
+    active = false
+    if (manageStream) metricsStream.stop()
     session.stop()
   })
 
-  return { ...session, run, lastLoadedRef, start, retry }
+  return { ...session, run, lastLoadedRef, policy, pinnedGeneration, targetStats, start, retry, pin }
 }

@@ -6,6 +6,23 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@pinia/nuxt'],
   css: ['~/assets/css/main.css'],
+  app: {
+    pageTransition: { name: 'page', mode: 'out-in' },
+    head: {
+      titleTemplate: (title?: string) => (title ? `${title} · Red Queen` : 'Red Queen'),
+      htmlAttrs: { lang: 'en' },
+      meta: [{ name: 'theme-color', content: '#090b10' }],
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap',
+        },
+      ],
+    },
+  },
   vite: {
     plugins: [tailwindcss()],
   },

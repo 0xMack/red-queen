@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
+// data/learnChapters.ts). Keep a single root element: page transitions require one.
 const baselineCode = `from evolve import (
     LinearCrossoverMutation,
     SymbolicRegressionFitness,
@@ -49,76 +51,70 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-2xl p-6">
-    <NuxtLink to="/learn" class="text-sm text-slate-500 hover:underline">&larr; learn</NuxtLink>
-    <h1 class="mt-2 text-2xl font-bold text-slate-900">Genetic Algorithms, from Scratch</h1>
-    <p class="mt-1 text-sm text-slate-500">Chapter 1 -- the loop every other technique in this project builds on.</p>
+  <article class="prose-chapter">
+    <p>
+      A genetic algorithm evolves a <strong>population</strong> of candidate solutions toward a goal
+      it can only measure, never differentiate. There's no gradient telling it which direction to
+      move -- just a score, per candidate, called <strong>fitness</strong>. Everything else is a
+      loop around that one fact:
+    </p>
 
-    <div class="prose-chapter mt-8 space-y-4 text-slate-700">
-      <p>
-        A genetic algorithm evolves a <strong>population</strong> of candidate solutions toward a goal
-        it can only measure, never differentiate. There's no gradient telling it which direction to
-        move -- just a score, per candidate, called <strong>fitness</strong>. Everything else is a
-        loop around that one fact:
-      </p>
+    <ol class="ml-5 list-decimal space-y-1">
+      <li>Score every individual in the population against the fitness function.</li>
+      <li>Select parents, biased toward higher fitness (but not exclusively the best -- more on why in the next chapter).</li>
+      <li>Vary them (mutation, sometimes crossover) to produce the next generation.</li>
+      <li>Repeat.</li>
+    </ol>
 
-      <ol class="ml-5 list-decimal space-y-1">
-        <li>Score every individual in the population against the fitness function.</li>
-        <li>Select parents, biased toward higher fitness (but not exclusively the best -- more on why in the next chapter).</li>
-        <li>Vary them (mutation, sometimes crossover) to produce the next generation.</li>
-        <li>Repeat.</li>
-      </ol>
+    <p>
+      That's the whole algorithm. What makes it interesting is what you plug into each of those
+      four steps -- a genome can be a register-machine program, an expression tree, or a neural
+      network's weights (later chapters cover all three), and the loop itself doesn't change.
+    </p>
 
-      <p>
-        That's the whole algorithm. What makes it interesting is what you plug into each of those
-        four steps -- a genome can be a register-machine program, an expression tree, or a neural
-        network's weights (later chapters cover all three), and the loop itself doesn't change.
-      </p>
+    <h2>A concrete run</h2>
+    <p>
+      This project's baseline example evolves a linear-genetic-programming individual -- a small
+      register-machine program -- to approximate <code>x⁴ - 3x² + 2</code>
+      from 11 sample points, using nothing but add/subtract/multiply/divide:
+    </p>
 
-      <h2 class="text-lg font-semibold text-slate-900">A concrete run</h2>
-      <p>
-        This project's baseline example evolves a linear-genetic-programming individual -- a small
-        register-machine program -- to approximate <code class="rounded bg-slate-100 px-1 py-0.5 text-sm">x⁴ - 3x² + 2</code>
-        from 11 sample points, using nothing but add/subtract/multiply/divide:
-      </p>
+    <CodeBlock lang="python" :code="baselineCode" />
 
-      <CodeBlock lang="python" :code="baselineCode" />
+    <p>
+      <code>on_generation</code> is the one seam
+      that matters architecturally: <code>evolve()</code>
+      itself has zero knowledge of how (or whether) a run gets recorded anywhere. It just calls
+      every callback in that list once per generation with a plain summary object:
+    </p>
 
-      <p>
-        <code class="rounded bg-slate-100 px-1 py-0.5 text-sm">on_generation</code> is the one seam
-        that matters architecturally: <code class="rounded bg-slate-100 px-1 py-0.5 text-sm">evolve()</code>
-        itself has zero knowledge of how (or whether) a run gets recorded anywhere. It just calls
-        every callback in that list once per generation with a plain summary object:
-      </p>
+    <CodeBlock lang="python" :code="summaryCode" />
 
-      <CodeBlock lang="python" :code="summaryCode" />
+    <Callout variant="note" title="Why this matters">
+      This is what makes the live charts on this site possible without coupling the algorithm to
+      telemetry, a database, or a web framework. A different callback adapts that summary into a
+      recorded metric; <code class="text-xs">evolve()</code> never imports any of it. You could
+      run this exact loop in a plain script with no callbacks at all and it would behave
+      identically.
+    </Callout>
 
-      <Callout variant="note" title="Why this matters">
-        This is what makes the live charts on this site possible without coupling the algorithm to
-        telemetry, a database, or a web framework. A different callback adapts that summary into a
-        recorded metric; <code class="text-xs">evolve()</code> never imports any of it. You could
-        run this exact loop in a plain script with no callbacks at all and it would behave
-        identically.
-      </Callout>
+    <h2>What that actually looks like</h2>
+    <p v-if="!runId" class="text-sm text-fg-subtle">
+      (Live chart unavailable -- start the backend to see a real run's fitness curve here.)
+    </p>
+    <ClientOnly v-else>
+      <RunFitnessPreview :run-id="runId" />
+    </ClientOnly>
 
-      <h2 class="text-lg font-semibold text-slate-900">What that actually looks like</h2>
-      <p v-if="!runId" class="text-sm text-slate-500">
-        (Live chart unavailable -- start the backend to see a real run's fitness curve here.)
-      </p>
-      <ClientOnly v-else>
-        <RunFitnessPreview :run-id="runId" />
-      </ClientOnly>
+    <p>
+      Best fitness climbs, generation over generation, as fitter programs get selected more often
+      and their variations occasionally do better still. It's not smooth or monotonic -- variation
+      is random, so some generations regress -- but the trend is real.
+    </p>
 
-      <p>
-        Best fitness climbs, generation over generation, as fitter programs get selected more often
-        and their variations occasionally do better still. It's not smooth or monotonic -- variation
-        is random, so some generations regress -- but the trend is real.
-      </p>
-
-      <p>
-        Next: <NuxtLink to="/learn/selection-strategies" class="text-blue-600 hover:underline">how "select parents biased toward fitness" actually happens</NuxtLink>,
-        and why the obvious way to do it (average fitness, pick the best) isn't always the right one.
-      </p>
-    </div>
-  </main>
+    <p>
+      Next: <NuxtLink to="/learn/selection-strategies">how "select parents biased toward fitness" actually happens</NuxtLink>,
+      and why the obvious way to do it (average fitness, pick the best) isn't always the right one.
+    </p>
+  </article>
 </template>

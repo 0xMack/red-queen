@@ -1,47 +1,27 @@
 <script setup lang="ts">
 // Interaction modes 2 and 3 in one page (doc 0005 step 6): watch a trained policy play, driven
-// entirely client-side by the same Web Worker /play/[game].vue uses. useWatchSession()
-// (app/composables/useWatchSession.ts) owns the worker session, the metrics-stream watcher, and
-// the champion-loading logic; this page is just that composable plus markup.
+// entirely client-side by the same Web Worker /play/[game].vue uses. WatchChampion.vue (built on
+// useWatchSession) owns the worker session, the metrics-stream watcher, and champion loading; the
+// run detail page embeds the same component next to its charts.
 const route = useRoute()
 const runId = route.params.runId as string
-
-const { loading, error, renderState, reward, done, stepCount, lastLoadedRef, start, retry } = useWatchSession(runId)
-
-onMounted(start)
+useHead({ title: "Watch" })
 </script>
 
 <template>
-  <main class="mx-auto max-w-2xl p-6">
-    <NuxtLink :to="`/runs/${runId}`" class="text-sm text-slate-500 hover:underline">&larr; run detail</NuxtLink>
-    <h1 class="mt-2 text-2xl font-semibold text-slate-900">Watching <span class="font-mono text-lg">{{ runId }}</span></h1>
-    <p class="mt-1 text-sm text-slate-500">
-      A trained policy plays automatically -- no controls. Re-loads the current-best champion
-      whenever a new one is recorded.
+  <main class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+    <NuxtLink :to="`/runs/${runId}`" class="text-sm text-fg-subtle transition hover:text-fg">&larr; Run details</NuxtLink>
+    <p class="eyebrow mt-4">Watch mode</p>
+    <h1 class="mt-2 text-3xl font-semibold">A trained champion, playing live</h1>
+    <p class="mt-2 max-w-2xl text-fg-muted">
+      No controls -- the network decides every move. If the run is still training, the newest
+      champion is swapped in the moment it's recorded.
+      <span class="font-mono text-xs text-fg-subtle">{{ runId }}</span>
     </p>
-
-    <p v-if="loading" class="mt-6 text-slate-500">Loading Python runtime...</p>
-    <div v-else-if="error" class="mt-4">
-      <p class="text-red-600">{{ error }}</p>
-      <button
-        class="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        @click="retry"
-      >
-        Retry
-      </button>
+    <div class="card mt-8 p-5">
+      <ClientOnly>
+        <WatchChampion :run-id="runId" />
+      </ClientOnly>
     </div>
-
-    <template v-else-if="renderState">
-      <GridBoard :state="renderState" class="mt-4" />
-
-      <div class="mt-4 flex items-center gap-6 text-sm">
-        <GameStatRow :score="renderState.score" :step="stepCount" :reward="reward" />
-        <span v-if="lastLoadedRef" class="font-mono text-xs text-slate-400">{{ lastLoadedRef }}</span>
-      </div>
-
-      <p v-if="done" class="mt-4 text-slate-600">
-        Episode ended -- will restart automatically once a new champion is recorded.
-      </p>
-    </template>
   </main>
 </template>

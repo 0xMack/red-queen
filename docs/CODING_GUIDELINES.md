@@ -163,3 +163,10 @@ relevant section instead of leaving it here.
 
 - The C++ bugs above were all found by actually building and running the code, not by reading it —
   verify an implementation runs before trusting that it looks correct.
+- `apps/frontend` pages under a transitioned `<NuxtPage>` need exactly **one** template root — a
+  sibling HTML comment counts as a second root in dev and silently blanks the page on client-side
+  navigation (Nuxt warns `NUXT_E4004` in the console; direct loads look fine). Found by clicking
+  through, not by loading each page directly.
+- Snake's `render_state()` cells are ordered head-*last* (`[nearest-head, ..., tail, head]`), so
+  "the segment behind the head" is `cells[0]`, not `cells.at(-2)` (that's the tail) — the board's
+  eye direction got this wrong until the live network diagram disagreed with it.

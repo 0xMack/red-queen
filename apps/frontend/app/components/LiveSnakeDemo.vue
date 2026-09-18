@@ -22,12 +22,16 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
+// Started on the first click, not on mount: the demo is usually below the fold, and a game that
+// starts ticking on page load is already over by the time a reader scrolls to it.
+const started = ref(false)
 function startDemo() {
+  started.value = true
   heading.reset()
   start()
+  containerRef.value?.focus()
 }
 
-onMounted(startDemo)
 onUnmounted(() => session.stop())
 </script>
 
@@ -35,32 +39,41 @@ onUnmounted(() => session.stop())
   <div
     ref="containerRef"
     tabindex="0"
-    class="inline-block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+    class="group/demo block w-full max-w-[420px] rounded-xl outline-none"
     @keydown="onKeydown"
   >
-    <p v-if="loading" class="text-sm text-slate-500">Loading Python runtime...</p>
-    <div v-else-if="error" class="text-sm">
-      <p class="text-red-600">{{ error }}</p>
-      <button
-        class="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        @click="startDemo"
-      >
-        Retry
-      </button>
+    <button
+      v-if="!started"
+      class="card group/start flex aspect-square w-full flex-col items-center justify-center gap-3 bg-[radial-gradient(circle_at_center,rgb(74_222_128/0.08),transparent_65%)]"
+      @click="startDemo"
+    >
+      <span class="flex size-14 items-center justify-center rounded-full border border-life-400/40 bg-life-400/10 text-2xl text-life-300 transition group-hover/start:scale-110">▶</span>
+      <span class="font-display font-semibold">Click to play Snake</span>
+      <span class="text-xs text-fg-subtle">arrow keys to steer</span>
+    </button>
+    <div v-else-if="loading" class="card flex aspect-square flex-col items-center justify-center gap-3">
+      <BrandMark class="size-9 animate-pulse" />
+      <p class="text-sm text-fg-muted">Starting the Python runtime…</p>
+    </div>
+    <div v-else-if="error" class="card flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center text-sm">
+      <p class="text-queen-300">{{ error }}</p>
+      <button class="btn-ghost btn-sm" @click="startDemo">Retry</button>
     </div>
 
     <template v-else-if="renderState">
-      <GridBoard :state="renderState" />
-      <div class="mt-2 flex items-center justify-between gap-4">
-        <GameStatRow :score="renderState.score" :step="stepCount" :reward="reward" />
-        <button
+      <div class="relative rounded-xl ring-queen-400/70 transition group-focus-visible/demo:ring-2 group-focus/demo:ring-2">
+        <GridBoard :state="renderState" />
+        <div
           v-if="done"
-          class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          @click="restart"
+          class="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-bg/70 backdrop-blur-sm"
         >
-          Play again
-        </button>
-        <p v-else class="text-xs text-slate-400">click the board, then use the arrow keys</p>
+          <p class="font-display text-xl font-semibold">Game over · {{ renderState.score }}</p>
+          <button class="btn-primary btn-sm" @click="restart">Play again</button>
+        </div>
+      </div>
+      <div class="mt-3 flex items-center justify-between gap-4">
+        <GameStatRow :score="renderState.score" :step="stepCount" :reward="reward" />
+        <p class="text-[11px] text-fg-subtle">click the board, then arrow keys</p>
       </div>
     </template>
   </div>
