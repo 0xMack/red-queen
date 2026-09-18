@@ -15,6 +15,7 @@ import random
 import time
 from pathlib import Path
 
+from control import make_control_callback
 from evolve import (
     GenerationSummary,
     LinearCrossoverMutation,
@@ -24,7 +25,12 @@ from evolve import (
     evolve,
     random_program,
 )
-from telemetry import FileArtifactStore, FileMetricsStore, GenerationStats, SqliteRunRegistry
+from telemetry import (
+    FileArtifactStore,
+    FileMetricsStore,
+    GenerationStats,
+    SqliteRunRegistry,
+)
 
 RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
@@ -32,7 +38,7 @@ RUN_DATA_DIR = Path(__file__).parent / "run-data"
 # reused as-is by later algorithm-comparison experiments so results stay comparable. Degree 4 so a
 # random individual can't stumble into a near-perfect answer by luck (x**2 could, with these ops)
 # -- best_fitness should visibly improve across generations, not start solved.
-TARGET = lambda x: x**4 - 3 * x**2 + 2  # noqa: E731
+TARGET = lambda x: x**4 - 3 * x**2 + 2
 INPUTS = [i / 5 for i in range(-5, 6)]
 
 POPULATION_SIZE = 60
@@ -104,7 +110,10 @@ def main() -> None:
         selection=TournamentSelection(k=3),
         variation=LinearCrossoverMutation(mutation_rate=0.1),
         generations=GENERATIONS,
-        on_generation=[make_telemetry_callback(registry, metrics, artifacts, run_id)],
+        on_generation=[
+            make_telemetry_callback(registry, metrics, artifacts, run_id),
+            make_control_callback(registry, run_id),
+        ],
         rng=rng,
     )
 

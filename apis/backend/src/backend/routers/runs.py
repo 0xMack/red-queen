@@ -5,15 +5,17 @@ per doc 0005 "Reusing existing pydantic models directly" -- no duplicate API-lay
 that already has a canonical shape.
 """
 
+import time
 from typing import Annotated, Literal
 
 import anyio
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
-from telemetry import GenerationStats, MetricsSource, RunInfo
+from telemetry import GenerationStats, MetricsSource, RunInfo, RunRegistry
 
 from backend.dependencies import ArtifactStoreDep, MetricsSourceDep, RunRegistryDep
+from backend.schemas import ControlAction, ControlRequest
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -62,6 +64,56 @@ async def stream_metrics(
     return EventSourceResponse(
         _stream_generation_stats(metrics, run_id, since_generation)
     )
+
+
+@router.post("/{run_id}/control", status_code=202)
+def control_run(
+    run_id: str,
+    body: ControlRequest,
+    registry: RunRegistryDep,
+    metrics: MetricsSourceDep,
+) -> None:
+    try:
+        registry.get_run(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no such run: {run_id}") from None
+
+    if body.action == ControlAction.PAUSE:
+        registry.update_status(run_id, "paused")
+    elif body.action == ControlAction.RESUME:
+        registry.update_status(run_id, "running")
+    elif body.action == ControlAction.STEP:
+        _step_one_generation(registry, metrics, run_id)
+
+
+def _step_one_generation(
+    registry: RunRegistry,
+    metrics: MetricsSource,
+    run_id: str,
+    timeout_s: float = 30.0,
+    poll_interval: float = 0.1,
+) -> None:
+    """Resumes a paused run just long enough for exactly one more generation to be recorded, then
+    re-pauses it.
+
+    Implemented entirely here rather than as a third RunStatus value -- the training job's control
+    callback (jobs/control.py) only ever needs to understand "paused" vs. everything else; "step" is
+    this endpoint driving that same two-state mechanism from the outside.
+    """
+    last_generation = max((s.generation for s in metrics.history(run_id)), default=-1)
+    registry.update_status(run_id, "running")
+    deadline = time.monotonic() + timeout_s
+    try:
+        while time.monotonic() < deadline:
+            if metrics.history(run_id, since_generation=last_generation + 1):
+                return
+            time.sleep(poll_interval)
+        raise HTTPException(
+            status_code=504,
+            detail=f"timed out waiting for run {run_id} to advance one generation",
+        )
+    finally:
+        registry.update_status(run_id, "paused")
 
 
 @router.get("/{run_id}/artifacts/{ref}")

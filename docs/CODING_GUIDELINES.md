@@ -10,6 +10,16 @@ what belongs here and how to add to it). Read before writing code, not after.
   speculatively.
 - Dependency direction: algorithm/lib packages never import `telemetry`; only integration glue
   (usually in `jobs/`) imports both. See docs/design/0002.
+- Before adding new shared state for cross-process coordination, check whether an existing field
+  already means what you need. `apis/backend`'s pause/resume control (docs/design/0005 step 7)
+  needed the API process and a separate training-job process to agree on "should this run keep
+  going right now?" — `telemetry.RunStatus` already had a `"paused"` value from docs/design/0002,
+  unused until then, so pausing became `registry.update_status(run_id, "paused")` and the job's
+  `on_generation` callback (`jobs/control.py`) just blocks while that's true. No new IPC primitive,
+  no new column. "Step" (advance exactly one generation) resisted the same trick — it's not
+  sensibly a `RunStatus` value — so it's implemented entirely API-side instead (resume, wait for one
+  new `GenerationStats` via the existing `MetricsSource`, re-pause), keeping the job-side callback a
+  two-state check rather than growing a third state for one caller's benefit.
 
 ## Python
 

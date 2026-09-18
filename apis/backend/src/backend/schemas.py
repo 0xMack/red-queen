@@ -3,9 +3,20 @@ unlike routers/runs.py (doc 0005's "Reusing existing pydantic models directly" o
 canonical model already exists).
 """
 
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class ControlAction(StrEnum):
+    PAUSE = "pause"
+    RESUME = "resume"
+    STEP = "step"
+
+
+class ControlRequest(BaseModel):
+    action: ControlAction = Field(..., description="Control action to apply to a running evolve() call.")
 
 
 class GameSessionCreate(BaseModel):

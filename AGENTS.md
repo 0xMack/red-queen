@@ -25,7 +25,9 @@ made.
     `app/types/*.ts` mirror `apis/backend`'s response models and must be kept in sync by hand if
     those change. No automated test suite yet — verified so far with a live backend + an ad hoc
     headless-browser (Playwright) check, not a checked-in test. Interaction mode 3 and the control
-    API (docs/design/0005 steps 6-7) not started yet.
+    Interaction mode 3 (docs/design/0005 step 6) not started — transitively blocked on mode 2
+    (watching a finished policy), which has no serialized Snake-playing artifact to load yet. The
+    control API (step 7) is done — see the `apis/backend`/`jobs/` bullets below.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -37,7 +39,11 @@ made.
     doesn't reliably simulate a mid-stream disconnect, so a full request hangs). `routers/games.py`
     runs a game session's `Environment` server-side in an in-memory `GameSessionStore`
     (`game_sessions.py`) — no telemetry/persistence, a session doesn't survive a restart. Only
-    games implementing `games.rendering.Renderable` are registered (`snake` today).
+    games implementing `games.rendering.Renderable` are registered (`snake` today). `POST
+    /runs/{id}/control` (pause/resume/step) reuses `telemetry.RunStatus`'s existing `"paused"`
+    value as the only coordination with a training job's `jobs/control.py` callback — see
+    `docs/CODING_GUIDELINES.md`'s "before adding new shared state" entry for why, and why `step`
+    is implemented entirely API-side instead of as a third status value.
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
@@ -55,7 +61,12 @@ made.
     deliberately not wired into `evolve`/`telemetry` yet (see the doc for why).
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example — run with
-  `uv run python jobs/<script>.py` from the repo root.
+  `uv run python jobs/<script>.py` from the repo root. `control.py`'s `make_control_callback`
+  (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
+  `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here
+  import each other as plain sibling modules, which works because `uv run python jobs/<script>.py`
+  puts the script's own directory on `sys.path`; `jobs/tests/conftest.py` does the same explicitly
+  so `uv run pytest jobs/tests` can too.
 - `docs/` — `design/000N-*.md` (numbered, one per major decision) and
   [CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) (standards + accumulated lessons)
 

@@ -20,6 +20,14 @@ for the full contract and the incremental plan this implements.
   - `GET /runs/{run_id}/artifacts/{ref}?kind=program|trace` — raw bytes (404 if unknown). Note
     `ArtifactStore` itself isn't run-scoped (it's a flat `ref -> bytes` store); `run_id` stays in
     the URL for REST grouping, matching doc 0005's endpoint table.
+  - `POST /runs/{run_id}/control` — `ControlRequest{action: pause|resume|step}` → 202. `pause`/
+    `resume` just flip the run's `RunStatus` via `RunRegistry.update_status()` — that status field
+    already existed (docs/design/0002) and is the *only* coordination between this endpoint and a
+    (separate-process) training job's `jobs/control.py` callback, which blocks while status is
+    `"paused"`. `step` is driven entirely from this side: resume, poll `MetricsSource.history()`
+    until exactly one new generation is recorded (504 after `timeout_s`, default 30s), then
+    re-pause — deliberately *not* a third `RunStatus` value, so the job-side callback only ever
+    needs to understand two states.
 - `routers/games.py` — game session endpoints. The session's `Environment` (e.g. `games.Snake`)
   runs server-side in `game_sessions.GameSessionStore`, an in-memory, single-process registry with
   no telemetry/persistence layer (a watch/play session isn't a training run):

@@ -373,5 +373,17 @@ All in the one `apps/frontend` deployment for now:
      once a Snake-training job writes champions to `ArtifactStore` the way `jobs/baseline_gp_run.py`
      does for symbolic regression.
 6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
-   existing.
-7. Control API (pause/step) in `routers/runs.py`, extending `evolve()`'s `on_generation` mechanism.
+   existing. Not started — still blocked on interaction mode 2 (see step 5 above).
+7. ✅ Control API (pause/resume/step) — `POST /runs/{id}/control` in `routers/runs.py`. `pause`/
+   `resume` reuse `telemetry.RunStatus`'s existing `"paused"` value (docs/design/0002) rather than
+   inventing new shared state — `registry.update_status(run_id, "paused"/"running")` is the entire
+   API-side implementation, and `jobs/control.py`'s `make_control_callback` (an `on_generation`
+   entry, wired into `baseline_gp_run.py`) blocks while it reads that status as `"paused"`. That's
+   the *only* coordination between the API process and a separate training-job process — no new IPC
+   primitive. `step` resisted the same trick (not sensibly a `RunStatus` value), so it's implemented
+   entirely on the API side instead: resume, poll `MetricsSource.history()` until exactly one new
+   generation is recorded (504 after a timeout), then re-pause — the job-side callback still only
+   ever has to understand two states. Verified: a real `evolve()` run in a background thread with a
+   deliberately slow fitness function, paused and resumed via the actual mechanism (not mocked);
+   the control endpoint's pause/resume/step/timeout/404 paths; and `jobs/baseline_gp_run.py` itself
+   still runs correctly end-to-end with the callback wired in.
