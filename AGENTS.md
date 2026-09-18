@@ -39,6 +39,14 @@ architectural change that might conflict with a decision already made.
     mirror `apis/backend`'s response models and must be kept in sync by hand if those change. No
     automated test suite yet — verified so far with a live backend + ad hoc headless-browser
     (Playwright) checks, not checked-in tests.
+
+    Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored, foundations-first
+    "interactive textbook" covering how the project's techniques actually work — code snippets,
+    embedded live games, callouts citing real results) round out the site; `/runs` is where the run
+    list moved. Reusable components (`CodeBlock`, `Callout`, `ChapterCard`, `GameCard`, etc.) and
+    layered session composables (`useSnakeSession` → `usePlaySession`/`useWatchSession`) are a
+    deliberate design principle here, not incidental — see `apps/frontend/README.md` for the full
+    breakdown and why `@nuxt/content` was rejected (native-binding risk) in favor of this.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic

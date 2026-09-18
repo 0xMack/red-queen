@@ -26,7 +26,7 @@ const isWatchable = computed(() => run.value?.config?.game === "snake")
 
 <template>
   <main class="mx-auto max-w-4xl p-6">
-    <NuxtLink to="/" class="text-sm text-slate-500 hover:underline">&larr; all runs</NuxtLink>
+    <NuxtLink to="/runs" class="text-sm text-slate-500 hover:underline">&larr; all runs</NuxtLink>
 
     <div class="mt-2 flex items-center gap-3">
       <h1 class="font-mono text-lg text-slate-900">{{ runId }}</h1>

@@ -5,9 +5,19 @@ policies. See
 [../../docs/design/0005-frontend-and-api-contracts.md](../../docs/design/0005-frontend-and-api-contracts.md)
 for the full contract and incremental plan this implements (steps 3-6).
 
-## Contents
+## Site map
 
-- `app/pages/index.vue` — run list (`GET /runs`), links to each run's detail page.
+- `/` — landing page: hero/pitch, an embedded live `LiveSnakeDemo`, links into Games/Learn/Runs.
+- `/games` — hub of playable games (`app/data/games.ts` drives the card grid; Checkers shows as
+  "coming soon" until doc 0006 phases 2-4 land).
+- `/learn` — an interactive-textbook "wiki" covering how the project's techniques actually work,
+  foundations first (`app/data/learnChapters.ts` drives the chapter index; most chapters are
+  "coming soon" placeholders, filled in incrementally). Three chapters are fully written today:
+  `genetic-algorithms.vue`, `selection-strategies.vue`, `teaching-a-snake.vue` — each cites real
+  code from `libs/evolve`/`games/snake.py` and real notebook/training results (via `Callout`), not
+  invented examples. `teaching-a-snake.vue` embeds a live, playable `LiveSnakeDemo`.
+- `/runs` — the run list (`GET /runs`), links to each run's detail page. Moved here from `/` when
+  `/` became the landing page above — behavior unchanged.
 - `app/pages/runs/[id].vue` — one run's live metrics: backfills history
   (`GET /runs/{id}/metrics/history`), then opens an `EventSource` against
   `GET /runs/{id}/metrics/stream` for live updates, tearing the connection down on unmount. Links
@@ -17,7 +27,8 @@ for the full contract and incremental plan this implements (steps 3-6).
   into Snake's relative action space using a client-tracked heading (doc 0005's worked example) and
   redraws from the worker's state messages; it never touches Pyodide directly. Replaces the step-4
   version of this page, which drove `apis/backend/routers/games.py` per tick instead; that router
-  and its tests are unchanged and still valid, just no longer this page's data source.
+  and its tests are unchanged and still valid, just no longer this page's data source. Now a thin
+  page composing `usePlaySession()` (below) rather than owning worker plumbing itself.
 - `app/pages/watch/[runId].vue` — watch a trained policy play, no controls (doc 0005 step 6,
   interaction modes 2 and 3 -- turn out to be one mechanism, not two: reuses
   `useMetricsStreamStore` and re-loads whichever champion is latest whenever it changes. For a
@@ -26,7 +37,46 @@ for the full contract and incremental plan this implements (steps 3-6).
   verified both, including a real live run where the watched champion advanced gen2 → gen9 in real
   time as training progressed). Fetches the champion artifact via the *existing*
   `GET /runs/{id}/artifacts/{ref}` -- no `apis/backend` changes needed at all, since a serialized
-  `WeightVector` is just opaque bytes to `ArtifactStore`, same as a `LinearProgram`'s `repr()`.
+  `WeightVector` is just opaque bytes to `ArtifactStore`, same as a `LinearProgram`'s `repr()`. Now
+  a thin page composing `useWatchSession(runId)` (below).
+
+### Reusable components and session composables
+
+Session logic (loading/error/`renderState`/`reward`/`done`/`stepCount`, and the worker-message
+parsing behind them) used to be duplicated between the play and watch pages. It's now layered into
+composables so every place that embeds a live Snake game -- the dedicated `/play` and `/watch`
+pages, plus the landing page and the "Teaching a Snake" Learn chapter -- shares one implementation:
+
+- `app/composables/useSnakeSession.ts` — the base: attaches to the shared worker singleton, parses
+  its messages, exposes `start()`/`sendInput()`/`restart()`/`stop()`.
+- `app/composables/usePlaySession.ts` — wraps it with a **window-scoped** keydown listener (owns
+  the whole viewport, e.g. a dedicated page) via `useSnakeControls.ts`'s `createHeadingTracker()`.
+- `app/composables/useWatchSession.ts` — wraps it with the `metricsStream`-driven champion-reload
+  logic described above.
+- `app/components/LiveSnakeDemo.vue` — an embeddable play-only widget (used on the landing page and
+  in the Snake Learn chapter) that calls `useSnakeSession()` + `createHeadingTracker()` directly,
+  **not** `usePlaySession()`: it needs **element-scoped** keydown capture (`tabindex="0"` +
+  `event.preventDefault()` only on recognized keys) so it doesn't hijack page scroll/arrow keys
+  until a visitor actually clicks into it. It's deliberately play-mode only for now -- nothing
+  embeds a watch-mode demo yet, and `useWatchSession` is proven and ready whenever something does.
+
+Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
+score/step/reward readout, extracted from its duplicated form in the play/watch pages),
+`GameCard.vue`/`ChapterCard.vue` (index cards with a `status: "available" | "coming-soon"` prop, so
+unwritten chapters/unbuilt games render dimmed and unlinked instead of being omitted),
+`CodeBlock.vue` (syntax-highlighted snippets via `app/composables/useHighlighter.ts`, a `shiki`
+fine-grained-bundle singleton -- explicit langs (python/typescript/bash/json) and the JS regex
+engine, not the full bundle or WASM oniguruma, to keep this lean and native-binding-free), and
+`Callout.vue` (`variant: "note" | "warning" | "finding"` -- `"finding"` flags a real bug/result the
+prose references, e.g. Snake's reward-hacking or its representation-ceiling result).
+
+Deliberately **not** `@nuxt/content`: it pulls in a SQLite-backed content database
+(`better-sqlite3`) as a peer dependency, real native-binding risk on this Windows machine given the
+already-documented MSVC/`RedQueenCbind` build friction, for what's currently ~6-10 pages. Hand-
+authored Vue pages + the component library above both sidesteps that risk and makes "reusable
+components" the literal mechanism rather than something hidden behind a markdown-rendering layer.
+Revisit if the chapter count grows enough that hand-authoring markup becomes the bottleneck.
+
 - `app/workers/snakeGame.worker.ts` — the actual simulation, in one of two modes:
   - **play**: a human steers via `postMessage`d relative actions.
   - **watch**: a loaded `evolve.neuro.WeightVector` policy decides every action instead. A
@@ -140,3 +190,11 @@ Then open `http://localhost:3000`.
   DedicatedWorkerGlobalScope` in `snakeGame.worker.ts` -- the app's own `tsconfig` targets the DOM
   lib (for `window`/etc. elsewhere), which conflicts with the `webworker` lib if set globally; the
   triple-slash reference pulls in worker-scope types for just this one file instead.
+- Landing/`/games`/`/learn` verified the same way: `pnpm build` clean after each addition, then a
+  live Playwright pass confirming the embedded `LiveSnakeDemo` on both the landing page and the
+  Snake Learn chapter is actually playable (click to focus, arrow keys move the snake, `stepCount`
+  advances), zero console errors, and `/play`/`/watch` behave identically to before being refactored
+  onto `useSnakeSession`/`usePlaySession`/`useWatchSession`. Installing `shiki` while a long-running
+  `pnpm dev` server is still up can leave Vite's pre-bundled-deps cache stale (`504 (Outdated
+  Optimize Dep)` / "Failed to fetch dynamically imported module" for the new import) -- kill the dev
+  server, delete `node_modules/.cache`, restart.
