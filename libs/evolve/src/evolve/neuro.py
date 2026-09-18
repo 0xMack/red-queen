@@ -6,6 +6,7 @@ small feedforward network; evolving it is literally Evolution Strategies applied
 
 from __future__ import annotations
 
+import json
 import math
 import random
 from collections.abc import Sequence
@@ -14,11 +15,14 @@ from dataclasses import dataclass, replace
 
 def _param_count(layer_sizes: tuple[int, ...]) -> int:
     return sum(
-        layer_sizes[i] * layer_sizes[i + 1] + layer_sizes[i + 1] for i in range(len(layer_sizes) - 1)
+        layer_sizes[i] * layer_sizes[i + 1] + layer_sizes[i + 1]
+        for i in range(len(layer_sizes) - 1)
     )
 
 
-def _forward(weights: Sequence[float], layer_sizes: tuple[int, ...], observation: Sequence[float]) -> list[float]:
+def _forward(
+    weights: Sequence[float], layer_sizes: tuple[int, ...], observation: Sequence[float]
+) -> list[float]:
     """A tanh-activated feedforward pass. Every layer (including the output) is tanh-squashed --
     convenient here since it keeps actions bounded to [-1, 1] with no separate output activation
     to choose."""
@@ -59,6 +63,24 @@ class WeightVector:
         smaller weights, not fewer of them (the network's shape is fixed, unlike a GP genome's
         size)."""
         return math.sqrt(sum(w * w for w in self.weights))
+
+    def to_json(self) -> str:
+        """The real (round-trippable) wire format for a WeightVector -- unlike LinearProgram's
+        repr()-based serialize_program() in jobs/baseline_gp_run.py (explicitly a prototype, never
+        read back), this one has two real readers: a training job writing champions to
+        ArtifactStore, and the Pyodide bridge (apps/frontend) loading one back to actually run it.
+        JSON, not pickle/numpy, so the exact same code works loading it back inside Pyodide with no
+        extra packages -- this module is pure stdlib on purpose."""
+        return json.dumps(
+            {"weights": list(self.weights), "layer_sizes": list(self.layer_sizes)}
+        )
+
+    @staticmethod
+    def from_json(text: str) -> WeightVector:
+        data = json.loads(text)
+        return WeightVector(
+            weights=tuple(data["weights"]), layer_sizes=tuple(data["layer_sizes"])
+        )
 
 
 def random_weight_vector(

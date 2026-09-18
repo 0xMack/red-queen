@@ -25,20 +25,48 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 - `libs/autodiff` — reverse-mode automatic differentiation, built from scratch (`Tensor`,
   NumPy-array-valued, not scalar-valued) — the foundation for `libs/tinylm`'s transformer
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
-  the baseline being validated before anything is ported to C++
+  the baseline being validated before anything is ported to C++. `match.py` is the two-player
+  sibling of the single-agent `simulation.py`: `MultiAgentEnvironment`, `play_match()` (pit any
+  strategy against any strategy — static heuristic, evolved genome, classifier, all the same
+  `(observation, legal_moves) -> move` shape), and `MatchFitnessEvaluator` (fitness from match
+  outcomes against reference opponents)
 - `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
-  environment; `snake`, a grid game), each also exposing a `render_state()` decoupled from the
-  fast training path — see `libs/games/README.md`
+  environment; `snake`, a grid game — observation is 11 hand-engineered features, not a raw
+  flattened grid, after a retrained result confirmed representation was the ceiling, not compute;
+  `checkers`, the first two-player game — real rules including mandatory captures/multi-jump
+  chains, reuses `render_state()`'s exact shape with just a wider piece-label vocabulary), each
+  also exposing a `render_state()` decoupled from the fast training path — see
+  `libs/games/README.md`
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
 - `libs/tinylm` — a small transformer LM, built on `libs/autodiff` — character-level, causal
   self-attention, trained by gradients (not evolution) on *Alice's Adventures in Wonderland*
 - `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
-  end to end (`uv run python jobs/baseline_gp_run.py`)
+  end to end (`uv run python jobs/baseline_gp_run.py`); `jobs/snake_neuro_run.py` does the same for
+  neuroevolution against `games.snake`, writing champions as real, round-trippable
+  `WeightVector.to_json()` artifacts; `jobs/control.py` adds pause/resume support via a plain
+  `RunStatus` check, the job-side half of the control API below
+- `apis/backend` — a FastAPI service exposing `libs/telemetry` (runs, metrics history, a live SSE
+  metrics stream, artifacts, and pause/resume/step control) and `libs/games` (server-side game
+  sessions: create, step, trajectory) — see `apis/backend/README.md`.
+- `apps/frontend` — a Nuxt 4 app: a run list and a live run-detail view (SSE-backed chart) over
+  `apis/backend`, plus two ways to watch a game entirely client-side via Pyodide in a Web Worker (a
+  real CPython-in-WASM runtime running `libs/games`'/`libs/evolve`'s actual source, off the main
+  thread, zero backend round trips per tick): `/play/snake` (a human plays) and `/watch/{runId}` (a
+  trained policy plays, live-following a still-training run's current-best champion or replaying a
+  finished run's) — see `apis/backend/README.md` to run the API it depends on, and
+  `apps/frontend/README.md` for this app. The worker is a shared singleton across page navigations
+  (fast repeat visits: ~10ms vs. an ~11s cold Pyodide load), and `GridBoard.vue` renders a
+  checkerboard board with a smoothly gliding snake, a distinct head, and a pulsing food marker.
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
-  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result),
-  `0006` (a transformer LM trained entirely from scratch, first gradient-trained thing in this repo)
+  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake, with the original flattened-
+  grid observation — an honest, modest result later revisited: `jobs/snake_neuro_run.py`'s
+  hand-engineered-feature observation trains a dramatically stronger policy on the same
+  generation-class budget), `0006` (a transformer LM trained entirely from scratch, first
+  gradient-trained thing in this repo)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
-  scratch)
+  scratch), `0005` (frontend + API contracts/endpoint definitions), `0006` (multi-agent games and
+  the strategy/match framework, checkers as the first exercise of it — phase 1 of 4 done: the
+  framework and the game, pure Python, no API/frontend yet)

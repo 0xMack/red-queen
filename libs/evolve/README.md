@@ -42,7 +42,13 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   swapping GP instructions/subtrees does. `l2_norm()` is this representation's `ParetoSelection`
   complexity measure. `act()` returns just the first output (a bounded scalar, e.g. `reach1d`);
   `forward()` returns every output, for multi-output policies that pick a discrete action via
-  argmax (e.g. `games.snake`'s left/straight/right).
+  argmax (e.g. `games.snake`'s left/straight/right). `to_json()`/`from_json()` are the real
+  (round-trippable) wire format -- unlike `LinearProgram`'s `repr()`-based prototype serialization
+  in `jobs/baseline_gp_run.py`, these have two real readers: `jobs/snake_neuro_run.py` writing
+  champions to `ArtifactStore`, and `apps/frontend`'s Pyodide bridge loading one back to actually
+  run it. JSON, not pickle/numpy, so the exact same Python code works loading it back inside
+  Pyodide -- every `evolve` submodule is pure stdlib on purpose, verified before that bridge was
+  built (see `docs/CODING_GUIDELINES.md`).
 - `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value
   per environment/episode, same per-test-case contract as `SymbolicRegressionFitness` so
@@ -51,6 +57,19 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   dependency direction as `evolve`/`telemetry`.
 - `population.py` — `evolve()`, the orchestration loop, and `GenerationSummary` (this package's own
   telemetry-agnostic per-generation type — see docs/design/0001 "Decoupling from telemetry").
+- `match.py` — `MultiAgentEnvironment` (docs/design/0006), the two-player (player-count-generic)
+  sibling of `simulation.py`'s single-agent `Environment` — `reset()`/`legal_moves()`/
+  `current_player()`/`step(move)`/`winner()` instead of `reset()`/`step(action)`, since a board
+  game's legal actions depend on state and there's more than one reward stream. `play_match()` runs
+  one match between any two `Strategy` callables (`(observation, legal_moves) -> move` — no new
+  class hierarchy; a static heuristic, an evolved genome via `functools.partial(act, genome)`, or a
+  classifier are all just functions with this shape) — the reusable "pit any strategy against any
+  strategy" mechanic requested as first-class infrastructure, not built into `games.checkers`
+  specifically. `MatchFitnessEvaluator` is `SimulationFitnessEvaluator` with "N fixed environments"
+  replaced by "N fixed reference opponents" (one fitness value per opponent per seat, so
+  `LexicaseSelection` works unchanged). A concrete game (e.g. `games.checkers`) implements
+  `MultiAgentEnvironment` but never imports this module — same dependency direction as
+  `Environment`/`games`.
 
 `evolve()` has **no import of and no dependency on `libs/telemetry`**. Wiring a run to telemetry is
 an adapter that lives outside this package — see `jobs/baseline_gp_run.py`.
@@ -63,10 +82,19 @@ See `notebooks/0004-neuroevolution-reach1d.ipynb` for `WeightVector` +
 ```python
 import random
 
-from evolve import LinearCrossoverMutation, SymbolicRegressionFitness, TournamentSelection, evolve, random_program
+from evolve import (
+    LinearCrossoverMutation,
+    SymbolicRegressionFitness,
+    TournamentSelection,
+    evolve,
+    random_program,
+)
 
 rng = random.Random(0)
-population = [random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(50)]
+population = [
+    random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng)
+    for _ in range(50)
+]
 
 final = evolve(
     population,

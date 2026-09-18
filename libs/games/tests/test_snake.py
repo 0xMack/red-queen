@@ -1,15 +1,47 @@
 from games.snake import Snake, benchmark_environments
 
 
-def test_reset_returns_a_flattened_grid_of_the_expected_length():
+def test_reset_returns_11_features_with_heading_one_hot_at_right():
     snake = Snake(width=5, height=4, seed=0)
 
     observation = snake.reset()
 
-    assert len(observation) == 5 * 4
-    assert observation.count(1.0) == 2  # 2 body segments (3-segment snake minus the head)
-    assert observation.count(2.0) == 1  # the head
-    assert observation.count(3.0) == 1  # the food
+    assert len(observation) == 11
+    # fresh reset always heads RIGHT (_direction_index=0) -- heading one-hot is observation[3:7]
+    assert observation[3:7] == [1.0, 0.0, 0.0, 0.0]
+
+
+def test_danger_flags_true_only_where_a_wall_or_body_is_adjacent():
+    snake = Snake(width=5, height=5, seed=0)
+    snake.body = [(4, 2), (3, 2), (2, 2)]  # head against the right wall
+    snake._direction_index = 0  # heading RIGHT
+    snake.food = (0, 0)  # irrelevant to this check
+
+    danger_straight, danger_left, danger_right = snake._observation()[:3]
+
+    # straight (RIGHT) -> (5, 2) out of bounds; left (-> UP) -> (4, 1) safe; right (-> DOWN) -> (4, 3) safe
+    assert (danger_straight, danger_left, danger_right) == (1.0, 0.0, 0.0)
+
+
+def test_danger_is_false_for_the_vacating_tail_cell():
+    snake = Snake(width=5, height=5, seed=0)
+    snake.body = [(2, 2), (2, 1), (1, 1), (1, 2)]  # tail at (1, 2)
+    snake._direction_index = 2  # heading LEFT -> straight move targets (1, 2), the tail
+    snake.food = (4, 4)
+
+    danger_straight = snake._observation()[0]
+
+    assert danger_straight == 0.0  # the tail vacates this move, so it isn't a danger
+
+
+def test_food_direction_flags_match_relative_position():
+    snake = Snake(width=10, height=10, seed=0)
+    head_x, head_y = snake.body[0]
+    snake.food = (head_x + 2, head_y - 2)  # right and up of the head
+
+    food_left, food_right, food_up, food_down = snake._observation()[7:11]
+
+    assert (food_left, food_right, food_up, food_down) == (0.0, 1.0, 1.0, 0.0)
 
 
 def test_reset_is_deterministic_for_a_given_seed():

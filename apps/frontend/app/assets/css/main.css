@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/*
+ * Red Queen design tokens. Dark "lab" theme by default: live boards and charts read far better on a
+ * dark ground. Semantic names (surface/line/fg/queen) rather than raw palette names everywhere, so
+ * a light theme later is a matter of redefining these, not rewriting every component's classes.
+ *
+ * "queen" is the accent -- the Red Queen hypothesis (Through the Looking-Glass: running as fast as
+ * you can just to stay in place) is the co-evolutionary arms race this project is named after.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-bg: #090b10;
+  --color-surface: #0f121a;
+  --color-raised: #151924;
+  --color-sunken: #0b0e14;
+  --color-line: #222837;
+  --color-line-strong: #323a4d;
+  --color-fg: #e9ebf1;
+  --color-fg-muted: #a0a8ba;
+  --color-fg-subtle: #6b7489;
+
+  --color-queen-200: #ffc2cd;
+  --color-queen-300: #ff8fa3;
+  --color-queen-400: #ff5c7a;
+  --color-queen-500: #ef3b5d;
+  --color-queen-600: #c81e45;
+  --color-queen-700: #9b1535;
+
+  /* Series/secondary accents: "life" (the snake, improving fitness), "signal" (mean/reference lines),
+     "gold" (champions). */
+  --color-life-300: #86efac;
+  --color-life-400: #4ade80;
+  --color-life-500: #22c55e;
+  --color-signal-300: #93c5fd;
+  --color-signal-400: #60a5fa;
+  --color-gold-300: #fcd34d;
+  --color-gold-400: #fbbf24;
+
+  --animate-live-pulse: live-pulse 1.8s ease-in-out infinite;
+
+  @keyframes live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.35;
+      transform: scale(0.8);
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scroll-padding-top: 5rem; /* anchor links land below the sticky header */
+  }
+
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+    /* A faint dot grid -- lab-notebook texture, low enough contrast to stay out of the way. */
+    background-image: radial-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
+
+  ::selection {
+    @apply bg-queen-500/40 text-white;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-queen-400;
+  }
+}
+
+@utility card {
+  @apply rounded-xl border border-line bg-surface/80 backdrop-blur-sm;
+}
+
+@utility card-hover {
+  @apply transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)];
+}
+
+@utility eyebrow {
+  @apply font-mono text-[11px] font-medium tracking-[0.18em] text-queen-300 uppercase;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+@utility btn-primary {
+  @apply btn bg-queen-500 text-white shadow-[0_0_0_1px_rgb(255_92_122/0.4),0_8px_24px_-8px_rgb(239_59_93/0.6)] hover:bg-queen-400;
+}
+
+@utility btn-ghost {
+  @apply btn border border-line-strong bg-raised/60 text-fg hover:border-fg-subtle hover:bg-raised;
+}
+
+@utility btn-sm {
+  @apply px-2.5 py-1 text-xs;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1.5 rounded-md border border-line bg-raised px-2 py-0.5 font-mono text-[11px] text-fg-muted;
+}
+
+@utility link {
+  @apply text-queen-300 underline decoration-queen-300/30 underline-offset-4 transition hover:decoration-queen-300;
+}
+
+@utility num {
+  @apply font-mono tabular-nums;
+}
+
+@layer components {
+  /* Long-form chapter prose. Hand-authored pages, so a handful of element rules beats pulling in
+     @tailwindcss/typography for ~8 pages. */
+  .prose-chapter {
+    @apply space-y-5 text-[15.5px] leading-7 text-fg-muted;
+  }
+
+  .prose-chapter h2 {
+    @apply scroll-mt-24 pt-6 text-2xl font-semibold text-fg;
+  }
+
+  .prose-chapter h3 {
+    @apply pt-2 text-lg font-semibold text-fg;
+  }
+
+  .prose-chapter strong {
+    @apply font-semibold text-fg;
+  }
+
+  .prose-chapter em {
+    @apply text-fg;
+  }
+
+  .prose-chapter code:not(pre code) {
+    @apply rounded bg-raised px-1.5 py-0.5 font-mono text-[0.85em] text-queen-200;
+  }
+
+  .prose-chapter ul {
+    @apply list-disc space-y-1.5 pl-6 marker:text-queen-400;
+  }
+
+  .prose-chapter ol {
+    @apply list-decimal space-y-1.5 pl-6 marker:text-fg-subtle;
+  }
+
+  .prose-chapter a:not(.btn) {
+    @apply text-queen-300 underline decoration-queen-300/30 underline-offset-4 transition hover:decoration-queen-300;
+  }
+}
+
+/* Route transitions (nuxt.config app.pageTransition). */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

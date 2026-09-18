@@ -5,9 +5,17 @@ depend on evolve. Also implements games.rendering.Renderable's render_state() so
 (console, a future frontend, a telemetry trajectory) without touching the fast training
 observation at all -- see libs/games/README.md and docs/design/0003's "datasets and games" plan.
 
-Observation: the whole board, flattened row-major, one float per cell (0=empty, 1=body, 2=head,
-3=food) -- chosen over a small hand-engineered feature vector so the genome sees the whole board,
-at the cost of a larger, board-size-dependent input.
+Observation: 11 hand-engineered features -- danger straight/left/right (would that relative move
+hit a wall or body next), current heading as a one-hot (right/down/left/up), and food direction
+relative to the head (left/right/up/down), all 0.0/1.0. Replaced an earlier board-size-dependent
+flattened-grid observation (100 floats on a 10x10 board): notebooks/0005-neuroevolution-snake.ipynb
+trained a real policy against that representation and, after also trying a much bigger population/
+generation budget, concluded the ceiling was representational, not a compute shortage (see that
+notebook's diversity-vs-plateau analysis). A flat MLP has no spatial prior, so it has to
+re-discover "distance to the nearest wall" and "which way is the food" from raw pixel-like input
+via evolution alone -- these 11 features hand that structure to the network directly, the standard
+representation for small evolved/RL Snake agents. Board-size-independent as a side effect, and
+~10x fewer weights for the same hidden-layer width (faster to train and to run).
 
 Action: -1 (turn left), 0 (go straight), 1 (turn right), relative to the current heading -- so
 "reverse into your own neck" is structurally impossible, no special-case masking needed.
@@ -20,9 +28,6 @@ import random
 # Clockwise order so a "right turn" (action=+1) is simply the next direction and a "left turn"
 # (action=-1) the previous one -- no per-direction special-casing needed.
 _DIRECTIONS: tuple[tuple[int, int], ...] = ((1, 0), (0, 1), (-1, 0), (0, -1))  # RIGHT, DOWN, LEFT, UP
-
-_EMPTY, _BODY, _HEAD, _FOOD = 0.0, 1.0, 2.0, 3.0
-_CELL_VALUES = {"body": _BODY, "head": _HEAD, "food": _FOOD}
 
 
 class Snake:
@@ -54,7 +59,9 @@ class Snake:
         if not self.alive:
             return self._observation(), 0.0, True
 
-        self._direction_index = (self._direction_index + action) % 4
+        # int(): a caller across a JSON boundary (apis/backend) can only send a float, never a
+        # Python int -- action is conceptually discrete (-1/0/1) regardless of wire type.
+        self._direction_index = (self._direction_index + int(action)) % 4
         dx, dy = _DIRECTIONS[self._direction_index]
         head_x, head_y = self.body[0]
         new_head = (head_x + dx, head_y + dy)
@@ -107,11 +114,30 @@ class Snake:
         labels[self.food] = "food"
         return labels
 
+    def _danger(self, relative_action: int) -> float:
+        """Would taking this relative action (-1/0/1) hit a wall or body next step? Body check
+        uses body[:-1] (the tail vacates unless growing), same approximation step() uses for the
+        non-eating case -- a heuristic for the observation, not the authoritative collision check."""
+        direction_index = (self._direction_index + relative_action) % 4
+        dx, dy = _DIRECTIONS[direction_index]
+        head_x, head_y = self.body[0]
+        next_x, next_y = head_x + dx, head_y + dy
+        out_of_bounds = not (0 <= next_x < self.width and 0 <= next_y < self.height)
+        return 1.0 if out_of_bounds or (next_x, next_y) in self.body[:-1] else 0.0
+
     def _observation(self) -> list[float]:
-        grid = [_EMPTY] * (self.width * self.height)
-        for (x, y), label in self._cell_labels().items():
-            grid[y * self.width + x] = _CELL_VALUES[label]
-        return grid
+        head_x, head_y = self.body[0]
+        heading = [1.0 if i == self._direction_index else 0.0 for i in range(4)]
+        return [
+            self._danger(0),
+            self._danger(-1),
+            self._danger(1),
+            *heading,
+            1.0 if self.food[0] < head_x else 0.0,
+            1.0 if self.food[0] > head_x else 0.0,
+            1.0 if self.food[1] < head_y else 0.0,
+            1.0 if self.food[1] > head_y else 0.0,
+        ]
 
     def render_state(self) -> dict:
         return {
