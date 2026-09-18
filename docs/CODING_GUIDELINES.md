@@ -92,7 +92,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   field — Python's tuple keys aren't coercible the way int/float/bool/None keys are. Convert at the
   API boundary (`game_sessions.json_safe_render_state()` flattens it to a list of `{x, y, label}`
   records), not in the game library itself — `render_state()`'s shape is also consumed by
-  `games.rendering.render_grid_ascii()`, which wants the dict form.
+  `games.rendering.render_grid_ascii()`, which wants the dict form. **The same underlying problem
+  recurs in Pyodide, with a different error**: `pyProxy.toJs()` raises `pyodide.ffi.ConversionError:
+  Cannot use (x, y) as a key for a Javascript Map` on the exact same tuple-keyed dict — a JS `Map`
+  can technically hold any key, but Pyodide's converter explicitly refuses non-primitive ones. Same
+  fix, different side of the boundary: flatten on the Python side before it crosses into JS (see
+  `usePyodideGames.ts`'s `render_state_for_js`), not by trying to coax `toJs()`/`dict_converter`
+  into accepting tuple keys.
 - **`app.dependency_overrides[dep] = lambda: SomeStore()` creates a *new* instance on every
   request**, not once per test — FastAPI calls the override callable fresh per resolution the same
   way it would the real dependency. For in-memory state that must persist *across* requests within
