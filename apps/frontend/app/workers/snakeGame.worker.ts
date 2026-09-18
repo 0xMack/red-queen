@@ -30,6 +30,7 @@ type InboundMessage =
   | { type: "input"; action: number }
   | { type: "restart" }
   | { type: "load_policy"; policyJson: string }
+  | { type: "stop" }
 
 type OutboundMessage =
   | { type: "ready" }
@@ -40,7 +41,7 @@ type OutboundMessage =
 // runtime files (wasm binary, stdlib zip) must be the same version.
 const PYODIDE_VERSION = "314.0.7"
 const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
-const TICK_INTERVAL_MS = 150
+const TICK_INTERVAL_MS = 110
 
 let pyodide: PyodideInterface | null = null
 let mode: "play" | "watch" = "play"
@@ -150,17 +151,24 @@ function tick() {
   else playTick()
 }
 
-async function initialize(policyJson: string | undefined) {
-  const { loadPyodide } = await import("pyodide")
-  pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL })
+// This worker can be reused across page navigations (see app/composables/useSnakeWorker.ts) rather
+// than recreated per visit, so a second/third "start" message must NOT pay Pyodide's multi-MB CDN
+// load again. Memoizing the setup promise makes ensurePyodideReady() safe to call every time
+// initialize() runs -- first call does the real work, every later call is a no-op await.
+let pyodideReady: Promise<void> | null = null
 
-  // evolve needs its whole package (not just neuro.py): evolve/__init__.py eagerly imports every
-  // submodule, and all of them are pure stdlib -- verified before wiring this up, no numpy/micropip
-  // needed. games likewise needs no external dependencies.
-  await loadPackageSource(pyodide, "games")
-  await loadPackageSource(pyodide, "evolve")
+function ensurePyodideReady(): Promise<void> {
+  pyodideReady ??= (async () => {
+    const { loadPyodide } = await import("pyodide")
+    pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL })
 
-  pyodide.runPython(`
+    // evolve needs its whole package (not just neuro.py): evolve/__init__.py eagerly imports every
+    // submodule, and all of them are pure stdlib -- verified before wiring this up, no
+    // numpy/micropip needed. games likewise needs no external dependencies.
+    await loadPackageSource(pyodide, "games")
+    await loadPackageSource(pyodide, "evolve")
+
+    pyodide.runPython(`
 import random
 import sys
 
@@ -204,19 +212,37 @@ def watch_tick(env, policy, observation):
         "render_state": render_state_for_js(env),
     }
 `)
-  renderStateForJs = pyodide.globals.get("render_state_for_js")
-  watchTick = pyodide.globals.get("watch_tick")
-  newSnake = pyodide.globals.get("new_snake")
-  loadWeightVectorFn = pyodide.globals.get("load_weight_vector")
+    renderStateForJs = pyodide.globals.get("render_state_for_js")
+    watchTick = pyodide.globals.get("watch_tick")
+    newSnake = pyodide.globals.get("new_snake")
+    loadWeightVectorFn = pyodide.globals.get("load_weight_vector")
+  })()
+  return pyodideReady
+}
 
-  snake = newSnake()
+async function initialize(policyJson: string | undefined) {
+  await ensurePyodideReady()
+
+  // A worker reused across page visits may already have a session from a previous page (a
+  // different mode, a different policy, a pending auto-replay timer) -- clear all of it before
+  // starting the newly requested one.
+  stopTicking()
+  if (watchRestartTimer !== null) {
+    clearTimeout(watchRestartTimer)
+    watchRestartTimer = null
+  }
+  policy?.destroy()
+  policy = null
+  lastPolicyJson = null
 
   post({ type: "ready" })
 
   if (policyJson) {
-    await loadPolicy(policyJson)
+    await loadPolicy(policyJson) // creates its own fresh Snake
   } else {
     mode = "play"
+    snake?.destroy()
+    snake = newSnake!()
     stepCount = 0
     post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
     timer = setInterval(tick, TICK_INTERVAL_MS)
@@ -224,7 +250,7 @@ def watch_tick(env, policy, observation):
 }
 
 async function loadPolicy(policyJson: string) {
-  if (!pyodide || !snake) return
+  if (!pyodide) return
   stopTicking()
   if (watchRestartTimer !== null) {
     clearTimeout(watchRestartTimer)
@@ -239,7 +265,7 @@ async function loadPolicy(policyJson: string) {
 
   // A fresh Snake instance (new random seed), not just snake.reset() on the same one -- otherwise
   // every auto-replay (and every genuinely new champion) would face the identical food sequence.
-  snake.destroy()
+  snake?.destroy()
   snake = newSnake!()
   const resetProxy = snake.reset()
   currentObservation = resetProxy.toJs()
@@ -277,5 +303,15 @@ self.onmessage = (event: MessageEvent<InboundMessage>) => {
     loadPolicy(message.policyJson).catch((e) =>
       post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
     )
+  } else if (message.type === "stop") {
+    // Pauses without tearing anything down -- used when a page using a reused worker (see
+    // app/composables/useSnakeWorker.ts) unmounts, so it doesn't keep ticking/posting messages
+    // into the void until the next page sends a fresh "start". Also cancels any pending watch
+    // auto-replay, which would otherwise fire after nobody's listening.
+    stopTicking()
+    if (watchRestartTimer !== null) {
+      clearTimeout(watchRestartTimer)
+      watchRestartTimer = null
+    }
   }
 }

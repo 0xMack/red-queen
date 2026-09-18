@@ -29,11 +29,16 @@ made.
       two — verified live against a real still-training run (the watched champion advanced
       gen2 → gen9 in real time).
 
-    Both verified running in a real Worker via Playwright's `page.on("worker")`. Pinia stores live
-    in `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/*.ts` mirror `apis/backend`'s
-    response models and must be kept in sync by hand if those change. No automated test suite yet —
-    verified so far with a live backend + ad hoc headless-browser (Playwright) checks, not
-    checked-in tests.
+    Both verified running in a real Worker via Playwright's `page.on("worker")`. The worker itself
+    is a module-level singleton (`app/composables/useSnakeWorker.ts`), not recreated per page visit
+    — Pyodide's load is memoized behind `ensurePyodideReady()` so navigating between `/play` and
+    `/watch` (or revisiting either) after the first load is ~10ms instead of the ~11s cold load.
+    `GridBoard.vue` renders a checkerboard board, a smoothly gliding snake (segments keyed by array
+    index, not position, so a CSS `transform` transition can interpolate movement), and a pulsing
+    food marker. Pinia stores live in `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/*.ts`
+    mirror `apis/backend`'s response models and must be kept in sync by hand if those change. No
+    automated test suite yet — verified so far with a live backend + ad hoc headless-browser
+    (Playwright) checks, not checked-in tests.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -64,7 +69,10 @@ made.
     same code.
   - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
     `evolve`'s `Environment` interface without depending on `evolve`. One package for every game
-    rather than one `libs/` package per game, so shared utilities have an obvious home.
+    rather than one `libs/` package per game, so shared utilities have an obvious home. `snake.py`'s
+    observation is 11 hand-engineered features (danger/heading/food-direction), not a raw flattened
+    grid — swapped after a real trained result confirmed the earlier representation, not compute,
+    was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments").
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002)
   - `tinylm/` — a small transformer LM, built on `autodiff` (docs/design/0004). Trained by

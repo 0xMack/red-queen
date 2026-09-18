@@ -29,7 +29,9 @@ let workerStarted = false
 let lastLoadedRef: string | null = null
 
 function setupWorker() {
-  worker = new Worker(new URL("../../workers/snakeGame.worker.ts", import.meta.url), { type: "module" })
+  // A shared worker, not one created (and Pyodide-loaded) fresh per visit -- see
+  // app/composables/useSnakeWorker.ts.
+  worker = getSnakeWorker()
   worker.onmessage = (event: MessageEvent) => {
     const message = event.data
     if (message.type === "ready") {
@@ -49,7 +51,6 @@ function setupWorker() {
 async function loadLatestChampionIfNew() {
   const latest = metricsStream.history.at(-1)
   if (!latest || latest.champion_ref === lastLoadedRef) return
-  lastLoadedRef = latest.champion_ref
 
   let policyJson: string
   try {
@@ -59,8 +60,9 @@ async function loadLatestChampionIfNew() {
     })
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
-    return
+    return // lastLoadedRef stays unset for this ref, so a retry (or the next SSE tick) tries again
   }
+  lastLoadedRef = latest.champion_ref
 
   if (!workerStarted) {
     workerStarted = true
@@ -73,7 +75,10 @@ async function loadLatestChampionIfNew() {
 
 watch(() => metricsStream.history.length, loadLatestChampionIfNew)
 
-onMounted(async () => {
+async function startWatching() {
+  loading.value = true
+  error.value = null
+
   try {
     run.value = await $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase })
   } catch (e) {
@@ -88,11 +93,23 @@ onMounted(async () => {
     return
   }
 
-  await metricsStream.start(runId) // triggers the watcher above once backfill/live data arrives
-})
+  // metricsStream.start() always resets history to [] before repopulating it, so the watch()
+  // above fires again on retry even if the champion it lands on ends up being the same one.
+  await metricsStream.start(runId)
+}
+
+function retry() {
+  workerStarted = false
+  lastLoadedRef = null
+  startWatching()
+}
+
+onMounted(startWatching)
 onUnmounted(() => {
   metricsStream.stop()
-  worker?.terminate()
+  // Not terminate() -- the worker is shared and may be reused by the next page (see
+  // app/composables/useSnakeWorker.ts). "stop" just pauses its tick loop.
+  worker?.postMessage({ type: "stop" })
   worker = null
 })
 </script>
@@ -107,7 +124,15 @@ onUnmounted(() => {
     </p>
 
     <p v-if="loading" class="mt-6 text-slate-500">Loading Python runtime...</p>
-    <p v-else-if="error" class="mt-4 text-red-600">{{ error }}</p>
+    <div v-else-if="error" class="mt-4">
+      <p class="text-red-600">{{ error }}</p>
+      <button
+        class="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        @click="retry"
+      >
+        Retry
+      </button>
+    </div>
 
     <template v-else-if="renderState">
       <GridBoard :state="renderState" class="mt-4" />

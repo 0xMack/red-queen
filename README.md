@@ -27,8 +27,10 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 - `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
   the baseline being validated before anything is ported to C++
 - `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
-  environment; `snake`, a grid game), each also exposing a `render_state()` decoupled from the
-  fast training path — see `libs/games/README.md`
+  environment; `snake`, a grid game — observation is 11 hand-engineered features, not a raw
+  flattened grid, after a retrained result confirmed representation was the ceiling, not compute),
+  each also exposing a `render_state()` decoupled from the fast training path — see
+  `libs/games/README.md`
 - `libs/telemetry` — run registry, metrics stream, and artifact store for observing
   evolving/training populations
 - `libs/tinylm` — a small transformer LM, built on `libs/autodiff` — character-level, causal
@@ -47,11 +49,16 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   thread, zero backend round trips per tick): `/play/snake` (a human plays) and `/watch/{runId}` (a
   trained policy plays, live-following a still-training run's current-best champion or replaying a
   finished run's) — see `apis/backend/README.md` to run the API it depends on, and
-  `apps/frontend/README.md` for this app.
+  `apps/frontend/README.md` for this app. The worker is a shared singleton across page navigations
+  (fast repeat visits: ~10ms vs. an ~11s cold Pyodide load), and `GridBoard.vue` renders a
+  checkerboard board with a smoothly gliding snake, a distinct head, and a pulsing food marker.
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
-  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result),
-  `0006` (a transformer LM trained entirely from scratch, first gradient-trained thing in this repo)
+  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake, with the original flattened-
+  grid observation — an honest, modest result later revisited: `jobs/snake_neuro_run.py`'s
+  hand-engineered-feature observation trains a dramatically stronger policy on the same
+  generation-class budget), `0006` (a transformer LM trained entirely from scratch, first
+  gradient-trained thing in this repo)
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
   scratch), `0005` (frontend + API contracts/endpoint definitions)

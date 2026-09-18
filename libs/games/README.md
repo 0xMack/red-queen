@@ -20,12 +20,17 @@ artifact would consume, none of which need to touch or slow down the training pa
 
 - `reach1d.py` — `ReachTarget1D`: a toy 1D continuous-control task. See
   `notebooks/0004-neuroevolution-reach1d.ipynb`.
-- `snake.py` — `Snake`: a grid game. Observation is the whole board, flattened (one float per
-  cell); action is a relative turn (left/straight/right), so reversing into your own body is
-  structurally impossible. Reward is intentionally asymmetric (penalize moving away from food more
-  than moving closer is rewarded) — a symmetric version let an evolved policy oscillate between two
-  cells forever for ~0 net reward, a real reward-hacking failure mode found by running it, not
-  guessed at in advance.
+- `snake.py` — `Snake`: a grid game. Observation is 11 hand-engineered features (danger
+  straight/left/right, heading one-hot, food direction) — replaced an earlier board-size-dependent
+  flattened-grid observation once `notebooks/0005-neuroevolution-snake.ipynb`'s own conclusion
+  ("a representation ceiling, not a compute shortage") pointed at the representation, not more
+  compute, as the next thing to fix; see the module docstring for the full reasoning and
+  `jobs/snake_neuro_run.py` for the retrained result (best_fitness 0.65 → 17.28, same generation
+  budget class, now actually eating food instead of dying near-immediately). Action is a relative
+  turn (left/straight/right), so reversing into your own body is structurally impossible. Reward is
+  intentionally asymmetric (penalize moving away from food more than moving closer is rewarded) — a
+  symmetric version let an evolved policy oscillate between two cells forever for ~0 net reward, a
+  real reward-hacking failure mode found by running it, not guessed at in advance.
 - `rendering.py` — `Renderable` protocol + `render_grid_ascii()`, a shared ASCII renderer for any
   grid-based game (not Snake-specific) — the kind of reuse consolidating into one package was for.
 

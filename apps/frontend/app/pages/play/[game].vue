@@ -44,14 +44,16 @@ function restart() {
   worker?.postMessage({ type: "restart" })
 }
 
-onMounted(() => {
-  if (!supported) {
-    loading.value = false
-    return
-  }
-  window.addEventListener("keydown", onKeydown)
+function startSession() {
+  loading.value = true
+  error.value = null
+  headingIndex = 0
 
-  worker = new Worker(new URL("../../workers/snakeGame.worker.ts", import.meta.url), { type: "module" })
+  // A shared worker, not one created (and Pyodide-loaded) fresh per visit -- see
+  // app/composables/useSnakeWorker.ts. Assigning onmessage here replaces whatever the previously
+  // active page attached, which is all the "detach" a single-worker, one-visible-page-at-a-time
+  // app needs.
+  worker = getSnakeWorker()
   worker.onmessage = (event: MessageEvent) => {
     const message = event.data
     if (message.type === "ready") {
@@ -67,10 +69,21 @@ onMounted(() => {
     }
   }
   worker.postMessage({ type: "start" })
+}
+
+onMounted(() => {
+  if (!supported) {
+    loading.value = false
+    return
+  }
+  window.addEventListener("keydown", onKeydown)
+  startSession()
 })
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown)
-  worker?.terminate()
+  // Not terminate() -- the worker is shared and may be reused by the next page. "stop" just pauses
+  // its tick loop so it doesn't keep running (or posting messages into the void) while unused.
+  worker?.postMessage({ type: "stop" })
   worker = null
 })
 </script>
@@ -84,7 +97,16 @@ onUnmounted(() => {
     </p>
 
     <p v-if="loading" class="mt-6 text-slate-500">Loading Python runtime...</p>
-    <p v-else-if="error" class="mt-4 text-red-600">{{ error }}</p>
+    <div v-else-if="error" class="mt-4">
+      <p class="text-red-600">{{ error }}</p>
+      <button
+        v-if="supported"
+        class="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        @click="startSession"
+      >
+        Retry
+      </button>
+    </div>
 
     <template v-else-if="renderState">
       <GridBoard :state="renderState" class="mt-4" />

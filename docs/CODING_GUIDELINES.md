@@ -79,6 +79,16 @@ what belongs here and how to add to it). Read before writing code, not after.
   training: mean fitness rose and a total-failure scenario got fixed, but one previously-fine
   scenario got worse. Don't assume "better on average" implies "better everywhere" when reporting
   or comparing runs.
+- A raw board-flattened observation (one float per grid cell) makes a small evolved network do two
+  jobs at once: learn to extract structure ("is there a wall two cells ahead?", "which way is the
+  food?") *and* learn a good policy from that structure — with a fixed-size ES search budget, the
+  first job can eat most of it. `games/snake.py`'s original 100-float grid observation trained to
+  best_fitness 0.65 over 150 generations (`notebooks/0005-neuroevolution-snake.ipynb`) and, per that
+  notebook's own diversity-vs-plateau analysis, hit a *representation* ceiling, not a compute one --
+  confirmed by swapping to 11 hand-engineered features (danger/heading/food-direction) with the same
+  generation-class budget: best_fitness 17.28, and the policy actually eats food instead of dying
+  almost immediately. Hand a small evolved/RL network the structure a human would notice at a
+  glance, don't make it re-derive that structure from pixels/cells as a side effect of the main task.
 
 ## Web / API (`apis/backend`)
 

@@ -49,6 +49,14 @@ for the full contract and incremental plan this implements (steps 3-6).
   was actually trained under). Talks to the main thread only via `postMessage` with plain,
   structured-cloneable objects (never a `PyProxy`, which isn't cloneable and is tied to this
   worker's own Pyodide instance).
+
+  A single instance is reused across page navigations (`app/composables/useSnakeWorker.ts`), not
+  recreated per visit -- Pyodide's own loading is memoized behind `ensurePyodideReady()` so a
+  second `"start"` message on an already-loaded worker skips the multi-second CDN download/WASM
+  init entirely (measured: ~11s cold, ~10ms warm). A page sends `{type: "stop"}` on unmount rather
+  than terminating the worker, which just pauses its tick loop (and cancels any pending watch
+  auto-replay) without discarding the loaded runtime.
+- `app/composables/useSnakeWorker.ts` — the module-level worker singleton described above.
 - `server/api/py-source/[pkg].get.ts` — a Nitro server route reading a `libs/<pkg>` package's real
   source straight off disk and returning it as JSON (`pkg` is `games` or `evolve`). Generalizes
   what was a single-purpose `py-games.get.ts` (doc 0005 step 4) once a second Pyodide-loaded
@@ -60,8 +68,18 @@ for the full contract and incremental plan this implements (steps 3-6).
   `nuxt dev` and a built `.output/server/index.mjs` are run from `apps/frontend`, so
   `cwd + "../../libs"` is reliable there.
 - `app/components/GridBoard.vue` — renders a `RenderState` (`{width, height, cells, score, alive}`)
-  as an SVG grid. Generic over any grid game's cell labels, not Snake-specific; reused unchanged
-  across every play-mode version and the watch page.
+  as an SVG grid: a checkerboard background (one `<pattern>`, not one `<rect>` per background
+  cell), rounded snake segments with a distinct head (directional eyes, inferred from the head's
+  position relative to the segment behind it -- purely cosmetic, never affects gameplay), a
+  pulsing circular food marker, and a smooth glide between ticks. The glide needs body segments
+  keyed by **array index**, not `x,y` position -- `render_state()`'s `cells` are always ordered
+  [segment nearest the head, ..., tail, head] (see `games/snake.py`'s `_cell_labels()`), so index
+  `i` consistently refers to the same physical body link tick to tick, letting a CSS `transform`
+  transition interpolate its movement. Food is keyed separately (a stable literal key, no
+  transition) so it teleports to its new cell when eaten rather than sliding there. One known,
+  accepted minor artifact: the segment nearest the head can snap instead of glide for one frame
+  right after eating, since growth shifts every index by one. Generic over any grid game's cell
+  labels, not Snake-specific; reused unchanged across every play-mode version and the watch page.
 - `app/components/FitnessChart.vue` — a hand-rolled SVG polyline chart (best/mean fitness vs.
   generation). No charting library dependency for this skeleton -- doc 0005 named
   Nuxt/Vue/Pinia/Tailwind specifically; a charting library is a separate decision to make later if
@@ -104,20 +122,20 @@ Then open `http://localhost:3000`.
   loads inside it, real keyboard input changes the snake's heading and path, a wall collision ends
   the episode and shows "Game over", "Play again" starts a fresh episode -- and, checked explicitly,
   zero requests to `apis/backend` occur during play. `/watch/{runId}` was verified against a real
-  trained run (150 real generations, `jobs/snake_neuro_run.py`): the loaded policy actually plays
-  (survives varying numbers of steps depending on the random seed -- an honest, sometimes-short
-  result, not tuned to look good), auto-replays once its episode ends, and, watched against a real
-  *still-training* run, correctly re-loaded a new champion live as each generation was recorded
-  (observed 8 distinct champion refs advance gen2 → gen9 in real time). No automated frontend test
-  suite yet -- that's a gap to close before this grows much further, not a decision to leave open
-  indefinitely.
-- Pyodide's first load per browser session (inside the worker now) downloads several MB (WASM
-  runtime + Python stdlib) from the CDN -- `/play/[game].vue` and `/watch/[runId].vue` both show
-  "Loading Python runtime..." during this. A worker is created fresh per page visit (unlike the old
-  main-thread version's module-level singleton) and terminated on unmount, so this download
-  currently repeats on every visit -- a real tradeoff of moving to a worker, not something to
-  silently fix by reintroducing a shared instance without thinking about the
-  worker-reuse-across-navigations lifecycle question first.
+  trained run (`jobs/snake_neuro_run.py`, 250 generations, `games.snake`'s improved 11-feature
+  observation + `LexicaseSelection` -- best_fitness 0.65 → 17.28 over the earlier setup): the loaded
+  policy actually eats food (score up to 9 observed in a single episode, not just surviving),
+  auto-replays once its episode ends, and, watched against a real *still-training* run, correctly
+  re-loaded a new champion live as each generation was recorded (observed 8 distinct champion refs
+  advance gen2 → gen9 in real time). No automated frontend test suite yet -- that's a gap to close
+  before this grows much further, not a decision to leave open indefinitely.
+- Pyodide's first load per browser session downloads several MB (WASM runtime + Python stdlib) from
+  the CDN (~11s measured) -- `/play/[game].vue` and `/watch/[runId].vue` both show "Loading Python
+  runtime..." during this. The worker is a module-level singleton reused across page navigations
+  (`app/composables/useSnakeWorker.ts`), so this cost is paid once per browser session, not once per
+  visit -- a subsequent navigation to either page measured ~10ms to be ready. Both pages also have a
+  "Retry" button on error (e.g. the CDN being unreachable) that re-attempts the same startup path
+  rather than requiring a full page reload.
 - Worker TypeScript needs `/// <reference lib="webworker" />` plus `declare const self:
   DedicatedWorkerGlobalScope` in `snakeGame.worker.ts` -- the app's own `tsconfig` targets the DOM
   lib (for `window`/etc. elsewhere), which conflicts with the `webworker` lib if set globally; the

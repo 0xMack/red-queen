@@ -1,13 +1,22 @@
 """Neuroevolution-against-Snake run, wired to telemetry.
 
-Same shape as baseline_gp_run.py (the "integration glue" doc 0001 describes), same benchmark setup
-already validated in notebooks/0005-neuroevolution-snake.ipynb -- this is that setup, wired to
-telemetry end to end instead of collecting summaries in a plain list, so its champions become real
-ArtifactStore entries a frontend can load (docs/design/0005 step 6, interaction modes 2/3).
+Same shape as baseline_gp_run.py (the "integration glue" doc 0001 describes). Diverges from
+notebooks/0005-neuroevolution-snake.ipynb's setup in two ways, both principled, not arbitrary:
 
-Unlike baseline_gp_run.py's serialize_program() (explicitly a prototype, never read back),
-WeightVector.to_json()/from_json() is the real wire format here: apps/frontend's Pyodide bridge
-loads a champion back with the exact same code, since libs/evolve is pure stdlib Python.
+1. games.snake.Snake's observation changed from a 100-float flattened grid to 11 hand-engineered
+   features (danger/heading/food-direction) -- see games/snake.py's module docstring for why. That
+   notebook's own conclusion ("a representation ceiling, not a compute shortage") is exactly what
+   motivated this.
+2. Selection is LexicaseSelection, not TournamentSelection -- Snake's fitness is 5 genuinely
+   different benchmark scenarios (games.snake.benchmark_environments()), and this repo's own
+   notebooks/0001 finding is that tournament/aggregate selection can trade away per-scenario
+   performance for a better average, exactly the tension lexicase exists to address
+   (docs/design/0003). Worth using here, not just knowing about.
+
+Champions become real ArtifactStore entries (WeightVector.to_json(), the real -- round-trippable --
+wire format, unlike baseline_gp_run.py's prototype serialize_program()) a frontend can load
+(docs/design/0005 step 6, interaction modes 2/3): apps/frontend's Pyodide bridge loads one back
+with the exact same code, since libs/evolve is pure stdlib Python.
 
 Run with: uv run python jobs/snake_neuro_run.py
 """
@@ -22,8 +31,8 @@ from control import make_control_callback
 from evolve import (
     GaussianMutation,
     GenerationSummary,
+    LexicaseSelection,
     SimulationFitnessEvaluator,
-    TournamentSelection,
     evolve,
     random_weight_vector,
 )
@@ -37,13 +46,14 @@ from telemetry import (
 
 RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
-# Matches notebooks/0005-neuroevolution-snake.ipynb exactly, so a run here is directly comparable
-# to that notebook's results -- not a new experiment, just this same one wired to telemetry.
-WIDTH, HEIGHT = 10, 10
-LAYER_SIZES = (WIDTH * HEIGHT, 24, 3)
-POPULATION_SIZE = 80
-GENERATIONS = 150
-MAX_STEPS = 150
+# games.snake._observation() is fixed at 11 features regardless of board size (see its docstring).
+# ~10x fewer weights than the old (100, 24, 3) network for the same hidden width -- faster to train
+# and to run -- so this run affords a bigger population/generation budget than before for similar
+# wall-clock cost.
+LAYER_SIZES = (11, 16, 3)
+POPULATION_SIZE = 100
+GENERATIONS = 250
+MAX_STEPS = 200
 
 
 def act(genome, observation) -> int:
@@ -94,7 +104,7 @@ def main() -> None:
             "population_size": POPULATION_SIZE,
             "generations": GENERATIONS,
             "max_steps": MAX_STEPS,
-            "selection": "tournament(k=4)",
+            "selection": "lexicase",
             "variation": "gaussian_mutation(sigma=0.2)",
             "benchmark": "games.snake.benchmark_environments",
         }
@@ -112,7 +122,7 @@ def main() -> None:
         fitness=SimulationFitnessEvaluator(
             envs=benchmark_environments(), act=act, max_steps=MAX_STEPS
         ),
-        selection=TournamentSelection(k=4),
+        selection=LexicaseSelection(),
         variation=GaussianMutation(sigma=0.2),
         generations=GENERATIONS,
         on_generation=[
