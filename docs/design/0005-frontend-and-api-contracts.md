@@ -350,23 +350,28 @@ All in the one `apps/frontend` deployment for now:
    headless-browser check that actually sends keyboard input and watches the snake's path change,
    die, and restart.
 5. Pyodide-based client-side simulation, once the JS-rendered version proved the contract:
-   - ✅ Main-thread Pyodide, interaction mode 1 (human play): `/play/[game].vue` loads Pyodide (CDN,
-     `usePyodideGames.ts`) and runs the actual `games.snake.Snake` class in-browser, ticked by a
-     local `setInterval` — no backend round trip per tick, verified by asserting zero requests to
-     `apis/backend` occur during play. Controls translate absolute arrow keys to Snake's relative
-     action space via a client-tracked heading, matching the worked example above. Real bug hit and
-     fixed: `render_state()`'s tuple-keyed `cells` dict makes `pyProxy.toJs()` raise
-     `ConversionError` (a JS `Map` key restriction, not a JSON one, but the same underlying shape
-     problem doc 0005 step 4 already hit and fixed on the JSON side) — fixed the same way, by
-     flattening on the Python side before crossing into JS (see `docs/CODING_GUIDELINES.md`).
+   - ✅ Main-thread Pyodide, interaction mode 1 (human play): `/play/[game].vue` ran the actual
+     `games.snake.Snake` class in-browser, ticked by a local `setInterval` — no backend round trip
+     per tick, verified by asserting zero requests to `apis/backend` occur during play. Controls
+     translate absolute arrow keys to Snake's relative action space via a client-tracked heading,
+     matching the worked example above. Real bug hit and fixed: `render_state()`'s tuple-keyed
+     `cells` dict makes `pyProxy.toJs()` raise `ConversionError` (a JS `Map` key restriction, not a
+     JSON one, but the same underlying shape problem doc 0005 step 4 already hit and fixed on the
+     JSON side) — fixed the same way, by flattening on the Python side before crossing into JS (see
+     `docs/CODING_GUIDELINES.md`).
+   - ✅ Moved into a Web Worker (`app/workers/snakeGame.worker.ts`), once the main-thread phase had
+     proven the tick-loop and keypress-to-action translation worked at all: Pyodide, the `Snake`
+     instance, and the tick timer now all live off the main thread, which only translates keys and
+     redraws from `postMessage`d state. Superseded and removed `app/composables/usePyodideGames.ts`
+     (the main-thread loader) rather than keeping both versions around. Verified with Playwright's
+     `page.on("worker")` firing for the real worker, plus the same gameplay/restart/zero-backend-
+     calls checks as the main-thread phase.
    - Not yet done: interaction mode 2 (watching a finished policy) — there's no serialized
      Snake-playing policy artifact anywhere in the repo yet to load (the neuroevolution runs against
      `games.snake` in `notebooks/0005-neuroevolution-snake.ipynb` never went through
      `telemetry`/`ArtifactStore`), so building this now would have no real data to point at. Revisit
      once a Snake-training job writes champions to `ArtifactStore` the way `jobs/baseline_gp_run.py`
      does for symbolic regression.
-   - Not yet done: moving the simulation into a Web Worker (main-thread proved the tick-loop and
-     keypress-to-action translation work; the Worker move is a separate, still-pending step).
 6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
    existing.
 7. Control API (pause/step) in `routers/runs.py`, extending `evolve()`'s `on_generation` mechanism.

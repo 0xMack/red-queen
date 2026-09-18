@@ -39,11 +39,11 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
   metrics stream, artifacts) and `libs/games` (server-side game sessions: create, step, trajectory)
   — see `apis/backend/README.md`.
 - `apps/frontend` — a Nuxt 4 app: a run list and a live run-detail view (SSE-backed chart) over
-  `apis/backend`, plus a `/play/snake` page that runs entirely client-side via Pyodide (a real
-  CPython-in-WASM runtime, running `libs/games`' actual source, zero backend round trips per tick)
-  — see `apis/backend/README.md` to run the API it depends on, and `apps/frontend/README.md` for
-  this app. Moving the simulation into a Web Worker, interaction mode 3, and the control API (doc
-  0005 steps 5-7) not started yet.
+  `apis/backend`, plus a `/play/snake` page that runs entirely client-side via Pyodide in a Web
+  Worker (a real CPython-in-WASM runtime, running `libs/games`' actual source, off the main thread,
+  zero backend round trips per tick) — see `apis/backend/README.md` to run the API it depends on,
+  and `apps/frontend/README.md` for this app. Interaction mode 3 (watching the live champion) and
+  the control API (doc 0005 steps 6-7) not started yet.
 - `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
   (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
   `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake — an honest, modest result),

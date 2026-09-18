@@ -16,15 +16,16 @@ made.
   - `frontend/` — the one Nuxt 4 app (docs/design/0005: one app, not one per concern). Run list +
     live run-detail (backfill via REST, then an `EventSource` against `apis/backend`'s SSE route)
     with a hand-rolled SVG chart, plus `/play/{game}` (`snake` today) — runs entirely client-side
-    via Pyodide (docs/design/0005 step 5, main-thread phase): `usePyodideGames.ts` loads Pyodide
-    from the CDN and writes `libs/games`' real source (served fresh from disk by
-    `server/api/py-games.get.ts`) into its virtual filesystem, so the actual `games.snake.Snake`
-    class runs in-browser with zero backend round trips per tick (verified). Pinia stores live in
-    `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/*.ts` mirror `apis/backend`'s
-    response models and must be kept in sync by hand if those change. No automated test suite yet —
-    verified so far with a live backend + an ad hoc headless-browser (Playwright) check, not a
-    checked-in test. Moving to a Web Worker (still step 5) and interaction mode 3 + the control API
-    (docs/design/0005 steps 6-7) not started yet.
+    via Pyodide, in a Web Worker (docs/design/0005 step 5, both phases done):
+    `app/workers/snakeGame.worker.ts` loads Pyodide from the CDN, writes `libs/games`' real source
+    (served fresh from disk by `server/api/py-games.get.ts`) into its virtual filesystem, and owns
+    the actual `games.snake.Snake` instance and tick loop entirely off the main thread — zero
+    backend round trips per tick, verified, and confirmed running in a real Worker via Playwright's
+    `page.on("worker")`. Pinia stores live in `app/stores/` (auto-imported by `@pinia/nuxt`);
+    `app/types/*.ts` mirror `apis/backend`'s response models and must be kept in sync by hand if
+    those change. No automated test suite yet — verified so far with a live backend + an ad hoc
+    headless-browser (Playwright) check, not a checked-in test. Interaction mode 3 and the control
+    API (docs/design/0005 steps 6-7) not started yet.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
