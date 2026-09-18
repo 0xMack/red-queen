@@ -41,6 +41,16 @@ def test_l2_norm_matches_a_hand_computed_value():
     assert genome.l2_norm() == 5.0  # 3-4-5 triangle
 
 
+def test_to_json_from_json_round_trips():
+    genome = WeightVector(weights=(1.0, -2.5, 0.3), layer_sizes=(2, 1))
+
+    restored = WeightVector.from_json(genome.to_json())
+
+    assert restored == genome
+    assert isinstance(restored.weights, tuple)  # not a list -- JSON has no tuple type
+    assert isinstance(restored.layer_sizes, tuple)
+
+
 def test_random_weight_vector_has_the_right_number_of_parameters():
     rng = random.Random(0)
     genome = random_weight_vector((2, 4, 1), rng)

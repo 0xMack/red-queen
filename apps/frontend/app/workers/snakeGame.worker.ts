@@ -1,12 +1,16 @@
 /// <reference lib="webworker" />
 
-// Runs games.snake.Snake entirely inside this worker (doc 0005 step 5, Web Worker phase) --
-// Pyodide's WASM execution and the tick timer both happen off the main thread, so heavy Python
-// work can never jank the page. The main thread (app/pages/play/[game].vue) only translates
-// keypresses into relative actions and redraws from the state messages this worker posts back --
-// see doc 0005's worked example for the message protocol implemented below. Supersedes the
-// previous main-thread-Pyodide version (app/composables/usePyodideGames.ts, now removed) once the
-// main-thread phase had proven the tick-loop and keypress-to-action translation worked at all.
+// Runs games.snake.Snake entirely inside this worker, in one of two modes (doc 0005 steps 5-6):
+//
+// - "play": a human steers via keydown-translated relative actions (doc 0005's worked example).
+// - "watch": a loaded evolve.neuro.WeightVector policy decides every action instead (interaction
+//   modes 2/3) -- the run detail / watch page feeds it a champion's serialized weights, fetched
+//   from apis/backend's existing artifact endpoint (no backend changes needed there: a serialized
+//   WeightVector is just opaque bytes to ArtifactStore, same as a LinearProgram's repr()).
+//
+// Either way, Pyodide's WASM execution and the tick timer live off the main thread, so heavy
+// Python work can never jank the page. The main thread only sends input/policy messages in and
+// redraws from the state messages this worker posts back.
 
 import type { PyodideInterface } from "pyodide"
 import type { PyProxy } from "pyodide/ffi"
@@ -21,7 +25,11 @@ interface RenderState {
   alive: boolean
 }
 
-type InboundMessage = { type: "start" } | { type: "input"; action: number } | { type: "restart" }
+type InboundMessage =
+  | { type: "start"; policyJson?: string }
+  | { type: "input"; action: number }
+  | { type: "restart" }
+  | { type: "load_policy"; policyJson: string }
 
 type OutboundMessage =
   | { type: "ready" }
@@ -35,11 +43,28 @@ const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/
 const TICK_INTERVAL_MS = 150
 
 let pyodide: PyodideInterface | null = null
+let mode: "play" | "watch" = "play"
 let snake: PyProxy | null = null
+let policy: PyProxy | null = null
+let currentObservation: unknown = null // watch mode only; a plain JS array fed back into Python
+
 let renderStateForJs: PyProxy | null = null
-let pendingAction = 0
+let watchTick: PyProxy | null = null
+
+let newSnake: PyProxy | null = null
+let loadWeightVectorFn: PyProxy | null = null
+
+let pendingAction = 0 // play mode only
 let stepCount = 0
 let timer: ReturnType<typeof setInterval> | null = null
+
+// Watch mode: a finished run has no more champions coming, so an episode ending would otherwise
+// just freeze the page forever. Auto-replay the same policy (a fresh Snake seed each time, for
+// variety) after a short pause -- superseded immediately if a genuinely new champion arrives
+// first (loadPolicy() clears any pending timer before doing anything else).
+let lastPolicyJson: string | null = null
+let watchRestartTimer: ReturnType<typeof setTimeout> | null = null
+const WATCH_RESTART_DELAY_MS = 1000
 
 function post(message: OutboundMessage) {
   self.postMessage(message)
@@ -52,10 +77,10 @@ function stopTicking() {
   }
 }
 
-// render_state_for_js (defined in the Python bootstrap below) flattens render_state()'s
-// tuple-keyed `cells` dict before it crosses into JS -- a Python tuple isn't a valid key for the
-// Map toJs() would otherwise try to build (pyodide.ffi.ConversionError), the same underlying
-// problem apis/backend hit on the JSON boundary (see docs/CODING_GUIDELINES.md).
+// render_state_for_js (Python bootstrap below) flattens render_state()'s tuple-keyed `cells` dict
+// before it crosses into JS -- a Python tuple isn't a valid key for the Map toJs() would otherwise
+// try to build (pyodide.ffi.ConversionError), the same underlying problem apis/backend hit on the
+// JSON boundary (see docs/CODING_GUIDELINES.md).
 function readRenderState(): RenderState {
   const stateProxy = renderStateForJs!(snake)
   const state = stateProxy.toJs({ dict_converter: Object.fromEntries }) as RenderState
@@ -63,12 +88,20 @@ function readRenderState(): RenderState {
   return state
 }
 
-function tick() {
-  if (!snake) return
+async function loadPackageSource(target: PyodideInterface, pkg: string) {
+  const response = await fetch(`/api/py-source/${pkg}`)
+  const files = (await response.json()) as Record<string, string>
+  target.FS.mkdirTree(`/py/${pkg}`)
+  for (const [name, content] of Object.entries(files)) {
+    target.FS.writeFile(`/py/${pkg}/${name}`, content)
+  }
+}
+
+function playTick() {
   // Explicit destroy() on every PyProxy this loop creates -- it runs every 150ms for as long as
   // the worker is alive, so relying on Pyodide's FinalizationRegistry safety net alone would grow
   // the WASM heap needlessly instead of freeing it immediately.
-  const resultProxy = snake.step(pendingAction)
+  const resultProxy = snake!.step(pendingAction)
   const [, reward, doneNow] = resultProxy.toJs() as [unknown, number, boolean]
   resultProxy.destroy()
 
@@ -78,48 +111,152 @@ function tick() {
   post({ type: "state", renderState: readRenderState(), reward, done: doneNow, step: stepCount })
 }
 
-async function initialize() {
+function watchTickOnce() {
+  if (!policy) return
+  // watch_tick (Python bootstrap) does action-decision + step + render-state-read in one call, to
+  // avoid a JS<->Python round trip per sub-step; see its docstring for why.
+  const resultProxy = watchTick!(snake, policy, currentObservation)
+  const result = resultProxy.toJs({ dict_converter: Object.fromEntries }) as {
+    observation: unknown
+    reward: number
+    done: boolean
+    render_state: RenderState
+  }
+  resultProxy.destroy()
+
+  currentObservation = result.observation
+  stepCount += 1
+  if (result.done) stopTicking()
+  post({
+    type: "state",
+    renderState: result.render_state,
+    reward: result.reward,
+    done: result.done,
+    step: stepCount,
+  })
+
+  if (result.done && lastPolicyJson) {
+    const policyToReplay = lastPolicyJson
+    watchRestartTimer = setTimeout(() => {
+      watchRestartTimer = null
+      if (mode === "watch") loadPolicy(policyToReplay)
+    }, WATCH_RESTART_DELAY_MS)
+  }
+}
+
+function tick() {
+  if (!snake) return
+  if (mode === "watch") watchTickOnce()
+  else playTick()
+}
+
+async function initialize(policyJson: string | undefined) {
   const { loadPyodide } = await import("pyodide")
   pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL })
 
-  const response = await fetch("/api/py-games")
-  const files = (await response.json()) as Record<string, string>
-  pyodide.FS.mkdirTree("/py/games")
-  for (const [name, content] of Object.entries(files)) {
-    pyodide.FS.writeFile(`/py/games/${name}`, content)
-  }
+  // evolve needs its whole package (not just neuro.py): evolve/__init__.py eagerly imports every
+  // submodule, and all of them are pure stdlib -- verified before wiring this up, no numpy/micropip
+  // needed. games likewise needs no external dependencies.
+  await loadPackageSource(pyodide, "games")
+  await loadPackageSource(pyodide, "evolve")
+
   pyodide.runPython(`
+import random
 import sys
+
 if "/py" not in sys.path:
     sys.path.insert(0, "/py")
 
-# Pyodide bridge glue, not part of libs/games itself -- same boundary-flattening
-# apis/backend/src/backend/game_sessions.json_safe_render_state() does for the JSON boundary.
+from evolve.neuro import WeightVector
+from games.snake import Snake
+
+# Pyodide bridge glue, not part of libs/games or libs/evolve themselves -- same
+# boundary-flattening apis/backend/src/backend/game_sessions.json_safe_render_state() does for the
+# JSON boundary.
 def render_state_for_js(env):
     state = dict(env.render_state())
     cells = state.get("cells")
     if isinstance(cells, dict):
         state["cells"] = [{"x": x, "y": y, "label": label} for (x, y), label in cells.items()]
     return state
+
+def new_snake():
+    return Snake(seed=random.randint(0, 2**31 - 1))
+
+def load_weight_vector(text):
+    return WeightVector.from_json(text)
+
+def snake_policy_action(policy, observation):
+    # 3 outputs -> {-1, 0, 1} (left, straight, right) via argmax -- must match
+    # jobs/snake_neuro_run.py's act() exactly, since that's the convention every champion this
+    # loads was actually trained under.
+    outputs = policy.forward(list(observation))
+    best_index = max(range(len(outputs)), key=lambda i: outputs[i])
+    return best_index - 1
+
+def watch_tick(env, policy, observation):
+    action = snake_policy_action(policy, observation)
+    next_observation, reward, done = env.step(action)
+    return {
+        "observation": next_observation,
+        "reward": reward,
+        "done": done,
+        "render_state": render_state_for_js(env),
+    }
 `)
   renderStateForJs = pyodide.globals.get("render_state_for_js")
+  watchTick = pyodide.globals.get("watch_tick")
+  newSnake = pyodide.globals.get("new_snake")
+  loadWeightVectorFn = pyodide.globals.get("load_weight_vector")
 
-  snake = pyodide.runPython(`
-import random
-from games.snake import Snake
-Snake(seed=random.randint(0, 2**31 - 1))
-`)
-  stepCount = 0
+  snake = newSnake()
+
   post({ type: "ready" })
+
+  if (policyJson) {
+    await loadPolicy(policyJson)
+  } else {
+    mode = "play"
+    stepCount = 0
+    post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
+    timer = setInterval(tick, TICK_INTERVAL_MS)
+  }
+}
+
+async function loadPolicy(policyJson: string) {
+  if (!pyodide || !snake) return
+  stopTicking()
+  if (watchRestartTimer !== null) {
+    clearTimeout(watchRestartTimer)
+    watchRestartTimer = null
+  }
+
+  const newPolicy = loadWeightVectorFn!(policyJson)
+  policy?.destroy()
+  policy = newPolicy
+  lastPolicyJson = policyJson
+  mode = "watch"
+
+  // A fresh Snake instance (new random seed), not just snake.reset() on the same one -- otherwise
+  // every auto-replay (and every genuinely new champion) would face the identical food sequence.
+  snake.destroy()
+  snake = newSnake!()
+  const resetProxy = snake.reset()
+  currentObservation = resetProxy.toJs()
+  resetProxy.destroy()
+
+  stepCount = 0
   post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
   timer = setInterval(tick, TICK_INTERVAL_MS)
 }
 
 function restart() {
-  if (!snake) return
+  if (!snake || mode !== "play") return
   stopTicking()
-  const obsProxy = snake.reset()
-  obsProxy.destroy()
+  // A fresh Snake instance (new random seed), not snake.reset() on the same one -- otherwise
+  // "Play again" would always replay the identical food sequence.
+  snake.destroy()
+  snake = newSnake!()
   pendingAction = 0
   stepCount = 0
   post({ type: "state", renderState: readRenderState(), reward: 0, done: false, step: 0 })
@@ -129,12 +266,16 @@ function restart() {
 self.onmessage = (event: MessageEvent<InboundMessage>) => {
   const message = event.data
   if (message.type === "start") {
-    initialize().catch((e) =>
+    initialize(message.policyJson).catch((e) =>
       post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
     )
   } else if (message.type === "input") {
-    pendingAction = message.action
+    if (mode === "play") pendingAction = message.action
   } else if (message.type === "restart") {
     restart()
+  } else if (message.type === "load_policy") {
+    loadPolicy(message.policyJson).catch((e) =>
+      post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
+    )
   }
 }

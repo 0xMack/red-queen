@@ -20,6 +20,14 @@ what belongs here and how to add to it). Read before writing code, not after.
   sensibly a `RunStatus` value — so it's implemented entirely API-side instead (resume, wait for one
   new `GenerationStats` via the existing `MetricsSource`, re-pause), keeping the job-side callback a
   two-state check rather than growing a third state for one caller's benefit.
+- **`ruff format`/`ruff check --fix` a specific set of files you actually touched, not a whole
+  directory** — no `line-length` is configured anywhere in this repo (checked: every `pyproject.toml`
+  omits it, so `ruff format` uses its default, 88), but plenty of pre-existing hand-written code
+  runs longer than that. Formatting a whole directory reflows every one of those files as a side
+  effect, mixing unrelated cosmetic churn into an otherwise-scoped commit. Happened while building
+  docs/design/0005 step 6: `ruff format libs/evolve` reformatted six files this change never
+  touched. Fixed by reverting those and re-running ruff against only the files actually part of the
+  change.
 
 ## Python
 
@@ -107,8 +115,8 @@ what belongs here and how to add to it). Read before writing code, not after.
   Cannot use (x, y) as a key for a Javascript Map` on the exact same tuple-keyed dict — a JS `Map`
   can technically hold any key, but Pyodide's converter explicitly refuses non-primitive ones. Same
   fix, different side of the boundary: flatten on the Python side before it crosses into JS (see
-  `usePyodideGames.ts`'s `render_state_for_js`), not by trying to coax `toJs()`/`dict_converter`
-  into accepting tuple keys.
+  `app/workers/snakeGame.worker.ts`'s `render_state_for_js`), not by trying to coax
+  `toJs()`/`dict_converter` into accepting tuple keys.
 - **`app.dependency_overrides[dep] = lambda: SomeStore()` creates a *new* instance on every
   request**, not once per test — FastAPI calls the override callable fresh per resolution the same
   way it would the real dependency. For in-memory state that must persist *across* requests within
@@ -116,6 +124,17 @@ what belongs here and how to add to it). Read before writing code, not after.
   close over a single instance created once (`store = SomeStore(); app.dependency_overrides[dep] =
   lambda: store`), not construct one inside the lambda. Silent symptom: a resource created in one
   request 404s in the next, as if it never existed. See `apis/backend/tests/test_games.py`.
+- **A Nitro server route resolving a filesystem path via `import.meta.url` isn't reliable once it's
+  nested in a subdirectory.** `apps/frontend/server/api/py-games.get.ts` (flat, one directory under
+  `server/`) resolved a `libs/` path correctly with `new URL("../../../../libs/...",
+  import.meta.url)`. Moving the equivalent logic into
+  `server/api/py-source/[pkg].get.ts` (one directory deeper) and adding one more `../` — the
+  "obviously correct" fix by source-tree depth — landed on a path missing *two* segments, not the
+  expected one; Nitro's dev-mode bundler doesn't preserve this route's real source-tree depth for
+  nested routes. Found by actually running it (`ENOENT`, then inspecting the resolved path), not by
+  reasoning about it. Fixed by resolving from `process.cwd()` instead (reliable because `nuxt dev`
+  and the built server are both always run from `apps/frontend`) — don't trust
+  `import.meta.url`-relative depth counting for a Nitro route without running it.
 
 ## Lessons
 

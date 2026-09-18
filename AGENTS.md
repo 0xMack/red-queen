@@ -15,19 +15,25 @@ made.
 - `apps/` — front-end apps (visualization of runs/simulations)
   - `frontend/` — the one Nuxt 4 app (docs/design/0005: one app, not one per concern). Run list +
     live run-detail (backfill via REST, then an `EventSource` against `apis/backend`'s SSE route)
-    with a hand-rolled SVG chart, plus `/play/{game}` (`snake` today) — runs entirely client-side
-    via Pyodide, in a Web Worker (docs/design/0005 step 5, both phases done):
-    `app/workers/snakeGame.worker.ts` loads Pyodide from the CDN, writes `libs/games`' real source
-    (served fresh from disk by `server/api/py-games.get.ts`) into its virtual filesystem, and owns
-    the actual `games.snake.Snake` instance and tick loop entirely off the main thread — zero
-    backend round trips per tick, verified, and confirmed running in a real Worker via Playwright's
-    `page.on("worker")`. Pinia stores live in `app/stores/` (auto-imported by `@pinia/nuxt`);
-    `app/types/*.ts` mirror `apis/backend`'s response models and must be kept in sync by hand if
-    those change. No automated test suite yet — verified so far with a live backend + an ad hoc
-    headless-browser (Playwright) check, not a checked-in test. Interaction mode 3 and the control
-    Interaction mode 3 (docs/design/0005 step 6) not started — transitively blocked on mode 2
-    (watching a finished policy), which has no serialized Snake-playing artifact to load yet. The
-    control API (step 7) is done — see the `apis/backend`/`jobs/` bullets below.
+    with a hand-rolled SVG chart. Two ways to watch a game, both via `app/workers/snakeGame.worker.ts`
+    (Pyodide, in a Web Worker, off the main thread) loading real source from `libs/games`/`libs/evolve`
+    (served fresh from disk by `server/api/py-source/[pkg].get.ts` — generalized from a single-package
+    route once a second package needed it) rather than a checked-in copy:
+    - `/play/{game}` (`snake` today, docs/design/0005 step 5) — a human steers; zero backend round
+      trips per tick.
+    - `/watch/{runId}` (docs/design/0005 step 6) — a trained `evolve.neuro.WeightVector` policy
+      steers instead, loaded from the run's `champion_ref` artifact via the *existing*
+      `GET /runs/{id}/artifacts/{ref}` (no backend changes needed — the endpoint is already opaque
+      to what's inside). Interaction modes 2 and 3 turned out to be one mechanism (reuse
+      `useMetricsStreamStore`, reload whichever champion is latest whenever it changes) rather than
+      two — verified live against a real still-training run (the watched champion advanced
+      gen2 → gen9 in real time).
+
+    Both verified running in a real Worker via Playwright's `page.on("worker")`. Pinia stores live
+    in `app/stores/` (auto-imported by `@pinia/nuxt`); `app/types/*.ts` mirror `apis/backend`'s
+    response models and must be kept in sync by hand if those change. No automated test suite yet —
+    verified so far with a live backend + ad hoc headless-browser (Playwright) checks, not
+    checked-in tests.
 - `apis/` — backend APIs serving runs/simulations to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -50,7 +56,12 @@ made.
     The first `libs/` package another package depends on (`tinylm` depends on it) — every other
     package is a leaf.
   - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation);
-    zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry")
+    zero dependency on `telemetry` (see docs/design/0001 §"Decoupling from telemetry"). Every
+    submodule is pure stdlib (verified before `apps/frontend`'s Pyodide bridge loaded the whole
+    package client-side, docs/design/0005 step 6) — no numpy, no external deps.
+    `WeightVector.to_json()`/`from_json()` is the real (round-trippable) wire format for a trained
+    policy — `jobs/snake_neuro_run.py` writes it, the Pyodide bridge loads it back with the exact
+    same code.
   - `games/` — toy games/simulations, one module per game (e.g. `games.reach1d`), all implementing
     `evolve`'s `Environment` interface without depending on `evolve`. One package for every game
     rather than one `libs/` package per game, so shared utilities have an obvious home.
@@ -60,8 +71,11 @@ made.
     gradients, not evolution — the odd one out relative to every other `libs/` package so far, and
     deliberately not wired into `evolve`/`telemetry` yet (see the doc for why).
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
-  never import `telemetry` directly). `baseline_gp_run.py` is the reference example — run with
-  `uv run python jobs/<script>.py` from the repo root. `control.py`'s `make_control_callback`
+  never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
+  `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
+  `notebooks/0005-neuroevolution-snake.ipynb`, wired to telemetry — its champions are what
+  `apps/frontend`'s `/watch/{runId}` loads. Run with `uv run python jobs/<script>.py` from the repo
+  root. `control.py`'s `make_control_callback`
   (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
   `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here
   import each other as plain sibling modules, which works because `uv run python jobs/<script>.py`

@@ -366,14 +366,30 @@ All in the one `apps/frontend` deployment for now:
      (the main-thread loader) rather than keeping both versions around. Verified with Playwright's
      `page.on("worker")` firing for the real worker, plus the same gameplay/restart/zero-backend-
      calls checks as the main-thread phase.
-   - Not yet done: interaction mode 2 (watching a finished policy) — there's no serialized
-     Snake-playing policy artifact anywhere in the repo yet to load (the neuroevolution runs against
-     `games.snake` in `notebooks/0005-neuroevolution-snake.ipynb` never went through
-     `telemetry`/`ArtifactStore`), so building this now would have no real data to point at. Revisit
-     once a Snake-training job writes champions to `ArtifactStore` the way `jobs/baseline_gp_run.py`
-     does for symbolic regression.
-6. Interaction mode 3 (watching the live current-best champion) — depends on (2) and (5) both
-   existing. Not started — still blocked on interaction mode 2 (see step 5 above).
+   - ✅ Interaction mode 2 (watching a finished policy) unblocked: `jobs/snake_neuro_run.py` (new)
+     runs the exact neuroevolution-against-`games.snake` setup `notebooks/0005-neuroevolution-snake.ipynb`
+     validated, wired to `telemetry` end to end, writing each generation's champion as a real
+     `WeightVector.to_json()` artifact (the round-trippable wire format `to_json`/`from_json` added
+     to `evolve.neuro` for this — `libs/evolve` stayed pure stdlib specifically so the exact same
+     code loads a champion back inside Pyodide). `apis/backend` needed **zero changes** — the
+     existing `GET /runs/{id}/artifacts/{ref}` is already opaque to what's inside. Ran the job for
+     real (150 generations, ~3.5 minutes): improved from -1.08 to 0.65, a real, un-cherry-picked
+     result.
+6. ✅ Interaction mode 3 (watching the live current-best champion). Turned out to need no new
+   mechanism beyond mode 2's: `apps/frontend`'s `/watch/[runId].vue` reuses `useMetricsStreamStore`
+   (the same store the run-detail page uses) and reloads whichever champion is latest whenever
+   `history` changes — for a completed run that's once (from backfill); for a still-training run,
+   every time a new `GenerationStats` arrives over SSE. No status branching needed in the page at
+   all. `app/workers/snakeGame.worker.ts` gained a "watch" mode alongside "play": loads
+   `libs/evolve`'s whole package (pure stdlib, verified — no numpy/micropip needed) the same way it
+   already loaded `libs/games`, and a loaded `WeightVector` decides every action via
+   `policy.forward(observation)` + argmax (matching `snake_neuro_run.py`'s `act()` convention
+   exactly). An episode auto-replays with a fresh seed once it ends, so a finished run's watch page
+   doesn't just freeze forever after one death — immediately superseded if a genuinely new champion
+   arrives first. Verified against a real 150-generation completed run (policy actually plays,
+   survival length varies honestly by seed) and, separately, against a real live-training run: the
+   watched champion advanced gen2 → gen9 in real time as training progressed, confirmed by observing
+   8 distinct `champion_ref`s over the page's lifetime.
 7. ✅ Control API (pause/resume/step) — `POST /runs/{id}/control` in `routers/runs.py`. `pause`/
    `resume` reuse `telemetry.RunStatus`'s existing `"paused"` value (docs/design/0002) rather than
    inventing new shared state — `registry.update_status(run_id, "paused"/"running")` is the entire
