@@ -1,11 +1,40 @@
 <script setup lang="ts">
+import type { EvaluationRecord } from "~/types/leaderboard"
 import type { RunInfo } from "~/types/telemetry"
+import type { ModelShape } from "~/utils/modelLabel"
 import type { RunMeta } from "~/utils/runMeta"
 
 useHead({ title: "Runs" })
 
 const runsStore = useRunsStore()
 await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs))
+const config = useRuntimeConfig()
+
+// Where each run's champion stands on its game's leaderboard (docs/design/0007) -- the held-out score,
+// which is what the leaderboard ranks by, next to the training fitness this table has always shown.
+const { data: leaderboard } = await useAsyncData("runs-leaderboard-snake", () =>
+  $fetch<EvaluationRecord[]>("/games/snake/leaderboard", { baseURL: config.public.apiBase }).catch(() => []),
+)
+const standings = computed(() => {
+  const records = leaderboard.value ?? []
+  const protocol = [...new Set(records.map((r) => r.protocol))].sort().at(-1)
+  const ranked = records.filter((r) => r.protocol === protocol)
+  const byRun: Record<string, { mean: number; rank: number; of: number; entrantId: string }> = {}
+  ranked.forEach((r, i) => {
+    // The champion itself, not a differently-behaving package variant (run:<id>@fp32).
+    if (r.run_id && r.entrant_id === `run:${r.run_id}`) byRun[r.run_id] = { mean: r.metrics.quality.mean, rank: i + 1, of: ranked.length, entrantId: r.entrant_id }
+  })
+  return { byRun, protocol }
+})
+
+// Why a run has no leaderboard entry -- so its absence reads as a fact, not a bug.
+function unranked(run: RunInfo): string | null {
+  const c = run.config ?? {}
+  if (c.game !== "snake") return null
+  if (c.experiment) return `comparison run (${String(c.experiment)}): aggregated in its experiment, not ranked individually`
+  if (run.status === "running" || run.status === "paused") return "still training: evaluated once finished"
+  return "not evaluated yet: run jobs/evaluate.py"
+}
 onMounted(() => runsStore.fetchHistories())
 
 // useState, not ref: the server-rendered "3 min ago" and the first client render must agree
@@ -21,6 +50,8 @@ onUnmounted(() => clock && clearInterval(clock))
 interface Row {
   run: RunInfo
   meta: RunMeta
+  label: string // same naming as the leaderboard: "Snake · NEAT · 11 hidden · 73 conns"
+  heldOut: { mean: number; rank: number; of: number; entrantId: string } | null
   generations: number
   best: number | null
   trend: number[]
@@ -40,9 +71,19 @@ const rows = computed<Row[]>(() =>
         ? `${c.num_instructions} instr · ${c.num_registers ?? "?"} regs`
         : "--"
     const last = history?.at(-1)
+    const extras = last?.extras ?? {}
+    const shape: ModelShape = {
+      algorithm: meta.representationLabel,
+      hidden_nodes: typeof extras.champion_hidden_nodes === "number" ? extras.champion_hidden_nodes : undefined,
+      connections: typeof extras.champion_connections === "number" ? extras.champion_connections : undefined,
+      layer_sizes: Array.isArray(c.layer_sizes) ? (c.layer_sizes as number[]) : undefined,
+    }
+    const subject = meta.title.split(" · ")[0]
     return {
       run,
       meta,
+      label: meta.game ? `${subject} · ${modelLabel(shape)}` : meta.title,
+      heldOut: standings.value.byRun[run.run_id] ?? null,
       generations: history ? history.length : 0,
       best: bestFitnessOf(run, history),
       trend: history ? downsample(history.map((h) => h.best_fitness), 60) : [],
@@ -63,7 +104,7 @@ function downsample(values: number[], n: number): number[] {
 const query = ref("")
 const statusFilter = ref<"all" | "running" | "completed" | "failed" | "paused">("all")
 const kindFilter = ref("all")
-type SortKey = "created" | "best" | "generations" | "duration"
+type SortKey = "created" | "best" | "heldOut" | "generations" | "duration"
 const sortKey = ref<SortKey>("created")
 const sortDesc = ref(true)
 
@@ -75,7 +116,7 @@ const visible = computed(() => {
     if (statusFilter.value !== "all" && r.run.status !== statusFilter.value) return false
     if (kindFilter.value !== "all" && r.meta.representationLabel !== kindFilter.value) return false
     if (!q) return true
-    return [r.run.run_id, r.meta.title, r.meta.note, r.meta.selection, r.meta.benchmark]
+    return [r.run.run_id, r.label, r.meta.title, r.meta.note, r.meta.selection, r.meta.benchmark]
       .filter(Boolean)
       .some((s) => s!.toLowerCase().includes(q))
   })
@@ -84,6 +125,8 @@ const visible = computed(() => {
       ? r.run.created_at
       : sortKey.value === "best"
         ? (r.best ?? -Infinity)
+        : sortKey.value === "heldOut"
+          ? (r.heldOut?.mean ?? -Infinity)
         : sortKey.value === "generations"
           ? r.generations
           : r.duration
@@ -145,12 +188,12 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
         <StatTile label="Runs" :value="summary.total" :hint="`${summary.kinds} algorithm families`" />
         <StatTile label="Running now" :value="summary.running" :tone="summary.running ? 'life' : 'default'" hint="live over SSE" />
         <StatTile label="Generations recorded" :value="summary.totalGens.toLocaleString()" hint="across every run" />
-        <StatTile label="Best Snake fitness" :value="formatFitness(summary.bestSnake, 2)" tone="queen" hint="neuroevolution" />
+        <StatTile label="Best Snake fitness" :value="formatFitness(summary.bestSnake, 2)" tone="queen" hint="training fitness, not a game score" />
         <StatTile
           class="col-span-2 md:col-span-1"
           label="Latest run"
           :value="rows[0] ? formatRelative(rows[0].run.created_at, now) : '--'"
-          :hint="rows[0]?.meta.title"
+          :hint="rows[0]?.label"
         />
       </div>
 
@@ -202,7 +245,14 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
                 Generations {{ sortKey === "generations" ? (sortDesc ? "↓" : "↑") : "" }}
               </th>
               <th class="cursor-pointer px-3 py-3 text-right font-medium hover:text-fg" @click="sortBy('best')">
-                Best {{ sortKey === "best" ? (sortDesc ? "↓" : "↑") : "" }}
+                <span title="Best training fitness: shaped reward on the games it trained on -- not a game score">
+                  Best train fitness {{ sortKey === "best" ? (sortDesc ? "↓" : "↑") : "" }}
+                </span>
+              </th>
+              <th class="cursor-pointer px-3 py-3 text-right font-medium hover:text-fg" @click="sortBy('heldOut')">
+                <span :title="`Mean game score on the leaderboard's held-out games (${standings.protocol ?? 'no evaluations yet'}) -- what the leaderboard ranks by`">
+                  Held-out {{ sortKey === "heldOut" ? (sortDesc ? "↓" : "↑") : "" }}
+                </span>
               </th>
               <th class="px-3 py-3 font-medium">Best-fitness trend</th>
               <th class="cursor-pointer px-3 py-3 font-medium hover:text-fg" @click="sortBy('created')">
@@ -223,7 +273,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
             >
               <td class="px-4 py-3">
                 <NuxtLink :to="`/runs/${r.run.run_id}`" class="font-medium text-fg group-hover:text-queen-300" @click.stop>
-                  {{ r.meta.title }}
+                  {{ r.label }}
                 </NuxtLink>
                 <p class="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-fg-subtle">
                   {{ shortId(r.run.run_id) }}
@@ -262,7 +312,21 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
                   </div>
                 </div>
               </td>
-              <td class="num px-3 py-3 text-right font-semibold text-fg">{{ formatFitness(r.best, 3) }}</td>
+              <td class="num px-3 py-3 text-right text-fg-muted">{{ formatFitness(r.best, 3) }}</td>
+              <td class="px-3 py-3 text-right whitespace-nowrap" data-held-out>
+                <NuxtLink
+                  v-if="r.heldOut"
+                  :to="`/games/snake?watch=${encodeURIComponent(r.heldOut.entrantId)}`"
+                  class="group/lb inline-flex flex-col items-end"
+                  title="Open on the leaderboard"
+                  @click.stop
+                >
+                  <span class="num font-semibold text-fg group-hover/lb:text-queen-300">{{ r.heldOut.mean.toFixed(2) }}</span>
+                  <span class="text-[10px] text-fg-subtle">🏆 #{{ r.heldOut.rank }} of {{ r.heldOut.of }}</span>
+                </NuxtLink>
+                <span v-else-if="unranked(r.run)" class="cursor-help text-fg-subtle" :title="unranked(r.run)!">--</span>
+                <span v-else class="text-fg-subtle">--</span>
+              </td>
               <td class="px-3 py-3"><Sparkline :values="r.trend" class="h-8 w-24" /></td>
               <td class="px-3 py-3 whitespace-nowrap text-fg-muted" :title="formatTimestamp(r.run.created_at)">
                 {{ formatRelative(r.run.created_at, now) }}
@@ -275,7 +339,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
               </td>
             </tr>
             <tr v-if="visible.length === 0">
-              <td colspan="11" class="px-4 py-12 text-center text-fg-subtle">
+              <td colspan="12" class="px-4 py-12 text-center text-fg-subtle">
                 <template v-if="rows.length === 0">
                   No runs yet -- start one with <code class="chip">uv run python jobs/baseline_gp_run.py</code>.
                 </template>

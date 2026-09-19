@@ -55,11 +55,12 @@ const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics
           <td class="px-3 py-3">
             <div class="flex items-center gap-2">
               <span class="size-2 shrink-0 rounded-full" :style="{ background: entrantColor(r) }" />
-              <span class="font-medium">{{ r.label }}</span>
+              <span class="font-medium" :title="r.label">{{ entrantShortLabel(r) }}</span>
               <span v-if="selectedId === r.entrant_id" class="rounded-full bg-queen-500/20 px-2 py-0.5 text-[10px] font-medium text-queen-200">watching</span>
             </div>
             <p class="mt-0.5 pl-4 text-[11px] text-fg-subtle">
               <span class="capitalize">{{ r.entrant_kind }}</span>
+              <template v-if="r.entrant_kind === 'champion'"> · {{ entrantDetail(r).split(" · ").slice(0, -1).join(" · ") }}</template>
               <NuxtLink v-if="r.run_id" :to="`/runs/${r.run_id}`" class="font-mono hover:text-queen-300" @click.stop> · {{ shortId(r.run_id) }} ↗</NuxtLink>
               <span v-if="r.metrics.model.note" class="italic"> · {{ r.metrics.model.note }}</span>
             </p>

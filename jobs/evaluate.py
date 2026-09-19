@@ -189,6 +189,17 @@ def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
     }
 
 
+def model_shape(network, algorithm: str, selection: str | None) -> dict[str, Any]:
+    """algorithm + size facts: hidden nodes/connections for an evolved graph, layer sizes for a fixed MLP."""
+    from evolve.neat import NeatGenome
+
+    if isinstance(network, NeatGenome):
+        hidden, connections = network.complexity()
+        return {"algorithm": algorithm, "selection": selection, "hidden_nodes": hidden, "connections": connections,
+                "inputs": network.num_inputs, "outputs": network.num_outputs}
+    return {"algorithm": algorithm, "selection": selection, "layer_sizes": list(network.layer_sizes)}
+
+
 def champion_entrants(
     registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore, game: str
 ) -> list[dict[str, Any]]:
@@ -235,6 +246,9 @@ def champion_entrants(
                     else f"MLP {network}, tanh ({representation})"
                 ),
                 "parameters": parameter_count(champion),
+                # Structured, so every UI names a model the same way (apps/frontend utils/modelLabel.ts)
+                # instead of parsing `label`.
+                "shape": model_shape(champion, kind, selection),
                 "artifact_bytes": len(raw),
                 # None for resampled runs (no fixed training set, so no train-vs-held-out gap to show).
                 "training_seeds": run.config.get("training_seeds", list(BENCHMARK_SEEDS)) or [],
@@ -309,6 +323,7 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
             "training": training,
             "model": {
                 "description": entrant["model"],
+                "shape": entrant.get("shape"),
                 "observer_level": level,
                 "note": entrant.get("note"),
                 "package_id": entrant.get("package_id"),

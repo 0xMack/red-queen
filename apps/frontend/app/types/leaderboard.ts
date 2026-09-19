@@ -56,7 +56,14 @@ export interface EvaluationRecord {
     quality: QualityMetrics
     inference: InferenceMetrics
     training: TrainingMetrics
-    model: { description: string; observer_level: number; note: string | null }
+    model: {
+      description: string
+      observer_level: number
+      note: string | null
+      shape?: import("~/utils/modelLabel").ModelShape | null // absent on records evaluated before it existed
+      package_id?: string | null
+      variant?: string | null
+    }
     protocol: { held_out_seeds: [number, number]; episodes: number; max_steps: number; board: Record<string, number>; metric: string }
   }
   hardware: { cpu?: string; python?: string; hardware_class?: string; engine?: string; logical_cores?: number }

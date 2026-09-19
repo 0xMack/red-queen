@@ -164,7 +164,7 @@ function onHumanScore(score: number, live: boolean) {
             <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <span class="flex items-center gap-2">
                 <span class="size-2.5 rounded-full" :style="{ background: entrantColor(selected) }" />
-                <span class="font-display text-lg font-semibold">{{ selected.label }}</span>
+                <span class="font-display text-lg font-semibold" :title="selected.label">{{ entrantShortLabel(selected) }}</span>
               </span>
               <span class="chip">#{{ selectedRank }} of {{ entries.length }}</span>
               <span class="chip" :style="{ color: LEVEL_COLORS[selected.metrics.model.observer_level] }">

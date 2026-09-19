@@ -211,6 +211,11 @@ relevant section instead of leaving it here.
   (`XorTable`, `NeatDiagram`, `NetworkDiagram`). Only surfaced by loading a chapter in a *fresh* browser
   tab and reading its console -- the accumulated console of a long-lived tab hides which page an error
   came from.
+- **A hidden browser (a background tab, a collapsed in-app browser pane) never finishes a route change.**
+  `requestAnimationFrame` doesn't fire while `document.visibilityState === "hidden"`, and the site's
+  `out-in` page transition waits on it: the URL changes, the old page stays, and Vue logs
+  `Cannot read properties of null (reading 'Symbol(_leaveCb)')`. Not a site bug; verify navigation
+  with the page visible, or load the target URL directly.
 - `array.map(fn)` passes `(item, index, array)`: handing it a function with an optional second
   parameter silently feeds the index in. `population.map(this.evaluate)` with
   `xorWeightsFitness(weights, layers = XOR_SHAPE)` made `layers` a number, so a Learn demo's evolution
