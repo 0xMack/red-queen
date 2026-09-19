@@ -17,11 +17,19 @@ themselves — see docs/design/0001) get wired to it for a real run.
   which is what makes docs/design/0005 step 6 (watching a trained policy play, in
   `apps/frontend`) possible: the API needed no changes at all to serve them, since
   `GET /runs/{id}/artifacts/{ref}` already returns raw bytes regardless of what's inside. Run with
-  `uv run python jobs/snake_neuro_run.py [interface_id]` — takes a few minutes (250 generations ×
+  `uv run python jobs/snake_neuro_run.py [interface_id] [--seeds fixed:5|fixed:N|resample:N]
+  [--held-out-every 10] [--generations 250]` — takes a few minutes (250 generations ×
   100 individuals × 5 benchmark scenarios; about 2.5× longer under the 100-input
   `snake/grid-flat.v1+relative3.v1`). Records `config.interface`, `training_seeds`, `rng_seed`, and
-  a measured `summary.cost` block (below). Deterministic: the same interface and `RNG_SEED` reproduce
-  the same champion exactly.
+  a measured `summary.cost` block (below). Deterministic: the same interface, seed strategy, and
+  `RNG_SEED` reproduce the same champion exactly. Every `--held-out-every` generations it also records
+  the champion's game score on `evaluate.MONITOR_SEEDS` (`GenerationStats.held_out_score`) -- the
+  curve that shows overfitting.
+- `seeding.py` — training-seed strategies: `fixed:N` (the same N games every generation; `fixed:5`
+  is the original behavior) or `resample:N` (fresh games every generation from a pool disjoint from
+  every evaluation seed range, via a seeded rng). With `fixed:5` the Snake champion memorizes its 5
+  games: its unseen-game score peaks around generation 20-25 and then declines while training
+  fitness keeps rising.
 - `costs.py` — `TrainingCostMeter` (an `on_generation` callback; wrap the control callback with
   `excluding_pauses()` so paused time isn't counted) records exact counters (fitness evaluations,
   episodes, env steps — hardware-independent) plus active/CPU time, peak memory, and a
@@ -33,6 +41,10 @@ themselves — see docs/design/0001) get wired to it for a real run.
   (encode vs. decide), parameters, and training cost (measured, or estimated and labelled so for
   pre-cost-tracking runs). Re-run it after new runs finish. Changing seeds/caps/rules means bumping
   `PROTOCOL`, never editing it in place.
+- `checkers_round_robin.py` — four static Checkers strategies (random, first-legal, one- and two-ply
+  material lookahead) played against each other, 200 games per pairing with seats alternating; the
+  numbers the "Multi-Agent Games" Learn chapter cites (headline: one ply of lookahead ≈ random,
+  because captures are mandatory; two plies wins ~95%).
 - `backfill_interfaces.py` — one-off: sets `config.interface` on game runs recorded before
   interfaces existed, resolved from each champion's own layer sizes (idempotent).
 - `control.py` — `make_control_callback(registry, run_id)`, an `on_generation` callback that blocks

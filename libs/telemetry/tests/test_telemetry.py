@@ -103,3 +103,17 @@ def test_evaluation_store_filters_by_game_and_protocol(tmp_path):
     assert len(store.list("snake")) == 2
     assert [r.protocol for r in store.list("snake", protocol="snake.score.v2")] == ["snake.score.v2"]
     assert [r.entrant_id for r in store.list("checkers")] == ["baseline:random"]
+
+
+def test_held_out_score_is_optional_and_round_trips(tmp_path):
+    from telemetry import FileMetricsStore, GenerationStats
+
+    store = FileMetricsStore(tmp_path / "metrics")
+    base = dict(run_id="r", island_id=None, timestamp=1.0, best_fitness=1.0, mean_fitness=0.5,
+                worst_fitness=0.0, diversity=0.1)
+    store.record_generation(GenerationStats(generation=0, champion_ref="r-gen0", **base))
+    store.record_generation(GenerationStats(generation=1, champion_ref="r-gen1", held_out_score=12.5, **base))
+
+    history = store.history("r")
+
+    assert [h.held_out_score for h in history] == [None, 12.5]

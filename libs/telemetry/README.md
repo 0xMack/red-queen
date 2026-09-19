@@ -12,6 +12,8 @@ for the reasoning behind the split.
   `RunInfo`. SQLite-backed.
 - `MetricsSink` / `MetricsSource` (`metrics.py`) — append-only per-generation stats, as the
   pydantic model `GenerationStats`, with backfill-then-live `subscribe()`. File-backed (JSON Lines).
+  `held_out_score` is optional (only on generations where a job measured it; absent in older
+  files), so adding it needed no migration.
 - `ArtifactStore` (`artifacts.py`) — on-demand key/value store for programs and traces (plain
   bytes — no schema at this layer). File-backed.
 - `EvaluationStore` (`evaluations.py`) — leaderboard results (docs/design/0007): one

@@ -21,11 +21,13 @@ async function loadRun() {
 // This run's leaderboard standing (docs/design/0007) -- the held-out game score, which is what
 // training fitness is *not*. Best-effort: no evaluation (or an older backend) just hides it.
 const standing = ref<{ record: EvaluationRecord; rank: number; of: number } | null>(null)
+const greedyMean = ref<number | null>(null) // reference line for the held-out chart
 async function loadStanding() {
   const game = run.value?.config?.game
   if (typeof game !== "string") return
   try {
     const board = await $fetch<EvaluationRecord[]>(`/games/${game}/leaderboard`, { baseURL: config.public.apiBase })
+    greedyMean.value = board.find((r) => r.entrant_id === "baseline:greedy")?.metrics.quality.mean ?? null
     const mine = board.find((r) => r.run_id === runId)
     if (!mine) return
     const peers = board.filter((r) => r.protocol === mine.protocol)
@@ -76,6 +78,27 @@ const progress = computed(() =>
 // champion; the WatchChampion panel's "follow latest" clears it.
 const pinned = ref<number | null>(null)
 const markerGeneration = computed(() => pinned.value ?? (meta.value?.watchable ? latest.value?.generation ?? null : null))
+
+// Training fitness vs. the champion's score on unseen games, at the generations the job checked --
+// where the two diverge (fitness up, held-out down) the population is memorizing its training games.
+const heldOut = computed(() => history.value.filter((h) => h.held_out_score != null))
+const monitorGames = computed(() => {
+  const range = run.value?.config?.monitor_seeds
+  return Array.isArray(range) && range.length === 2 ? Number(range[1]) - Number(range[0]) + 1 : "unseen"
+})
+const heldOutPeak = computed(() =>
+  heldOut.value.reduce<(typeof heldOut.value)[number] | null>((b, h) => (!b || h.held_out_score! > b.held_out_score! ? h : b), null),
+)
+const heldOutSeries = computed(() => {
+  const series = [
+    { key: "held", label: "game score, unseen games", color: "#4ade80", values: heldOut.value.map((h) => h.held_out_score!), width: 2.5 },
+    { key: "fit", label: "best training fitness", color: "#ff5c7a", values: heldOut.value.map((h) => h.best_fitness), width: 1.5, dashed: true },
+  ]
+  if (greedyMean.value !== null) {
+    series.push({ key: "greedy", label: "greedy baseline", color: "#fbbf24", values: heldOut.value.map(() => greedyMean.value!), width: 1, dashed: true })
+  }
+  return series
+})
 
 const configEntries = computed(() => Object.entries(run.value?.config ?? {}))
 const summaryEntries = computed(() => Object.entries(run.value?.summary ?? {}))
@@ -226,6 +249,27 @@ async function copyId() {
               :clickable="meta?.watchable ?? false"
               @select="pinned = $event"
             />
+          </section>
+
+          <section v-if="heldOut.length" class="card p-5">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 class="text-lg font-semibold">Training fitness vs. real game score</h2>
+              <p v-if="heldOutPeak" class="text-xs text-fg-subtle">
+                latest <span class="num text-fg">{{ heldOut.at(-1)!.held_out_score!.toFixed(2) }}</span> · peak
+                <span class="num text-life-300">{{ heldOutPeak.held_out_score!.toFixed(2) }}</span> at gen {{ heldOutPeak.generation }}
+              </p>
+            </div>
+            <p class="mt-1 text-xs text-fg-subtle">
+              The champion's mean score on {{ monitorGames }} games it never trained on, checked every
+              {{ run?.config?.held_out_every ?? "N" }} generations. If training fitness keeps rising while this falls, the
+              population is memorizing its training games instead of learning the game.
+            </p>
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-fg-muted">
+              <span v-for="s in heldOutSeries" :key="s.key" class="flex items-center gap-1.5">
+                <span class="h-0.5 w-4 rounded" :style="{ background: s.color }" />{{ s.label }}
+              </span>
+            </div>
+            <LineChart class="mt-2" :x="heldOut.map((h) => h.generation)" :series="heldOutSeries" :height="220" :format="(v: number) => v.toFixed(1)" />
           </section>
 
           <section class="card p-5">

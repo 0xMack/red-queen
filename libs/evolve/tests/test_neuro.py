@@ -181,3 +181,13 @@ def test_evolve_runs_with_weight_vector_and_pareto_selection():
     )
 
     assert summaries[-1].best_fitness > summaries[0].best_fitness
+
+
+def test_simulation_fitness_evaluator_can_swap_environments():
+    genome = WeightVector(weights=tuple([0.0] * _param_count((2, 4, 1))), layer_sizes=(2, 4, 1))
+    fitness = SimulationFitnessEvaluator(envs=_two_case_envs(), act=lambda g, obs: g.act(obs), max_steps=5)
+    assert len(fitness.evaluate(genome)) == 2
+
+    fitness.set_environments([_ConstantTargetEnv(0.1), _ConstantTargetEnv(0.2), _ConstantTargetEnv(0.3)])
+
+    assert len(fitness.evaluate(genome)) == 3

@@ -56,7 +56,10 @@ const highlights = [
   },
 ]
 
-const now = Date.now() / 1000
+// Shared server/client clock so relative times hydrate without a mismatch (see pages/runs/index.vue).
+const clock = useState("clock:now", () => Date.now() / 1000)
+onMounted(() => (clock.value = Date.now() / 1000)) // after hydration, so no mismatch
+const now = computed(() => clock.value)
 </script>
 
 <template>

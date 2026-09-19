@@ -22,19 +22,28 @@ Trains under a named interface (docs/design/0007: game + observer + action adapt
 the run config so the champion is always run under the observation it was trained for, plus the
 training seeds and a measured training-cost block in the run summary (jobs/costs.py).
 
-Run with: uv run python jobs/snake_neuro_run.py [interface_id]
-(default snake/features.v1+relative3.v1; e.g. snake/grid-flat.v1+relative3.v1 for the full grid)
+Also records how the champion does on games it never trained on (GenerationStats.held_out_score,
+every --held-out-every generations, on jobs/evaluate.py's MONITOR_SEEDS) -- the curve that shows
+overfitting -- and takes a --seeds strategy (jobs/seeding.py): `fixed:5` (the original 5 benchmark
+seeds, default) or e.g. `resample:5` (fresh seeds every generation, nothing to memorize).
+
+Run with:
+  uv run python jobs/snake_neuro_run.py [interface_id] [--seeds fixed:5|fixed:N|resample:N]
+                                        [--held-out-every 10] [--generations 250]
+(default interface snake/features.v1+relative3.v1; e.g. snake/grid-flat.v1+relative3.v1 for the grid)
 """
 
 from __future__ import annotations
 
+import argparse
 import random
-import sys
 import time
 from pathlib import Path
 
 from control import make_control_callback
 from costs import TrainingCostMeter
+from evaluate import MONITOR_SEEDS, monitor_score
+from seeding import SeedStrategy
 from evolve import (
     GaussianMutation,
     GenerationSummary,
@@ -44,7 +53,6 @@ from evolve import (
     random_weight_vector,
 )
 from games import interfaces
-from games.snake import BENCHMARK_SEEDS, benchmark_environments
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
@@ -63,6 +71,7 @@ RNG_SEED = 0
 POPULATION_SIZE = 100
 GENERATIONS = 250
 MAX_STEPS = 200
+BOARD = {"width": 10, "height": 10}
 
 
 def make_act(interface):
@@ -81,10 +90,22 @@ def make_telemetry_callback(
     metrics: FileMetricsStore,
     artifacts: FileArtifactStore,
     run_id: str,
+    held_out: tuple[object, int, int] | None = None,
 ):
+    """held_out = (interface, every, last_generation): also record the champion's game score on
+    MONITOR_SEEDS every `every` generations and on the last one."""
+
     def on_generation(summary: GenerationSummary) -> None:
         champion_ref = f"{run_id}-gen{summary.generation}"
         artifacts.put_program(champion_ref, summary.champion.to_json().encode("utf-8"))
+        held_out_score = None
+        if held_out is not None:
+            interface, every, last = held_out
+            if summary.generation % every == 0 or summary.generation == last:
+                champion = summary.champion
+                held_out_score = monitor_score(
+                    interface, lambda o: interface.action.decode(champion.forward(o))
+                )
         metrics.record_generation(
             GenerationStats(
                 run_id=run_id,
@@ -96,15 +117,31 @@ def make_telemetry_callback(
                 worst_fitness=summary.worst_fitness,
                 diversity=summary.diversity,
                 champion_ref=champion_ref,
+                held_out_score=held_out_score,
             )
         )
 
     return on_generation
 
 
-def main(interface_id: str = DEFAULT_INTERFACE) -> None:
+def make_resample_callback(fitness: SimulationFitnessEvaluator, seeds: SeedStrategy, interface):
+    """After each generation, give the next one fresh training games (resample strategies only)."""
+
+    def on_generation(_summary: GenerationSummary) -> None:
+        fitness.set_environments([interface.make_game(seed=seed, **BOARD) for seed in seeds.draw()])
+
+    return on_generation
+
+
+def main(
+    interface_id: str = DEFAULT_INTERFACE,
+    seed_strategy: str = "fixed:5",
+    held_out_every: int = 10,
+    generations: int = GENERATIONS,
+) -> None:
     interface = interfaces.get(interface_id)
-    envs = benchmark_environments(observer=interface.observer)
+    seeds = SeedStrategy.parse(seed_strategy, rng_seed=RNG_SEED)
+    envs = [interface.make_game(seed=seed, **BOARD) for seed in seeds.initial()]
     layer_sizes = (len(interface.observer.feature_names(envs[0])), HIDDEN, interface.action.num_outputs)
 
     registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
@@ -118,12 +155,14 @@ def main(interface_id: str = DEFAULT_INTERFACE) -> None:
             "interface": interface.id,  # how the champion must be observed/decoded (doc 0007)
             "layer_sizes": list(layer_sizes),
             "population_size": POPULATION_SIZE,
-            "generations": GENERATIONS,
+            "generations": generations,
             "max_steps": MAX_STEPS,
             "selection": "lexicase",
             "variation": "gaussian_mutation(sigma=0.2)",
-            "benchmark": "games.snake.benchmark_environments",
-            "training_seeds": list(BENCHMARK_SEEDS),
+            "benchmark": "games.snake (10x10)",
+            **seeds.config(),  # seed_strategy + training_seeds (docs/design/0007: overfitting)
+            "held_out_every": held_out_every,
+            "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
             "rng_seed": RNG_SEED,
         }
     )
@@ -142,9 +181,12 @@ def main(interface_id: str = DEFAULT_INTERFACE) -> None:
         fitness=fitness,
         selection=LexicaseSelection(),
         variation=GaussianMutation(sigma=0.2),
-        generations=GENERATIONS,
+        generations=generations,
         on_generation=[
-            make_telemetry_callback(registry, metrics, artifacts, run_id),
+            make_telemetry_callback(
+                registry, metrics, artifacts, run_id, held_out=(interface, held_out_every, generations - 1)
+            ),
+            *([make_resample_callback(fitness, seeds, interface)] if seeds.resamples else []),
             cost.on_generation,
             cost.excluding_pauses(make_control_callback(registry, run_id)),
         ],
@@ -153,7 +195,12 @@ def main(interface_id: str = DEFAULT_INTERFACE) -> None:
 
     final_history = metrics.history(run_id)
     registry.set_summary(
-        run_id, {"best_fitness": final_history[-1].best_fitness, "cost": cost.summary()}
+        run_id,
+        {
+            "best_fitness": final_history[-1].best_fitness,
+            "held_out_score": final_history[-1].held_out_score,
+            "cost": cost.summary(),
+        },
     )
     registry.update_status(run_id, "completed")
 
@@ -172,4 +219,10 @@ def main(interface_id: str = DEFAULT_INTERFACE) -> None:
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:2])
+    parser = argparse.ArgumentParser(description="Neuroevolution vs. Snake, recorded to telemetry.")
+    parser.add_argument("interface", nargs="?", default=DEFAULT_INTERFACE, help="games.interfaces id")
+    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)")
+    parser.add_argument("--held-out-every", type=int, default=10, help="generations between held-out checks")
+    parser.add_argument("--generations", type=int, default=GENERATIONS)
+    args = parser.parse_args()
+    main(args.interface, args.seeds, args.held_out_every, args.generations)

@@ -22,7 +22,7 @@ export interface LearnChapter {
 
 // Foundations-first order -- each chapter builds on the ones before it, same shape as
 // docs/design/0003's incremental roadmap. "coming-soon" entries keep the index complete/navigable
-// even though only 3 chapters have real content so far -- see docs/design (this file has no
+// if a future chapter is added before it's written -- see docs/design (this file has no
 // numbered doc of its own; it's the Learn section's table of contents, not an architecture doc).
 export const learnChapters: LearnChapter[] = [
   {
@@ -57,11 +57,19 @@ export const learnChapters: LearnChapter[] = [
     title: "Genome Representations: Linear vs. Tree",
     summary: "Register-machine programs vs. Koza-style expression trees -- the same algorithms, a different genome shape.",
     path: "/learn/genome-representations",
-    status: "coming-soon",
+    status: "available",
+    readMinutes: 7,
     part: "Foundations",
     tags: ["linear GP", "tree GP", "introns", "bloat"],
     art: "genomes",
     prerequisites: ["genetic-algorithms"],
+    sections: [
+      "Linear GP: a tiny register machine",
+      "Introns: code that doesn't matter",
+      "Tree GP: expressions as trees",
+      "Head to head",
+      "Same algorithms, any genome",
+    ],
   },
   {
     slug: "teaching-a-snake",
@@ -87,42 +95,74 @@ export const learnChapters: LearnChapter[] = [
     title: "Neural Networks, from Scratch",
     summary: "Reverse-mode automatic differentiation, built without any ML framework -- the foundation under neuroevolution and transformers alike.",
     path: "/learn/autodiff",
-    status: "coming-soon",
+    status: "available",
+    readMinutes: 8,
     part: "Gradients",
-    tags: ["autodiff", "backpropagation", "computation graph"],
+    tags: ["autodiff", "backpropagation", "computation graph", "gradient checking", "adam"],
     art: "autodiff",
+    sections: [
+      "The chain rule, as a graph",
+      "A Tensor remembers how it was made",
+      "The two places it's easy to get wrong",
+      "Trust, but verify: gradient checking",
+      "From an engine to a network",
+    ],
   },
   {
     slug: "transformers",
     title: "Transformers, from Scratch",
     summary: "Attention, positional embeddings, and a character-level language model trained on real text.",
     path: "/learn/transformers",
-    status: "coming-soon",
+    status: "available",
+    readMinutes: 7,
     part: "Gradients",
-    tags: ["attention", "language model", "tinylm"],
+    tags: ["attention", "language model", "tinylm", "causal mask", "layer norm"],
     art: "attention",
     prerequisites: ["autodiff"],
+    sections: [
+      "The task: guess the next character",
+      "Attention: every position asks every earlier one",
+      "Blocks, residuals, and layer norm",
+      "Training it",
+    ],
   },
   {
     slug: "multi-agent-games",
     title: "Multi-Agent Games and the Strategy Framework",
     summary: "Pitting any strategy against any strategy -- static heuristics, evolved genomes, and (eventually) classifiers, in checkers.",
     path: "/learn/multi-agent-games",
-    status: "coming-soon",
+    status: "available",
+    readMinutes: 7,
     part: "Case studies",
-    tags: ["checkers", "match fitness", "co-evolution"],
+    tags: ["checkers", "match fitness", "minimax", "lookahead", "co-evolution"],
     art: "checkers",
+    prerequisites: ["genetic-algorithms", "selection-strategies"],
+    sections: [
+      "From one agent to two",
+      "A strategy is just a function",
+      "What actually makes a player good",
+      "Evolving a player",
+      "What's next",
+    ],
   },
   {
     slug: "real-time-architecture",
     title: "Watching a Population Evolve, Live",
     summary: "The telemetry/SSE architecture behind this site's real-time run pages -- how live training gets from a Python process to your browser.",
     path: "/learn/real-time-architecture",
-    status: "coming-soon",
+    status: "available",
+    readMinutes: 6,
     part: "Under the hood",
-    tags: ["telemetry", "SSE", "FastAPI", "Pyodide"],
+    tags: ["telemetry", "SSE", "FastAPI", "Pyodide", "pause/resume"],
     image: "/screenshots/run-detail.png",
     art: "pipeline",
+    sections: [
+      "The job never knows about the web",
+      "Three boring stores",
+      "Backfill, then live",
+      "Pausing a run without new plumbing",
+      "Replaying champions in the browser",
+    ],
   },
 ]
 

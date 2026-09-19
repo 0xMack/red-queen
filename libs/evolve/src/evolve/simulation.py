@@ -51,6 +51,11 @@ class SimulationFitnessEvaluator:
         self.episodes = 0
         self.steps = 0
 
+    def set_environments(self, envs: Sequence[Environment]) -> None:
+        """Swap the test cases, e.g. fresh seeds every generation so a population can't memorize a
+        fixed handful of games (docs/design/0007). Takes effect from the next evaluate() call."""
+        self._envs = list(envs)
+
     def evaluate(self, genome: Genome) -> list[float]:
         fitnesses = []
         for env in self._envs:

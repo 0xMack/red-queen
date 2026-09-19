@@ -17,6 +17,7 @@ export interface RunMeta {
   network: string | null
   parameterCount: number | null
   note: string | null
+  seedStrategy: string | null // "fixed:5" / "resample:5" (jobs/seeding.py); null for runs before it existed
   watchable: boolean
 }
 
@@ -66,6 +67,7 @@ export function describeRun(run: RunInfo): RunMeta {
     network: layers && layers.length > 0 ? layers.join(" → ") : null,
     parameterCount,
     note: str(c.note),
+    seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),
     watchable: game === "snake",
   }
 }
