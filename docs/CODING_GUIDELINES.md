@@ -104,6 +104,10 @@ what belongs here and how to add to it). Read before writing code, not after.
   held-out ones, and a 3-line greedy heuristic beats it (18.5). Judge a policy with
   `jobs/evaluate.py` (held-out seeds, game score, baselines) before claiming it learned anything
   (docs/design/0007).
+- A fixed handful of training seeds is a dataset of that size, and evolution overfits it like any
+  learner: with Snake's 5 fixed seeds the champion's unseen-game score peaked by generation ~20 and
+  then *fell* while training fitness kept climbing. Record a held-out curve during training
+  (`--held-out-every`) and prefer fresh seeds per generation (`--seeds resample:N`, jobs/seeding.py).
 
 ## Web / API (`apis/backend`)
 

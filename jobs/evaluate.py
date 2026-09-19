@@ -39,6 +39,10 @@ RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 PROTOCOL = "snake.score.v1"
 HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
+# A second, separate unseen set for *monitoring* training runs (snake_neuro_run.py's held-out score
+# every N generations). Kept apart from HELD_OUT_SEEDS so the leaderboard's games stay untouched even
+# if a run's monitoring curve is ever used to choose a champion (early stopping).
+MONITOR_SEEDS: tuple[int, ...] = tuple(range(20_000, 20_100))
 BOARD = {"width": 10, "height": 10}
 MAX_STEPS = 1000
 
@@ -83,6 +87,12 @@ def play_episode(interface: Interface, policy: Policy, seed: int) -> tuple[int, 
         if done:
             break
     return game.score, steps
+
+
+def monitor_score(interface: Interface, policy: Policy, seeds: Sequence[int] = MONITOR_SEEDS) -> float:
+    """Mean game score over `seeds` -- the cheap held-out check a training job records per N
+    generations (GenerationStats.held_out_score). Same rules as the leaderboard protocol."""
+    return statistics.fmean(play_episode(interface, policy, seed)[0] for seed in seeds)
 
 
 def score_stats(scores: Sequence[int]) -> dict[str, Any]:
@@ -155,7 +165,7 @@ def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
         return dict(measured)
     history = metrics.history(run.run_id)
     population = run.config.get("population_size")
-    seeds = run.config.get("training_seeds") or list(BENCHMARK_SEEDS)
+    seeds = run.config.get("training_seeds") or list(BENCHMARK_SEEDS)  # size of a generation's evaluation
     evaluations = population * len(history) if population else None
     return {
         "measured": False,
@@ -209,7 +219,8 @@ def champion_entrants(
                 "model": f"MLP {network}, tanh ({run.config.get('representation', 'unknown')})",
                 "parameters": len(champion.weights),
                 "artifact_bytes": len(raw),
-                "training_seeds": run.config.get("training_seeds") or list(BENCHMARK_SEEDS),
+                # None for resampled runs (no fixed training set, so no train-vs-held-out gap to show).
+                "training_seeds": run.config.get("training_seeds", list(BENCHMARK_SEEDS)) or [],
                 "note": run.config.get("note"),
             }
         )

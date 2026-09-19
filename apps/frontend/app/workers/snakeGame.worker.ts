@@ -296,7 +296,9 @@ async function initialize(spec: PolicySpec) {
 }
 
 async function loadPolicy(spec: PolicySpec) {
-  if (!pyodide) return
+  // Await setup, don't just check `pyodide`: on a live run a new champion can arrive (SSE) while the
+  // first start() is still mid-setup -- pyodide exists but make_policy isn't bound yet.
+  await ensurePyodideReady()
   stopTicking()
   if (watchRestartTimer !== null) {
     clearTimeout(watchRestartTimer)

@@ -118,8 +118,10 @@ architectural change that might conflict with a decision already made.
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
   `notebooks/0005-neuroevolution-snake.ipynb`, wired to telemetry — its champions are what
   `apps/frontend`'s `/watch/{runId}` loads. Run with `uv run python jobs/<script>.py` from the repo
-  root. `snake_neuro_run.py [interface_id]` trains under any registered interface and records a
-  measured training-cost block (`costs.py`) in the run summary. `evaluate.py` produces the
+  root. `snake_neuro_run.py [interface_id] [--seeds fixed:5|resample:N]` trains under any registered
+  interface with a training-seed strategy (`seeding.py`), records a measured training-cost block
+  (`costs.py`) in the run summary, and logs a held-out game score every N generations (the
+  overfitting curve on the run page). `evaluate.py` produces the
   leaderboards (docs/design/0007): every finished game run's champion plus fixed baselines, on
   held-out seeds under a versioned protocol, with inference/training cost — never training fitness.
   `backfill_interfaces.py` is a one-off for runs recorded before interfaces existed.

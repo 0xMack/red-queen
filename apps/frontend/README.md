@@ -20,9 +20,13 @@ for the full contract and incremental plan this implements (steps 3-6).
   page" outline built at runtime from the chapter's `<h2>`s (ids = `slugify(text)`, the same
   anchors the search's `sections` index links to). Chapter pages themselves are just the body --
   one root `<article class="prose-chapter">` (page transitions need a single root; a template
-  comment next to it counts as a second one in dev). Three chapters are written:
-  `genetic-algorithms.vue`, `selection-strategies.vue`, `teaching-a-snake.vue` — each cites real
-  code and real results (via `Callout`), not invented examples.
+  comment next to it counts as a second one in dev). All eight chapters are written, each citing
+  real code and real results (via `Callout`) rather than invented examples -- numbers come from the
+  notebooks, the telemetry store, or a committed script (`jobs/checkers_round_robin.py` for the
+  multi-agent chapter). Interactive pieces: `LiveSnakeDemo` (Snake case study), `ChampionProgram`
+  (a real linear-GP champion, genome representations), `AutodiffPlayground` (live forward/backward
+  pass on one neuron with a finite-difference check), `CausalMaskDemo` (transformers), and
+  `LiveEventLog` (the real SSE stream, real-time architecture).
 - `/runs` — the run list (`GET /runs`) as a sortable/filterable table: status (with a "stalled?"
   flag for `running` runs untouched for 15+ min), selection/variation, population, genome shape,
   generations vs. target, best fitness, a best-fitness sparkline, start time, duration. Sparklines
@@ -32,7 +36,10 @@ for the full contract and incremental plan this implements (steps 3-6).
   (`GET /runs/{id}/metrics/history`), then opens an `EventSource` against
   `GET /runs/{id}/metrics/stream` for live updates, tearing the connection down on unmount. Stat
   tiles, fitness chart (best/mean + worst..best band) and diversity chart (`LineChart.vue`), config
-  + summary, a recent-generations table, and pause/resume/step controls for live runs. The
+  + summary, a recent-generations table, and pause/resume/step controls for live runs. When the job
+  recorded `held_out_score`s, a "training fitness vs. real game score" chart plots them against
+  best training fitness and the leaderboard's greedy baseline -- where the lines diverge, the
+  population is memorizing its training games. The
   **champion runs on the same page**: Snake runs embed `WatchChampion` (with
   `manageStream: false` -- the page already owns the stream); clicking the chart or a table row pins
   that generation's champion. Linear-GP runs show the champion program instead (`ChampionProgram`,

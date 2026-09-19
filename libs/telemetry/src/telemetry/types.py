@@ -18,3 +18,12 @@ class GenerationStats(BaseModel):
     champion_ref: str = Field(
         ..., min_length=1, description="ArtifactStore key for this generation's best individual's stored program."
     )
+    held_out_score: float | None = Field(
+        default=None,
+        description=(
+            "The champion's mean *game score* on games it never trained on, if the job measured it this "
+            "generation (usually every N generations -- None otherwise). Monitoring only, never used for "
+            "selection: it's what shows overfitting, i.e. training fitness rising while this falls "
+            "(docs/design/0007)."
+        ),
+    )

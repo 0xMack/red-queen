@@ -8,9 +8,14 @@ const runsStore = useRunsStore()
 await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs))
 onMounted(() => runsStore.fetchHistories())
 
-const now = ref(Date.now() / 1000)
+// useState, not ref: the server-rendered "3 min ago" and the first client render must agree
+// (hydration), so both use the server's clock until the interval below ticks.
+const now = useState("clock:now", () => Date.now() / 1000)
 let clock: ReturnType<typeof setInterval> | null = null
-onMounted(() => (clock = setInterval(() => (now.value = Date.now() / 1000), 30_000)))
+onMounted(() => {
+  now.value = Date.now() / 1000 // after hydration; also refreshes a clock left over from an earlier page
+  clock = setInterval(() => (now.value = Date.now() / 1000), 30_000)
+})
 onUnmounted(() => clock && clearInterval(clock))
 
 interface Row {
@@ -229,7 +234,15 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
               <td class="px-3 py-3">
                 <div class="flex flex-col gap-1">
                   <span v-if="r.meta.selection" class="chip w-fit">{{ r.meta.selection }}</span>
-                  <span v-if="r.meta.variation" class="w-fit max-w-48 truncate font-mono text-[11px] text-fg-subtle" :title="r.meta.variation">{{ r.meta.variation }}</span>
+                  <span
+                    v-if="r.meta.seedStrategy"
+                    class="chip w-fit"
+                    :class="r.meta.seedStrategy.startsWith('resample') ? 'text-life-300' : ''"
+                    title="Training seeds: fixed = the same games every generation; resample = fresh games every generation"
+                  >
+                    seeds {{ r.meta.seedStrategy }}
+                  </span>
+                  <span v-if="r.meta.variation" class="w-fit max-w-40 truncate font-mono text-[11px] text-fg-subtle" :title="r.meta.variation">{{ r.meta.variation }}</span>
                   <span v-if="!r.meta.selection && !r.meta.variation" class="text-fg-subtle">--</span>
                 </div>
               </td>
@@ -250,7 +263,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
                 </div>
               </td>
               <td class="num px-3 py-3 text-right font-semibold text-fg">{{ formatFitness(r.best, 3) }}</td>
-              <td class="px-3 py-3"><Sparkline :values="r.trend" class="h-8 w-32" /></td>
+              <td class="px-3 py-3"><Sparkline :values="r.trend" class="h-8 w-24" /></td>
               <td class="px-3 py-3 whitespace-nowrap text-fg-muted" :title="formatTimestamp(r.run.created_at)">
                 {{ formatRelative(r.run.created_at, now) }}
               </td>

@@ -23,4 +23,7 @@ export interface GenerationStats {
   worst_fitness: number
   diversity: number
   champion_ref: string
+  // The champion's mean game score on unseen games, when the job measured it (every N generations);
+  // absent/null otherwise. Monitoring only -- see telemetry.GenerationStats.
+  held_out_score?: number | null
 }
