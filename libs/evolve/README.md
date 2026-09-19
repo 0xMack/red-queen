@@ -44,11 +44,9 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `forward()` returns every output, for multi-output policies that pick a discrete action via
   argmax (e.g. `games.snake`'s left/straight/right). `to_json()`/`from_json()` are the real
   (round-trippable) wire format -- unlike `LinearProgram`'s `repr()`-based prototype serialization
-  in `jobs/baseline_gp_run.py`, these have two real readers: `jobs/snake_neuro_run.py` writing
-  champions to `ArtifactStore`, and `apps/frontend`'s Pyodide bridge loading one back to actually
-  run it. JSON, not pickle/numpy, so the exact same Python code works loading it back inside
-  Pyodide -- every `evolve` submodule is pure stdlib on purpose, verified before that bridge was
-  built (see `docs/CODING_GUIDELINES.md`).
+  in `jobs/baseline_gp_run.py`, these are read back by `jobs/evaluate.py`,
+  `apis/backend`'s on-demand export and `libs/modelpack`, which turns a champion into the ONNX package
+  a browser actually runs (docs/design/0009).
 - `neat.py` — `NeatGenome`: the fourth representation (docs/design/0008), and the first whose
   *structure* evolves — a feedforward graph of connection genes, each tagged with a global innovation
   number from an `InnovationTracker`, so genomes of different shapes can be aligned for crossover
@@ -63,7 +61,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   compiles the graph once per genome (`cached_property`), pruning nodes that can't reach an output.
 - `networks.py` — `network_from_json()`: one loader for every trained-network wire format
   (`WeightVector`, or a NEAT genome, which carries `"type": "neat"`), plus `parameter_count()`/
-  `describe()` — what `jobs/evaluate.py` and the Pyodide bridge use so they don't care which kind a
+  `describe()` — what `jobs/evaluate.py` and `libs/modelpack` use so they don't care which kind a
   champion is.
 - `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value

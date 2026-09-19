@@ -1,6 +1,8 @@
 # 0009 — Client-side inference at scale
 
-Status: **Draft**: proposed, not yet implemented.
+Status: **Implemented through step 6** (see "Implementation notes" at the end for what changed on the
+way, measured results, and what's left: hosting (step 7), recorded episodes (step 8), and the pixel
+conv policy of step 5).
 Relates to: [0005](0005-frontend-and-api-contracts.md) (supersedes its "WebAssembly for game rendering —
 decided: Pyodide" section for game simulation, and its interaction modes 2/3 for how a policy runs),
 [0007](0007-representations-leaderboards-and-tradeoffs.md) (interfaces, evaluation protocols, inference-cost
@@ -161,7 +163,7 @@ A **model package** is immutable and content-addressed:
 manifest.json                   small, fetched first, decides everything below
 model.onnx                      graph (weights external, so the graph stays small)
 weights/<sha256>.bin …          external-data shards, ~32–64 MB each (streamable, resumable, cacheable)
-parity.npz                      recorded inputs + reference outputs (export-time check; optional in-browser self-test)
+parity fixture (JSON)           recorded inputs + reference outputs (export-time check; the in-browser self-test)
 ```
 
 `manifest.json` (a pydantic model in Python, mirrored in `app/types/`):
@@ -349,3 +351,71 @@ Ordered so each step proves one thing end to end before the next depends on it.
   "Wi-Fi only"-style preference is worth adding.
 - **Does anything still need Python in the browser after step 4?** A future "edit the observer and watch it retrain"
   Learn chapter would. If it ever comes, Pyodide returns as an opt-in chapter dependency, not the game path.
+
+## Implementation notes (steps 1–6, September 2026)
+
+What was built follows the decisions above. Where it deviated, and why:
+
+- **An fp64 variant for evolved networks** (not in the plan). The evolved policies are float64
+  throughout, and an fp32 export changed moves for five of ten Snake champions (one old grid champion
+  on 11% of moves) despite ~1e-6 numeric error. fp64 runs on the WASM backend (WGSL has no f64) and
+  agrees on every move for all but one champion, whose saturated `tanh` outputs tie *exactly*, so a
+  one-ulp difference in `tanh` breaks ties differently (99.5%). Rule applied: the leaderboard entrant
+  plays through a variant that agrees on every decision *and* every score; any other variant is its
+  own entrant (`run:<id>@fp32`), and a champion with no exact variant stays ranked through the Python
+  forward pass.
+- **Evaluation runs the package** (as decided), via ONNX Runtime CPU: the same scores for exact
+  variants, plus rows for inexact ones.
+- **On-demand export for unpublished champions** (`POST /runs/{id}/artifacts/{ref}/package`). Live
+  training and pinned generations still needed a way to play once Pyodide was gone; exporting on
+  demand keeps one runtime deciding every move instead of reviving a TypeScript forward pass. It's
+  content-addressed, so asking twice costs nothing. It's development-time only and never a
+  leaderboard entrant.
+- **Pyodide retired in step 3, not step 4**: nothing else in the browser needed it once Snake ran on
+  the WASM core. Step 4 then moved Checkers and Reach1D anyway, with WASM bindings for a future
+  Checkers page. `explain()` wasn't ported because it doesn't exist yet (doc 0007 plan step 3).
+- **Checkers' move order had to be ported, not just its rules.** Strategies index into
+  `legal_moves()`, which the Python generated in dict insertion order; the Rust board is an
+  insertion-ordered map with dict semantics. Parity: 70 full games; `checkers_round_robin.py`
+  reproduces the Learn chapter's published numbers exactly.
+- **The TinyLM exporter is per layer, not a trace of autodiff's op graph.** A trace fixes (batch,
+  seq_len) and resolves embedding lookups to concrete rows, so it can't take a variable-length prompt
+  or carry a KV cache. One graph serves prefill and per-token decoding, with the causal mask built
+  in-graph from the cache length.
+- **Step 5 was done as infrastructure only.** A pixel-observation conv policy needs convolution in
+  `libs/autodiff` (or PyTorch) and is research of its own. The step's stated purpose, exercising
+  shards, the confirmation click, persistence and WebGPU at size, is covered by `jobs/scale_test_package.py`:
+  an 85M-parameter randomly initialized TinyLM (341 MB fp32 in 12 shards, 86 MB int8), clearly
+  labelled as noise, on `/dev/inference`.
+- **Found only in a browser:** ONNX Runtime Web resolves `Reshape` shapes before attaching external
+  data, so int32/int64 and small tensors stay inline (the first rule also kept int8 *weights* inline;
+  the scale test exposed that). Other bugs found by running it: a Vue proxy can't be `postMessage`d,
+  and a late verdict of "unsupported" has to stop whatever already started playing.
+
+### Measured (this machine: Windows, Chrome, NVIDIA Blackwell GPU; dev server, localhost)
+
+| What | Result |
+|---|---|
+| Game core in the browser | 47 KB WASM (all three games), vs. Pyodide's multi-MB, ~11 s cold start |
+| Game core in Python | ~5x faster per Snake step than the pure-Python original (0.79 vs 4.14 µs, greedy policy included) |
+| ORT runtime download | WASM build ≈3.7 MB gzipped, WebGPU ≈6.6 MB, only the one needed, cached after |
+| Snake champion packages | 2–21 KB; load + self-test ~170–300 ms; fp64 self-test error ~1e-16 |
+| TinyLM (79K params) | fp32 327 KB, 100% top-1 agreement; int8 131 KB, 98.2%. ~2,000–2,600 chars/s on WASM, 133 on WebGPU |
+| Scale test (85M params) | fp32 341 MB on WebGPU and int8 86 MB on single-threaded WASM both ~83 chars/s; load 2.4 s cold, 1.4 s cached |
+
+Takeaways: small packages belong on WASM (GPU dispatch dominates at batch 1); int8 on WASM is a
+competitive default for mid-sized LMs at a quarter of the download; and per-decision agreement, not
+numeric error, is the number that says whether an export is faithful.
+
+### Not done yet
+
+- **Step 7, hosting**: choose R2 or the Hugging Face Hub and implement its `ModelStore` (the layout,
+  `base_url` and `REDQUEEN_MODELS_BASE_URL` seam exist). Serve the app with COOP/COEP so multithreaded
+  WASM turns on (`/dev/inference` shows "threads: no" today), and make sure every cross-origin asset
+  (fonts included) survives `require-corp` or `credentialless`.
+- **Step 8, recorded episodes**, for devices that can't run a model.
+- **Pixel-observation (L0) conv policy** (step 5's model), an **fp16 WebGPU variant** (the scale-test
+  GPU reports `shader-f16`), and a **memory budget across several loaded models**. Every page loads
+  one model at a time today, so the budget isn't needed yet.
+- `LocalModelStore.collect_garbage()` exists (republishing seals new packages); a remote store will
+  need the same.

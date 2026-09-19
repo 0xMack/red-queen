@@ -19,6 +19,24 @@ human-play later" cheap: `step()`/`reset()` stay fast and numeric (what a genome
 `render_state()` is what a console renderer, a future Vue3 frontend, or a stored trajectory
 artifact would consume, none of which need to touch or slow down the training path.
 
+## The Rust game core (docs/design/0009)
+
+Every game's rules, observers, action adapters and baselines are implemented once, in Rust
+(`rust/core`), and reach Python through PyO3 (`rust/python` → the `games._native` extension; the
+modules in `src/games/` wrap it in the Python API everything already used) and the browser through
+WebAssembly (`rust/wasm` → `apps/frontend/app/wasm/games/`, regenerated with
+`uv run python libs/games/build-wasm.py`). Randomness is a specified PCG32 (`rust/core/src/pcg.rs`),
+so a seed is the same game in training, evaluation and a visitor's browser.
+
+- Installing needs cargo (maturin builds the extension during `uv sync`; `[tool.uv] cache-keys`
+  rebuilds it when `rust/**` changes). On Windows, stop anything that has `_native.pyd` loaded first.
+- `tests/reference_*.py` are the original pure-Python implementations, kept as oracles:
+  `tests/test_native_parity.py` requires identical trajectories (observations, rewards, render order,
+  Checkers' move *order*) across many seeds and boards. `tests/test_wasm_build.py` fails when the Rust
+  changed but the checked-in WASM build wasn't regenerated.
+- Moving to PCG32 changed which game each Snake seed produces, so the leaderboard protocol became
+  `snake.score.v2` (docs/design/0007: a protocol change is a new version, never an edit).
+
 ## Contents
 
 - `reach1d.py` — `ReachTarget1D`: a toy 1D continuous-control task. See
@@ -27,7 +45,7 @@ artifact would consume, none of which need to touch or slow down the training pa
   game itself. An `Observer` encodes a game into `list[float]` (plus feature names); an
   `ActionAdapter` decodes model outputs into an action; an `Interface` is the versioned combination
   (`snake/features.v1+relative3.v1`), and `interfaces.get()/for_game()/find()` is the one registry
-  jobs, `apis/backend`, and the Pyodide worker all use. Observers carry a representation level
+  jobs and `apis/backend` use (the browser runs the same observers compiled to WASM). Observers carry a representation level
   (0 visual, 1 full state, 2 local/egocentric, 3 engineered). Never change what an existing observer
   encodes — add a new version, or every champion trained on the old one silently breaks.
 - `snake.py` — `Snake`: a grid game. Its observer is pluggable (`Snake(observer=...)`); the default,

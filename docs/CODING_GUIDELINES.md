@@ -154,13 +154,8 @@ what belongs here and how to add to it). Read before writing code, not after.
   field — Python's tuple keys aren't coercible the way int/float/bool/None keys are. Convert at the
   API boundary (`game_sessions.json_safe_render_state()` flattens it to a list of `{x, y, label}`
   records), not in the game library itself — `render_state()`'s shape is also consumed by
-  `games.rendering.render_grid_ascii()`, which wants the dict form. **The same underlying problem
-  recurs in Pyodide, with a different error**: `pyProxy.toJs()` raises `pyodide.ffi.ConversionError:
-  Cannot use (x, y) as a key for a Javascript Map` on the exact same tuple-keyed dict — a JS `Map`
-  can technically hold any key, but Pyodide's converter explicitly refuses non-primitive ones. Same
-  fix, different side of the boundary: flatten on the Python side before it crosses into JS (see
-  `app/workers/snakeGame.worker.ts`'s `render_state_for_js`), not by trying to coax
-  `toJs()`/`dict_converter` into accepting tuple keys.
+  `games.rendering.render_grid_ascii()`, which wants the dict form. (It bit the old Pyodide bridge
+  too, as a `ConversionError` in `toJs()` -- any language boundary, same fix: flatten before crossing.)
 - **`app.dependency_overrides[dep] = lambda: SomeStore()` creates a *new* instance on every
   request**, not once per test — FastAPI calls the override callable fresh per resolution the same
   way it would the real dependency. For in-memory state that must persist *across* requests within
@@ -169,16 +164,34 @@ what belongs here and how to add to it). Read before writing code, not after.
   lambda: store`), not construct one inside the lambda. Silent symptom: a resource created in one
   request 404s in the next, as if it never existed. See `apis/backend/tests/test_games.py`.
 - **A Nitro server route resolving a filesystem path via `import.meta.url` isn't reliable once it's
-  nested in a subdirectory.** `apps/frontend/server/api/py-games.get.ts` (flat, one directory under
-  `server/`) resolved a `libs/` path correctly with `new URL("../../../../libs/...",
-  import.meta.url)`. Moving the equivalent logic into
-  `server/api/py-source/[pkg].get.ts` (one directory deeper) and adding one more `../` — the
-  "obviously correct" fix by source-tree depth — landed on a path missing *two* segments, not the
-  expected one; Nitro's dev-mode bundler doesn't preserve this route's real source-tree depth for
-  nested routes. Found by actually running it (`ENOENT`, then inspecting the resolved path), not by
-  reasoning about it. Fixed by resolving from `process.cwd()` instead (reliable because `nuxt dev`
-  and the built server are both always run from `apps/frontend`) — don't trust
-  `import.meta.url`-relative depth counting for a Nitro route without running it.
+  nested in a subdirectory** — Nitro's dev bundler doesn't preserve a nested route's source-tree depth
+  (a since-removed route landed two segments off, not one). Resolve from `process.cwd()` (`nuxt dev`
+  and the built server both run from `apps/frontend`), and run it before trusting a path.
+
+## Client-side inference (docs/design/0009)
+
+- **Check an exported model by the decisions it makes, not only its numeric error.** Every evolved
+  Snake champion exported to float32 was within ~1e-6 of its float64 original, yet five of ten chose a
+  different move somewhere in 200 held-out games (an old grid champion on 11% of moves): argmax on
+  near-ties flips. `jobs/publish_models.py` measures action agreement on the protocol's games; a
+  variant that disagrees is ranked as its own entrant. The LM equivalent is top-1 next-token agreement,
+  measured the way a client generates (int8's dynamic quantization picks activation scales per call,
+  so one-token-at-a-time decoding legitimately differs from a full pass).
+- **Exact ties exist.** A saturated `tanh` returns exactly ±1.0, so outputs can tie exactly, and two
+  correct `tanh` implementations one ulp apart then break the tie differently (fp64 ONNX still
+  disagreed with Python on 0.5% of one champion's moves). Agreement below 100% isn't always a bug —
+  but it always has to be reported.
+- **Porting a game: order is behaviour.** Strategies index into `legal_moves()`, and the Python
+  Checkers generated moves in dict insertion order (a moved piece goes last) — the Rust board had to
+  reproduce dict semantics, not just the rules. Keep the original as an oracle
+  (`libs/games/tests/reference_*.py`) and compare whole trajectories, not samples of positions.
+- **ONNX Runtime Web needs shape tensors inside the graph.** It resolves a `Reshape`'s target shape
+  before attaching external data, so sharding an int64 constant fails session creation — in the
+  browser only (the Python runtime inlines everything first). `modelpack` keeps int32/int64 and
+  < 1 KB tensors inline and shards the rest (int8 weights included).
+- **A GPU isn't automatically faster.** Batch-1 decoding is dispatch-bound: the 79K-parameter TinyLM
+  ran ~15x faster on WASM than WebGPU, and at 85M parameters fp32-on-WebGPU and int8-on-WASM tied
+  (~83 tokens/s). Small packages list WASM first; measure before assuming a backend.
 
 ## Lessons
 
