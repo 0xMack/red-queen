@@ -34,6 +34,9 @@ class SimulationFitnessEvaluator:
 
     `act` is injected `(genome, observation) -> action`, the same pattern as
     SymbolicRegressionFitness's `run` -- this evaluator never touches genome internals.
+
+    `episodes`/`steps` count everything this evaluator has simulated -- exact, hardware-independent
+    training-cost counters (docs/design/0007), cheap enough to always keep.
     """
 
     def __init__(
@@ -45,17 +48,23 @@ class SimulationFitnessEvaluator:
         self._envs = list(envs)
         self._act = act
         self._max_steps = max_steps
+        self.episodes = 0
+        self.steps = 0
 
     def evaluate(self, genome: Genome) -> list[float]:
         fitnesses = []
         for env in self._envs:
             observation = env.reset()
             total_reward = 0.0
+            steps = 0
             for _ in range(self._max_steps):
                 action = self._act(genome, observation)
                 observation, reward, done = env.step(action)
                 total_reward += reward
+                steps += 1
                 if done:
                     break
             fitnesses.append(total_reward)
+            self.episodes += 1
+            self.steps += steps
         return fitnesses

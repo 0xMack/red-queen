@@ -25,13 +25,27 @@ interface RenderState {
   alive: boolean
 }
 
+// What drives the snake in watch mode: a trained network (policyJson, a serialized
+// evolve.neuro.WeightVector) or a named games.baselines entry -- either way with the interface
+// (docs/design/0007: observer + action adapter) it plays under. Absent interfaceId = the game's
+// default observer.
+interface PolicySpec {
+  policyJson?: string
+  baseline?: string
+  interfaceId?: string
+}
+
 type InboundMessage =
-  | { type: "start"; policyJson?: string }
+  // A start with neither policyJson nor baseline is play mode (a human steers).
+  | ({ type: "start" } & PolicySpec)
   | { type: "input"; action: number }
   | { type: "restart" }
-  | { type: "load_policy"; policyJson: string }
+  | ({ type: "load_policy" } & PolicySpec)
   | { type: "stop" }
   | { type: "set_speed"; intervalMs: number }
+  // Load the Python runtime without starting anything (answers "ready") -- lets a page run a
+  // countdown only once the ~10s cold load is done, instead of mid-game.
+  | { type: "warmup" }
 
 type OutboundMessage =
   | { type: "ready" }
@@ -58,7 +72,7 @@ let renderStateForJs: PyProxy | null = null
 let watchTick: PyProxy | null = null
 
 let newSnake: PyProxy | null = null
-let loadWeightVectorFn: PyProxy | null = null
+let makePolicyFn: PyProxy | null = null
 
 let pendingAction = 0 // play mode only
 let stepCount = 0
@@ -68,7 +82,7 @@ let timer: ReturnType<typeof setInterval> | null = null
 // just freeze the page forever. Auto-replay the same policy (a fresh Snake seed each time, for
 // variety) after a short pause -- superseded immediately if a genuinely new champion arrives
 // first (loadPolicy() clears any pending timer before doing anything else).
-let lastPolicyJson: string | null = null
+let lastSpec: PolicySpec | null = null
 let watchRestartTimer: ReturnType<typeof setTimeout> | null = null
 const WATCH_RESTART_DELAY_MS = 1000
 
@@ -142,11 +156,11 @@ function watchTickOnce() {
     observation: result.observation as number[],
   })
 
-  if (result.done && lastPolicyJson) {
-    const policyToReplay = lastPolicyJson
+  if (result.done && lastSpec) {
+    const specToReplay = lastSpec
     watchRestartTimer = setTimeout(() => {
       watchRestartTimer = null
-      if (mode === "watch") loadPolicy(policyToReplay)
+      if (mode === "watch") loadPolicy(specToReplay)
     }, WATCH_RESTART_DELAY_MS)
   }
 }
@@ -182,6 +196,8 @@ if "/py" not in sys.path:
     sys.path.insert(0, "/py")
 
 from evolve.neuro import WeightVector
+from games import baselines as _baselines
+from games import interfaces as _interfaces
 from games.snake import Snake
 
 # Pyodide bridge glue, not part of libs/games or libs/evolve themselves -- same
@@ -194,22 +210,46 @@ def render_state_for_js(env):
         state["cells"] = [{"x": x, "y": y, "label": label} for (x, y), label in cells.items()]
     return state
 
-def new_snake():
-    return Snake(seed=random.randint(0, 2**31 - 1))
+# The interface (docs/design/0007) the current watch-mode policy was trained under: its observer
+# decides what the policy sees, its action adapter how outputs become a move. None = the game's
+# default observer (play mode, or a caller that didn't say).
+_current = {"interface": None}
 
-def load_weight_vector(text):
-    return WeightVector.from_json(text)
+def new_snake(interface_id=None):
+    seed = random.randint(0, 2**31 - 1)
+    if interface_id:
+        _current["interface"] = _interfaces.get(interface_id)
+        return _current["interface"].make_game(seed=seed)
+    _current["interface"] = None
+    return Snake(seed=seed)
 
-def snake_policy_action(policy, observation):
-    # 3 outputs -> {-1, 0, 1} (left, straight, right) via argmax -- must match
-    # jobs/snake_neuro_run.py's act() exactly, since that's the convention every champion this
-    # loads was actually trained under.
-    outputs = policy.forward(list(observation))
-    best_index = max(range(len(outputs)), key=lambda i: outputs[i])
-    return best_index - 1
+class _NetworkPolicy:
+    """A trained WeightVector, decoded through the current interface's action adapter."""
+    def __init__(self, weights):
+        self.weights = weights
+    def decide(self, observation):
+        outputs = self.weights.forward(list(observation))
+        interface = _current["interface"]
+        if interface is not None:
+            return interface.action.decode(outputs)
+        # No interface given: relative3.v1's argmax convention, what every pre-0007 champion used.
+        best_index = max(range(len(outputs)), key=lambda i: outputs[i])
+        return best_index - 1
+
+class _BaselinePolicy:
+    """A games.baselines entry -- the same code the evaluation job scores."""
+    def __init__(self, fn):
+        self.fn = fn
+    def decide(self, observation):
+        return self.fn(list(observation))
+
+def make_policy(policy_json=None, baseline=None):
+    if baseline:
+        return _BaselinePolicy(_baselines.get("snake", baseline).factory(random.randint(0, 2**31 - 1)))
+    return _NetworkPolicy(WeightVector.from_json(policy_json))
 
 def watch_tick(env, policy, observation):
-    action = snake_policy_action(policy, observation)
+    action = policy.decide(observation)
     next_observation, reward, done = env.step(action)
     return {
         "observation": next_observation,
@@ -221,12 +261,12 @@ def watch_tick(env, policy, observation):
     renderStateForJs = pyodide.globals.get("render_state_for_js")
     watchTick = pyodide.globals.get("watch_tick")
     newSnake = pyodide.globals.get("new_snake")
-    loadWeightVectorFn = pyodide.globals.get("load_weight_vector")
+    makePolicyFn = pyodide.globals.get("make_policy")
   })()
   return pyodideReady
 }
 
-async function initialize(policyJson: string | undefined) {
+async function initialize(spec: PolicySpec) {
   await ensurePyodideReady()
 
   // A worker reused across page visits may already have a session from a previous page (a
@@ -239,12 +279,12 @@ async function initialize(policyJson: string | undefined) {
   }
   policy?.destroy()
   policy = null
-  lastPolicyJson = null
+  lastSpec = null
 
   post({ type: "ready" })
 
-  if (policyJson) {
-    await loadPolicy(policyJson) // creates its own fresh Snake
+  if (spec.policyJson || spec.baseline) {
+    await loadPolicy(spec) // creates its own fresh Snake
   } else {
     mode = "play"
     snake?.destroy()
@@ -255,7 +295,7 @@ async function initialize(policyJson: string | undefined) {
   }
 }
 
-async function loadPolicy(policyJson: string) {
+async function loadPolicy(spec: PolicySpec) {
   if (!pyodide) return
   stopTicking()
   if (watchRestartTimer !== null) {
@@ -263,16 +303,16 @@ async function loadPolicy(policyJson: string) {
     watchRestartTimer = null
   }
 
-  const newPolicy = loadWeightVectorFn!(policyJson)
+  const newPolicy = makePolicyFn!(spec.policyJson ?? null, spec.baseline ?? null)
   policy?.destroy()
   policy = newPolicy
-  lastPolicyJson = policyJson
+  lastSpec = spec
   mode = "watch"
 
   // A fresh Snake instance (new random seed), not just snake.reset() on the same one -- otherwise
   // every auto-replay (and every genuinely new champion) would face the identical food sequence.
   snake?.destroy()
-  snake = newSnake!()
+  snake = newSnake!(spec.interfaceId ?? null)
   const resetProxy = snake.reset()
   currentObservation = resetProxy.toJs()
   resetProxy.destroy()
@@ -305,7 +345,7 @@ function restart() {
 self.onmessage = (event: MessageEvent<InboundMessage>) => {
   const message = event.data
   if (message.type === "start") {
-    initialize(message.policyJson).catch((e) =>
+    initialize(message).catch((e) =>
       post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
     )
   } else if (message.type === "input") {
@@ -313,9 +353,13 @@ self.onmessage = (event: MessageEvent<InboundMessage>) => {
   } else if (message.type === "restart") {
     restart()
   } else if (message.type === "load_policy") {
-    loadPolicy(message.policyJson).catch((e) =>
+    loadPolicy(message).catch((e) =>
       post({ type: "error", message: e instanceof Error ? e.message : String(e) }),
     )
+  } else if (message.type === "warmup") {
+    ensurePyodideReady()
+      .then(() => post({ type: "ready" }))
+      .catch((e) => post({ type: "error", message: e instanceof Error ? e.message : String(e) }))
   } else if (message.type === "set_speed") {
     tickIntervalMs = Math.min(1000, Math.max(20, message.intervalMs))
     if (timer !== null) {

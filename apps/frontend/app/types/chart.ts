@@ -6,3 +6,12 @@ export interface ChartSeries {
   width?: number
   dashed?: boolean
 }
+
+export interface ParetoPoint {
+  id: string
+  label: string
+  x: number
+  y: number
+  err: number
+  color: string
+}

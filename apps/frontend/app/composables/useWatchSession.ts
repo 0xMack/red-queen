@@ -2,6 +2,7 @@ import type { RunInfo } from "~/types/telemetry"
 
 export interface LoadedPolicy {
   ref: string
+  interfaceId: string | null
   generation: number | null
   weights: number[]
   layerSizes: number[]
@@ -36,7 +37,9 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
   })
 
   async function loadTargetChampionIfNew() {
-    if (!active) return
+    // Wait for the run config too: it names the interface the champion must run under, and on the
+    // run page (manageStream: false) the metrics history can arrive before it.
+    if (!active || !run.value) return
     const target = targetStats.value
     if (!target || target.champion_ref === lastLoadedRef.value) return
 
@@ -52,11 +55,15 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
       return // lastLoadedRef stays unset for this ref, so a retry (or the next SSE tick) tries again
     }
     lastLoadedRef.value = target.champion_ref
+    // docs/design/0007: run the champion under the interface its run recorded (backfilled for
+    // pre-0007 runs by jobs/backfill_interfaces.py). Absent -> the worker's default.
+    const interfaceId = typeof run.value?.config?.interface === "string" ? run.value.config.interface : undefined
 
     try {
       const parsed = JSON.parse(policyJson) as { weights: number[]; layer_sizes: number[] }
       policy.value = {
         ref: target.champion_ref,
+        interfaceId: interfaceId ?? null,
         generation: target.generation,
         weights: parsed.weights,
         layerSizes: parsed.layer_sizes,
@@ -68,9 +75,9 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
     session.resetStats()
     if (!workerStarted) {
       workerStarted = true
-      session.start(policyJson)
+      session.start({ policyJson, interfaceId })
     } else {
-      session.loadPolicy(policyJson)
+      session.loadPolicy({ policyJson, interfaceId })
     }
   }
 
@@ -80,11 +87,6 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
     active = true
     session.loading.value = true
     session.error.value = null
-
-    if (!manageStream) {
-      await loadTargetChampionIfNew()
-      return
-    }
 
     try {
       run.value = await $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase })
@@ -97,6 +99,11 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
     if (run.value.config?.game !== "snake") {
       session.error.value = `run ${runId} isn't a watchable game run (config.game = ${String(run.value.config?.game ?? "unset")})`
       session.loading.value = false
+      return
+    }
+
+    if (!manageStream) {
+      await loadTargetChampionIfNew()
       return
     }
 

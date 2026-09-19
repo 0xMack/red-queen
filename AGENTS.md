@@ -6,7 +6,8 @@ visualization to see what's happening internally and make debugging easier. See
 [README.md](README.md) for the pitch and [docs/design/](docs/design/) for the numbered design docs
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
 landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts,
-0006: multi-agent games and the strategy/match framework) — read the relevant one before an
+0006: multi-agent games and the strategy/match framework, 0007: game representations, leaderboards,
+and measuring cost/tradeoffs) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -19,8 +20,12 @@ architectural change that might conflict with a decision already made.
     (Pyodide, in a Web Worker, off the main thread) loading real source from `libs/games`/`libs/evolve`
     (served fresh from disk by `server/api/py-source/[pkg].get.ts` — generalized from a single-package
     route once a second package needed it) rather than a checked-in copy:
-    - `/play/{game}` (`snake` today, docs/design/0005 step 5) — a human steers; zero backend round
-      trips per tick.
+    - `/games/{game}` (`snake` today) — the game's one page (docs/design/0007): watch leaderboard
+      entrants play first (the leaderboard picks what's on the board — trained champions *and*
+      `games.baselines`, both run in Pyodide), then "Play it yourself" on the same stage (a human
+      steers; zero backend round trips per tick) with a live race against every entrant and a
+      you-vs-algorithms results breakdown; the full leaderboard sits below. `/play/{game}`
+      redirects here.
     - `/watch/{runId}` (docs/design/0005 step 6) — a trained `evolve.neuro.WeightVector` policy
       steers instead, loaded from the run's `champion_ref` artifact via the *existing*
       `GET /runs/{id}/artifacts/{ref}` (no backend changes needed — the endpoint is already opaque
@@ -97,7 +102,14 @@ architectural change that might conflict with a decision already made.
     `MatchFitnessEvaluator` (noisy with too few opponent samples, clean with more — see
     docs/CODING_GUIDELINES.md).
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
-    backends — see docs/design/0002)
+    backends — see docs/design/0002), plus `EvaluationStore` (`evaluations.db`): leaderboard
+    results per (protocol, entrant), docs/design/0007.
+  - **Representations (docs/design/0007)**: a game's observation is chosen by an *observer*, and a
+    model's outputs become moves via an *action adapter*; the pair is a versioned **interface**
+    (`snake/features.v1+relative3.v1`, `snake/grid-flat.v1+relative3.v1`), registered in
+    `games.interfaces` and recorded as `config.interface` on every game run. A champion only runs
+    under its own interface — never edit an observer's encoding in place; add a new version (an
+    in-place rewrite is what once broke every older Snake champion).
   - `tinylm/` — a small transformer LM, built on `autodiff` (docs/design/0004). Trained by
     gradients, not evolution — the odd one out relative to every other `libs/` package so far, and
     deliberately not wired into `evolve`/`telemetry` yet (see the doc for why).
@@ -106,7 +118,12 @@ architectural change that might conflict with a decision already made.
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
   `notebooks/0005-neuroevolution-snake.ipynb`, wired to telemetry — its champions are what
   `apps/frontend`'s `/watch/{runId}` loads. Run with `uv run python jobs/<script>.py` from the repo
-  root. `control.py`'s `make_control_callback`
+  root. `snake_neuro_run.py [interface_id]` trains under any registered interface and records a
+  measured training-cost block (`costs.py`) in the run summary. `evaluate.py` produces the
+  leaderboards (docs/design/0007): every finished game run's champion plus fixed baselines, on
+  held-out seeds under a versioned protocol, with inference/training cost — never training fitness.
+  `backfill_interfaces.py` is a one-off for runs recorded before interfaces existed.
+  `control.py`'s `make_control_callback`
   (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
   `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here
   import each other as plain sibling modules, which works because `uv run python jobs/<script>.py`

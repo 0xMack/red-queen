@@ -78,7 +78,7 @@ const now = Date.now() / 1000
           <div class="mt-8 flex flex-wrap items-center gap-3">
             <NuxtLink to="/learn" class="btn-primary">Start learning →</NuxtLink>
             <NuxtLink to="/runs" class="btn-ghost">Browse training runs</NuxtLink>
-            <NuxtLink to="/play/snake" class="px-2 text-sm text-fg-subtle transition hover:text-fg">or play Snake yourself</NuxtLink>
+            <NuxtLink to="/games/snake" class="px-2 text-sm text-fg-subtle transition hover:text-fg">or take on the algorithms at Snake</NuxtLink>
           </div>
         </div>
 

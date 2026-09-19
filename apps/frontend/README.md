@@ -37,13 +37,27 @@ for the full contract and incremental plan this implements (steps 3-6).
   `manageStream: false` -- the page already owns the stream); clicking the chart or a table row pins
   that generation's champion. Linear-GP runs show the champion program instead (`ChampionProgram`,
   parsing the artifact's `repr()` with introns marked -- `app/utils/linearProgram.ts`).
-- `app/pages/play/[game].vue` — play a game (`/play/snake` today) entirely client-side via Pyodide,
-  running in a Web Worker (doc 0005 step 5). This thread only translates absolute arrow-key presses
-  into Snake's relative action space using a client-tracked heading (doc 0005's worked example) and
-  redraws from the worker's state messages; it never touches Pyodide directly. Replaces the step-4
-  version of this page, which drove `apis/backend/routers/games.py` per tick instead; that router
-  and its tests are unchanged and still valid, just no longer this page's data source. Now a thin
-  page composing `usePlaySession()` (below) rather than owning worker plumbing itself.
+- `app/pages/games/[game].vue` — the game's one page (docs/design/0007). **Watching algorithms
+  comes first**: the stage plays one leaderboard entrant (`WatchChampion`, keyed by entrant so a
+  switch remounts it on the warm worker) -- by default the best *trained* model -- and the side
+  `LeaderboardList` is also the selector (click any entrant; the full `LeaderboardTable` and the
+  `LeaderboardPareto` chart below select too). Baselines are watchable: the worker runs
+  `games.baselines` (the same code `jobs/evaluate.py` scores) via `useBaselineSession`.
+  **"Play it yourself"** swaps the stage to `HumanPlay`: same board and rules, a countdown that
+  waits for the runtime (`warmup` worker message), window-scoped arrow keys (or an on-screen pad on
+  touch screens), a live `HumanRace` track of every entrant's mean, and `HumanResults` at the end --
+  score count-up, the rank you'd take, and per-entrant "this beats it in X% of its games" bars
+  (from the per-game `quality.scores` the evaluation stores). Meanwhile your row animates up the
+  side list (TransitionGroup FLIP). Personal history is this browser's localStorage only
+  (`utils/leaderboard.ts`); submitting humans to the real leaderboard is doc 0007 step 4. State is in
+  the URL: `?watch=<entrant_id>`, `?mode=play`. Data: `GET /games/{game}/leaderboard` (records
+  written by `jobs/evaluate.py`, newest protocol shown -- versions aren't comparable) and
+  `GET /games/{game}/interfaces`. The run detail page links its own standing into this page, since
+  "best fitness" there is training fitness, not a game score.
+- `app/pages/play/[game].vue` — now just a redirect to `/games/[game]?mode=play` (old links). The
+  human-steering mechanics it used to own -- absolute arrow keys translated to Snake's relative
+  action space via a client-tracked heading (doc 0005's worked example) -- live in
+  `useSnakeControls.ts`, shared by `HumanPlay` and `LiveSnakeDemo`.
 - `app/pages/watch/[runId].vue` — watch a trained policy play, no controls (doc 0005 step 6,
   interaction modes 2 and 3 -- turn out to be one mechanism, not two: reuses
   `useMetricsStreamStore` and re-loads whichever champion is latest whenever it changes. For a
@@ -78,14 +92,17 @@ composables so every place that embeds a live Snake game -- the dedicated `/play
 pages, plus the landing page and the "Teaching a Snake" Learn chapter -- shares one implementation:
 
 - `app/composables/useSnakeSession.ts` — the base: attaches to the shared worker singleton, parses
-  its messages, exposes `start()`/`sendInput()`/`restart()`/`stop()`.
-- `app/composables/usePlaySession.ts` — wraps it with a **window-scoped** keydown listener (owns
-  the whole viewport, e.g. a dedicated page) via `useSnakeControls.ts`'s `createHeadingTracker()`.
+  its messages, exposes `start(spec)`/`warmup()`/`sendInput()`/`restart()`/`stop()`, plus
+  per-session episode stats. `spec` is a trained network (`policyJson`), a baseline name, or
+  nothing (a human plays) -- each with its interface id.
 - `app/composables/useWatchSession.ts` — wraps it with the `metricsStream`-driven champion-reload
-  logic described above.
+  logic described above; `useBaselineSession.ts` is the same shape for a `games.baselines` entrant.
+- `app/components/HumanPlay.vue` — human play on the game page: **window-scoped** keys (it owns the
+  stage while mounted; arrows/space are preventDefault'ed) via `useSnakeControls.ts`'s
+  `createHeadingTracker()`, plus an on-screen pad for touch screens.
 - `app/components/LiveSnakeDemo.vue` — an embeddable play-only widget (the Snake Learn chapter, and
   the landing page's fallback when no trained run is reachable) that calls `useSnakeSession()` +
-  `createHeadingTracker()` directly, **not** `usePlaySession()`: it needs **element-scoped** keydown
+  `createHeadingTracker()` directly: it needs **element-scoped** keydown
   capture (`tabindex="0"` + `event.preventDefault()` only on recognized keys) so it doesn't hijack
   page scroll/arrow keys. Starts on first click, not on mount (it's usually below the fold).
 - `app/components/WatchChampion.vue` — the embeddable watch-mode counterpart, on
@@ -94,7 +111,10 @@ pages, plus the landing page and the "Teaching a Snake" Learn chapter -- shares 
   live activations. The worker posts the policy's current `observation` with each watch-mode state,
   and `app/utils/snakePolicy.ts` mirrors `evolve.neuro._forward` in JS purely to *visualize* it (the
   Python copy still decides every move). `pin(generation)` loads any generation's stored champion.
-  Only one Snake widget can be live per page -- they share the single worker.
+  Only one Snake widget can be live per page -- they share the single worker. The champion runs
+  under its run's `config.interface` (docs/design/0007): the worker builds the game with that
+  interface's observer and decodes outputs with its action adapter via `games.interfaces`, so e.g.
+  a 100-input grid champion sees the grid, not Snake's default features.
 
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),
@@ -231,7 +251,7 @@ Then open `http://localhost:3000`.
   live Playwright pass confirming the embedded `LiveSnakeDemo` on both the landing page and the
   Snake Learn chapter is actually playable (click to focus, arrow keys move the snake, `stepCount`
   advances), zero console errors, and `/play`/`/watch` behave identically to before being refactored
-  onto `useSnakeSession`/`usePlaySession`/`useWatchSession`. Installing `shiki` while a long-running
+  onto `useSnakeSession`/`useWatchSession`. Installing `shiki` while a long-running
   `pnpm dev` server is still up can leave Vite's pre-bundled-deps cache stale (`504 (Outdated
   Optimize Dep)` / "Failed to fetch dynamically imported module" for the new import) -- kill the dev
   server, delete `node_modules/.cache`, restart.

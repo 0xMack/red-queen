@@ -18,16 +18,23 @@ wire format, unlike baseline_gp_run.py's prototype serialize_program()) a fronte
 (docs/design/0005 step 6, interaction modes 2/3): apps/frontend's Pyodide bridge loads one back
 with the exact same code, since libs/evolve is pure stdlib Python.
 
-Run with: uv run python jobs/snake_neuro_run.py
+Trains under a named interface (docs/design/0007: game + observer + action adapter), recorded in
+the run config so the champion is always run under the observation it was trained for, plus the
+training seeds and a measured training-cost block in the run summary (jobs/costs.py).
+
+Run with: uv run python jobs/snake_neuro_run.py [interface_id]
+(default snake/features.v1+relative3.v1; e.g. snake/grid-flat.v1+relative3.v1 for the full grid)
 """
 
 from __future__ import annotations
 
 import random
+import sys
 import time
 from pathlib import Path
 
 from control import make_control_callback
+from costs import TrainingCostMeter
 from evolve import (
     GaussianMutation,
     GenerationSummary,
@@ -36,7 +43,8 @@ from evolve import (
     evolve,
     random_weight_vector,
 )
-from games.snake import benchmark_environments
+from games import interfaces
+from games.snake import BENCHMARK_SEEDS, benchmark_environments
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
@@ -46,23 +54,26 @@ from telemetry import (
 
 RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
-# games.snake._observation() is fixed at 11 features regardless of board size (see its docstring).
-# ~10x fewer weights than the old (100, 24, 3) network for the same hidden width -- faster to train
-# and to run -- so this run affords a bigger population/generation budget than before for similar
-# wall-clock cost.
-LAYER_SIZES = (11, 16, 3)
+# The input/output layer sizes come from the interface (11 for features.v1, 100 for grid-flat.v1 on
+# a 10x10 board; 3 outputs for relative3.v1). features.v1 is ~10x fewer weights than the old grid
+# network for the same hidden width -- faster to train and to run.
+DEFAULT_INTERFACE = "snake/features.v1+relative3.v1"
+HIDDEN = 16
+RNG_SEED = 0
 POPULATION_SIZE = 100
 GENERATIONS = 250
 MAX_STEPS = 200
 
 
-def act(genome, observation) -> int:
-    """3 outputs -> {-1, 0, 1} (left, straight, right) via argmax. Also the exact convention
-    apps/frontend's Pyodide watch-mode bridge uses to drive a loaded champion -- see
-    app/workers/snakeGame.worker.ts's snake_policy_action, which must stay in sync with this."""
-    outputs = genome.forward(observation)
-    best_index = max(range(len(outputs)), key=lambda i: outputs[i])
-    return best_index - 1
+def make_act(interface):
+    """(genome, observation) -> action through the interface's action adapter -- for
+    relative3.v1, 3 outputs -> {-1, 0, 1} via argmax, the same adapter apps/frontend's Pyodide
+    watch-mode bridge uses to drive a loaded champion."""
+
+    def act(genome, observation):
+        return interface.action.decode(genome.forward(observation))
+
+    return act
 
 
 def make_telemetry_callback(
@@ -91,7 +102,11 @@ def make_telemetry_callback(
     return on_generation
 
 
-def main() -> None:
+def main(interface_id: str = DEFAULT_INTERFACE) -> None:
+    interface = interfaces.get(interface_id)
+    envs = benchmark_environments(observer=interface.observer)
+    layer_sizes = (len(interface.observer.feature_names(envs[0])), HIDDEN, interface.action.num_outputs)
+
     registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
     metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
     artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
@@ -100,40 +115,46 @@ def main() -> None:
         config={
             "representation": "neuroevolution",
             "game": "snake",  # apps/frontend's watch page reads this to know what to render
-            "layer_sizes": list(LAYER_SIZES),
+            "interface": interface.id,  # how the champion must be observed/decoded (doc 0007)
+            "layer_sizes": list(layer_sizes),
             "population_size": POPULATION_SIZE,
             "generations": GENERATIONS,
             "max_steps": MAX_STEPS,
             "selection": "lexicase",
             "variation": "gaussian_mutation(sigma=0.2)",
             "benchmark": "games.snake.benchmark_environments",
+            "training_seeds": list(BENCHMARK_SEEDS),
+            "rng_seed": RNG_SEED,
         }
     )
     print(f"run_id={run_id}")
 
-    rng = random.Random(0)
+    rng = random.Random(RNG_SEED)
     population = [
-        random_weight_vector(LAYER_SIZES, rng, scale=0.5)
+        random_weight_vector(layer_sizes, rng, scale=0.5)
         for _ in range(POPULATION_SIZE)
     ]
+    fitness = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=MAX_STEPS)
+    cost = TrainingCostMeter(population_size=POPULATION_SIZE, fitness=fitness)
 
     evolve(
         population,
-        fitness=SimulationFitnessEvaluator(
-            envs=benchmark_environments(), act=act, max_steps=MAX_STEPS
-        ),
+        fitness=fitness,
         selection=LexicaseSelection(),
         variation=GaussianMutation(sigma=0.2),
         generations=GENERATIONS,
         on_generation=[
             make_telemetry_callback(registry, metrics, artifacts, run_id),
-            make_control_callback(registry, run_id),
+            cost.on_generation,
+            cost.excluding_pauses(make_control_callback(registry, run_id)),
         ],
         rng=rng,
     )
 
     final_history = metrics.history(run_id)
-    registry.set_summary(run_id, {"best_fitness": final_history[-1].best_fitness})
+    registry.set_summary(
+        run_id, {"best_fitness": final_history[-1].best_fitness, "cost": cost.summary()}
+    )
     registry.update_status(run_id, "completed")
 
     # Prove replay works, not just that writing worked: read everything back from storage.
@@ -151,4 +172,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(*sys.argv[1:2])

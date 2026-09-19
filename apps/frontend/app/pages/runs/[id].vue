@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { EvaluationRecord } from "~/types/leaderboard"
 import type { RunInfo } from "~/types/telemetry"
 
 const route = useRoute()
@@ -17,9 +18,26 @@ async function loadRun() {
   }
 }
 
+// This run's leaderboard standing (docs/design/0007) -- the held-out game score, which is what
+// training fitness is *not*. Best-effort: no evaluation (or an older backend) just hides it.
+const standing = ref<{ record: EvaluationRecord; rank: number; of: number } | null>(null)
+async function loadStanding() {
+  const game = run.value?.config?.game
+  if (typeof game !== "string") return
+  try {
+    const board = await $fetch<EvaluationRecord[]>(`/games/${game}/leaderboard`, { baseURL: config.public.apiBase })
+    const mine = board.find((r) => r.run_id === runId)
+    if (!mine) return
+    const peers = board.filter((r) => r.protocol === mine.protocol)
+    standing.value = { record: mine, rank: peers.indexOf(mine) + 1, of: peers.length }
+  } catch {
+    standing.value = null
+  }
+}
+
 onMounted(() => {
   metricsStream.start(runId)
-  loadRun()
+  loadRun().then(loadStanding)
 })
 onUnmounted(() => metricsStream.stop())
 
@@ -122,6 +140,9 @@ async function copyId() {
           </button>
           <span v-if="run" class="text-fg-subtle">started {{ formatTimestamp(run.created_at) }} · ran {{ formatDuration(elapsed) }}</span>
           <span v-if="meta?.note" class="text-fg-subtle italic">· {{ meta.note }}</span>
+          <span v-if="typeof run?.config?.interface === 'string'" class="chip" title="The representation this run's models were trained under (docs/design/0007)">
+            {{ run.config.interface }}
+          </span>
         </div>
       </div>
       <div v-if="controllable" class="flex items-center gap-2">
@@ -164,6 +185,30 @@ async function copyId() {
         <StatTile label="Best ever" tone="gold" :value="formatFitness(bestEver?.best_fitness, 3)" :hint="bestEver ? `at generation ${bestEver.generation}` : undefined" />
         <StatTile label="Pace" :value="pace ? `${pace.toFixed(pace < 10 ? 1 : 0)}/min` : '--'" :hint="meta?.populationSize ? `population ${meta.populationSize}` : 'generations per minute'" />
       </div>
+
+      <!-- Leaderboard standing -->
+      <NuxtLink
+        v-if="standing"
+        :to="{ path: `/games/${standing.record.game}`, query: { watch: standing.record.entrant_id } }"
+        class="card card-hover mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 text-sm"
+      >
+        <span class="eyebrow">🏆 Leaderboard</span>
+        <span class="text-fg">
+          <span class="num font-semibold">#{{ standing.rank }}</span>
+          <span class="text-fg-subtle"> of {{ standing.of }}</span>
+        </span>
+        <span class="text-fg-muted">
+          held-out score
+          <span class="num font-semibold text-fg">{{ standing.record.metrics.quality.mean.toFixed(2) }}</span>
+          <span class="num text-fg-subtle"> ± {{ standing.record.metrics.quality.ci95.toFixed(2) }}</span>
+          over {{ standing.record.metrics.quality.n }} unseen games
+        </span>
+        <span v-if="standing.record.metrics.quality.train_mean !== null" class="text-fg-muted">
+          vs. <span class="num">{{ standing.record.metrics.quality.train_mean.toFixed(1) }}</span> on its training seeds
+        </span>
+        <span class="text-fg-muted"><span class="num">{{ standing.record.metrics.inference.total_us.toFixed(1) }}</span> µs / decision</span>
+        <span class="ml-auto text-xs text-fg-subtle">Best fitness above is training fitness, not a game score →</span>
+      </NuxtLink>
 
       <!-- Charts + champion -->
       <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">

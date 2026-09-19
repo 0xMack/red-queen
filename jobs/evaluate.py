@@ -1,0 +1,278 @@
+"""Leaderboard evaluation (docs/design/0007): run every entrant under a fixed, versioned protocol and
+record a vector of measurements -- quality, inference cost, training cost -- not one score.
+
+Entrants for Snake today:
+- every Snake run's final champion, under the interface recorded in its config (see
+  jobs/backfill_interfaces.py for pre-0007 runs);
+- fixed baselines (random, greedy) -- always included, since a ranking says nothing without them.
+
+Protocol `snake.score.v1`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
+10x10 board, MAX_STEPS cap, metric = game score (food eaten), never training fitness. Changing any of
+that means a new protocol version, not an edit.
+
+Run with: uv run python jobs/evaluate.py
+"""
+
+from __future__ import annotations
+
+import statistics
+import time
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from costs import hardware_fingerprint
+from evolve.neuro import WeightVector
+from games import baselines, interfaces
+from games.observation import Interface
+from games.snake import BENCHMARK_SEEDS
+from telemetry import (
+    EvaluationRecord,
+    FileArtifactStore,
+    FileMetricsStore,
+    RunInfo,
+    SqliteEvaluationStore,
+    SqliteRunRegistry,
+)
+
+RUN_DATA_DIR = Path(__file__).parent / "run-data"
+
+PROTOCOL = "snake.score.v1"
+HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
+BOARD = {"width": 10, "height": 10}
+MAX_STEPS = 1000
+
+# A decision policy: observation -> action. Built per episode so stateful/random policies get a
+# deterministic, per-seed rng.
+Policy = Callable[[list[float]], Any]
+PolicyFactory = Callable[[int], Policy]
+
+
+# --- Baselines ---------------------------------------------------------------------------------------
+
+# Defined in games.baselines (not here) so the browser can run the same code to let visitors watch
+# them play. The two factories are re-exported for tests.
+FEATURES = "snake/features.v1+relative3.v1"
+random_policy_factory = baselines.get("snake", "random").factory
+greedy_policy_factory = baselines.get("snake", "greedy").factory
+
+
+def baseline_entrants(game: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "entrant_id": b.entrant_id,
+            "label": b.label,
+            "interface": b.interface,
+            "factory": b.factory,
+            "model": b.description,
+        }
+        for b in baselines.for_game(game)
+    ]
+
+
+# --- Measurement -------------------------------------------------------------------------------------
+
+
+def play_episode(interface: Interface, policy: Policy, seed: int) -> tuple[int, int]:
+    game = interface.make_game(seed=seed, **BOARD)
+    observation = game.reset()
+    steps = 0
+    for _ in range(MAX_STEPS):
+        observation, _reward, done = game.step(policy(observation))
+        steps += 1
+        if done:
+            break
+    return game.score, steps
+
+
+def score_stats(scores: Sequence[int]) -> dict[str, Any]:
+    n = len(scores)
+    mean = statistics.fmean(scores)
+    stdev = statistics.stdev(scores) if n > 1 else 0.0
+    return {
+        "n": n,
+        "mean": round(mean, 4),
+        "ci95": round(1.96 * stdev / n**0.5, 4) if n > 1 else 0.0,
+        "median": statistics.median(scores),
+        "min": min(scores),
+        "max": max(scores),
+        "zero_rate": round(sum(1 for s in scores if s == 0) / n, 4),
+    }
+
+
+def measure_quality(interface: Interface, factory: PolicyFactory, training_seeds: Sequence[int]) -> dict[str, Any]:
+    held_out = [play_episode(interface, factory(seed), seed) for seed in HELD_OUT_SEEDS]
+    scores = [score for score, _ in held_out]
+    quality = score_stats(scores)
+    # Every held-out game's score, in seed order -- small (one int per game), and what lets a UI
+    # say "you beat this model in X% of its games" rather than only comparing to its mean.
+    quality["scores"] = scores
+    quality["mean_steps"] = round(statistics.fmean(steps for _, steps in held_out), 2)
+    train_scores = [play_episode(interface, factory(seed), seed)[0] for seed in training_seeds]
+    quality["train_mean"] = round(statistics.fmean(train_scores), 4) if train_scores else None
+    quality["generalization_gap"] = (
+        round(quality["train_mean"] - quality["mean"], 4) if quality["train_mean"] is not None else None
+    )
+    return quality
+
+
+def measure_inference(interface: Interface, factory: PolicyFactory, repeats: int = 5, decisions: int = 400) -> dict[str, Any]:
+    """Median-of-repeats per-decision latency, split into encoding the game (observer) and deciding
+    (policy), after a warm-up. Uses real game states from one episode, replayed."""
+    game = interface.make_game(seed=HELD_OUT_SEEDS[0], **BOARD)
+    game.reset()
+    policy = factory(HELD_OUT_SEEDS[0])
+    observations: list[list[float]] = []
+    for _ in range(decisions):
+        observation = interface.observer.encode(game)
+        observations.append(observation)
+        _, _, done = game.step(policy(observation))
+        if done:
+            game.reset()
+
+    def per_call_us(fn: Callable[[], None]) -> float:
+        fn()  # warm-up
+        samples = []
+        for _ in range(repeats):
+            started = time.perf_counter()
+            fn()
+            samples.append((time.perf_counter() - started) / len(observations) * 1e6)
+        return statistics.median(samples)
+
+    encode_us = per_call_us(lambda: [interface.observer.encode(game) for _ in observations])
+    decide_us = per_call_us(lambda: [policy(o) for o in observations])
+    return {"encode_us": round(encode_us, 3), "decide_us": round(decide_us, 3), "total_us": round(encode_us + decide_us, 3)}
+
+
+# --- Entrants from runs -----------------------------------------------------------------------------
+
+
+def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
+    """The run's measured cost block (jobs/costs.py) if it has one; otherwise an estimate from its
+    config + metrics timestamps, labelled as such (docs/design/0007: legacy runs)."""
+    measured = (run.summary or {}).get("cost")
+    if measured:
+        return dict(measured)
+    history = metrics.history(run.run_id)
+    population = run.config.get("population_size")
+    seeds = run.config.get("training_seeds") or list(BENCHMARK_SEEDS)
+    evaluations = population * len(history) if population else None
+    return {
+        "measured": False,
+        "generations": len(history),
+        "fitness_evaluations": evaluations,
+        "episodes": evaluations * len(seeds) if evaluations else None,
+        "env_steps": None,
+        # First-to-last generation timestamps: may include paused time, and nothing recorded CPU,
+        # memory, or hardware for these runs.
+        "active_s": round(history[-1].timestamp - history[0].timestamp, 3) if len(history) > 1 else None,
+        "cpu_s": None,
+        "peak_rss_bytes": None,
+        "hardware": None,
+    }
+
+
+def champion_entrants(
+    registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore, game: str
+) -> list[dict[str, Any]]:
+    entrants = []
+    for run in registry.list_runs():
+        interface_id = run.config.get("interface")
+        if run.config.get("game") != game or not interface_id:
+            continue
+        # Only finished runs: a still-training run's champion isn't its final one (re-run this job
+        # once it completes).
+        if run.status in ("running", "paused"):
+            continue
+        history = metrics.history(run.run_id)
+        if not history:
+            continue
+        champion_ref = history[-1].champion_ref
+        raw = artifacts.get_program(champion_ref)
+        champion = WeightVector.from_json(raw.decode("utf-8"))
+        interface = interfaces.get(interface_id)
+
+        def factory(_seed: int, champion=champion, interface=interface) -> Policy:
+            return lambda observation: interface.action.decode(champion.forward(observation))
+
+        selection = run.config.get("selection")
+        network = " → ".join(str(n) for n in champion.layer_sizes)
+        label = f"Neuroevolution {network}" + (f" · {selection}" if selection else "")
+        entrants.append(
+            {
+                "entrant_id": f"run:{run.run_id}",
+                "label": label,
+                "interface": interface_id,
+                "factory": factory,
+                "run": run,
+                "champion_ref": champion_ref,
+                "model": f"MLP {network}, tanh ({run.config.get('representation', 'unknown')})",
+                "parameters": len(champion.weights),
+                "artifact_bytes": len(raw),
+                "training_seeds": run.config.get("training_seeds") or list(BENCHMARK_SEEDS),
+                "note": run.config.get("note"),
+            }
+        )
+    return entrants
+
+
+def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, hardware: dict[str, Any]) -> EvaluationRecord:
+    interface = interfaces.get(entrant["interface"])
+    run: RunInfo | None = entrant.get("run")
+    quality = measure_quality(interface, entrant["factory"], entrant.get("training_seeds", BENCHMARK_SEEDS))
+    inference = measure_inference(interface, entrant["factory"])
+    inference["parameters"] = entrant.get("parameters", 0)
+    inference["artifact_bytes"] = entrant.get("artifact_bytes", 0)
+    training = training_cost(run, metrics) if run and metrics else {"measured": True, "none": True}
+    level = interface.observer.level
+    return EvaluationRecord(
+        game=interface.game,
+        protocol=PROTOCOL,
+        entrant_id=entrant["entrant_id"],
+        entrant_kind="champion" if run else "baseline",
+        label=entrant["label"],
+        interface=interface.id,
+        run_id=run.run_id if run else None,
+        champion_ref=entrant.get("champion_ref"),
+        created_at=time.time(),
+        metrics={
+            "quality": quality,
+            "inference": inference,
+            "training": training,
+            "model": {
+                "description": entrant["model"],
+                "observer_level": level,
+                "note": entrant.get("note"),
+            },
+            "protocol": {
+                "held_out_seeds": [HELD_OUT_SEEDS[0], HELD_OUT_SEEDS[-1]],
+                "episodes": len(HELD_OUT_SEEDS),
+                "max_steps": MAX_STEPS,
+                "board": BOARD,
+                "metric": "score (food eaten)",
+            },
+        },
+        hardware=hardware,
+    )
+
+
+def main() -> None:
+    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
+    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
+    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
+    store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
+    hardware = hardware_fingerprint()
+
+    entrants = [*baseline_entrants("snake"), *champion_entrants(registry, metrics, artifacts, "snake")]
+    for entrant in entrants:
+        record = evaluate_entrant(entrant, metrics, hardware)
+        store.put(record)
+        q, inf = record.metrics["quality"], record.metrics["inference"]
+        print(
+            f"{record.label:<40} {record.interface:<34} mean {q['mean']:>6.2f} ±{q['ci95']:<5} "
+            f"train {q['train_mean']!s:>6}  {inf['total_us']:>7.2f} µs/decision"
+        )
+
+
+if __name__ == "__main__":
+    main()

@@ -14,6 +14,10 @@ for the reasoning behind the split.
   pydantic model `GenerationStats`, with backfill-then-live `subscribe()`. File-backed (JSON Lines).
 - `ArtifactStore` (`artifacts.py`) — on-demand key/value store for programs and traces (plain
   bytes — no schema at this layer). File-backed.
+- `EvaluationStore` (`evaluations.py`) — leaderboard results (docs/design/0007): one
+  `EvaluationRecord` per (protocol, entrant), replaced on re-evaluation. `metrics` is a free-form
+  dict of measurement groups (quality / inference / training); the protocol version is what makes
+  two records comparable. SQLite-backed (`evaluations.db`, beside `runs.db`).
 
 All three are defined as `typing.Protocol`s so a hosted/scaled backend (e.g. Redis-backed) can be
 swapped in later without changing any code that depends on them. The local implementations here

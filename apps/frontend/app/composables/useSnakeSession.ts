@@ -8,6 +8,15 @@ import type { RenderState } from "~/types/games"
 // the worker itself.
 export const DEFAULT_TICK_MS = 110
 
+// What drives the snake in watch mode (mirrors the worker's PolicySpec): a trained network's
+// serialized weights, or a games.baselines name -- plus the interface (docs/design/0007) it plays
+// under. No policy at all = play mode, a human steers.
+export interface PolicySpec {
+  policyJson?: string
+  baseline?: string
+  interfaceId?: string
+}
+
 export function useSnakeSession() {
   const loading = ref(true)
   const error = ref<string | null>(null)
@@ -58,17 +67,24 @@ export function useSnakeSession() {
     return worker
   }
 
-  function start(policyJson?: string) {
+  function start(spec: PolicySpec = {}) {
     loading.value = true
     error.value = null
     const w = attach()
     // The worker is shared across pages -- re-assert this session's speed, don't inherit the last one.
     w.postMessage({ type: "set_speed", intervalMs: tickMs.value })
-    w.postMessage(policyJson ? { type: "start", policyJson } : { type: "start" })
+    w.postMessage({ type: "start", ...spec })
   }
 
-  function loadPolicy(policyJson: string) {
-    worker?.postMessage({ type: "load_policy", policyJson })
+  // Load the Python runtime without starting a game; `loading` flips false when it's ready.
+  function warmup() {
+    loading.value = true
+    error.value = null
+    attach().postMessage({ type: "warmup" })
+  }
+
+  function loadPolicy(spec: PolicySpec) {
+    worker?.postMessage({ type: "load_policy", ...spec })
   }
 
   function sendInput(action: number) {
@@ -110,6 +126,7 @@ export function useSnakeSession() {
     meanScore,
     tickMs,
     start,
+    warmup,
     loadPolicy,
     sendInput,
     restart,

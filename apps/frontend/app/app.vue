@@ -62,7 +62,7 @@ onUnmounted(() => window.removeEventListener("scroll", onScroll))
         </nav>
 
         <div class="ml-auto flex items-center gap-2">
-          <NuxtLink to="/play/snake" class="btn-ghost btn-sm hidden md:inline-flex">
+          <NuxtLink :to="{ path: '/games/snake', query: { mode: 'play' } }" class="btn-ghost btn-sm hidden md:inline-flex">
             <span class="size-1.5 rounded-full bg-life-400" /> Play Snake
           </NuxtLink>
           <button
