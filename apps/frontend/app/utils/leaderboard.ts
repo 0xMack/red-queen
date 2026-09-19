@@ -1,4 +1,5 @@
 import type { EvaluationRecord } from "~/types/leaderboard"
+import type { ModelShape } from "~/utils/modelLabel"
 
 // Shared by the game page's leaderboard pieces (docs/design/0007). Auto-imported (app/utils/).
 
@@ -13,23 +14,42 @@ export function entrantColor(r: EvaluationRecord): string {
 
 /** Short, distinct label: champions get their run's short id (two runs can share a label). */
 export function entrantLabel(r: EvaluationRecord): string {
-  return r.run_id ? `${r.label} · ${shortId(r.run_id)}` : r.label
+  return r.run_id ? `${entrantShortLabel(r)} · ${shortId(r.run_id)}` : r.label
+}
+
+/** A champion's model facts: `metrics.model.shape` (jobs/evaluate.py), or -- for records evaluated
+ * before that existed -- parsed back out of its label ("NEAT 11 → 11 hidden → 3 · 73 conns · speciation"). */
+export function entrantShape(r: EvaluationRecord): ModelShape | null {
+  if (r.entrant_kind !== "champion") return null
+  if (r.metrics.model.shape) return r.metrics.model.shape
+  const neat = r.label.match(/^NEAT .*?(\d+) hidden .*?(\d+) conns(?: · ([^(]+))?/)
+  if (neat) return { algorithm: "NEAT", hidden_nodes: Number(neat[1]), connections: Number(neat[2]), selection: neat[3]?.trim() ?? null }
+  const mlp = r.label.match(/^(\S+) ([\d → ]+?)(?: · ([^(]+))?(?: \(|$)/)
+  if (mlp) return { algorithm: mlp[1]!, layer_sizes: mlp[2]!.split(" → ").map(Number), selection: mlp[3]?.trim() ?? null }
+  return null
+}
+
+/** A package variant this entrant plays through, when it isn't the champion's exact one ("fp32"). */
+export function entrantVariant(r: EvaluationRecord): string | null {
+  return r.entrant_id.match(/@(\w+)$/)?.[1] ?? null
 }
 
 /**
- * Compact label for narrow lists: a champion is named by the representation it sees, since
- * "Neuroevolution 11 → 16 → …" truncates into ambiguity. Pair with entrantDetail().
+ * The name used everywhere a model appears, matching the runs table: "NEAT · 11 hidden · 73 conns".
+ * Baselines keep their own label. Pair with entrantDetail().
  */
 export function entrantShortLabel(r: EvaluationRecord): string {
-  if (r.entrant_kind !== "champion") return r.label
-  const observer = r.interface.split("/")[1]?.split("+")[0]?.replace(/\.v\d+$/, "") ?? "?"
-  return `Evolved net · ${observer}`
+  const shape = entrantShape(r)
+  if (!shape) return r.label
+  const variant = entrantVariant(r)
+  return modelLabel(shape) + (variant ? ` (${variant} export)` : "")
 }
 
-/** Secondary line for entrantShortLabel: selection method and run id, e.g. "lexicase · e96e09ef". */
+/** Secondary line: what it sees, how it was selected, and its run id -- "features · speciation · 530b1769". */
 export function entrantDetail(r: EvaluationRecord): string {
-  const selection = r.label.split(" · ")[1]
-  return [selection, r.run_id ? shortId(r.run_id) : null].filter(Boolean).join(" · ") || r.entrant_kind
+  if (r.entrant_kind !== "champion") return r.entrant_kind
+  const observer = r.interface.split("/")[1]?.split("+")[0]?.replace(/\.v\d+$/, "")
+  return [observer, entrantShape(r)?.selection, r.run_id ? shortId(r.run_id) : null].filter(Boolean).join(" · ")
 }
 
 /** A baseline's name from its entrant id ("baseline:greedy" -> "greedy"), or null. */

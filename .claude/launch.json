@@ -12,6 +12,21 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/frontend", "dev"],
       "port": 3000
+    },
+    {
+      "name": "backend-alt",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "uvicorn", "backend.main:app", "--app-dir", "apis/backend/src", "--port", "8100"],
+      "port": 8100,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/frontend", "dev", "--port", "3100"],
+      "env": { "NUXT_PUBLIC_API_BASE": "http://127.0.0.1:8100" },
+      "port": 3100,
+      "autoPort": false
     }
   ]
 }

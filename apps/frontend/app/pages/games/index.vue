@@ -12,8 +12,8 @@ useHead({ title: "Games" })
         <h1 class="mt-2 text-3xl font-semibold sm:text-4xl">Games</h1>
         <p class="mt-3 max-w-2xl text-fg-muted">
           Purpose-built environments to test every algorithm against. Each one runs entirely in your
-          browser via Pyodide -- the exact same <code class="chip">libs/games</code> Python code the
-          <NuxtLink to="/runs" class="link">training runs</NuxtLink> and its own tests exercise, not a
+          browser as WebAssembly -- the same <code class="chip">libs/games</code> Rust core the
+          <NuxtLink to="/runs" class="link">training runs</NuxtLink> play through Python, not a
           JavaScript re-implementation.
         </p>
       </div>

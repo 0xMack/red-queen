@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modelpack"
+version = "0.1.0"
+description = "Portable, content-addressed model packages (ONNX + manifest + weight shards) for client-side inference, docs/design/0009."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "evolve",
+    "tinylm",
+    "numpy>=2",
+    "onnx>=1.17",
+    "onnxruntime>=1.22",
+    "pydantic>=2",
+]
+
+[tool.uv.sources]
+evolve = { workspace = true }
+tinylm = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/modelpack"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "PGH", # pygrep-hooks
+    "RUF", # Ruff-specific
+    "UP",  # pyupgrade
+]

@@ -1,7 +1,7 @@
 // A TypeScript port of libs/evolve/src/evolve/neat.py -- the same genome, the same mutations, the same
 // innovation-aligned crossover, compatibility distance, speciation, and reproduction -- so the Learn
-// chapters' demos can evolve real NEAT networks instantly in the browser instead of waiting on Pyodide's
-// ~10s cold load. Keep the two in sync by hand (like app/types/*.ts): forward()/activations() are
+// chapters' demos can evolve thousands of NEAT networks per second in the browser, where round-tripping
+// each one through a model export would be far too slow. Keep the two in sync by hand (like app/types/*.ts): forward()/activations() are
 // checked against the Python on the same genome JSON, and the algorithm's constants mirror NeatConfig.
 //
 // Also used to *draw* trained Snake champions (the Python genome's JSON is exactly `Genome` below).

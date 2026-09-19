@@ -1,3 +1,4 @@
+from tinylm.checkpoint import TinyLMConfig, load, save
 from tinylm.generate import generate
 from tinylm.layers import CausalSelfAttention, Embedding, LayerNorm, Linear, MLP, TransformerBlock
 from tinylm.loss import cross_entropy
@@ -14,7 +15,10 @@ __all__ = [
     "LayerNorm",
     "Linear",
     "TinyLM",
+    "TinyLMConfig",
     "TransformerBlock",
     "cross_entropy",
     "generate",
+    "load",
+    "save",
 ]

@@ -56,8 +56,8 @@ reward = 0.01 if new_distance < old_distance else -0.02`
       <figcaption class="text-sm text-fg-muted">
         <p class="font-display font-semibold text-fg">Your turn first</p>
         <p class="mt-2">
-          Click the board and steer with the arrow keys. This is the real <code>games.snake</code>
-          module running in Pyodide -- the same environment every policy below was trained in.
+          Click the board and steer with the arrow keys. This is the real Snake game core, compiled to
+          WebAssembly -- the same code every policy below is evaluated on.
         </p>
         <p class="mt-3">
           Then <NuxtLink to="/runs">open a Snake run</NuxtLink> to watch the evolved champion play,

@@ -195,6 +195,10 @@ shouldn't know about async/FastAPI itself; the adaptation belongs in `apis/`, no
 
 ## WebAssembly for game rendering — decided: Pyodide
 
+> **Superseded for game simulation by [0009](0009-client-side-inference-at-scale.md)**: games move to a
+> Rust core (PyO3 for Python, wasm-bindgen for the browser) and policies to ONNX Runtime Web; Pyodide retires
+> once every game is ported. The no-divergence argument below still holds and motivates that design.
+
 Confirmed. Compile/run the actual `libs/games` Python code in the browser via Pyodide (CPython
 compiled to WASM), rather than a from-scratch Rust/AssemblyScript reimplementation. Reuses the
 exact simulation code already written and tested — `games.snake` and `games.reach1d` behave

@@ -2,6 +2,7 @@
 import { checkersSnapshot } from "~/data/checkersSnapshot"
 import { games } from "~/data/games"
 import type { EvaluationRecord, InterfaceInfo } from "~/types/leaderboard"
+import type { DeviceFit } from "~/types/modelpack"
 
 // One page per game (docs/design/0007). Watching algorithms comes first: the leaderboard (evaluated
 // by jobs/evaluate.py on held-out games) decides which entrant is on the board, and clicking any
@@ -34,11 +35,37 @@ const entries = computed(() => (records.value ?? []).filter((r) => r.protocol ==
 const interfacesById = computed(() => Object.fromEntries((interfaceList.value ?? []).map((i) => [i.id, i])))
 const protocolInfo = computed(() => entries.value[0]?.metrics.protocol)
 
+// --- Which models this device can run (docs/design/0009) ---------------------------------------
+// Published champions run as model packages in ONNX Runtime; the catalog + a device probe say which
+// ones can, and why not for the rest. Baselines and unpublished champions run the Python code.
+const models = useModelCatalog(slug)
+onMounted(models.load)
+const onlyRunnable = ref(false)
+
+const runsHere = computed<Record<string, DeviceFit>>(() => {
+  const fits: Record<string, DeviceFit> = {}
+  for (const r of entries.value) {
+    const available = models.availability.value[r.entrant_id]
+    if (available?.match?.ok) fits[r.entrant_id] = { ok: true, note: `${available.match.variant.id} · ${available.match.backend}` }
+    else if (available?.match) fits[r.entrant_id] = { ok: false, note: available.match.summary }
+    else if (!available && models.catalog.value) fits[r.entrant_id] = { ok: true, note: "Python (not a published package)" }
+  }
+  return fits
+})
+const listed = computed(() => (onlyRunnable.value ? entries.value.filter((r) => runsHere.value[r.entrant_id]?.ok !== false) : entries.value))
+
 // --- What's on the stage ------------------------------------------------------------------------
 const mode = computed<"watch" | "play">(() => (route.query.mode === "play" || entries.value.length === 0 ? "play" : "watch"))
-// Default: the best *trained* model -- the point is watching something that learned -- falling back
-// to the top entrant. The list shows plainly when a baseline ranks above it.
-const defaultEntrant = computed(() => entries.value.find((r) => r.entrant_kind === "champion") ?? entries.value[0] ?? null)
+// Default: the best *trained* model this device can run -- the point is watching something that
+// learned -- falling back to the best trained model, then the top entrant. The list shows plainly
+// when a baseline ranks above it.
+const defaultEntrant = computed(
+  () =>
+    entries.value.find((r) => r.entrant_kind === "champion" && runsHere.value[r.entrant_id]?.ok !== false) ??
+    entries.value.find((r) => r.entrant_kind === "champion") ??
+    entries.value[0] ??
+    null,
+)
 const selected = computed(
   () => entries.value.find((r) => r.entrant_id === route.query.watch) ?? defaultEntrant.value,
 )
@@ -137,7 +164,7 @@ function onHumanScore(score: number, live: boolean) {
             <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <span class="flex items-center gap-2">
                 <span class="size-2.5 rounded-full" :style="{ background: entrantColor(selected) }" />
-                <span class="font-display text-lg font-semibold">{{ selected.label }}</span>
+                <span class="font-display text-lg font-semibold" :title="selected.label">{{ entrantShortLabel(selected) }}</span>
               </span>
               <span class="chip">#{{ selectedRank }} of {{ entries.length }}</span>
               <span class="chip" :style="{ color: LEVEL_COLORS[selected.metrics.model.observer_level] }">
@@ -153,6 +180,10 @@ function onHumanScore(score: number, live: boolean) {
               <WatchChampion
                 :key="selected.entrant_id"
                 :run-id="selected.run_id ?? undefined"
+                :packaged="models.availability.value[selected.entrant_id] ?? null"
+                :packaged-loading="!models.catalog.value && !models.error.value"
+                @model-failed="(f) => models.reportFailure(f.packageId, f.variantId, f.backend as 'wasm' | 'webgpu', f.message)"
+                @retry-failed="models.retryFailed"
                 :baseline="
                   baselineName(selected)
                     ? { name: baselineName(selected)!, interface: selected.interface, description: selected.metrics.model.description }
@@ -171,9 +202,18 @@ function onHumanScore(score: number, live: boolean) {
             <h2 class="font-display text-base font-semibold">🏆 Leaderboard</h2>
             <a href="#leaderboard" class="text-xs text-fg-subtle hover:text-fg">full table ↓</a>
           </div>
+          <label v-if="entries.length && models.catalog.value" class="mb-2 flex items-center gap-2 px-1 text-xs text-fg-subtle">
+            <input v-model="onlyRunnable" type="checkbox" class="accent-queen-500" />
+            Only what runs on this device
+            <span v-if="models.profile.value" class="ml-auto truncate font-mono text-[10px]" :title="models.profile.value.webgpu.reason ?? ''">
+              {{ models.profile.value.webgpu.available ? "WebGPU" : "no WebGPU" }} ·
+              {{ models.profile.value.wasm ? `WASM${models.profile.value.threads ? " threads" : ""}` : "no WASM" }}
+            </span>
+          </label>
           <LeaderboardList
-            v-if="entries.length"
-            :entries="entries"
+            v-if="listed.length"
+            :entries="listed"
+            :runs-here="runsHere"
             :selected-id="mode === 'watch' ? selected?.entrant_id : null"
             :human="human"
             @select="watchEntrant"

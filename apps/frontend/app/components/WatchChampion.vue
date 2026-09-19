@@ -6,12 +6,17 @@
 //
 // Laid out with a container query, not viewport breakpoints: the same component sits in a wide
 // hero column and a narrower run-page column, and should adapt to the space it's actually given.
+import type { Availability } from "~/composables/useModelCatalog"
+import type { ModelFailure } from "~/composables/useSnakeSession"
+import { formatBytes } from "~/inference/match"
 import { SNAKE_INPUT_LABELS, SNAKE_OUTPUT_LABELS } from "~/utils/snakePolicy"
 import { activations as neatActivations, complexity as neatComplexity } from "~/utils/neat"
 
 // Plays either a run's champion (runId) or a fixed baseline (baseline + its interface) -- every kind
 // of leaderboard entrant. Which one is decided at setup: key this component by entrant so switching
-// remounts it (the Pyodide worker itself is shared and stays warm).
+// remounts it (the session worker itself is shared and stays warm). A champion plays as a model
+// package in ONNX Runtime (docs/design/0009) -- `packaged` when the page has the published one,
+// otherwise exported on demand -- or the panel explains why this device can't run it.
 const props = withDefaults(
   defineProps<{
     runId?: string
@@ -19,14 +24,29 @@ const props = withDefaults(
     manageStream?: boolean
     pinnedGeneration?: number | null
     showNetwork?: boolean
+    packaged?: Availability | null
+    // The page is still loading its model catalog: wait for it rather than start the Python path.
+    packagedLoading?: boolean
   }>(),
-  { runId: undefined, baseline: undefined, manageStream: true, pinnedGeneration: null, showNetwork: true },
+  {
+    runId: undefined,
+    baseline: undefined,
+    manageStream: true,
+    pinnedGeneration: null,
+    showNetwork: true,
+    packaged: null,
+    packagedLoading: false,
+  },
 )
-const emit = defineEmits<{ unpin: [] }>()
+const emit = defineEmits<{ unpin: []; modelFailed: [failure: ModelFailure]; retryFailed: [] }>()
 
 const session = props.baseline
   ? useBaselineSession(props.baseline.name, props.baseline.interface)
-  : useWatchSession(props.runId!, { manageStream: props.manageStream })
+  : useWatchSession(props.runId!, {
+      manageStream: props.manageStream,
+      packaged: () => (props.packagedLoading ? undefined : props.packaged),
+      onModelFailure: (failure) => emit("modelFailed", failure),
+    })
 const {
   loading,
   error,
@@ -41,6 +61,12 @@ const {
   policy,
   targetStats,
   pinnedGeneration: sessionPinned,
+  unsupported,
+  awaitingConfirmation,
+  source,
+  currentPackage,
+  modelProgress,
+  modelStatus,
 } = session
 
 watch(
@@ -72,8 +98,23 @@ const neatLive = computed(() => {
 })
 const neatSize = computed(() => (policy.value?.genome ? neatComplexity(policy.value.genome) : null))
 
-const loadingMessage = computed(() =>
-  targetStats.value || props.baseline ? "Starting the Python runtime (first load ~10s)…" : "Fetching the champion…",
+const loadingMessage = computed(() => {
+  if (props.packagedLoading || (props.packaged && !props.packaged.match)) return "Checking what this device can run…"
+  return targetStats.value || props.baseline ? "Starting the game…" : "Fetching the champion…"
+})
+
+const progressLabel = computed(() => {
+  const p = modelProgress.value
+  if (!p) return null
+  if (p.stage === "runtime") return "Loading ONNX Runtime…"
+  if (p.stage === "download") return `Downloading model · ${formatBytes(p.loaded ?? 0)} / ${formatBytes(p.total ?? 0)}`
+  if (p.stage === "compile") return "Compiling the model…"
+  return "Checking it against the reference…"
+})
+
+// The variant actually running, for the runtime panel (what was published vs. what this device got).
+const runningVariant = computed(() =>
+  currentPackage.value?.manifest?.variants.find((v) => v.id === modelStatus.value?.variantId) ?? null,
 )
 </script>
 
@@ -87,6 +128,37 @@ const loadingMessage = computed(() =>
           <button class="btn-ghost btn-sm" @click="session.retry">Retry</button>
         </div>
         <div
+          v-else-if="unsupported"
+          data-unsupported
+          class="card flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center"
+        >
+          <p class="eyebrow">Can't run on this device</p>
+          <p class="max-w-sm text-sm text-fg">{{ unsupported.summary }}</p>
+          <ul v-if="unsupported.rejected.length > 1" class="max-w-sm space-y-1 text-left text-xs text-fg-subtle">
+            <li v-for="(r, i) in unsupported.rejected" :key="i">
+              <span class="font-mono">{{ r.variant }}{{ r.backend ? ` · ${r.backend}` : "" }}</span> — {{ r.message }}
+            </li>
+          </ul>
+          <p class="max-w-sm text-xs text-fg-subtle">
+            Every other entrant this device can run is still watchable from the leaderboard.
+          </p>
+          <button
+            v-if="unsupported.rejected.some((r) => r.code === 'failed-before')"
+            class="btn-ghost btn-sm"
+            @click="emit('retryFailed')"
+          >
+            Try again anyway
+          </button>
+        </div>
+        <div
+          v-else-if="awaitingConfirmation !== null"
+          class="card flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center"
+        >
+          <p class="text-sm text-fg">This model is a {{ formatBytes(awaitingConfirmation) }} download.</p>
+          <p class="max-w-sm text-xs text-fg-subtle">It runs entirely in your browser and is cached after the first time.</p>
+          <button class="btn-ghost btn-sm" @click="session.confirmDownload">Download and watch</button>
+        </div>
+        <div
           v-else-if="loading || !renderState"
           class="card relative flex aspect-square flex-col items-center justify-center gap-3 overflow-hidden"
         >
@@ -96,6 +168,12 @@ const loadingMessage = computed(() =>
         </div>
         <template v-else>
           <GridBoard :state="renderState" :tick-ms="tickMs" />
+          <div
+            v-if="progressLabel"
+            class="absolute inset-0 flex items-center justify-center rounded-xl bg-bg/70 text-sm text-fg-muted backdrop-blur-sm"
+          >
+            {{ progressLabel }}
+          </div>
           <div data-board-overlay class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
             <span class="chip border-line-strong bg-bg/80 backdrop-blur">
               <span class="size-1.5 rounded-full bg-gold-400" />
@@ -158,6 +236,30 @@ const loadingMessage = computed(() =>
           <button v-if="sessionPinned !== null" class="btn-ghost btn-sm ml-auto" @click="emit('unpin')">
             Follow latest champion
           </button>
+        </div>
+
+        <div v-if="!baseline && source" data-runtime class="rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
+          <template v-if="modelStatus">
+            <p class="text-fg">
+              Running in your browser · ONNX Runtime ·
+              <span class="font-mono">{{ modelStatus.variantId }}</span> on
+              <span class="font-mono">{{ modelStatus.backend }}</span>
+            </p>
+            <p class="mt-0.5 text-fg-subtle">
+              {{ formatBytes(runningVariant?.requirements.download_bytes ?? 0) }} · loaded in {{ Math.round(modelStatus.loadMs) }} ms
+              <template v-if="modelStatus.selfTest">
+                · self-test max |Δ| {{ modelStatus.selfTest.maxAbsError.toExponential(1) }} on {{ modelStatus.selfTest.samples }} samples
+              </template>
+              <template v-if="runningVariant?.parity.action_agreement != null">
+                · {{ (runningVariant.parity.action_agreement * 100).toFixed(runningVariant.parity.action_agreement === 1 ? 0 : 2) }}% same
+                moves as the trained model
+              </template>
+              <template v-else-if="source === 'on-demand'">
+                · exported on demand (not a published package, so not checked move-for-move)
+              </template>
+            </p>
+          </template>
+          <p v-else class="text-fg-subtle">Loading the model package…</p>
         </div>
 
         <div v-if="baseline" class="rounded-lg border border-line bg-sunken p-4 text-sm">

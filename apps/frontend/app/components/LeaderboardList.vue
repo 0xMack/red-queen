@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { EvaluationRecord } from "~/types/leaderboard"
+import type { DeviceFit } from "~/types/modelpack"
 
 // Compact, rank-ordered leaderboard for the game page's side panel. Doubles as the "what am I
 // watching" selector (click an entrant to play it), and -- when `human` is set -- slots the
 // player in by score, animating their row up the ranking as they play (TransitionGroup moves rows
-// with a FLIP transition whenever the order changes).
+// with a FLIP transition whenever the order changes). `runsHere` (docs/design/0009) marks entrants
+// this device can't run -- still listed, with the reason on hover, never hidden unless asked.
 const props = defineProps<{
   entries: EvaluationRecord[]
   selectedId?: string | null
   human?: { score: number; label: string; live: boolean } | null
+  runsHere?: Record<string, DeviceFit>
 }>()
 defineEmits<{ select: [entrantId: string] }>()
 
@@ -20,6 +23,7 @@ interface Row {
   err: number
   color: string
   human: boolean
+  fit: DeviceFit | null
 }
 
 const rows = computed<Row[]>(() => {
@@ -31,6 +35,7 @@ const rows = computed<Row[]>(() => {
     err: r.metrics.quality.ci95,
     color: entrantColor(r),
     human: false,
+    fit: props.runsHere?.[r.entrant_id] ?? null,
   }))
   if (props.human) {
     list.push({
@@ -41,6 +46,7 @@ const rows = computed<Row[]>(() => {
       err: 0,
       color: HUMAN_COLOR,
       human: true,
+      fit: null,
     })
   }
   // Stable for ties: the human only passes an entrant by strictly beating its mean.
@@ -62,7 +68,9 @@ const scale = computed(() => Math.max(1, ...rows.value.map((r) => r.value + r.er
           : selectedId === row.key
             ? 'bg-raised ring-1 ring-line-strong'
             : 'cursor-pointer hover:bg-raised/60',
+        row.fit && !row.fit.ok ? 'opacity-55' : '',
       ]"
+      :title="row.fit?.note"
       @click="!row.human && $emit('select', row.key)"
     >
       <span class="num w-5 text-right text-xs text-fg-subtle">{{ i + 1 }}</span>
@@ -72,6 +80,7 @@ const scale = computed(() => Math.max(1, ...rows.value.map((r) => r.value + r.er
         <p class="truncate font-mono text-[10px] text-fg-subtle">
           <template v-if="!row.human && selectedId === row.key"><span class="text-queen-300">● watching</span> · </template>{{ row.sub }}
         </p>
+        <p v-if="row.fit && !row.fit.ok" data-cant-run class="truncate text-[10px] text-queen-300">✕ can't run here · {{ row.fit.note }}</p>
         <div class="mt-1 h-1 overflow-hidden rounded-full bg-sunken">
           <div
             class="h-full rounded-full transition-[width] duration-500"

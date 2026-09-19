@@ -17,3 +17,16 @@ def run_data_dir() -> Path:
     """
     override = os.environ.get("REDQUEEN_RUN_DATA_DIR")
     return Path(override) if override else Path("jobs/run-data")
+
+
+def models_dir() -> Path:
+    """The local model store (docs/design/0009) -- written by jobs/publish_models.py. Override with
+    REDQUEEN_MODELS_DIR."""
+    override = os.environ.get("REDQUEEN_MODELS_DIR")
+    return Path(override) if override else run_data_dir() / "models"
+
+
+def models_base_url() -> str | None:
+    """Where clients fetch package blobs and manifests from. Unset (development) means this backend's
+    own `/models` routes; a deployment points it at the bucket/CDN the store was uploaded to."""
+    return os.environ.get("REDQUEEN_MODELS_BASE_URL") or None

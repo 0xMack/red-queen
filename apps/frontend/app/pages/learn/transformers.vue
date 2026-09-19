@@ -137,6 +137,16 @@ const samples = [
       learned, not templated: every sample above is unedited output.
     </p>
 
+    <h2>Running it in your browser</h2>
+    <p>
+      The trained checkpoint is exported to ONNX -- the same forward pass, plus a <strong>KV cache</strong> so
+      each new character only computes attention for itself instead of re-reading the whole window -- and
+      runs on your own device via ONNX Runtime (docs/design/0009). The int8 variant stores its weights as
+      8-bit integers: less than half the download, at the cost of predicting a different next character
+      than the trained model about 2% of the time on held-out text. Pick either and compare.
+    </p>
+    <ClientOnly><TinyLMPlayground /></ClientOnly>
+
     <Callout variant="note" title="Why this one isn't on the leaderboard (yet)">
       Every other model in this project is evolved and plugs into <code>evolve</code>,
       <code>telemetry</code>, and the games. The transformer deliberately doesn't yet (docs/design/0004):

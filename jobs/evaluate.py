@@ -3,12 +3,17 @@ record a vector of measurements -- quality, inference cost, training cost -- not
 
 Entrants for Snake today:
 - every Snake run's final champion, under the interface recorded in its config (see
-  jobs/backfill_interfaces.py for pre-0007 runs);
+  jobs/backfill_interfaces.py for pre-0007 runs). Once published (jobs/publish_models.py), a champion
+  is evaluated *as its model package*, run by ONNX Runtime -- the exact bytes a visitor's browser
+  downloads (docs/design/0009) -- and each package variant that plays differently from the champion
+  is an entrant of its own (`run:<id>@fp32`);
 - fixed baselines (random, greedy) -- always included, since a ranking says nothing without them.
 
-Protocol `snake.score.v1`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
+Protocol `snake.score.v2`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
 10x10 board, MAX_STEPS cap, metric = game score (food eaten), never training fitness. Changing any of
-that means a new protocol version, not an edit.
+that means a new protocol version, not an edit. v2 is v1's definition unchanged, played by the Rust
+game core (docs/design/0009): its PCG32 food placement turns each seed into a different game than
+v1's Mersenne Twister did, so v1 and v2 scores are not comparable.
 
 Run with: uv run python jobs/evaluate.py
 """
@@ -27,6 +32,7 @@ from evolve.networks import describe, parameter_count
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
+from modelpack import LocalModelStore, ModelStore, PackagedModel
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
@@ -38,7 +44,7 @@ from telemetry import (
 
 RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
-PROTOCOL = "snake.score.v1"
+PROTOCOL = "snake.score.v2"
 HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
 # A second, separate unseen set for *monitoring* training runs (snake_neuro_run.py's held-out score
 # every N generations). Kept apart from HELD_OUT_SEEDS so the leaderboard's games stay untouched even
@@ -183,6 +189,17 @@ def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
     }
 
 
+def model_shape(network, algorithm: str, selection: str | None) -> dict[str, Any]:
+    """algorithm + size facts: hidden nodes/connections for an evolved graph, layer sizes for a fixed MLP."""
+    from evolve.neat import NeatGenome
+
+    if isinstance(network, NeatGenome):
+        hidden, connections = network.complexity()
+        return {"algorithm": algorithm, "selection": selection, "hidden_nodes": hidden, "connections": connections,
+                "inputs": network.num_inputs, "outputs": network.num_outputs}
+    return {"algorithm": algorithm, "selection": selection, "layer_sizes": list(network.layer_sizes)}
+
+
 def champion_entrants(
     registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore, game: str
 ) -> list[dict[str, Any]]:
@@ -229,6 +246,9 @@ def champion_entrants(
                     else f"MLP {network}, tanh ({representation})"
                 ),
                 "parameters": parameter_count(champion),
+                # Structured, so every UI names a model the same way (apps/frontend utils/modelLabel.ts)
+                # instead of parsing `label`.
+                "shape": model_shape(champion, kind, selection),
                 "artifact_bytes": len(raw),
                 # None for resampled runs (no fixed training set, so no train-vs-held-out gap to show).
                 "training_seeds": run.config.get("training_seeds", list(BENCHMARK_SEEDS)) or [],
@@ -238,6 +258,45 @@ def champion_entrants(
     return entrants
 
 
+def packaged_entrants(entrants: list[dict[str, Any]], store: ModelStore, game: str) -> list[dict[str, Any]]:
+    """Swap each published champion for its model package (docs/design/0009): the entrant keeps its
+    id but decides through ONNX Runtime running the package's first exact variant, and every other
+    catalog entry for the same run (a variant that plays differently) becomes an extra entrant. Champions
+    without a package -- or with no variant that plays exactly like them -- also stay ranked as
+    themselves (pure-Python forward pass)."""
+    catalog = store.catalog(game)
+    result = []
+    for entrant in entrants:
+        run_id = entrant["run"].run_id
+        entries = [e for e in catalog.entries if e.run_id == run_id and e.champion_ref == entrant["champion_ref"]]
+        if not any(e.entrant_id == entrant["entrant_id"] for e in entries):
+            # Unpublished, or no variant plays exactly like the champion: rank the champion itself.
+            result.append({**entrant, "runtime": "python"})
+        interface = interfaces.get(entrant["interface"])
+        for entry in entries:
+            manifest = store.manifest(entry.package_id)
+            variant = entry.variants[0]
+            model = PackagedModel(manifest, variant, store.read_blob)
+
+            def factory(_seed: int, model=model, interface=interface) -> Policy:
+                return lambda observation: interface.action.decode(model.forward(observation))
+
+            result.append(
+                {
+                    **entrant,
+                    "entrant_id": entry.entrant_id,
+                    "label": entry.label,
+                    "factory": factory,
+                    "artifact_bytes": manifest.variant(variant).requirements.download_bytes,
+                    "runtime": f"onnxruntime-cpu {variant}",
+                    "package_id": entry.package_id,
+                    "variant": variant,
+                    "variants": entry.variants,
+                }
+            )
+    return result
+
+
 def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, hardware: dict[str, Any]) -> EvaluationRecord:
     interface = interfaces.get(entrant["interface"])
     run: RunInfo | None = entrant.get("run")
@@ -245,6 +304,7 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
     inference = measure_inference(interface, entrant["factory"])
     inference["parameters"] = entrant.get("parameters", 0)
     inference["artifact_bytes"] = entrant.get("artifact_bytes", 0)
+    inference["runtime"] = entrant.get("runtime", "python")
     training = training_cost(run, metrics) if run and metrics else {"measured": True, "none": True}
     level = interface.observer.level
     return EvaluationRecord(
@@ -263,8 +323,12 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
             "training": training,
             "model": {
                 "description": entrant["model"],
+                "shape": entrant.get("shape"),
                 "observer_level": level,
                 "note": entrant.get("note"),
+                "package_id": entrant.get("package_id"),
+                "variant": entrant.get("variant"),
+                "variants": entrant.get("variants"),
             },
             "protocol": {
                 "held_out_seeds": [HELD_OUT_SEEDS[0], HELD_OUT_SEEDS[-1]],
@@ -285,7 +349,9 @@ def main() -> None:
     store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
     hardware = hardware_fingerprint()
 
-    entrants = [*baseline_entrants("snake"), *champion_entrants(registry, metrics, artifacts, "snake")]
+    models = LocalModelStore(RUN_DATA_DIR / "models")
+    champions = packaged_entrants(champion_entrants(registry, metrics, artifacts, "snake"), models, "snake")
+    entrants = [*baseline_entrants("snake"), *champions]
     for entrant in entrants:
         record = evaluate_entrant(entrant, metrics, hardware)
         store.put(record)

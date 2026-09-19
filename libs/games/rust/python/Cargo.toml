@@ -1,0 +1,15 @@
+[package]
+name = "games-native"
+description = "PyO3 bindings: the `games._native` extension module of the `games` Python package."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+redqueen-games = { path = "../core" }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py311"] }

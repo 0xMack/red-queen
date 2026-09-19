@@ -20,7 +20,7 @@ separate processes -- they only share the SQLite run registry, which serializes 
   uv run python jobs/snake_experiment.py report --name NAME     # aggregates + writes run-data/experiments/NAME.json
 
 The report scores each run's *final* champion on the 200 leaderboard games (jobs/evaluate.py's
-HELD_OUT_SEEDS, protocol snake.score.v1) -- never the best-looking generation, which would be
+HELD_OUT_SEEDS, protocol evaluate.PROTOCOL) -- never the best-looking generation, which would be
 selecting on the test set.
 """
 
@@ -36,7 +36,7 @@ from typing import Any
 
 import snake_neat_run
 import snake_neuro_run
-from evaluate import measure_quality
+from evaluate import PROTOCOL, measure_quality
 from evolve import NeatConfig, network_from_json
 from evolve.networks import parameter_count
 from games import interfaces
@@ -218,7 +218,7 @@ def build_report(name: str) -> dict[str, Any]:
         arms[arm] = entry
     return {
         "name": name,
-        "protocol": "snake.score.v1 (200 held-out games per run, final champion)",
+        "protocol": f"{PROTOCOL} (200 held-out games per run, final champion)",
         "setup": {
             "interface": INTERFACE,
             "training": SEED_STRATEGY,

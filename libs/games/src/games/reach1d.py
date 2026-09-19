@@ -4,9 +4,16 @@ An agent with (position, velocity) must reach and stay near a fixed target by ch
 acceleration each step. Implements evolve.simulation.Environment's reset()/step() shape
 (docs/design/0002) -- this package never imports evolve; the dependency points the other way, from
 a SimulationFitnessEvaluator to this environment, same shape as evolve/telemetry.
+
+The dynamics run in the Rust game core (rust/core/src/reach1d.rs, docs/design/0009); this is its
+Python face.
 """
 
 from __future__ import annotations
+
+import copy
+
+from games import _native
 
 
 class ReachTarget1D:
@@ -25,29 +32,40 @@ class ReachTarget1D:
         self.dt = dt
         self.max_acceleration = max_acceleration
         self.damping = damping
-        self.position = start_position
-        self.velocity = start_velocity
+        self._core = _native.Reach1DCore(target, start_position, start_velocity, dt, max_acceleration, damping)
+
+    def __copy__(self):
+        # The state lives in the native core, so even a "shallow" copy must not share it.
+        return copy.deepcopy(self)
+
+    @property
+    def position(self) -> float:
+        return self._core.position
+
+    @position.setter
+    def position(self, value: float) -> None:
+        self._core.position = value
+
+    @property
+    def velocity(self) -> float:
+        return self._core.velocity
+
+    @velocity.setter
+    def velocity(self, value: float) -> None:
+        self._core.velocity = value
 
     def reset(self) -> tuple[float, float]:
-        self.position = self.start_position
-        self.velocity = self.start_velocity
-        return self._observation()
+        return self._core.reset()
 
     def step(self, action: float) -> tuple[tuple[float, float], float, bool]:
-        """`action` is clamped to [-1, 1] and scaled by `max_acceleration`."""
-        acceleration = max(-1.0, min(1.0, action)) * self.max_acceleration
-        self.velocity = (self.velocity + acceleration * self.dt) * self.damping
-        self.position += self.velocity * self.dt
-        reward = -abs(self.position - self.target)
-        return self._observation(), reward, False
+        """`action` is clamped to [-1, 1] and scaled by `max_acceleration`.
 
-    def _observation(self) -> tuple[float, float]:
-        # Position relative to the target, not raw position: two episodes with the same start
-        # position but different targets are otherwise observationally identical at reset (same
-        # (position, velocity)) despite needing opposite actions -- no policy can solve both from
-        # that observation, no matter how it's evolved. Found by actually running neuroevolution
-        # against this environment and noticing two benchmark scenarios could never both improve.
-        return (self.position - self.target, self.velocity)
+        Observation is position *relative to the target*, not raw position: two episodes with the same
+        start position but different targets are otherwise observationally identical at reset despite
+        needing opposite actions -- no policy can solve both from that observation, no matter how it's
+        evolved. Found by actually running neuroevolution against this environment."""
+        observation, reward = self._core.step(float(action))
+        return observation, reward, False
 
 
 def benchmark_environments() -> list[ReachTarget1D]:
