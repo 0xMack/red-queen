@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -95,13 +95,16 @@ class Provenance(BaseModel):
 class ModelManifest(BaseModel):
     format_version: int = FORMAT_VERSION
     package_id: str = Field("", description="sha256 of this manifest with package_id empty")
+    kind: Literal["policy", "causal-lm"] = Field("policy", description="how a client drives it: one decision per call, or token-by-token generation with a KV cache")
     label: str
     description: str
     interface: str | None = Field(None, description="docs/design/0007 interface id the model runs under")
     parameters: int
     provenance: Provenance
     variants: list[Variant] = Field(..., min_length=1)
-    parity_fixture: Blob | None = Field(None, description="JSON {inputs, outputs} a client can self-test against")
+    parity_fixture: Blob | None = Field(None, description="JSON a client can self-test against: {inputs, outputs} for a policy, {input_ids, logits} for a causal LM")
+    config: dict[str, Any] = Field(default_factory=dict, description="architecture facts a client needs to drive the model (e.g. an LM's layers, heads, max_seq_len)")
+    assets: dict[str, Blob] = Field(default_factory=dict, description="other files the model needs, by role (e.g. 'tokenizer')")
 
     def variant(self, variant_id: str) -> Variant:
         for v in self.variants:
@@ -113,6 +116,7 @@ class ModelManifest(BaseModel):
         found: list[Blob] = [b for v in self.variants for b in (v.graph, *v.shards)]
         if self.parity_fixture:
             found.append(self.parity_fixture)
+        found.extend(self.assets.values())
         return found
 
     def canonical_json(self) -> str:

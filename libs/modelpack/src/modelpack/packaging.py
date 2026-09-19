@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import onnx
+from onnx import numpy_helper
 from onnx.external_data_helper import set_external_data
 
 from modelpack.exporters import INPUT, OUTPUT, Exported
@@ -30,6 +31,7 @@ from modelpack.runtime import PackagedModel
 
 DEFAULT_SHARD_BYTES = 32 * 1024 * 1024  # small enough to resume cheaply, big enough to keep request counts low
 SHARD_ALIGNMENT = 64
+INLINE_BELOW_BYTES = 1024  # the onnx library's own default for save_as_external_data
 # Per-dtype gate on max |exported - reference|. It catches a *wrong* export (a transposed matrix, a
 # missing bias: errors of order 0.1), not rounding; whether rounding changes decisions is what the
 # publishing job's action-agreement check measures. fp32 against a float64 reference lands around
@@ -57,15 +59,31 @@ def _blob(data: bytes) -> Blob:
     return Blob(sha256=sha256(data), bytes=len(data))
 
 
+def stays_inline(tensor: onnx.TensorProto) -> bool:
+    """Small tensors and integer tensors stay in the graph. Integer initializers are shapes, indexes and
+    axes that ONNX Runtime Web needs *while resolving the graph* (a Reshape's target shape), before
+    external data is attached -- sharding one fails session creation with "Cannot parse data from
+    external tensors" (found running TinyLM in the browser; the Python runtime inlines everything first,
+    so it never saw this). Small float tensors aren't worth a lookup."""
+    if tensor.data_type not in (onnx.TensorProto.FLOAT, onnx.TensorProto.DOUBLE, onnx.TensorProto.FLOAT16):
+        return True
+    return len(tensor.raw_data) < INLINE_BELOW_BYTES
+
+
 def shard_initializers(model: onnx.ModelProto, shard_bytes: int = DEFAULT_SHARD_BYTES) -> tuple[onnx.ModelProto, list[WeightShard], dict[str, bytes]]:
-    """Move every initializer into external shard files named `weights/<sha256>.bin`. Tensors are never
-    split across shards; one larger than `shard_bytes` gets a shard of its own."""
+    """Move every weight initializer into external shard files named `weights/<sha256>.bin` (small and
+    integer tensors stay inline, `stays_inline`). Tensors are never split across shards; one larger than
+    `shard_bytes` gets a shard of its own."""
     model = onnx.ModelProto.FromString(model.SerializeToString())  # don't mutate the caller's
     groups: list[list[onnx.TensorProto]] = [[]]
     sizes = [0]
     for tensor in model.graph.initializer:
         if not tensor.HasField("raw_data"):
-            raise ValueError(f"initializer {tensor.name} has no raw_data (build it with numpy_helper.from_array)")
+            # Some producers (e.g. ONNX Runtime's quantizer) write small tensors as typed fields;
+            # normalize so every initializer is handled the same way.
+            tensor.CopyFrom(numpy_helper.from_array(numpy_helper.to_array(tensor), tensor.name))
+        if stays_inline(tensor):
+            continue
         size = len(tensor.raw_data)
         if groups[-1] and sizes[-1] + size > shard_bytes:
             groups.append([])

@@ -12,11 +12,15 @@ Writes to a `LocalModelStore` at jobs/run-data/models (served by apis/backend in
 game's catalog maps each entrant to its package. Re-running is idempotent: identical exports are
 identical packages.
 
-Run with: uv run python jobs/publish_models.py   (then re-run jobs/evaluate.py)
+Also publishes every TinyLM checkpoint under jobs/run-data/tinylm (jobs/tinylm_run.py) to the
+`tinylm` catalog: fp32 and int8 variants, checked on the corpus's held-out text (modelpack.lm).
+
+Run with: uv run python jobs/publish_models.py [snake|tinylm]   (then re-run jobs/evaluate.py)
 """
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -190,5 +194,60 @@ def main(game: str = "snake") -> None:
     print(f"catalog: {store.catalog_path(game)} ({len(catalog.entries)} entries)")
 
 
+def publish_tinylm(store: LocalModelStore) -> None:
+    import tinylm
+    from modelpack.lm import LMConfig, build_lm_package
+    from tinylm.checkpoint import named_parameters
+    from tinylm_run import SEQ_LEN, split_corpus
+
+    catalog = store.catalog("tinylm")
+    for checkpoint in sorted((RUN_DATA_DIR / "tinylm").glob("*.npz")):
+        started = time.perf_counter()
+        model, tokenizer, meta = tinylm.load(checkpoint.with_suffix(""))
+        _, _, held_out = split_corpus()
+        # Non-overlapping held-out windows, full context length -- text the checkpoint never saw.
+        count = len(held_out) // SEQ_LEN
+        windows = held_out[: count * SEQ_LEN].reshape(count, SEQ_LEN)
+        config = LMConfig(**meta["config"])
+        package = build_lm_package(
+            named_parameters(model),
+            config,
+            [tokenizer.decode([i]) for i in range(tokenizer.vocab_size)],
+            lambda w: model(w).data,
+            windows,
+            label=f"TinyLM {meta['name']} · {meta['parameters']:,} params",
+            description=(
+                f"Character-level transformer, {config.n_layers} layers x {config.n_heads} heads, d_model {config.d_model}, "
+                f"{config.max_seq_len}-character context; trained from scratch (libs/autodiff) on Alice in Wonderland, "
+                f"held-out loss {meta['held_out_loss']}."
+            ),
+            provenance={"run_id": None, "champion_ref": checkpoint.name},
+        )
+        store.put(package)
+        manifest = package.manifest
+        catalog.upsert(
+            CatalogEntry(
+                entrant_id=f"tinylm:{meta['name']}",
+                package_id=manifest.package_id,
+                label=manifest.label,
+                interface=manifest.interface,
+                champion_ref=checkpoint.name,
+                variants=[v.id for v in manifest.variants],
+                download_bytes={v.id: v.requirements.download_bytes for v in manifest.variants},
+            )
+        )
+        print(f"{manifest.label}  ->  {manifest.package_id[:12]}  ({time.perf_counter() - started:.1f}s)")
+        for v in manifest.variants:
+            print(
+                f"    {v.id}: {v.requirements.download_bytes:>9,} B  max|Δlogit| {v.parity.max_abs_error:.1e}  "
+                f"top-1 agreement {v.parity.action_agreement:.4f} over {v.parity.decisions} held-out positions"
+            )
+    store.put_catalog(catalog)
+
+
 if __name__ == "__main__":
-    main()
+    which = sys.argv[1:] or ["snake", "tinylm"]
+    if "snake" in which:
+        main()
+    if "tinylm" in which:
+        publish_tinylm(LocalModelStore(MODELS_DIR))

@@ -53,6 +53,7 @@ export interface Variant {
 export interface ModelManifest {
   format_version: number
   package_id: string
+  kind: "policy" | "causal-lm"
   label: string
   description: string
   interface: string | null
@@ -66,6 +67,19 @@ export interface ModelManifest {
   }
   variants: Variant[]
   parity_fixture: Blob | null
+  config: Record<string, unknown>
+  assets: Record<string, Blob>
+}
+
+// manifest.config of a causal LM (modelpack/lm.py).
+export interface LMConfig {
+  vocab_size: number
+  max_seq_len: number
+  d_model: number
+  n_heads: number
+  n_layers: number
+  d_hidden: number
+  head_dim: number
 }
 
 export interface CatalogEntry {

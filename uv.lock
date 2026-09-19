@@ -1731,6 +1731,7 @@ dependencies = [
     { name = "onnx" },
     { name = "onnxruntime" },
     { name = "pydantic" },
+    { name = "tinylm" },
 ]
 
 [package.metadata]
@@ -1740,6 +1741,7 @@ requires-dist = [
     { name = "onnx", specifier = ">=1.17" },
     { name = "onnxruntime", specifier = ">=1.22" },
     { name = "pydantic", specifier = ">=2" },
+    { name = "tinylm", editable = "libs/tinylm" },
 ]
 
 [[package]]

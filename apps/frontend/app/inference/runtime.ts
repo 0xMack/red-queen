@@ -15,7 +15,8 @@ import ortWebGpuWasm from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?
 import { fetchBlob, fetchBlobs } from "~/inference/blobs"
 import type { Backend, ModelSpec, TensorDtype } from "~/types/modelpack"
 
-type Ort = typeof OrtNamespace
+export type Ort = typeof OrtNamespace
+export type Session = OrtNamespace.InferenceSession
 
 // Below this download size a model runs single-threaded: waking worker threads costs more than a
 // tiny matmul (and threads need cross-origin isolation anyway).
@@ -55,9 +56,18 @@ export interface LoadedModel {
   variantId: string
   loadMs: number
   selfTest: { samples: number; maxAbsError: number; tolerance: number } | null
-  // One batch of rows in, one batch of rows out (plain numbers: the game side speaks JSON-ish arrays).
+  // The raw session, for models driven by more than one tensor (a language model's cache, app/inference/lm.ts).
+  ort: Ort
+  session: Session
+  // A policy's one-input/one-output call: a batch of rows in, a batch of rows out.
   run(rows: number[][]): Promise<number[][]>
   release(): Promise<void>
+}
+
+export interface LoadOptions {
+  // Outputs to leave on the GPU under WebGPU (a language model's KV cache: it goes straight back in as
+  // the next step's input, so reading it back to the CPU every token would be pure waste).
+  gpuOutputs?: string[]
 }
 
 export interface LoadProgress {
@@ -66,7 +76,11 @@ export interface LoadProgress {
   total?: number
 }
 
-export async function loadModel(spec: ModelSpec, onProgress?: (p: LoadProgress) => void): Promise<LoadedModel> {
+export async function loadModel(
+  spec: ModelSpec,
+  onProgress?: (p: LoadProgress) => void,
+  options: LoadOptions = {},
+): Promise<LoadedModel> {
   const started = performance.now()
   const variant = spec.manifest.variants.find((v) => v.id === spec.variantId)
   if (!variant) throw new Error(`package ${spec.manifest.package_id.slice(0, 12)} has no variant ${spec.variantId}`)
@@ -80,20 +94,22 @@ export async function loadModel(spec: ModelSpec, onProgress?: (p: LoadProgress) 
   )
 
   onProgress?.({ stage: "compile" })
+  const gpuOutputs = spec.backend === "webgpu" && options.gpuOutputs?.length ? options.gpuOutputs : null
   const session = await ort.InferenceSession.create(graph!, {
     executionProviders: [spec.backend],
     graphOptimizationLevel: "all",
     externalData: variant.shards.map((s, i) => ({ path: s.path, data: shards[i]! })),
+    ...(gpuOutputs ? { preferredOutputLocation: Object.fromEntries(gpuOutputs.map((name) => [name, "gpu-buffer" as const])) } : {}),
   })
 
   const input = variant.inputs[0]!
   const output = variant.outputs[0]!
   const dtype = input.dtype as TensorDtype
-  const ArrayType = ARRAYS[dtype as keyof typeof ARRAYS]
-  if (!ArrayType) throw new Error(`unsupported input dtype ${dtype}`)
   const width = Number(input.shape[1])
 
   async function run(rows: number[][]): Promise<number[][]> {
+    const ArrayType = ARRAYS[dtype as keyof typeof ARRAYS]
+    if (!ArrayType) throw new Error(`run() is for one-input policies; this model's first input is ${dtype}`)
     const flat = new ArrayType(rows.length * width)
     rows.forEach((row, r) => flat.set(row, r * width))
     const feeds = { [input.name]: new ort.Tensor(dtype as "float32", flat as Float32Array, [rows.length, width]) }
@@ -111,7 +127,17 @@ export async function loadModel(spec: ModelSpec, onProgress?: (p: LoadProgress) 
   // observations. Catches a backend that loads but computes something else (driver bugs, precision
   // lost somewhere) before a visitor is shown a model playing differently from its leaderboard entry.
   let selfTest: LoadedModel["selfTest"] = null
-  if (spec.manifest.parity_fixture) {
+  if (spec.manifest.parity_fixture && spec.manifest.kind === "causal-lm") {
+    onProgress?.({ stage: "self-test" })
+    const { selfTestLM } = await import("~/inference/lm")
+    selfTest = await selfTestLM(ort, session, spec, variant.parity.tolerance)
+    if (!(selfTest.maxAbsError <= selfTest.tolerance)) {
+      await session.release()
+      throw new Error(
+        `self-test failed on ${spec.backend}: logits differ from the reference by ${selfTest.maxAbsError.toExponential(2)} (allowed ${selfTest.tolerance})`,
+      )
+    }
+  } else if (spec.manifest.parity_fixture) {
     onProgress?.({ stage: "self-test" })
     const fixture = JSON.parse(new TextDecoder().decode(await fetchBlob(spec.baseUrl, spec.manifest.parity_fixture))) as {
       inputs: number[][]
@@ -134,6 +160,8 @@ export async function loadModel(spec: ModelSpec, onProgress?: (p: LoadProgress) 
     variantId: variant.id,
     loadMs: performance.now() - started,
     selfTest,
+    ort,
+    session,
     run,
     release: () => session.release(),
   }
