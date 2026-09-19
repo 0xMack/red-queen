@@ -22,8 +22,12 @@ export function useBaselineSession(baseline: string, interfaceId: string) {
     policy: ref<LoadedPolicy | null>(null),
     pinnedGeneration: ref<number | null>(null),
     targetStats: computed<GenerationStats | null>(() => null),
+    unsupported: ref(null),
+    awaitingConfirmation: ref<number | null>(null),
+    runtime: ref<"onnxruntime" | "python" | null>("python"),
     start,
     retry: start,
     pin: (_generation: number | null) => {},
+    confirmDownload: () => {},
   }
 }

@@ -1,4 +1,6 @@
+import type { LoadProgress } from "~/inference/runtime"
 import type { RenderState } from "~/types/games"
+import type { ModelSpec } from "~/types/modelpack"
 
 // The worker-session lifecycle/message-handling shared by every way this app plays or watches
 // Snake -- extracted from what used to be duplicated between play/[game].vue and
@@ -9,12 +11,27 @@ import type { RenderState } from "~/types/games"
 export const DEFAULT_TICK_MS = 110
 
 // What drives the snake in watch mode (mirrors the worker's PolicySpec): a trained network's
-// serialized weights, or a games.baselines name -- plus the interface (docs/design/0007) it plays
-// under. No policy at all = play mode, a human steers.
+// serialized weights, a games.baselines name, or a model package run by ONNX Runtime (docs/design/0009)
+// -- plus the interface (docs/design/0007) it plays under. No policy at all = play mode, a human steers.
 export interface PolicySpec {
   policyJson?: string
   baseline?: string
+  model?: ModelSpec
   interfaceId?: string
+}
+
+export interface ModelStatus {
+  backend: string
+  variantId: string
+  loadMs: number
+  selfTest: { samples: number; maxAbsError: number; tolerance: number } | null
+}
+
+export interface ModelFailure {
+  message: string
+  packageId: string
+  variantId: string
+  backend: string
 }
 
 export function useSnakeSession() {
@@ -36,6 +53,10 @@ export function useSnakeSession() {
     episodeScores.value.length ? episodeScores.value.reduce((a, b) => a + b, 0) / episodeScores.value.length : 0,
   )
   const tickMs = ref(DEFAULT_TICK_MS)
+  // Model-package mode only.
+  const modelProgress = ref<LoadProgress | null>(null)
+  const modelStatus = ref<ModelStatus | null>(null)
+  let onModelError: ((failure: ModelFailure) => void) | null = null
 
   let worker: Worker | null = null
 
@@ -59,6 +80,19 @@ export function useSnakeSession() {
         done.value = message.done
         stepCount.value = message.step
         observation.value = message.observation ?? null
+      } else if (message.type === "model_progress") {
+        modelProgress.value = message.progress
+      } else if (message.type === "model_loaded") {
+        modelProgress.value = null
+        modelStatus.value = { backend: message.backend, variantId: message.variantId, loadMs: message.loadMs, selfTest: message.selfTest }
+      } else if (message.type === "model_error") {
+        modelProgress.value = null
+        modelStatus.value = null
+        if (onModelError) onModelError(message)
+        else {
+          error.value = message.message
+          loading.value = false
+        }
       } else if (message.type === "error") {
         error.value = message.message
         loading.value = false
@@ -100,6 +134,10 @@ export function useSnakeSession() {
     worker?.postMessage({ type: "set_speed", intervalMs })
   }
 
+  function handleModelErrors(handler: (failure: ModelFailure) => void) {
+    onModelError = handler
+  }
+
   function resetStats() {
     episodes.value = 0
     episodeScores.value = []
@@ -125,6 +163,9 @@ export function useSnakeSession() {
     bestScore,
     meanScore,
     tickMs,
+    modelProgress,
+    modelStatus,
+    handleModelErrors,
     start,
     warmup,
     loadPolicy,

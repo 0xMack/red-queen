@@ -3,7 +3,10 @@ record a vector of measurements -- quality, inference cost, training cost -- not
 
 Entrants for Snake today:
 - every Snake run's final champion, under the interface recorded in its config (see
-  jobs/backfill_interfaces.py for pre-0007 runs);
+  jobs/backfill_interfaces.py for pre-0007 runs). Once published (jobs/publish_models.py), a champion
+  is evaluated *as its model package*, run by ONNX Runtime -- the exact bytes a visitor's browser
+  downloads (docs/design/0009) -- and each package variant that plays differently from the champion
+  is an entrant of its own (`run:<id>@fp32`);
 - fixed baselines (random, greedy) -- always included, since a ranking says nothing without them.
 
 Protocol `snake.score.v1`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
@@ -27,6 +30,7 @@ from evolve.networks import describe, parameter_count
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
+from modelpack import LocalModelStore, ModelStore, PackagedModel
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
@@ -238,6 +242,45 @@ def champion_entrants(
     return entrants
 
 
+def packaged_entrants(entrants: list[dict[str, Any]], store: ModelStore, game: str) -> list[dict[str, Any]]:
+    """Swap each published champion for its model package (docs/design/0009): the entrant keeps its
+    id but decides through ONNX Runtime running the package's first exact variant, and every other
+    catalog entry for the same run (a variant that plays differently) becomes an extra entrant. Champions
+    without a package -- or with no variant that plays exactly like them -- also stay ranked as
+    themselves (pure-Python forward pass)."""
+    catalog = store.catalog(game)
+    result = []
+    for entrant in entrants:
+        run_id = entrant["run"].run_id
+        entries = [e for e in catalog.entries if e.run_id == run_id and e.champion_ref == entrant["champion_ref"]]
+        if not any(e.entrant_id == entrant["entrant_id"] for e in entries):
+            # Unpublished, or no variant plays exactly like the champion: rank the champion itself.
+            result.append({**entrant, "runtime": "python"})
+        interface = interfaces.get(entrant["interface"])
+        for entry in entries:
+            manifest = store.manifest(entry.package_id)
+            variant = entry.variants[0]
+            model = PackagedModel(manifest, variant, store.read_blob)
+
+            def factory(_seed: int, model=model, interface=interface) -> Policy:
+                return lambda observation: interface.action.decode(model.forward(observation))
+
+            result.append(
+                {
+                    **entrant,
+                    "entrant_id": entry.entrant_id,
+                    "label": entry.label,
+                    "factory": factory,
+                    "artifact_bytes": manifest.variant(variant).requirements.download_bytes,
+                    "runtime": f"onnxruntime-cpu {variant}",
+                    "package_id": entry.package_id,
+                    "variant": variant,
+                    "variants": entry.variants,
+                }
+            )
+    return result
+
+
 def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, hardware: dict[str, Any]) -> EvaluationRecord:
     interface = interfaces.get(entrant["interface"])
     run: RunInfo | None = entrant.get("run")
@@ -245,6 +288,7 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
     inference = measure_inference(interface, entrant["factory"])
     inference["parameters"] = entrant.get("parameters", 0)
     inference["artifact_bytes"] = entrant.get("artifact_bytes", 0)
+    inference["runtime"] = entrant.get("runtime", "python")
     training = training_cost(run, metrics) if run and metrics else {"measured": True, "none": True}
     level = interface.observer.level
     return EvaluationRecord(
@@ -265,6 +309,9 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
                 "description": entrant["model"],
                 "observer_level": level,
                 "note": entrant.get("note"),
+                "package_id": entrant.get("package_id"),
+                "variant": entrant.get("variant"),
+                "variants": entrant.get("variants"),
             },
             "protocol": {
                 "held_out_seeds": [HELD_OUT_SEEDS[0], HELD_OUT_SEEDS[-1]],
@@ -285,7 +332,9 @@ def main() -> None:
     store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
     hardware = hardware_fingerprint()
 
-    entrants = [*baseline_entrants("snake"), *champion_entrants(registry, metrics, artifacts, "snake")]
+    models = LocalModelStore(RUN_DATA_DIR / "models")
+    champions = packaged_entrants(champion_entrants(registry, metrics, artifacts, "snake"), models, "snake")
+    entrants = [*baseline_entrants("snake"), *champions]
     for entrant in entrants:
         record = evaluate_entrant(entrant, metrics, hardware)
         store.put(record)

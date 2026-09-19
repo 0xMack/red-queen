@@ -7,7 +7,8 @@ visualization to see what's happening internally and make debugging easier. See
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
 landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts,
 0006: multi-agent games and the strategy/match framework, 0007: game representations, leaderboards,
-and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons) — read the relevant one before an
+and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons, 0009: client-side inference at scale — Rust/WASM
+games, ONNX Runtime Web, model packages) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout

@@ -8,12 +8,19 @@
 //   from apis/backend's existing artifact endpoint (no backend changes needed there: a serialized
 //   WeightVector is just opaque bytes to ArtifactStore, same as a LinearProgram's repr()).
 //
+// - "watch" with a model package (docs/design/0009): a published champion runs in ONNX Runtime Web
+//   (app/inference/runtime.ts) in this same worker -- the game still steps in Pyodide, and each tick
+//   hands the observation across to ORT and the outputs back to the interface's action adapter.
+//   That crossing is the interim step before the game itself moves to Rust/WASM.
+//
 // Either way, Pyodide's WASM execution and the tick timer live off the main thread, so heavy
 // Python work can never jank the page. The main thread only sends input/policy messages in and
 // redraws from the state messages this worker posts back.
 
 import type { PyodideInterface } from "pyodide"
 import type { PyProxy } from "pyodide/ffi"
+import { loadModel, type LoadedModel, type LoadProgress } from "~/inference/runtime"
+import type { ModelSpec } from "~/types/modelpack"
 
 declare const self: DedicatedWorkerGlobalScope
 
@@ -32,6 +39,7 @@ interface RenderState {
 interface PolicySpec {
   policyJson?: string
   baseline?: string
+  model?: ModelSpec
   interfaceId?: string
 }
 
@@ -53,6 +61,16 @@ type OutboundMessage =
   // the page can visualize the network's live activations without a second Python round trip.
   | { type: "state"; renderState: RenderState; reward: number; done: boolean; step: number; observation?: number[] }
   | { type: "error"; message: string }
+  | { type: "model_progress"; progress: LoadProgress }
+  | {
+      type: "model_loaded"
+      backend: string
+      variantId: string
+      loadMs: number
+      selfTest: LoadedModel["selfTest"]
+    }
+  // A package failed to load or self-test on this device: the page remembers it and falls back.
+  | { type: "model_error"; message: string; packageId: string; variantId: string; backend: string }
 
 // Pinned to match the `pyodide` npm package version exactly -- the JS loader and the CDN-hosted
 // runtime files (wasm binary, stdlib zip) must be the same version.
@@ -66,12 +84,18 @@ let pyodide: PyodideInterface | null = null
 let mode: "play" | "watch" = "play"
 let snake: PyProxy | null = null
 let policy: PyProxy | null = null
+// Model-package mode: the loaded ORT model (policy stays null), and the key it was loaded for -- an
+// auto-replay re-sends the same spec, which must not re-download or re-compile anything.
+let jsModel: LoadedModel | null = null
+let jsModelKey: string | null = null
+let decisionInFlight = false
 let currentObservation: unknown = null // watch mode only; a plain JS array fed back into Python
 
 let renderStateForJs: PyProxy | null = null
 let watchTick: PyProxy | null = null
 
 let newSnake: PyProxy | null = null
+let stepWithOutputs: PyProxy | null = null
 let makePolicyFn: PyProxy | null = null
 
 let pendingAction = 0 // play mode only
@@ -131,19 +155,7 @@ function playTick() {
   post({ type: "state", renderState: readRenderState(), reward, done: doneNow, step: stepCount })
 }
 
-function watchTickOnce() {
-  if (!policy) return
-  // watch_tick (Python bootstrap) does action-decision + step + render-state-read in one call, to
-  // avoid a JS<->Python round trip per sub-step; see its docstring for why.
-  const resultProxy = watchTick!(snake, policy, currentObservation)
-  const result = resultProxy.toJs({ dict_converter: Object.fromEntries }) as {
-    observation: unknown
-    reward: number
-    done: boolean
-    render_state: RenderState
-  }
-  resultProxy.destroy()
-
+function publishWatchStep(result: { observation: unknown; reward: number; done: boolean; render_state: RenderState }) {
   currentObservation = result.observation
   stepCount += 1
   if (result.done) stopTicking()
@@ -163,6 +175,46 @@ function watchTickOnce() {
       if (mode === "watch") loadPolicy(specToReplay)
     }, WATCH_RESTART_DELAY_MS)
   }
+}
+
+// One decision through ONNX Runtime. Async (ORT's run() is), so a slow model must not let the
+// interval stack up overlapping decisions: skip a tick while one is in flight.
+async function modelTickOnce() {
+  if (decisionInFlight || !jsModel || !snake) return
+  decisionInFlight = true
+  try {
+    const model = jsModel
+    const [outputs] = await model.run([currentObservation as number[]])
+    if (model !== jsModel || !snake || timer === null) return // replaced or stopped meanwhile
+    const resultProxy = stepWithOutputs!(snake, outputs)
+    const result = resultProxy.toJs({ dict_converter: Object.fromEntries })
+    resultProxy.destroy()
+    publishWatchStep(result)
+  } catch (e) {
+    stopTicking()
+    post({ type: "error", message: e instanceof Error ? e.message : String(e) })
+  } finally {
+    decisionInFlight = false
+  }
+}
+
+function watchTickOnce() {
+  if (jsModel) {
+    void modelTickOnce()
+    return
+  }
+  if (!policy) return
+  // watch_tick (Python bootstrap) does action-decision + step + render-state-read in one call, to
+  // avoid a JS<->Python round trip per sub-step; see its docstring for why.
+  const resultProxy = watchTick!(snake, policy, currentObservation)
+  const result = resultProxy.toJs({ dict_converter: Object.fromEntries }) as {
+    observation: unknown
+    reward: number
+    done: boolean
+    render_state: RenderState
+  }
+  resultProxy.destroy()
+  publishWatchStep(result)
 }
 
 function tick() {
@@ -249,6 +301,20 @@ def make_policy(policy_json=None, baseline=None):
         return _BaselinePolicy(_baselines.get("snake", baseline).factory(random.randint(0, 2**31 - 1)))
     return _NetworkPolicy(network_from_json(policy_json))
 
+def step_with_outputs(env, outputs):
+    """Model-package mode: the model ran outside Python (ONNX Runtime); decode its raw outputs through
+    the current interface's action adapter, exactly as _NetworkPolicy would, and step."""
+    outputs = list(outputs)
+    interface = _current["interface"]
+    action = interface.action.decode(outputs) if interface is not None else max(range(len(outputs)), key=lambda i: outputs[i]) - 1
+    next_observation, reward, done = env.step(action)
+    return {
+        "observation": next_observation,
+        "reward": reward,
+        "done": done,
+        "render_state": render_state_for_js(env),
+    }
+
 def watch_tick(env, policy, observation):
     action = policy.decide(observation)
     next_observation, reward, done = env.step(action)
@@ -263,6 +329,7 @@ def watch_tick(env, policy, observation):
     watchTick = pyodide.globals.get("watch_tick")
     newSnake = pyodide.globals.get("new_snake")
     makePolicyFn = pyodide.globals.get("make_policy")
+    stepWithOutputs = pyodide.globals.get("step_with_outputs")
   })()
   return pyodideReady
 }
@@ -284,7 +351,7 @@ async function initialize(spec: PolicySpec) {
 
   post({ type: "ready" })
 
-  if (spec.policyJson || spec.baseline) {
+  if (spec.policyJson || spec.baseline || spec.model) {
     await loadPolicy(spec) // creates its own fresh Snake
   } else {
     mode = "play"
@@ -306,9 +373,45 @@ async function loadPolicy(spec: PolicySpec) {
     watchRestartTimer = null
   }
 
-  const newPolicy = makePolicyFn!(spec.policyJson ?? null, spec.baseline ?? null)
-  policy?.destroy()
-  policy = newPolicy
+  if (spec.model) {
+    const key = `${spec.model.manifest.package_id}/${spec.model.variantId}/${spec.model.backend}`
+    if (key !== jsModelKey) {
+      const previous = jsModel
+      jsModel = null
+      jsModelKey = null
+      await previous?.release()
+      try {
+        jsModel = await loadModel(spec.model, (progress) => post({ type: "model_progress", progress }))
+      } catch (e) {
+        post({
+          type: "model_error",
+          message: e instanceof Error ? e.message : String(e),
+          packageId: spec.model.manifest.package_id,
+          variantId: spec.model.variantId,
+          backend: spec.model.backend,
+        })
+        return
+      }
+      jsModelKey = key
+      post({
+        type: "model_loaded",
+        backend: jsModel.backend,
+        variantId: jsModel.variantId,
+        loadMs: jsModel.loadMs,
+        selfTest: jsModel.selfTest,
+      })
+    }
+    policy?.destroy()
+    policy = null
+  } else {
+    const newPolicy = makePolicyFn!(spec.policyJson ?? null, spec.baseline ?? null)
+    policy?.destroy()
+    policy = newPolicy
+    const previous = jsModel
+    jsModel = null
+    jsModelKey = null
+    await previous?.release()
+  }
   lastSpec = spec
   mode = "watch"
 
