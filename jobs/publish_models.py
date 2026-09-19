@@ -251,3 +251,5 @@ if __name__ == "__main__":
         main()
     if "tinylm" in which:
         publish_tinylm(LocalModelStore(MODELS_DIR))
+    removed, freed = LocalModelStore(MODELS_DIR).collect_garbage()
+    print(f"garbage collected {removed} superseded files ({freed / 1e6:.1f} MB)")

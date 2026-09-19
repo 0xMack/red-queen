@@ -7,7 +7,11 @@ import { forgetFailures, formatBytes, matchVariant, rememberFailure, rememberedF
 import type { LoadProgress } from "~/inference/runtime"
 import type { Backend, ModelManifest } from "~/types/modelpack"
 
-const models = useModelCatalog("tinylm")
+const props = withDefaults(defineProps<{ catalog?: string; title?: string }>(), {
+  catalog: "tinylm",
+  title: "Run it: TinyLM in your browser",
+})
+const models = useModelCatalog(props.catalog)
 onMounted(models.load)
 
 const entry = computed(() => models.catalog.value?.entries[0] ?? null)
@@ -43,7 +47,13 @@ const stats = ref<{ tokens: number; ms: number; firstMs: number | null; stepMs: 
 const contextLength = computed(() => Number(manifest.value?.config.max_seq_len ?? 0))
 
 let worker: Worker | null = null
-let pendingLoadKey: string | null = null
+// The variant/backend loaded or loading in the worker -- a different choice needs loading (and, above
+// the size threshold, a click first).
+const pendingLoadKey = ref<string | null>(null)
+const chosenKey = computed(() => {
+  const m = chosenMatch.value
+  return m?.ok && manifest.value ? `${manifest.value.package_id}/${m.variant.id}/${m.backend}` : null
+})
 
 function ensureWorker(): Worker {
   if (worker) return worker
@@ -85,8 +95,8 @@ function load() {
   const man = manifest.value
   if (!m?.ok || !man || !available.value) return
   const key = `${man.package_id}/${m.variant.id}/${m.backend}`
-  if (key === pendingLoadKey && status.value !== "error") return
-  pendingLoadKey = key
+  if (key === pendingLoadKey.value && status.value !== "error") return
+  pendingLoadKey.value = key
   status.value = "loading"
   error.value = null
   loaded.value = null
@@ -111,7 +121,7 @@ function retryFailed() {
   forgetFailures()
   models.retryFailed()
   failures.value += 1
-  pendingLoadKey = null
+  pendingLoadKey.value = null
   load()
 }
 
@@ -128,13 +138,13 @@ onUnmounted(() => worker?.terminate())
 <template>
   <div class="card my-6 p-5" data-tinylm>
     <div class="flex flex-wrap items-center gap-2">
-      <span class="font-display font-semibold">Run it: TinyLM in your browser</span>
+      <span class="font-display font-semibold">{{ title }}</span>
       <span v-if="entry" class="chip">{{ entry.label }}</span>
     </div>
     <p v-if="models.error.value" class="mt-3 text-sm text-queen-300">Couldn't load the model catalog: {{ models.error.value }}</p>
     <p v-else-if="models.catalog.value && !entry" class="mt-3 text-sm text-fg-muted">
-      No TinyLM is published yet -- <code>uv run python jobs/tinylm_run.py</code>, then
-      <code>jobs/publish_models.py tinylm</code>.
+      Nothing is published in the <code>{{ catalog }}</code> catalog yet (see <code>jobs/publish_models.py</code>
+      and <code>jobs/scale_test_package.py</code>).
     </p>
     <template v-else-if="manifest">
       <p class="mt-2 text-sm text-fg-muted">{{ manifest.description }}</p>
@@ -169,7 +179,12 @@ onUnmounted(() => worker?.terminate())
           Try again anyway
         </button>
       </div>
-      <button v-else-if="chosenMatch?.ok && chosenMatch.needsConfirmation && status === 'idle'" class="btn-ghost btn-sm mt-3" @click="load">
+      <button
+        v-else-if="chosenMatch?.ok && chosenMatch.needsConfirmation && chosenKey !== pendingLoadKey"
+        class="btn-ghost btn-sm mt-3"
+        data-confirm-download
+        @click="load"
+      >
         Download {{ formatBytes(chosenVariant!.requirements.download_bytes) }} and load
       </button>
 
@@ -182,7 +197,15 @@ onUnmounted(() => worker?.terminate())
           @keydown.enter="run"
         />
         <div class="flex gap-2">
-          <button v-if="status !== 'generating'" class="btn-primary btn-sm" :disabled="status !== 'ready'" data-generate @click="run">Generate</button>
+          <button
+            v-if="status !== 'generating'"
+            class="btn-primary btn-sm"
+            :disabled="status !== 'ready' || chosenKey !== pendingLoadKey"
+            data-generate
+            @click="run"
+          >
+            Generate
+          </button>
           <button v-else class="btn-ghost btn-sm" @click="stop">Stop</button>
         </div>
       </div>

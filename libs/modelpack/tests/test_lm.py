@@ -75,8 +75,22 @@ def test_shapes_and_small_tensors_stay_in_the_graph(trained_like):
     sharded, shards, _ = shard_initializers(export_tinylm(named_parameters(model), CONFIG))
     assert shards
     for tensor in sharded.graph.initializer:
+        integer = tensor.data_type in (onnx.TensorProto.INT64, onnx.TensorProto.INT32)
         if uses_external_data(tensor):
-            assert tensor.data_type == onnx.TensorProto.FLOAT
+            assert not integer
         else:
-            assert tensor.data_type != onnx.TensorProto.FLOAT or len(tensor.raw_data) < INLINE_BELOW_BYTES
+            assert integer or len(tensor.raw_data) < INLINE_BELOW_BYTES
     assert any(t.name == "const.heads_shape" and not uses_external_data(t) for t in sharded.graph.initializer)
+
+
+def test_quantized_weights_are_sharded_not_left_in_the_graph(trained_like):
+    from modelpack.lm import quantize_int8
+    from modelpack.packaging import INLINE_BELOW_BYTES, shard_initializers
+    from onnx.external_data_helper import uses_external_data
+
+    model, _ = trained_like
+    sharded, _, _ = shard_initializers(quantize_int8(export_tinylm(named_parameters(model), CONFIG)))
+    big_int8 = [t for t in sharded.graph.initializer if t.name.endswith("_quantized")]
+    assert big_int8
+    for tensor in big_int8:
+        assert uses_external_data(tensor) or len(tensor.raw_data) < INLINE_BELOW_BYTES

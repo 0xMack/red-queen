@@ -140,3 +140,20 @@ def test_fp64_variant_is_exact_and_wasm_only():
     samples = sample_inputs(11, count=50, seed=9)
     model = PackagedModel(package.manifest, "fp64", package.blobs.__getitem__)
     assert np.max(np.abs(model.run(np.asarray(samples)) - np.asarray([genome.forward(s) for s in samples]))) < 1e-12
+
+
+def test_garbage_collection_keeps_only_what_catalogs_reference(tmp_path):
+    store = LocalModelStore(tmp_path)
+    old = build_package(export_network(random_weight_vector((11, 16, 3), random.Random(7))), label="old")
+    new = build_package(export_network(random_weight_vector((11, 16, 3), random.Random(8))), label="new")
+    store.put(old)
+    store.put(new)
+    catalog = Catalog(game="snake")
+    catalog.upsert(CatalogEntry(entrant_id="run:a", package_id=new.manifest.package_id, label="a", interface=None, variants=["fp32"]))
+    store.put_catalog(catalog)
+
+    removed, freed = store.collect_garbage()
+    assert removed > 0 and freed > 0
+    assert not store.manifest_path(old.manifest.package_id).exists()
+    assert all(store.has_blob(b.sha256) for b in new.manifest.blobs())
+    assert store.collect_garbage() == (0, 0)

@@ -50,7 +50,7 @@ function checkBackend(variant: Variant, backend: Backend, profile: DeviceProfile
     }
   }
   if (profile.deviceMemoryGb !== null && profile.deviceMemoryGb < 8 && req.peak_memory_bytes > profile.deviceMemoryGb * 1024 ** 3 * 0.5) {
-    // deviceMemory is capped at 8 (privacy), so it can only ever *rule out* a model on a small device.
+    // deviceMemory is deliberately coarse (privacy), so it only ever *rules out* a model on a small device.
     return reject("memory", `Needs ~${formatBytes(req.peak_memory_bytes)} of memory; this device reports ${profile.deviceMemoryGb} GB.`)
   }
   if (profile.storageQuotaBytes !== null && req.download_bytes > profile.storageQuotaBytes) {

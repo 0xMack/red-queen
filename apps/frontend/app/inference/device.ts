@@ -17,7 +17,7 @@ export interface DeviceProfile {
     maxBufferSize: number
     maxStorageBufferBindingSize: number
   }
-  deviceMemoryGb: number | null // navigator.deviceMemory: coarse (capped at 8), Chromium only
+  deviceMemoryGb: number | null // navigator.deviceMemory: coarse, rounded, Chromium only
   storageQuotaBytes: number | null
   mobile: boolean
   browser: string

@@ -60,12 +60,13 @@ def _blob(data: bytes) -> Blob:
 
 
 def stays_inline(tensor: onnx.TensorProto) -> bool:
-    """Small tensors and integer tensors stay in the graph. Integer initializers are shapes, indexes and
-    axes that ONNX Runtime Web needs *while resolving the graph* (a Reshape's target shape), before
-    external data is attached -- sharding one fails session creation with "Cannot parse data from
-    external tensors" (found running TinyLM in the browser; the Python runtime inlines everything first,
-    so it never saw this). Small float tensors aren't worth a lookup."""
-    if tensor.data_type not in (onnx.TensorProto.FLOAT, onnx.TensorProto.DOUBLE, onnx.TensorProto.FLOAT16):
+    """Small tensors and int32/int64 tensors stay in the graph. Those are shapes, indexes and axes that
+    ONNX Runtime Web needs *while resolving the graph* (a Reshape's target shape), before external data
+    is attached -- sharding one fails session creation with "Cannot parse data from external tensors"
+    (found running TinyLM in the browser; the Python runtime inlines everything first, so it never saw
+    this). Quantized int8/uint8 *weights* are ordinary weights and get sharded. Small tensors of any
+    type aren't worth a lookup."""
+    if tensor.data_type in (onnx.TensorProto.INT64, onnx.TensorProto.INT32):
         return True
     return len(tensor.raw_data) < INLINE_BELOW_BYTES
 
