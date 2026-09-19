@@ -5,7 +5,9 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
+use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
+use redqueen_games::reach1d::Reach1D;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 
 fn observer(id: &str) -> PyResult<Observer> {
@@ -26,6 +28,16 @@ impl SnakeCore {
             return Err(PyValueError::new_err(format!("a {width}x{height} board can't fit the starting snake (need width >= 4)")));
         }
         Ok(SnakeCore { inner: Snake::new(width, height, seed, max_steps_without_food) })
+    }
+
+    /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
+    /// the whole state, PRNG included.
+    fn __copy__(&self) -> Self {
+        SnakeCore { inner: self.inner.clone() }
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
+        SnakeCore { inner: self.inner.clone() }
     }
 
     fn reset(&mut self) {
@@ -149,9 +161,148 @@ fn relative3_decode(outputs: Vec<f64>) -> PyResult<i32> {
     Ok(decode_relative3(&outputs))
 }
 
+/// Checkers state: the board crosses as an ordered list of (x, y, owner, king) -- order matters
+/// (checkers.rs: legal-move order follows it).
+#[pyclass(module = "games._native")]
+struct CheckersCore {
+    inner: Checkers,
+}
+
+fn to_move(mv: Vec<(i32, i32)>) -> Vec<Square> {
+    mv
+}
+
+#[pymethods]
+impl CheckersCore {
+    #[new]
+    fn new(max_moves_without_capture: u32) -> Self {
+        CheckersCore { inner: Checkers::new(max_moves_without_capture) }
+    }
+
+    fn reset(&mut self) {
+        self.inner.reset();
+    }
+
+    /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
+    /// the whole state, PRNG included.
+    fn __copy__(&self) -> Self {
+        CheckersCore { inner: self.inner.clone() }
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
+        CheckersCore { inner: self.inner.clone() }
+    }
+
+    fn legal_moves(&self) -> Vec<Vec<(i32, i32)>> {
+        self.inner.legal_moves()
+    }
+
+    /// done (the winner, None for a draw, is `winner`)
+    fn step(&mut self, mv: Vec<(i32, i32)>) -> PyResult<bool> {
+        self.inner.step(&to_move(mv)).map_err(PyValueError::new_err)
+    }
+
+    fn simulate(&self, mv: Vec<(i32, i32)>) -> PyResult<Vec<f64>> {
+        self.inner.simulate(&to_move(mv)).map_err(PyValueError::new_err)
+    }
+
+    fn observation(&self) -> Vec<f64> {
+        self.inner.observation()
+    }
+
+    fn cells(&self) -> Vec<(i32, i32, &'static str)> {
+        self.inner.cells()
+    }
+
+    #[getter]
+    fn board(&self) -> Vec<(i32, i32, u8, bool)> {
+        self.inner.board.iter().map(|&((x, y), p)| (x, y, p.owner, p.king)).collect()
+    }
+
+    #[setter]
+    fn set_board(&mut self, cells: Vec<(i32, i32, u8, bool)>) {
+        self.inner.board = Board::from_cells(cells.into_iter().map(|(x, y, owner, king)| ((x, y), Piece { owner, king })).collect());
+    }
+
+    #[getter]
+    fn current_player(&self) -> u8 {
+        self.inner.current_player
+    }
+
+    #[setter]
+    fn set_current_player(&mut self, player: u8) -> PyResult<()> {
+        if player > 1 {
+            return Err(PyValueError::new_err("player is 0 or 1"));
+        }
+        self.inner.current_player = player;
+        Ok(())
+    }
+
+    #[getter]
+    fn winner(&self) -> Option<u8> {
+        self.inner.winner
+    }
+
+    #[getter]
+    fn moves_without_capture(&self) -> u32 {
+        self.inner.moves_without_capture
+    }
+}
+
+#[pyclass(module = "games._native")]
+struct Reach1DCore {
+    inner: Reach1D,
+}
+
+#[pymethods]
+impl Reach1DCore {
+    #[new]
+    fn new(target: f64, start_position: f64, start_velocity: f64, dt: f64, max_acceleration: f64, damping: f64) -> Self {
+        Reach1DCore { inner: Reach1D::new(target, start_position, start_velocity, dt, max_acceleration, damping) }
+    }
+
+    /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
+    /// the whole state, PRNG included.
+    fn __copy__(&self) -> Self {
+        Reach1DCore { inner: self.inner.clone() }
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
+        Reach1DCore { inner: self.inner.clone() }
+    }
+
+    fn reset(&mut self) -> (f64, f64) {
+        self.inner.reset()
+    }
+
+    /// (observation, reward)
+    fn step(&mut self, action: f64) -> ((f64, f64), f64) {
+        self.inner.step(action)
+    }
+
+    #[getter]
+    fn position(&self) -> f64 {
+        self.inner.position
+    }
+    #[setter]
+    fn set_position(&mut self, value: f64) {
+        self.inner.position = value;
+    }
+    #[getter]
+    fn velocity(&self) -> f64 {
+        self.inner.velocity
+    }
+    #[setter]
+    fn set_velocity(&mut self, value: f64) {
+        self.inner.velocity = value;
+    }
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
+    m.add_class::<CheckersCore>()?;
+    m.add_class::<Reach1DCore>()?;
     m.add_class::<Pcg32>()?;
     m.add_class::<SnakeRandomPolicy>()?;
     m.add_function(wrap_pyfunction!(snake_greedy_decide, m)?)?;

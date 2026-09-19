@@ -1,11 +1,58 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Checkers for the browser. Moves cross as indexes into the current `legalMoves()` list -- the same
+ * list, in the same order, the Python side and every strategy see.
+ */
+export class CheckersGame {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Flattened [x, y, piece] with piece 0 red man / 1 red king / 2 black man / 3 black king.
+     */
+    cells(): Int32Array;
+    /**
+     * Flattened: for each move, its square count n, then n (x, y) pairs.
+     */
+    legalMoves(): Int32Array;
+    constructor(max_moves_without_capture: number);
+    observation(): Float64Array;
+    reset(): void;
+    simulate(index: number): Float64Array;
+    /**
+     * Play the `index`-th legal move; returns whether the game is over.
+     */
+    step(index: number): boolean;
+    readonly currentPlayer: number;
+    readonly done: boolean;
+    /**
+     * -1 while undecided or for a draw; check `done` to tell them apart.
+     */
+    readonly winner: number;
+}
+
 export class RandomPolicy {
     free(): void;
     [Symbol.dispose](): void;
     decide(observation: Float64Array): number;
     constructor(seed: number);
+}
+
+export class Reach1DGame {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor(target: number, start_position: number, start_velocity: number, dt: number, max_acceleration: number, damping: number);
+    /**
+     * [position - target, velocity]
+     */
+    observation(): Float64Array;
+    reset(): void;
+    /**
+     * Returns the reward.
+     */
+    step(action: number): number;
+    readonly position: number;
 }
 
 /**
@@ -52,12 +99,29 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_checkersgame_free: (a: number, b: number) => void;
     readonly __wbg_randompolicy_free: (a: number, b: number) => void;
+    readonly __wbg_reach1dgame_free: (a: number, b: number) => void;
     readonly __wbg_snakegame_free: (a: number, b: number) => void;
+    readonly checkersgame_cells: (a: number) => [number, number];
+    readonly checkersgame_currentPlayer: (a: number) => number;
+    readonly checkersgame_done: (a: number) => number;
+    readonly checkersgame_legalMoves: (a: number) => [number, number];
+    readonly checkersgame_new: (a: number) => number;
+    readonly checkersgame_observation: (a: number) => [number, number];
+    readonly checkersgame_reset: (a: number) => void;
+    readonly checkersgame_simulate: (a: number, b: number) => [number, number, number, number];
+    readonly checkersgame_step: (a: number, b: number) => [number, number, number];
+    readonly checkersgame_winner: (a: number) => number;
     readonly decodeRelative3: (a: number, b: number) => number;
     readonly greedyDecide: (a: number, b: number) => number;
     readonly randompolicy_decide: (a: number, b: number, c: number) => number;
     readonly randompolicy_new: (a: number) => number;
+    readonly reach1dgame_new: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly reach1dgame_observation: (a: number) => [number, number];
+    readonly reach1dgame_position: (a: number) => number;
+    readonly reach1dgame_reset: (a: number) => void;
+    readonly reach1dgame_step: (a: number, b: number) => number;
     readonly snakegame_cells: (a: number) => [number, number];
     readonly snakegame_done: (a: number) => number;
     readonly snakegame_height: (a: number) => number;
@@ -68,10 +132,10 @@ export interface InitOutput {
     readonly snakegame_step: (a: number, b: number) => number;
     readonly snakegame_width: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_start: () => void;
 }
 

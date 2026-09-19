@@ -3,5 +3,7 @@
 //! by visitors' browsers (WebAssembly, through `rust/wasm`). Pure Rust, no dependencies, no I/O.
 
 pub mod baselines;
+pub mod checkers;
 pub mod pcg;
+pub mod reach1d;
 pub mod snake;

@@ -1,5 +1,111 @@
 /* @ts-self-types="./games.d.ts" */
 
+/**
+ * Checkers for the browser. Moves cross as indexes into the current `legalMoves()` list -- the same
+ * list, in the same order, the Python side and every strategy see.
+ */
+export class CheckersGame {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CheckersGameFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_checkersgame_free(ptr, 0);
+    }
+    /**
+     * Flattened [x, y, piece] with piece 0 red man / 1 red king / 2 black man / 3 black king.
+     * @returns {Int32Array}
+     */
+    cells() {
+        const ret = wasm.checkersgame_cells(this.__wbg_ptr);
+        var v1 = getArrayI32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get currentPlayer() {
+        const ret = wasm.checkersgame_currentPlayer(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get done() {
+        const ret = wasm.checkersgame_done(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Flattened: for each move, its square count n, then n (x, y) pairs.
+     * @returns {Int32Array}
+     */
+    legalMoves() {
+        const ret = wasm.checkersgame_legalMoves(this.__wbg_ptr);
+        var v1 = getArrayI32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @param {number} max_moves_without_capture
+     */
+    constructor(max_moves_without_capture) {
+        const ret = wasm.checkersgame_new(max_moves_without_capture);
+        this.__wbg_ptr = ret >>> 0;
+        CheckersGameFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    observation() {
+        const ret = wasm.checkersgame_observation(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    reset() {
+        wasm.checkersgame_reset(this.__wbg_ptr);
+    }
+    /**
+     * @param {number} index
+     * @returns {Float64Array}
+     */
+    simulate(index) {
+        const ret = wasm.checkersgame_simulate(this.__wbg_ptr, index);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * Play the `index`-th legal move; returns whether the game is over.
+     * @param {number} index
+     * @returns {boolean}
+     */
+    step(index) {
+        const ret = wasm.checkersgame_step(this.__wbg_ptr, index);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
+    }
+    /**
+     * -1 while undecided or for a draw; check `done` to tell them apart.
+     * @returns {number}
+     */
+    get winner() {
+        const ret = wasm.checkersgame_winner(this.__wbg_ptr);
+        return ret;
+    }
+}
+if (Symbol.dispose) CheckersGame.prototype[Symbol.dispose] = CheckersGame.prototype.free;
+
 export class RandomPolicy {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -32,6 +138,63 @@ export class RandomPolicy {
     }
 }
 if (Symbol.dispose) RandomPolicy.prototype[Symbol.dispose] = RandomPolicy.prototype.free;
+
+export class Reach1DGame {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        Reach1DGameFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_reach1dgame_free(ptr, 0);
+    }
+    /**
+     * @param {number} target
+     * @param {number} start_position
+     * @param {number} start_velocity
+     * @param {number} dt
+     * @param {number} max_acceleration
+     * @param {number} damping
+     */
+    constructor(target, start_position, start_velocity, dt, max_acceleration, damping) {
+        const ret = wasm.reach1dgame_new(target, start_position, start_velocity, dt, max_acceleration, damping);
+        this.__wbg_ptr = ret >>> 0;
+        Reach1DGameFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * [position - target, velocity]
+     * @returns {Float64Array}
+     */
+    observation() {
+        const ret = wasm.reach1dgame_observation(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get position() {
+        const ret = wasm.reach1dgame_position(this.__wbg_ptr);
+        return ret;
+    }
+    reset() {
+        wasm.reach1dgame_reset(this.__wbg_ptr);
+    }
+    /**
+     * Returns the reward.
+     * @param {number} action
+     * @returns {number}
+     */
+    step(action) {
+        const ret = wasm.reach1dgame_step(this.__wbg_ptr, action);
+        return ret;
+    }
+}
+if (Symbol.dispose) Reach1DGame.prototype[Symbol.dispose] = Reach1DGame.prototype.free;
 
 /**
  * One Snake game plus the observer its model reads.
@@ -179,9 +342,15 @@ function __wbg_get_imports() {
     };
 }
 
+const CheckersGameFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_checkersgame_free(ptr >>> 0, 1));
 const RandomPolicyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_randompolicy_free(ptr >>> 0, 1));
+const Reach1DGameFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_reach1dgame_free(ptr >>> 0, 1));
 const SnakeGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_snakegame_free(ptr >>> 0, 1));

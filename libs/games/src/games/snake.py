@@ -37,6 +37,7 @@ Action: -1 (turn left), 0 (go straight), 1 (turn right), relative to the current
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Sequence
 from typing import Any
 
@@ -66,6 +67,10 @@ class Snake:
         self.max_steps_without_food = max_steps_without_food or (width + height) * 4
         self._native_observer: str | None = getattr(self.observer, "native_id", None)
         self._core = _native.SnakeCore(width, height, seed, self.max_steps_without_food)
+
+    def __copy__(self):
+        # The state lives in the native core, so even a "shallow" copy must not share it.
+        return copy.deepcopy(self)
 
     def reset(self) -> list[float]:
         self._core.reset()

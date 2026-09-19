@@ -83,3 +83,101 @@ def test_baselines_match_their_python_originals():
 def test_a_board_too_narrow_for_the_starting_snake_is_rejected():
     with pytest.raises(ValueError, match="starting snake"):
         Snake(width=3, height=5)
+
+
+# --- Checkers ------------------------------------------------------------------------------------
+
+
+def _play_checkers(seed: int, max_moves_without_capture: int = 40) -> None:
+    from games.checkers import Checkers
+    from reference_checkers import Checkers as ReferenceCheckers
+
+    native, reference = Checkers(max_moves_without_capture), ReferenceCheckers(max_moves_without_capture)
+    rng = random.Random(seed)
+    assert native.reset() == reference.reset()
+    for turn in range(400):
+        moves = native.legal_moves()
+        assert moves == reference.legal_moves(), f"seed {seed} turn {turn}: move lists (incl. order) differ"
+        assert list(native.board.items()) == list(reference.board.items())
+        assert native.render_state() == reference.render_state()
+        for move in moves[:5]:
+            assert native.simulate(move) == reference.simulate(move)
+        # Mix random play with a capture-hungry preference, so games reach kings and long chains.
+        move = max(moves, key=len) if rng.random() < 0.5 else rng.choice(moves)
+        result = native.step(move)
+        assert result == reference.step(move), f"seed {seed} turn {turn}"
+        assert native.winner() == reference.winner() and native.current_player() == reference.current_player()
+        if result[2]:
+            break
+
+
+@pytest.mark.parametrize("seed", range(60))
+def test_checkers_games_are_identical(seed):
+    _play_checkers(seed)
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_checkers_draw_limit_is_identical(seed):
+    _play_checkers(seed, max_moves_without_capture=6)
+
+
+def test_checkers_positions_set_from_python_play_identically():
+    from games.checkers import Checkers
+    from reference_checkers import Checkers as ReferenceCheckers
+
+    board = {(4, 4): (0, True), (5, 3): (1, False), (3, 5): (1, False), (1, 5): (1, True), (0, 2): (0, False)}
+    native, reference = Checkers(), ReferenceCheckers()
+    native.board = reference.board = board
+    native.current_player_index = reference.current_player_index = 0
+    assert native.legal_moves() == reference.legal_moves()
+    move = native.legal_moves()[0]
+    assert native.step(move) == reference.step(move)
+    assert list(native.board.items()) == list(reference.board.items())
+
+
+# --- ReachTarget1D --------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_reach1d_is_bit_identical(seed):
+    from games.reach1d import ReachTarget1D
+    from reference_reach1d import ReachTarget1D as ReferenceReach
+
+    rng = random.Random(seed)
+    kwargs = {"target": rng.uniform(-9, 9), "start_position": rng.uniform(-9, 9), "start_velocity": rng.uniform(-3, 3)}
+    native, reference = ReachTarget1D(**kwargs), ReferenceReach(**kwargs)
+    assert native.reset() == reference.reset()
+    for _ in range(500):
+        action = rng.choice([rng.uniform(-3, 3), 1.0, -1.0, 0, float("nan"), float("inf")])
+        assert native.step(action) == reference.step(action) or _nan_equal(native, reference)
+        assert (native.position, native.velocity) == (reference.position, reference.velocity) or _nan_equal(native, reference)
+
+
+def _nan_equal(native, reference) -> bool:
+    import math
+
+    return all(math.isnan(a) == math.isnan(b) for a, b in ((native.position, reference.position), (native.velocity, reference.velocity)))
+
+
+def test_games_deep_copy_into_independent_states():
+    import copy
+
+    from games.checkers import Checkers
+    from games.reach1d import ReachTarget1D
+
+    checkers = Checkers()
+    child = copy.deepcopy(checkers)
+    child.step(child.legal_moves()[0])
+    assert checkers.current_player() == 0 and child.current_player() == 1
+
+    snake = Snake(seed=3)
+    twin = copy.deepcopy(snake)
+    for _ in range(2):  # the start is 5 cells from the right wall
+        assert snake.step(0) == twin.step(0)  # same PRNG state, same game
+    twin.step(1)
+    assert snake.body != twin.body
+
+    reach = ReachTarget1D()
+    other = copy.copy(reach)
+    other.step(1.0)
+    assert reach.position == 0.0 != other.position
