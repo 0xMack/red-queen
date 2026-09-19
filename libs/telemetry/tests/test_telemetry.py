@@ -63,3 +63,43 @@ def test_artifact_store_round_trip(tmp_path):
 
     assert store.get_program("ref-1") == b"program-bytes"
     assert store.get_trace("ref-1") == b"trace-bytes"
+
+
+# --- evaluations (docs/design/0007) -----------------------------------------------------------------
+
+from telemetry import EvaluationRecord, SqliteEvaluationStore  # noqa: E402
+
+
+def _record(entrant_id: str, protocol: str = "snake.score.v1", mean: float = 1.0, game: str = "snake"):
+    return EvaluationRecord(
+        game=game,
+        protocol=protocol,
+        entrant_id=entrant_id,
+        entrant_kind="baseline",
+        label=entrant_id,
+        interface="snake/features.v1+relative3.v1",
+        created_at=1.0,
+        metrics={"quality": {"mean": mean}},
+    )
+
+
+def test_evaluation_store_replaces_same_protocol_and_entrant(tmp_path):
+    store = SqliteEvaluationStore(tmp_path / "evaluations.db")
+    store.put(_record("baseline:greedy", mean=1.0))
+    store.put(_record("baseline:greedy", mean=2.0))
+
+    records = store.list("snake")
+
+    assert len(records) == 1
+    assert records[0].metrics["quality"]["mean"] == 2.0
+
+
+def test_evaluation_store_filters_by_game_and_protocol(tmp_path):
+    store = SqliteEvaluationStore(tmp_path / "evaluations.db")
+    store.put(_record("baseline:greedy"))
+    store.put(_record("baseline:greedy", protocol="snake.score.v2"))
+    store.put(_record("baseline:random", game="checkers", protocol="checkers.rating.v1"))
+
+    assert len(store.list("snake")) == 2
+    assert [r.protocol for r in store.list("snake", protocol="snake.score.v2")] == ["snake.score.v2"]
+    assert [r.entrant_id for r in store.list("checkers")] == ["baseline:random"]

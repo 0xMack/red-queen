@@ -99,6 +99,11 @@ what belongs here and how to add to it). Read before writing code, not after.
   (mean fitness ~0.09 → ~0.21 over 40 generations). If evolution against a match-outcome fitness
   looks stuck, check whether there's enough independent opponent sampling before concluding the
   representation or algorithm is at fault.
+- Training fitness is not performance. It's shaped reward on the seeds the population trained on,
+  so it overstates: the best Snake champion scores 16–19 on its 5 training seeds but 11.9 on 200
+  held-out ones, and a 3-line greedy heuristic beats it (18.5). Judge a policy with
+  `jobs/evaluate.py` (held-out seeds, game score, baselines) before claiming it learned anything
+  (docs/design/0007).
 
 ## Web / API (`apis/backend`)
 

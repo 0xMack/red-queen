@@ -15,12 +15,18 @@ const props = withDefaults(
 )
 
 const W = 460
-const nodeGap = 17
 const labelW = 88
 const top = 14
+// Wide layers (e.g. the 100-input grid representation) are compressed to fit ~320px of height
+// instead of growing the diagram, and edges are capped to the strongest few hundred -- drawing
+// every one of ~2.5k edges each tick is both unreadable and slow.
+const MAX_HEIGHT = 320
+const MAX_EDGES = 450
 
 const maxLayer = computed(() => Math.max(...props.layerSizes))
-const H = computed(() => top * 2 + (maxLayer.value - 1) * nodeGap)
+const nodeGap = computed(() => Math.min(17, MAX_HEIGHT / Math.max(1, maxLayer.value - 1)))
+const nodeR = computed(() => Math.max(1.6, Math.min(5, nodeGap.value * 0.3)))
+const H = computed(() => top * 2 + (maxLayer.value - 1) * nodeGap.value)
 
 const nodes = computed(() => {
   const cols = props.layerSizes.length
@@ -28,8 +34,8 @@ const nodes = computed(() => {
   const right = W - labelW
   return props.layerSizes.map((size, li) => {
     const x = cols === 1 ? (left + right) / 2 : left + (li / (cols - 1)) * (right - left)
-    const offset = ((maxLayer.value - size) * nodeGap) / 2
-    return Array.from({ length: size }, (_, ni) => ({ x, y: top + offset + ni * nodeGap }))
+    const offset = ((maxLayer.value - size) * nodeGap.value) / 2
+    return Array.from({ length: size }, (_, ni) => ({ x, y: top + offset + ni * nodeGap.value }))
   })
 })
 
@@ -41,7 +47,7 @@ const chosenOutput = computed(() => {
 })
 
 const edges = computed(() => {
-  const list: { d: string; color: string; opacity: number; width: number }[] = []
+  const list: { d: string; color: string; opacity: number; width: number; strength: number }[] = []
   const maxAbs = Math.max(1e-9, ...props.weights.map(Math.abs))
   for (let li = 0; li < props.layerSizes.length - 1; li++) {
     const from = nodes.value[li]!
@@ -59,12 +65,16 @@ const edges = computed(() => {
           color: w >= 0 ? "#4ade80" : "#ff5c7a",
           opacity: input ? 0.08 + 0.85 * strength : 0.06 + 0.5 * strength,
           width: 0.5 + 1.6 * strength,
+          strength,
         })
       }
     }
   }
-  // Strong edges last so they draw on top.
-  return list.sort((a, b) => a.opacity - b.opacity)
+  // Strongest MAX_EDGES only, drawn weakest-first so strong edges land on top.
+  return list
+    .sort((a, b) => b.strength - a.strength)
+    .slice(0, MAX_EDGES)
+    .reverse()
 })
 
 function nodeFill(li: number, ni: number): string {
@@ -92,7 +102,7 @@ function nodeFill(li: number, ni: number): string {
         :key="ni"
         :cx="n.x"
         :cy="n.y"
-        r="5"
+        :r="nodeR"
         :fill="nodeFill(li, ni)"
         :stroke="li === layerSizes.length - 1 && chosenOutput === ni ? '#fbbf24' : '#323a4d'"
         :stroke-width="li === layerSizes.length - 1 && chosenOutput === ni ? 2 : 1"

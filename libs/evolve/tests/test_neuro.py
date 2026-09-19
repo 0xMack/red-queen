@@ -110,6 +110,17 @@ def test_simulation_fitness_evaluator_stops_episode_on_done():
     assert result == [expected_reward]
 
 
+def test_simulation_fitness_evaluator_counts_episodes_and_steps():
+    # Training-cost counters (docs/design/0007): each env here ends after exactly one step.
+    genome = WeightVector(weights=tuple([0.0] * _param_count((2, 4, 1))), layer_sizes=(2, 4, 1))
+    fitness = SimulationFitnessEvaluator(envs=_two_case_envs(), act=lambda g, obs: g.act(obs), max_steps=50)
+
+    fitness.evaluate(genome)
+    fitness.evaluate(genome)
+
+    assert (fitness.episodes, fitness.steps) == (4, 4)
+
+
 def _two_case_envs():
     return [_ConstantTargetEnv(0.6), _ConstantTargetEnv(-0.6)]
 

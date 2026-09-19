@@ -179,3 +179,84 @@ def test_benchmark_environments_use_distinct_seeds():
 
     assert len(envs) == 5
     assert len({e.seed for e in envs}) == 5
+
+
+# --- observers / interfaces (docs/design/0007) ------------------------------------------------------
+
+from games import interfaces  # noqa: E402
+from games.snake import RelativeTurn3, SnakeFeatures, SnakeGridFlat  # noqa: E402
+
+
+def test_default_observer_is_features_and_matches_legacy_observation():
+    snake = Snake(width=10, height=10, seed=3)
+    assert isinstance(snake.observer, SnakeFeatures)
+    assert snake.reset() == snake._observation()
+
+
+def test_grid_flat_encodes_cells_row_major_with_legacy_values():
+    snake = Snake(width=5, height=4, seed=0, observer=SnakeGridFlat())
+    observation = snake.reset()
+
+    assert len(observation) == 20
+    head_x, head_y = snake.body[0]
+    assert observation[head_y * 5 + head_x] == 2.0
+    for x, y in snake.body[1:]:
+        assert observation[y * 5 + x] == 1.0
+    assert observation[snake.food[1] * 5 + snake.food[0]] == 3.0
+    assert observation.count(0.0) == 20 - len(snake.body) - 1
+
+
+def test_observer_choice_does_not_change_the_game():
+    features = Snake(seed=7)
+    grid = Snake(seed=7, observer=SnakeGridFlat())
+    features.reset()
+    grid.reset()
+    for action in [0, 1, 0, -1, 0, 0, 1]:
+        _, reward_a, done_a = features.step(action)
+        _, reward_b, done_b = grid.step(action)
+        assert (reward_a, done_a) == (reward_b, done_b)
+    assert features.render_state() == grid.render_state()
+
+
+def test_relative_turn_decodes_argmax_to_turn():
+    adapter = RelativeTurn3()
+    assert adapter.decode([0.9, 0.1, 0.2]) == -1
+    assert adapter.decode([0.1, 0.9, 0.2]) == 0
+    assert adapter.decode([0.1, 0.2, 0.9]) == 1
+
+
+def test_interface_registry_round_trips_ids_and_describes_shapes():
+    ids = [i.id for i in interfaces.for_game("snake")]
+    assert "snake/features.v1+relative3.v1" in ids
+    assert "snake/grid-flat.v1+relative3.v1" in ids
+
+    grid = interfaces.get("snake/grid-flat.v1+relative3.v1")
+    described = grid.describe()
+    assert described["observer"]["size"] == 100
+    assert described["observer"]["level_name"] == "full state"
+    assert described["action"]["num_outputs"] == 3
+    assert isinstance(grid.make_game(seed=1).observer, SnakeGridFlat)
+
+
+def test_find_matches_a_model_shape_to_its_interface():
+    assert interfaces.find("snake", input_size=11, num_outputs=3).id == "snake/features.v1+relative3.v1"
+    assert interfaces.find("snake", input_size=100, num_outputs=3).id == "snake/grid-flat.v1+relative3.v1"
+    assert interfaces.find("snake", input_size=42, num_outputs=3) is None
+
+
+def test_baselines_are_registered_with_their_interface_and_play_legally():
+    from games import baselines
+
+    names = {b.name for b in baselines.for_game("snake")}
+    assert names == {"random", "greedy"}
+    for baseline in baselines.for_game("snake"):
+        game = interfaces.get(baseline.interface).make_game(seed=5)
+        policy = baseline.factory(5)
+        observation = game.reset()
+        for _ in range(50):
+            action = policy(observation)
+            assert action in (-1, 0, 1)
+            observation, _, done = game.step(action)
+            if done:
+                break
+    assert baselines.get("snake", "greedy").entrant_id == "baseline:greedy"

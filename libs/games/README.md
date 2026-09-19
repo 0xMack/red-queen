@@ -23,14 +23,24 @@ artifact would consume, none of which need to touch or slow down the training pa
 
 - `reach1d.py` — `ReachTarget1D`: a toy 1D continuous-control task. See
   `notebooks/0004-neuroevolution-reach1d.ipynb`.
-- `snake.py` — `Snake`: a grid game. Observation is 11 hand-engineered features (danger
+- `observation.py` / `interfaces.py` — docs/design/0007's split of *what a model sees* from the
+  game itself. An `Observer` encodes a game into `list[float]` (plus feature names); an
+  `ActionAdapter` decodes model outputs into an action; an `Interface` is the versioned combination
+  (`snake/features.v1+relative3.v1`), and `interfaces.get()/for_game()/find()` is the one registry
+  jobs, `apis/backend`, and the Pyodide worker all use. Observers carry a representation level
+  (0 visual, 1 full state, 2 local/egocentric, 3 engineered). Never change what an existing observer
+  encodes — add a new version, or every champion trained on the old one silently breaks.
+- `snake.py` — `Snake`: a grid game. Its observer is pluggable (`Snake(observer=...)`); the default,
+  `SnakeFeatures` (`features.v1`), is 11 hand-engineered features (danger
   straight/left/right, heading one-hot, food direction) — replaced an earlier board-size-dependent
   flattened-grid observation once `notebooks/0005-neuroevolution-snake.ipynb`'s own conclusion
   ("a representation ceiling, not a compute shortage") pointed at the representation, not more
   compute, as the next thing to fix; see the module docstring for the full reasoning and
   `jobs/snake_neuro_run.py` for the retrained result (best_fitness 0.65 → 17.28, same generation
-  budget class, now actually eating food instead of dying near-immediately). Action is a relative
-  turn (left/straight/right), so reversing into your own body is structurally impossible. Reward is
+  budget class, now actually eating food instead of dying near-immediately). The replaced
+  100-float grid lives on as `SnakeGridFlat` (`grid-flat.v1`), so champions trained on it still run
+  and the two can be compared on the leaderboard. Action is a relative turn
+  (left/straight/right), so reversing into your own body is structurally impossible. Reward is
   intentionally asymmetric (penalize moving away from food more than moving closer is rewarded) — a
   symmetric version let an evolved policy oscillate between two cells forever for ~0 net reward, a
   real reward-hacking failure mode found by running it, not guessed at in advance.

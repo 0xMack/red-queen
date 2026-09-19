@@ -8,13 +8,24 @@
 // hero column and a narrower run-page column, and should adapt to the space it's actually given.
 import { SNAKE_INPUT_LABELS, SNAKE_OUTPUT_LABELS } from "~/utils/snakePolicy"
 
+// Plays either a run's champion (runId) or a fixed baseline (baseline + its interface) -- every kind
+// of leaderboard entrant. Which one is decided at setup: key this component by entrant so switching
+// remounts it (the Pyodide worker itself is shared and stays warm).
 const props = withDefaults(
-  defineProps<{ runId: string; manageStream?: boolean; pinnedGeneration?: number | null; showNetwork?: boolean }>(),
-  { manageStream: true, pinnedGeneration: null, showNetwork: true },
+  defineProps<{
+    runId?: string
+    baseline?: { name: string; interface: string; description?: string }
+    manageStream?: boolean
+    pinnedGeneration?: number | null
+    showNetwork?: boolean
+  }>(),
+  { runId: undefined, baseline: undefined, manageStream: true, pinnedGeneration: null, showNetwork: true },
 )
 const emit = defineEmits<{ unpin: [] }>()
 
-const session = useWatchSession(props.runId, { manageStream: props.manageStream })
+const session = props.baseline
+  ? useBaselineSession(props.baseline.name, props.baseline.interface)
+  : useWatchSession(props.runId!, { manageStream: props.manageStream })
 const {
   loading,
   error,
@@ -53,7 +64,7 @@ const activations = computed(() => {
 })
 
 const loadingMessage = computed(() =>
-  targetStats.value ? "Starting the Python runtime (first load ~10s)…" : "Fetching the champion…",
+  targetStats.value || props.baseline ? "Starting the Python runtime (first load ~10s)…" : "Fetching the champion…",
 )
 </script>
 
@@ -79,7 +90,8 @@ const loadingMessage = computed(() =>
           <div data-board-overlay class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
             <span class="chip border-line-strong bg-bg/80 backdrop-blur">
               <span class="size-1.5 rounded-full bg-gold-400" />
-              {{ sessionPinned === null ? "latest champion" : "pinned" }} · gen {{ policy?.generation ?? "?" }}
+              <template v-if="baseline">baseline · {{ baseline.name }}</template>
+              <template v-else>{{ sessionPinned === null ? "latest champion" : "pinned" }} · gen {{ policy?.generation ?? "?" }}</template>
             </span>
             <span class="num rounded-md bg-bg/80 px-2 py-0.5 text-sm font-semibold text-life-300 backdrop-blur">
               {{ renderState.score }} 🍎
@@ -137,6 +149,15 @@ const loadingMessage = computed(() =>
           <button v-if="sessionPinned !== null" class="btn-ghost btn-sm ml-auto" @click="emit('unpin')">
             Follow latest champion
           </button>
+        </div>
+
+        <div v-if="baseline" class="rounded-lg border border-line bg-sunken p-4 text-sm">
+          <p class="text-[11px] tracking-wide text-fg-subtle uppercase">How it decides</p>
+          <p class="mt-1.5 text-fg-muted">{{ baseline.description ?? "A fixed, hand-written policy." }}</p>
+          <p class="mt-2 text-xs text-fg-subtle">
+            No training, no weights -- a reference point. If a learned model can't beat this, it hasn't
+            learned much.
+          </p>
         </div>
 
         <div v-if="showNetwork && policy" class="rounded-lg border border-line bg-sunken p-3">

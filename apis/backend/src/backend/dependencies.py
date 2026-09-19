@@ -12,10 +12,12 @@ from typing import Annotated
 from fastapi import Depends
 from telemetry import (
     ArtifactStore,
+    EvaluationStore,
     FileArtifactStore,
     FileMetricsStore,
     MetricsSource,
     RunRegistry,
+    SqliteEvaluationStore,
     SqliteRunRegistry,
 )
 
@@ -39,6 +41,11 @@ def _artifact_store() -> FileArtifactStore:
 
 
 @lru_cache
+def _evaluation_store() -> SqliteEvaluationStore:
+    return SqliteEvaluationStore(run_data_dir() / "evaluations.db")
+
+
+@lru_cache
 def _game_session_store() -> GameSessionStore:
     return GameSessionStore()
 
@@ -46,4 +53,5 @@ def _game_session_store() -> GameSessionStore:
 RunRegistryDep = Annotated[RunRegistry, Depends(_run_registry)]
 MetricsSourceDep = Annotated[MetricsSource, Depends(_metrics_source)]
 ArtifactStoreDep = Annotated[ArtifactStore, Depends(_artifact_store)]
+EvaluationStoreDep = Annotated[EvaluationStore, Depends(_evaluation_store)]
 GameSessionStoreDep = Annotated[GameSessionStore, Depends(_game_session_store)]

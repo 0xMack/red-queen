@@ -11,7 +11,7 @@ defineProps<{ game: GameEntry; compact?: boolean }>()
     :class="game.status === 'available' ? 'card-hover' : ''"
   >
     <NuxtLink
-      :to="game.playHref ?? '/games'"
+      :to="game.href"
       class="relative block overflow-hidden border-b border-line bg-sunken"
       :class="compact ? 'aspect-[16/10]' : 'aspect-[4/3]'"
     >
@@ -42,8 +42,11 @@ defineProps<{ game: GameEntry; compact?: boolean }>()
         <span v-for="fact in game.facts" :key="fact" class="chip">{{ fact }}</span>
       </div>
       <div class="mt-auto flex flex-wrap gap-2 pt-5">
-        <NuxtLink v-if="game.playHref" :to="game.playHref" class="btn-primary btn-sm">Play</NuxtLink>
-        <NuxtLink v-if="game.runsHref" :to="game.runsHref" class="btn-ghost btn-sm">Watch trained runs</NuxtLink>
+        <template v-if="game.status === 'available'">
+          <NuxtLink :to="game.href" class="btn-primary btn-sm">👁 Watch the algorithms</NuxtLink>
+          <NuxtLink :to="{ path: game.href, query: { mode: 'play' } }" class="btn-ghost btn-sm">🎮 Play</NuxtLink>
+          <NuxtLink :to="{ path: game.href, hash: '#leaderboard' }" class="btn-ghost btn-sm">🏆 Leaderboard</NuxtLink>
+        </template>
         <span v-if="game.status === 'coming-soon'" class="text-xs text-fg-subtle">Framework built · UI in progress</span>
       </div>
     </div>
