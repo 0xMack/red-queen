@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// A real NEAT champion from this project's own training runs, playing Snake in the browser (the actual
-// games.snake and the actual evolve.neat.NeatGenome, in Pyodide) with its evolved graph lighting up move by move.
+// A real NEAT champion from this project's own training runs, playing Snake in the browser (the real
+// Snake game core as WebAssembly, the genome as its ONNX package) with its evolved graph lighting up move by move.
 // Prefers the untagged "flagship" run (the one on the leaderboard); falls back to any finished NEAT run.
 import type { RunInfo } from "~/types/telemetry"
 

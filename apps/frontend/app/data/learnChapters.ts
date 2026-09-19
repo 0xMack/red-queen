@@ -205,7 +205,7 @@ export const learnChapters: LearnChapter[] = [
     status: "available",
     readMinutes: 6,
     part: "Under the hood",
-    tags: ["telemetry", "SSE", "FastAPI", "Pyodide", "pause/resume"],
+    tags: ["telemetry", "SSE", "FastAPI", "WebAssembly", "pause/resume"],
     image: "/screenshots/run-detail.png",
     art: "pipeline",
     sections: [

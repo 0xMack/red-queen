@@ -20,6 +20,7 @@ app.include_router(games.router)
 app.include_router(leaderboards.router)
 app.include_router(models.router)
 app.include_router(models.catalog_router)
+app.include_router(models.export_router)
 
 
 @app.get("/health")

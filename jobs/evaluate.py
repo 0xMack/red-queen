@@ -9,9 +9,11 @@ Entrants for Snake today:
   is an entrant of its own (`run:<id>@fp32`);
 - fixed baselines (random, greedy) -- always included, since a ranking says nothing without them.
 
-Protocol `snake.score.v1`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
+Protocol `snake.score.v2`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
 10x10 board, MAX_STEPS cap, metric = game score (food eaten), never training fitness. Changing any of
-that means a new protocol version, not an edit.
+that means a new protocol version, not an edit. v2 is v1's definition unchanged, played by the Rust
+game core (docs/design/0009): its PCG32 food placement turns each seed into a different game than
+v1's Mersenne Twister did, so v1 and v2 scores are not comparable.
 
 Run with: uv run python jobs/evaluate.py
 """
@@ -42,7 +44,7 @@ from telemetry import (
 
 RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
-PROTOCOL = "snake.score.v1"
+PROTOCOL = "snake.score.v2"
 HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
 # A second, separate unseen set for *monitoring* training runs (snake_neuro_run.py's held-out score
 # every N generations). Kept apart from HELD_OUT_SEEDS so the leaderboard's games stay untouched even

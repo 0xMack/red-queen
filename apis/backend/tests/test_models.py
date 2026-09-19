@@ -49,3 +49,25 @@ def test_manifest_and_blobs_are_served_immutable(published):
 def test_unknown_or_malformed_keys_are_404(published, path):
     client, _ = published
     assert client.get(path).status_code == 404
+
+
+def test_on_demand_export_packages_a_stored_champion(published, tmp_path):
+    from backend.dependencies import _artifact_store
+    from telemetry import FileArtifactStore
+
+    client, _ = published
+    artifacts = FileArtifactStore(tmp_path / "artifacts")
+    network = random_weight_vector((11, 16, 3), random.Random(3))
+    artifacts.put_program("run1-gen7", network.to_json().encode())
+    app.dependency_overrides[_artifact_store] = lambda: artifacts
+
+    first = client.post("/runs/run1/artifacts/run1-gen7/package")
+    assert first.status_code == 200
+    body = first.json()
+    assert body["variants"] == ["fp64", "fp32"] and body["on_demand"] is True
+    assert client.post("/runs/run1/artifacts/run1-gen7/package").json()["package_id"] == body["package_id"]
+    manifest = client.get(f"/models/manifests/{body['package_id']}.json").json()
+    assert manifest["provenance"]["champion_ref"] == "run1-gen7"
+
+    assert client.post("/runs/run1/artifacts/run1-gen99/package").status_code == 404
+    assert client.post("/runs/other/artifacts/run1-gen7/package").status_code == 404

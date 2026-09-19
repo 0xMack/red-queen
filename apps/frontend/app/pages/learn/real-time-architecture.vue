@@ -136,14 +136,22 @@ const controlCode = `def make_control_callback(registry, run_id, poll_interval=0
 
     <h2>Replaying champions in the browser</h2>
     <p>
-      Watching a champion play doesn't call the server per move. The browser downloads the champion's
-      weights once (as an artifact) and runs the actual game in <strong>Pyodide</strong> -- CPython
-      compiled to WebAssembly -- inside a Web Worker, loading <code>libs/games</code> and
-      <code>libs/evolve</code> straight from the repo. The snake you watch is driven by the exact Python the
-      training job and its tests run, not a JavaScript copy that could drift. The first load downloads
-      the Python runtime (about 11 seconds); the worker is then kept alive, so every later game starts in
-      about 10 milliseconds.
+      Watching a champion play doesn't call the server per move -- a visitor's own device does the
+      inference, so watching costs the server nothing per frame. Two pieces run inside a Web Worker. The
+      <strong>game</strong> is <code>libs/games</code>' Rust core compiled to WebAssembly (31 KB): the same
+      code training runs through Python bindings, so the snake you watch plays exactly the game the
+      leaderboard scored. The <strong>model</strong> is a content-addressed package -- an ONNX graph plus
+      its weights, verified by hash and cached forever -- run by ONNX Runtime Web on WebAssembly or the GPU,
+      whichever this device supports. If it supports neither, the page says so and why, rather than
+      failing (docs/design/0009).
     </p>
+    <Callout variant="finding" title="Precision changed the moves">
+      Exporting the evolved networks in float32 -- what a GPU runs -- made five of ten champions choose
+      a different move somewhere in their 200 held-out games: the float64 networks' argmax sat on near-ties
+      that rounding flipped (one old grid champion disagreed on 11% of its moves). Every package now
+      records how often each variant agrees with the trained model, the leaderboard entrant plays
+      through a variant that agrees on every move, and a variant that doesn't is ranked separately.
+    </Callout>
     <Callout variant="finding" title="Streaming made a real problem visible">
       The live curve of training fitness against a held-out game score (recorded every 10 generations)
       showed the Snake champion's real score peaking around generation 20 and then <em>falling</em> while

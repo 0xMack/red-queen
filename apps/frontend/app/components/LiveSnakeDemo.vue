@@ -53,7 +53,7 @@ onUnmounted(() => session.stop())
     </button>
     <div v-else-if="loading" class="card flex aspect-square flex-col items-center justify-center gap-3">
       <BrandMark class="size-9 animate-pulse" />
-      <p class="text-sm text-fg-muted">Starting the Python runtime…</p>
+      <p class="text-sm text-fg-muted">Starting the game…</p>
     </div>
     <div v-else-if="error" class="card flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center text-sm">
       <p class="text-queen-300">{{ error }}</p>

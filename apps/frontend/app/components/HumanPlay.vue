@@ -3,7 +3,7 @@ import type { EvaluationRecord } from "~/types/leaderboard"
 import type { HumanHistory } from "~/utils/leaderboard"
 
 // "Play it yourself" on the game page: the same board and the same game the algorithms play (same
-// Snake, same 10x10 board, same Pyodide worker), with a human steering instead of a policy. A short
+// Snake, same 10x10 board, same session worker and WebAssembly game core), with a human steering instead of a policy. A short
 // countdown, a live race against every entrant's mean while playing, then HumanResults.
 // Keyboard capture is window-scoped (this component owns the stage while mounted); arrow keys and
 // space are preventDefault'ed so the page doesn't scroll mid-game.
@@ -108,7 +108,7 @@ onUnmounted(() => {
           <template v-else>
             <template v-if="warming">
               <BrandMark class="size-10 animate-pulse" />
-              <p class="text-sm text-fg-muted">Loading the Python runtime (first time ~10s)…</p>
+              <p class="text-sm text-fg-muted">Loading the game…</p>
             </template>
             <template v-else>
               <p class="text-sm tracking-widest text-fg-muted uppercase">Get ready</p>
@@ -120,7 +120,7 @@ onUnmounted(() => {
           </template>
         </div>
         <div v-if="phase === 'playing' && loading" class="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-          Starting the Python runtime…
+          Starting the game…
         </div>
         <div v-if="phase !== 'countdown'" class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between">
           <span class="chip border-queen-400/40 bg-bg/80 text-queen-200 backdrop-blur">🎮 you're playing</span>

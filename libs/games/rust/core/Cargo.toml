@@ -1,0 +1,9 @@
+[package]
+name = "redqueen-games"
+description = "Game rules, observers, action adapters and baselines -- the one implementation shared by training (Python) and the browser (WASM)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "redqueen_games"

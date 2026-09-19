@@ -52,7 +52,7 @@ const highlights = [
   {
     icon: "◉",
     title: "Watch it happen, live",
-    body: "Every training run streams its progress in real time, and a trained policy plays its game right in the browser -- the same Python code, via Pyodide, not a JS reimplementation.",
+    body: "Every training run streams its progress in real time, and a trained policy plays its game right in your browser -- the same Rust game core training uses, compiled to WebAssembly, with the model run by ONNX Runtime on your own device.",
   },
 ]
 

@@ -1,0 +1,14 @@
+[package]
+name = "games-wasm"
+description = "wasm-bindgen bindings: the game core for the browser (apps/frontend)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+redqueen-games = { path = "../core" }
+wasm-bindgen = "=0.2.108"

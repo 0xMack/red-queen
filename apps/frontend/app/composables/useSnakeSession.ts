@@ -10,11 +10,10 @@ import type { ModelSpec } from "~/types/modelpack"
 // the worker itself.
 export const DEFAULT_TICK_MS = 110
 
-// What drives the snake in watch mode (mirrors the worker's PolicySpec): a trained network's
-// serialized weights, a games.baselines name, or a model package run by ONNX Runtime (docs/design/0009)
-// -- plus the interface (docs/design/0007) it plays under. No policy at all = play mode, a human steers.
+// What drives the snake in watch mode (mirrors the worker's PolicySpec): a model package run by ONNX
+// Runtime (docs/design/0009) or a games.baselines name -- plus the interface (docs/design/0007) it
+// plays under. No policy at all = play mode, a human steers.
 export interface PolicySpec {
-  policyJson?: string
   baseline?: string
   model?: ModelSpec
   interfaceId?: string
@@ -61,7 +60,7 @@ export function useSnakeSession() {
   let worker: Worker | null = null
 
   function attach(): Worker {
-    // A shared worker, not one created (and Pyodide-loaded) fresh per consumer -- see
+    // A shared worker, not one created (and its runtimes loaded) fresh per consumer -- see
     // useSnakeWorker.ts. Assigning onmessage here replaces whatever the previously active
     // consumer attached, which is all the "detach" a single-worker,
     // one-visible-consumer-at-a-time app needs.
@@ -110,7 +109,7 @@ export function useSnakeSession() {
     w.postMessage({ type: "start", ...spec })
   }
 
-  // Load the Python runtime without starting a game; `loading` flips false when it's ready.
+  // Load the game runtime without starting a game; `loading` flips false when it's ready.
   function warmup() {
     loading.value = true
     error.value = null

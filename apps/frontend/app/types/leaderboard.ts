@@ -1,7 +1,7 @@
 // Mirrors libs/telemetry/src/telemetry/evaluations.py's EvaluationRecord and
 // libs/games/src/games/observation.py's Interface.describe() (docs/design/0007) -- keep in sync by
 // hand. `metrics` is free-form on the Python side; the shape below is what jobs/evaluate.py writes
-// for protocol snake.score.v1.
+// for protocols snake.score.v1/v2.
 
 export type EntrantKind = "champion" | "baseline" | "human"
 

@@ -1,7 +1,8 @@
 import type { Availability } from "~/composables/useModelCatalog"
-import type { Match } from "~/inference/match"
 import type { ModelFailure } from "~/composables/useSnakeSession"
-import type { ModelManifest, ModelSpec } from "~/types/modelpack"
+import { probeDevice } from "~/inference/device"
+import { matchVariant, rememberFailure, rememberedFailure, type Match } from "~/inference/match"
+import type { Backend, CatalogEntry, ModelManifest, ModelSpec } from "~/types/modelpack"
 import type { RunInfo } from "~/types/telemetry"
 import { genomeFromJson, type Genome, type GenomeJson } from "~/utils/neat"
 
@@ -27,11 +28,11 @@ export interface LoadedPolicy {
 // generation's champion (every generation's champion is stored as an artifact); `pin(null)` goes
 // back to following.
 //
-// `packaged` (docs/design/0009): when this run's champion is published as a model package, the page
-// passes its availability here and the champion runs through ONNX Runtime instead of the Pyodide
-// forward pass -- unless this device can't run it, in which case `unsupported` says why and nothing
-// plays. The JSON artifact is still fetched, but only to *draw* the network (and for generations
-// that were never published: pinned ones, or a still-training run's latest).
+// Every champion plays as a model package in ONNX Runtime (docs/design/0009): `packaged` is the
+// published one when the page has it (the game page's catalog); anything else -- a still-training
+// run's latest champion, a pinned generation -- is exported on demand by the backend. If this device
+// can't run it, `unsupported` says why and nothing plays. The JSON artifact is still fetched, but
+// only to *draw* the network.
 export interface WatchOptions {
   manageStream?: boolean
   // undefined = the catalog is still loading (wait, don't start the Python path and switch later);
@@ -54,7 +55,9 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
   const unsupported = ref<Extract<Match, { ok: false }> | null>(null)
   const awaitingConfirmation = ref<number | null>(null) // bytes
   const downloadConfirmed = ref(false)
-  const runtime = ref<"onnxruntime" | "python" | null>(null)
+  // Where the package that's playing came from: the game's published catalog, or exported on demand.
+  const source = ref<"published" | "on-demand" | null>(null)
+  const currentPackage = ref<Availability | null>(null)
   let workerStarted = false
   let active = false
 
@@ -63,6 +66,35 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     if (pinnedGeneration.value === null) return history.at(-1) ?? null
     return history.find((h) => h.generation === pinnedGeneration.value) ?? null
   })
+
+  // A champion that was never published (a still-training run's latest, a pinned generation) is
+  // exported on demand by the backend -- the same package format, so it runs the same way.
+  async function onDemand(ref: string): Promise<Availability> {
+    const exported = await $fetch<{ base_url: string; package_id: string; variants: string[] }>(
+      `/runs/${runId}/artifacts/${ref}/package`,
+      { baseURL: config.public.apiBase, method: "POST" },
+    )
+    const [manifest, profile] = await Promise.all([
+      $fetch<ModelManifest>(`${exported.base_url}/manifests/${exported.package_id}.json`),
+      probeDevice(),
+    ])
+    const entry: CatalogEntry = {
+      entrant_id: `run:${runId}`,
+      package_id: exported.package_id,
+      label: manifest.label,
+      interface: null,
+      run_id: runId,
+      champion_ref: ref,
+      variants: exported.variants,
+      download_bytes: {},
+    }
+    return {
+      entry,
+      manifest,
+      baseUrl: exported.base_url,
+      match: matchVariant(manifest, exported.variants, profile, rememberedFailure(exported.package_id)),
+    }
+  }
 
   async function loadTargetChampionIfNew() {
     // Wait for the run config too: it names the interface the champion must run under, and on the
@@ -73,67 +105,67 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
 
     const packaged = options.packaged ? options.packaged() : null
     if (packaged === undefined) return // catalog still loading; the watch on `packaged` retries
-    const usePackage = packaged !== null && target.champion_ref === packaged.entry.champion_ref
     unsupported.value = null
     awaitingConfirmation.value = null
-    let model: ModelSpec | undefined
-    if (usePackage) {
-      const match = packaged.match
-      if (!match || !packaged.manifest) return // still probing; the watch on `packaged` retries
-      if (!match.ok) {
-        unsupported.value = match
-        session.loading.value = false
-        // Nothing may keep playing behind the explanation (a previous variant, or the Python path).
-        if (workerStarted) {
-          session.stop()
-          workerStarted = false
-          runtime.value = null
-        }
-        return
-      }
-      if (match.needsConfirmation && !downloadConfirmed.value) {
-        awaitingConfirmation.value = match.variant.requirements.download_bytes
-        session.loading.value = false
-        return
-      }
-      // A plain copy: the manifest lives in reactive state, and a Vue proxy can't cross postMessage.
-      const manifest = JSON.parse(JSON.stringify(packaged.manifest)) as ModelManifest
-      model = { baseUrl: packaged.baseUrl, manifest, variantId: match.variant.id, backend: match.backend }
-    }
 
-    let policyJson = ""
-    try {
-      policyJson = await $fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, {
-        baseURL: config.public.apiBase,
-        responseType: "text",
-      })
-    } catch (e) {
-      // Fatal only when the artifact is what plays; a package plays without it (no diagram, then).
-      if (!model) {
+    let available: Availability
+    if (packaged !== null && target.champion_ref === packaged.entry.champion_ref) {
+      if (!packaged.match || !packaged.manifest) return // still probing; the watch on `packaged` retries
+      available = packaged
+      source.value = "published"
+    } else {
+      try {
+        available = await onDemand(target.champion_ref)
+      } catch (e) {
         session.error.value = e instanceof Error ? e.message : String(e)
         session.loading.value = false
         return // lastLoadedRef stays unset for this ref, so a retry (or the next SSE tick) tries again
       }
+      source.value = "on-demand"
     }
+    currentPackage.value = available
+
+    const match = available.match!
+    if (!match.ok) {
+      unsupported.value = match
+      session.loading.value = false
+      // Nothing may keep playing behind the explanation (a previous variant or champion).
+      if (workerStarted) {
+        session.stop()
+        workerStarted = false
+      }
+      return
+    }
+    if (match.needsConfirmation && !downloadConfirmed.value) {
+      awaitingConfirmation.value = match.variant.requirements.download_bytes
+      session.loading.value = false
+      return
+    }
+    // A plain copy: the manifest may live in reactive state, and a Vue proxy can't cross postMessage.
+    const manifest = JSON.parse(JSON.stringify(available.manifest)) as ModelManifest
+    const model: ModelSpec = { baseUrl: available.baseUrl, manifest, variantId: match.variant.id, backend: match.backend }
+
     lastLoadedRef.value = target.champion_ref
     // docs/design/0007: run the champion under the interface its run recorded (backfilled for
     // pre-0007 runs by jobs/backfill_interfaces.py). Absent -> the worker's default.
     const interfaceId = typeof run.value?.config?.interface === "string" ? run.value.config.interface : undefined
 
-    try {
-      const parsed = JSON.parse(policyJson) as { type?: string; weights?: number[]; layer_sizes?: number[] }
-      const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation }
-      policy.value =
-        parsed.type === "neat"
-          ? { ...base, kind: "neat", weights: [], layerSizes: [], genome: genomeFromJson(parsed as unknown as GenomeJson) }
-          : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
-    } catch {
-      policy.value = null // the worker will report the real error if the artifact is unusable
-    }
+    // The trained network itself, only to *draw* it (its live activations): the package is what plays.
+    $fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, { baseURL: config.public.apiBase, responseType: "text" })
+      .then((text) => {
+        const parsed = JSON.parse(text) as { type?: string; weights?: number[]; layer_sizes?: number[] }
+        const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation }
+        policy.value =
+          parsed.type === "neat"
+            ? { ...base, kind: "neat", weights: [], layerSizes: [], genome: genomeFromJson(parsed as unknown as GenomeJson) }
+            : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
+      })
+      .catch(() => {
+        policy.value = null // no diagram; the game plays regardless
+      })
 
     session.resetStats()
-    runtime.value = model ? "onnxruntime" : "python"
-    const spec = model ? { model, interfaceId } : { policyJson, interfaceId }
+    const spec = { model, interfaceId }
     if (!workerStarted) {
       workerStarted = true
       session.start(spec)
@@ -162,9 +194,14 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
       loadTargetChampionIfNew()
     },
   )
+  // A variant that fails to load or self-test here is remembered for this device, and the next
+  // candidate (or an explanation) takes over: the page's catalog re-matches (published champions),
+  // or this session does (on-demand ones).
   session.handleModelErrors((failure) => {
+    rememberFailure(failure.packageId, failure.variantId, failure.backend as Backend, failure.message)
     lastLoadedRef.value = null
     options.onModelFailure?.(failure)
+    if (source.value === "on-demand") loadTargetChampionIfNew()
   })
 
   function confirmDownload() {
@@ -227,7 +264,8 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     targetStats,
     unsupported,
     awaitingConfirmation,
-    runtime,
+    source,
+    currentPackage,
     start,
     retry,
     pin,

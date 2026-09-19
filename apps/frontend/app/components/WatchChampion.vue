@@ -14,9 +14,9 @@ import { activations as neatActivations, complexity as neatComplexity } from "~/
 
 // Plays either a run's champion (runId) or a fixed baseline (baseline + its interface) -- every kind
 // of leaderboard entrant. Which one is decided at setup: key this component by entrant so switching
-// remounts it (the Pyodide worker itself is shared and stays warm). `packaged`, when the champion is
-// published as a model package (docs/design/0009), makes it run through ONNX Runtime -- or explain
-// why this device can't.
+// remounts it (the session worker itself is shared and stays warm). A champion plays as a model
+// package in ONNX Runtime (docs/design/0009) -- `packaged` when the page has the published one,
+// otherwise exported on demand -- or the panel explains why this device can't run it.
 const props = withDefaults(
   defineProps<{
     runId?: string
@@ -63,7 +63,8 @@ const {
   pinnedGeneration: sessionPinned,
   unsupported,
   awaitingConfirmation,
-  runtime,
+  source,
+  currentPackage,
   modelProgress,
   modelStatus,
 } = session
@@ -99,7 +100,7 @@ const neatSize = computed(() => (policy.value?.genome ? neatComplexity(policy.va
 
 const loadingMessage = computed(() => {
   if (props.packagedLoading || (props.packaged && !props.packaged.match)) return "Checking what this device can run…"
-  return targetStats.value || props.baseline ? "Starting the game runtime (first load ~10s)…" : "Fetching the champion…"
+  return targetStats.value || props.baseline ? "Starting the game…" : "Fetching the champion…"
 })
 
 const progressLabel = computed(() => {
@@ -113,7 +114,7 @@ const progressLabel = computed(() => {
 
 // The variant actually running, for the runtime panel (what was published vs. what this device got).
 const runningVariant = computed(() =>
-  props.packaged?.manifest?.variants.find((v) => v.id === modelStatus.value?.variantId) ?? null,
+  currentPackage.value?.manifest?.variants.find((v) => v.id === modelStatus.value?.variantId) ?? null,
 )
 </script>
 
@@ -237,8 +238,8 @@ const runningVariant = computed(() =>
           </button>
         </div>
 
-        <div v-if="!baseline && runtime" data-runtime class="rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
-          <template v-if="runtime === 'onnxruntime' && modelStatus">
+        <div v-if="!baseline && source" data-runtime class="rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
+          <template v-if="modelStatus">
             <p class="text-fg">
               Running in your browser · ONNX Runtime ·
               <span class="font-mono">{{ modelStatus.variantId }}</span> on
@@ -253,13 +254,12 @@ const runningVariant = computed(() =>
                 · {{ (runningVariant.parity.action_agreement * 100).toFixed(runningVariant.parity.action_agreement === 1 ? 0 : 2) }}% same
                 moves as the trained model
               </template>
+              <template v-else-if="source === 'on-demand'">
+                · exported on demand (not a published package, so not checked move-for-move)
+              </template>
             </p>
           </template>
-          <p v-else-if="runtime === 'onnxruntime'" class="text-fg-subtle">Loading the model package…</p>
-          <p v-else class="text-fg-subtle">
-            Running the training code's own forward pass (Python, in your browser) -- this champion
-            {{ sessionPinned !== null || !packaged ? "isn't published as a model package" : "has no package variant for this device" }}.
-          </p>
+          <p v-else class="text-fg-subtle">Loading the model package…</p>
         </div>
 
         <div v-if="baseline" class="rounded-lg border border-line bg-sunken p-4 text-sm">

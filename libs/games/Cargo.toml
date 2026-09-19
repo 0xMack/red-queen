@@ -1,0 +1,22 @@
+# The Rust game core (docs/design/0009 Decision 2): one implementation of every game's rules,
+# observers, action adapters and baselines, bound to Python (rust/python, PyO3 -> the `games._native`
+# extension of this package) and compiled to WebAssembly for the browser (rust/wasm, wasm-bindgen).
+[workspace]
+members = ["rust/core", "rust/python", "rust/wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+# The browser build: smallest module, not fastest (the game is not the bottleneck).
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+panic = "abort"

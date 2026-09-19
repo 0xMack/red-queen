@@ -10,15 +10,21 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
+from modelpack import build_package, export_network_json
 from modelpack.store import GAME, SHA256
 
-from backend.dependencies import LocalModelStoreDep
+from backend.dependencies import ArtifactStoreDep, LocalModelStoreDep
 from backend.settings import models_base_url
 
 IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
 
 router = APIRouter(prefix="/models", tags=["models"])
 catalog_router = APIRouter(prefix="/games", tags=["models"])
+export_router = APIRouter(prefix="/runs", tags=["models"])
+
+
+def _base_url(request: Request) -> str:
+    return models_base_url() or str(request.url_for("get_blob", sha256="x")).removesuffix("/blobs/x")
 
 
 @router.get("/blobs/{sha256}")
@@ -42,5 +48,39 @@ def get_catalog(game: str, request: Request, store: LocalModelStoreDep) -> dict[
     if not GAME.match(game):
         raise HTTPException(status_code=404, detail="no such game")
     catalog = store.catalog(game)
-    base_url = models_base_url() or str(request.url_for("get_blob", sha256="x")).removesuffix("/blobs/x")
-    return {"game": game, "base_url": base_url, "entries": [e.model_dump(mode="json") for e in catalog.entries]}
+    return {"game": game, "base_url": _base_url(request), "entries": [e.model_dump(mode="json") for e in catalog.entries]}
+
+
+@export_router.post("/{run_id}/artifacts/{ref}/package")
+def export_champion(run_id: str, ref: str, request: Request, artifacts: ArtifactStoreDep, store: LocalModelStoreDep) -> dict[str, Any]:
+    """Package any stored champion on demand -- how the browser watches a champion that was never
+    published (a still-training run's latest, a pinned generation). Development/live-training only:
+    it costs a little server compute per *new* champion, never per frame, and packages are
+    content-addressed, so asking again for the same champion re-uses the stored one. Unlike
+    jobs/publish_models.py it measures only numeric parity (on random inputs), not action agreement
+    on the protocol's games -- so it's marked `on_demand`, and never becomes a leaderboard entrant."""
+    # Champion refs are "<run_id>-gen<N>" (jobs/*_run.py); anything else isn't this run's champion.
+    if not ref.startswith(f"{run_id}-"):
+        raise HTTPException(status_code=404, detail=f"{ref} isn't a champion of run {run_id}")
+    try:
+        raw = artifacts.get_program(ref)
+    except OSError:
+        raise HTTPException(status_code=404, detail=f"no such program artifact: {ref}") from None
+    try:
+        text = raw.decode("utf-8")
+        package = build_package(
+            [export_network_json(text, "float64"), export_network_json(text, "float32")],
+            label=f"{run_id[:8]} · {ref.removeprefix(run_id).lstrip('-')} (on-demand export)",
+            run_id=run_id,
+            champion_ref=ref,
+        )
+    except (ValueError, TypeError, KeyError) as e:
+        raise HTTPException(status_code=422, detail=f"can't export {ref}: {e}") from None
+    store.put(package)
+    manifest = package.manifest
+    return {
+        "base_url": _base_url(request),
+        "package_id": manifest.package_id,
+        "variants": [v.id for v in manifest.variants],
+        "on_demand": True,
+    }
