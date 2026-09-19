@@ -63,8 +63,9 @@ const edges = computed(() => {
         list.push({
           d: `M${a.x},${a.y}L${b.x},${b.y}`,
           color: w >= 0 ? "#4ade80" : "#ff5c7a",
-          opacity: input ? 0.08 + 0.85 * strength : 0.06 + 0.5 * strength,
-          width: 0.5 + 1.6 * strength,
+          // rounded: server (Node) and browser can differ in Math.tanh's last digit -> hydration mismatch
+          opacity: Math.round((input ? 0.08 + 0.85 * strength : 0.06 + 0.5 * strength) * 1000) / 1000,
+          width: Math.round((0.5 + 1.6 * strength) * 1000) / 1000,
           strength,
         })
       }
@@ -81,7 +82,8 @@ function nodeFill(li: number, ni: number): string {
   const a = props.activations?.[li]?.[ni]
   if (a === undefined) return "#1c2130"
   const t = Math.min(1, Math.abs(a))
-  return a >= 0 ? `rgb(74 222 128 / ${0.15 + 0.85 * t})` : `rgb(255 92 122 / ${0.15 + 0.85 * t})`
+  const alpha = Math.round((0.15 + 0.85 * t) * 1000) / 1000
+  return a >= 0 ? `rgb(74 222 128 / ${alpha})` : `rgb(255 92 122 / ${alpha})`
 }
 </script>
 

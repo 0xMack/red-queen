@@ -100,6 +100,17 @@ const heldOutSeries = computed(() => {
   return series
 })
 
+// Algorithm-specific curves (telemetry's `extras`) -- today NEAT's: how many species the population split into,
+// and how large the champion's evolved structure is. Empty for runs whose algorithm reports none.
+const structure = computed(() => history.value.filter((h) => h.extras && "champion_connections" in h.extras))
+const structureSeries = computed(() => [
+  { key: "hidden", label: "champion hidden nodes", color: "#60a5fa", values: structure.value.map((h) => h.extras!.champion_hidden_nodes ?? 0), width: 2.5 },
+  { key: "conns", label: "champion connections", color: "#4ade80", values: structure.value.map((h) => h.extras!.champion_connections ?? 0), width: 1.5 },
+])
+const speciesSeries = computed(() => [
+  { key: "species", label: "species", color: "#fbbf24", values: structure.value.map((h) => h.extras!.species ?? 0), width: 2.5 },
+])
+
 const configEntries = computed(() => Object.entries(run.value?.config ?? {}))
 const summaryEntries = computed(() => Object.entries(run.value?.summary ?? {}))
 const recent = computed(() => history.value.slice(-25).reverse())
@@ -107,6 +118,7 @@ const recent = computed(() => history.value.slice(-25).reverse())
 function displayValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(" → ")
   if (typeof value === "number") return Number.isInteger(value) ? String(value) : formatFitness(value, 4)
+  if (value !== null && typeof value === "object") return JSON.stringify(value)
   return String(value)
 }
 
@@ -270,6 +282,31 @@ async function copyId() {
               </span>
             </div>
             <LineChart class="mt-2" :x="heldOut.map((h) => h.generation)" :series="heldOutSeries" :height="220" :format="(v: number) => v.toFixed(1)" />
+          </section>
+
+          <section v-if="structure.length" class="card p-5">
+            <h2 class="text-lg font-semibold">Evolved structure</h2>
+            <p class="mt-1 text-xs text-fg-subtle">
+              NEAT starts every network with no hidden nodes and adds structure only when it pays. Left: how large the current
+              champion's graph is. Right: how many species the population is split into -- the mechanism that lets a new
+              structure survive long enough to be tuned.
+            </p>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div class="flex flex-wrap gap-4 text-xs text-fg-muted">
+                  <span v-for="s in structureSeries" :key="s.key" class="flex items-center gap-1.5">
+                    <span class="h-0.5 w-4 rounded" :style="{ background: s.color }" />{{ s.label }}
+                  </span>
+                </div>
+                <LineChart class="mt-2" :x="structure.map((h) => h.generation)" :series="structureSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
+              </div>
+              <div>
+                <div class="flex flex-wrap gap-4 text-xs text-fg-muted">
+                  <span class="flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-gold-400" />species</span>
+                </div>
+                <LineChart class="mt-2" :x="structure.map((h) => h.generation)" :series="speciesSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
+              </div>
+            </div>
           </section>
 
           <section class="card p-5">

@@ -27,3 +27,11 @@ class GenerationStats(BaseModel):
             "(docs/design/0007)."
         ),
     )
+    extras: dict[str, float] | None = Field(
+        default=None,
+        description=(
+            "Algorithm-specific numbers for this generation, free-form (e.g. NEAT's species count and its "
+            "champion's structure size). None for algorithms with nothing extra to say. Kept generic on "
+            "purpose so a new algorithm needs no telemetry schema change."
+        ),
+    )

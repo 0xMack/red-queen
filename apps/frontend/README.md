@@ -123,6 +123,22 @@ pages, plus the landing page and the "Teaching a Snake" Learn chapter -- shares 
   interface's observer and decodes outputs with its action adapter via `games.interfaces`, so e.g.
   a 100-input grid champion sees the grid, not Snake's default features.
 
+The two neuroevolution chapters (`/learn/neuroevolution`, `/learn/neat`) run their demos on real
+algorithms in the browser, no Pyodide wait: `app/utils/neuro.ts` (Evolution Strategies on a flat
+weight vector) and `app/utils/neat.ts` (a TypeScript port of `libs/evolve/src/evolve/neat.py` —
+genome, mutations, innovation-aligned crossover, compatibility distance, speciation, the full
+generation loop; checked against the Python on identical genomes to ~1e-16, but kept in sync by
+hand). Demo components: `WeightVectorExplorer`, `MutationMicroscope`, `NeuroEvoLab`,
+`PermutationDemo` (competing conventions), `NeatGenomeExplorer`, `NeatCrossoverDemo`,
+`SpeciationDemo`, `NeatLab` (live XOR, with a speciation on/off batch experiment), and
+`NeatSnakeChampion` (a real trained NEAT champion playing Snake). `NeatDiagram.vue` draws any NEAT
+genome as a graph (hidden nodes in columns by depth, disabled genes dashed) and is also what
+`WatchChampion.vue` shows for a NEAT run's champion — `useWatchSession`'s `LoadedPolicy` is either
+`{weights, layerSizes}` or `{genome}`; the worker loads either via `evolve.network_from_json`.
+Numbers derived from `Math.tanh` and written into SVG/style attributes are rounded on purpose: Node
+and the browser can disagree in the last digit, which is a hydration mismatch on a server-rendered
+chapter.
+
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),
 `GameCard.vue`/`ChapterCard.vue` (index cards with a `status: "available" | "coming-soon"` prop, so

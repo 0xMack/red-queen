@@ -13,6 +13,16 @@ from evolve.match import (
     Strategy,
     play_match,
 )
+from evolve.neat import (
+    ConnectionGene,
+    InnovationTracker,
+    NeatConfig,
+    NeatGenome,
+    compatibility_distance,
+    evolve_neat,
+    initial_genome,
+)
+from evolve.networks import Network, network_from_json
 from evolve.neuro import GaussianMutation, WeightVector, random_weight_vector
 from evolve.population import GenerationCallback, GenerationSummary, evolve
 from evolve.selection import (
@@ -34,12 +44,14 @@ from evolve.variation import LinearCrossoverMutation, VariationStrategy
 
 __all__ = [
     "DEFAULT_OPS",
+    "ConnectionGene",
     "Environment",
     "FitnessEvaluator",
     "FunctionNode",
     "GaussianMutation",
     "GenerationCallback",
     "GenerationSummary",
+    "InnovationTracker",
     "Instruction",
     "LexicaseSelection",
     "LinearCrossoverMutation",
@@ -47,6 +59,9 @@ __all__ = [
     "MatchFitnessEvaluator",
     "MatchResult",
     "MultiAgentEnvironment",
+    "NeatConfig",
+    "NeatGenome",
+    "Network",
     "ParetoSelection",
     "SelectionStrategy",
     "SimulationFitnessEvaluator",
@@ -58,7 +73,11 @@ __all__ = [
     "TreeProgram",
     "VariationStrategy",
     "WeightVector",
+    "compatibility_distance",
     "evolve",
+    "evolve_neat",
+    "initial_genome",
+    "network_from_json",
     "play_match",
     "random_instruction",
     "random_node",

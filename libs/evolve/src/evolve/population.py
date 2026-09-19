@@ -12,7 +12,7 @@ from __future__ import annotations
 import random
 import statistics
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
 from evolve.fitness import FitnessEvaluator
@@ -30,6 +30,9 @@ class GenerationSummary(Generic[Genome]):
     worst_fitness: float
     diversity: float
     champion: Genome
+    # Algorithm-specific numbers worth tracking per generation (e.g. NEAT's species count) -- the
+    # generic loop leaves it empty; jobs/ record it verbatim in telemetry.GenerationStats.extras.
+    extras: dict[str, float] = field(default_factory=dict)
 
 
 GenerationCallback = Callable[[GenerationSummary], None]

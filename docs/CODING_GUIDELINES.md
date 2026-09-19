@@ -108,6 +108,21 @@ what belongs here and how to add to it). Read before writing code, not after.
   learner: with Snake's 5 fixed seeds the champion's unseen-game score peaked by generation ~20 and
   then *fell* while training fitness kept climbing. Record a held-out curve during training
   (`--held-out-every`) and prefer fresh seeds per generation (`--seeds resample:N`, jobs/seeding.py).
+- One training run is an anecdote; comparing algorithms takes seeds. Snake runs that differ only in rng seed
+  span several points of held-out score, so "A beat B" from one run each means little. Use
+  `jobs/snake_experiment.py` (arms × >=5 seeds, identical budgets, tagged runs, final champion scored on the
+  held-out games) and report an exact permutation test, not just overlapping ranges -- with 5 seeds, +2.0 points
+  was p=0.056 (suggestive) and +3.8 was p=0.008. Include a control that changes *one* thing at a time: NEAT vs.
+  lexicase-selected neuroevolution confounds the algorithm with the selection rule until a tournament-selected
+  arm is added (docs/design/0008).
+- An algorithm with a hidden internal mechanism must report it, or a misconfigured mechanism is
+  invisible. NEAT's speciation sorts genomes by a distance normalized by gene count once a genome
+  has >= 20 genes; Snake's 36-gene starting genomes therefore barely differ from each other, and the
+  paper's fixed threshold (3.0) left the *species count at 1* in every generation of the first trial
+  run -- NEAT quietly degenerating into fixed-topology neuroevolution with a growing network. No test
+  failed and best fitness still rose; only the per-generation species count showed it. Fixed by an
+  adaptive threshold (`NeatConfig.target_species`), and `evolve_neat` now reports species count and
+  champion size through `GenerationStats.extras` so the run page charts them (docs/design/0008).
 
 ## Web / API (`apis/backend`)
 
@@ -176,6 +191,18 @@ relevant section instead of leaving it here.
   sibling HTML comment counts as a second root in dev and silently blanks the page on client-side
   navigation (Nuxt warns `NUXT_E4004` in the console; direct loads look fine). Found by clicking
   through, not by loading each page directly.
+- **A server-rendered `apps/frontend` page must not write unrounded `Math.tanh` (or other libm) results
+  into an attribute or style.** Node and the browser can disagree in the last digit
+  (`width:10.368710750128162%` on the server vs `...157%` on the client) and Vue reports a hydration
+  mismatch. Round to ~3 decimals wherever an activation becomes a style/attribute string
+  (`XorTable`, `NeatDiagram`, `NetworkDiagram`). Only surfaced by loading a chapter in a *fresh* browser
+  tab and reading its console -- the accumulated console of a long-lived tab hides which page an error
+  came from.
+- `array.map(fn)` passes `(item, index, array)`: handing it a function with an optional second
+  parameter silently feeds the index in. `population.map(this.evaluate)` with
+  `xorWeightsFitness(weights, layers = XOR_SHAPE)` made `layers` a number, so a Learn demo's evolution
+  quietly stalled at 0.625 instead of solving XOR by generation ~15. Wrap it: `map((w) => fn(w))`.
+  An offline probe that *did* wrap it passed, which is why the demo had to be driven end to end.
 - Snake's `render_state()` cells are ordered head-*last* (`[nearest-head, ..., tail, head]`), so
   "the segment behind the head" is `cells[0]`, not `cells.at(-2)` (that's the tail) — the board's
   eye direction got this wrong until the live network diagram disagreed with it.

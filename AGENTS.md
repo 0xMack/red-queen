@@ -7,7 +7,7 @@ visualization to see what's happening internally and make debugging easier. See
 behind the current architecture (0001: GP engine, 0002: telemetry/visualization, 0003: algorithm
 landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/API contracts,
 0006: multi-agent games and the strategy/match framework, 0007: game representations, leaderboards,
-and measuring cost/tradeoffs) — read the relevant one before an
+and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -101,6 +101,14 @@ architectural change that might conflict with a decision already made.
     small evolved population measurably improves against a randomized opponent via
     `MatchFitnessEvaluator` (noisy with too few opponent samples, clean with more — see
     docs/CODING_GUIDELINES.md).
+  - `evolve/neat.py` (docs/design/0008) — NEAT: a graph genome of innovation-numbered connection genes
+    whose *structure* evolves (add connection / split a connection into a node), with
+    innovation-aligned crossover, speciation, and fitness sharing. Has its own loop
+    (`evolve_neat()`), because speciation is population-level, but reports through `evolve()`'s
+    `GenerationSummary` (`extras` carries species count and champion size) so every `jobs/` callback
+    works unchanged. `evolve.network_from_json()` loads either network kind from an artifact.
+    `apps/frontend/app/utils/neat.ts` is a hand-kept TypeScript port (for the Learn demos and for
+    drawing champions) — forward passes are checked against the Python to ~1e-16.
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002), plus `EvaluationStore` (`evaluations.db`): leaderboard
     results per (protocol, entrant), docs/design/0007.
@@ -125,6 +133,9 @@ architectural change that might conflict with a decision already made.
   leaderboards (docs/design/0007): every finished game run's champion plus fixed baselines, on
   held-out seeds under a versioned protocol, with inference/training cost — never training fitness.
   `backfill_interfaces.py` is a one-off for runs recorded before interfaces existed.
+  `snake_neat_run.py` is the NEAT counterpart of `snake_neuro_run.py`; `snake_experiment.py` runs a
+  tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
+  `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
   `control.py`'s `make_control_callback`
   (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
   `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here

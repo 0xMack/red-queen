@@ -7,6 +7,7 @@
 // Laid out with a container query, not viewport breakpoints: the same component sits in a wide
 // hero column and a narrower run-page column, and should adapt to the space it's actually given.
 import { SNAKE_INPUT_LABELS, SNAKE_OUTPUT_LABELS } from "~/utils/snakePolicy"
+import { activations as neatActivations, complexity as neatComplexity } from "~/utils/neat"
 
 // Plays either a run's champion (runId) or a fixed baseline (baseline + its interface) -- every kind
 // of leaderboard entrant. Which one is decided at setup: key this component by entrant so switching
@@ -58,10 +59,18 @@ const SPEEDS = [
 ]
 
 const activations = computed(() => {
-  if (!policy.value || !observation.value) return null
+  if (!policy.value || !observation.value || policy.value.kind !== "weights") return null
   if (observation.value.length !== policy.value.layerSizes[0]) return null
   return forwardActivations(policy.value.weights, policy.value.layerSizes, observation.value)
 })
+
+// An evolved graph is drawn (and lit up) by NeatDiagram, with node activations keyed by node id.
+const neatLive = computed(() => {
+  const genome = policy.value?.genome
+  if (!genome || !observation.value || observation.value.length !== genome.numInputs) return null
+  return neatActivations(genome, observation.value)
+})
+const neatSize = computed(() => (policy.value?.genome ? neatComplexity(policy.value.genome) : null))
 
 const loadingMessage = computed(() =>
   targetStats.value || props.baseline ? "Starting the Python runtime (first load ~10s)…" : "Fetching the champion…",
@@ -160,7 +169,21 @@ const loadingMessage = computed(() =>
           </p>
         </div>
 
-        <div v-if="showNetwork && policy" class="rounded-lg border border-line bg-sunken p-3">
+        <div v-if="showNetwork && policy?.genome" class="rounded-lg border border-line bg-sunken p-3">
+          <div class="mb-2 flex items-center justify-between text-[11px] text-fg-subtle">
+            <span>evolved network · {{ neatSize?.hidden }} hidden nodes · {{ neatSize?.connections }} connections</span>
+            <span class="flex gap-2">
+              <span class="text-life-400">+ excite</span><span class="text-queen-300">− inhibit</span>
+            </span>
+          </div>
+          <NeatDiagram
+            :genome="policy.genome"
+            :activations="neatLive"
+            :input-labels="policy.genome.numInputs === SNAKE_INPUT_LABELS.length ? SNAKE_INPUT_LABELS : []"
+            :output-labels="policy.genome.numOutputs === SNAKE_OUTPUT_LABELS.length ? SNAKE_OUTPUT_LABELS : []"
+          />
+        </div>
+        <div v-else-if="showNetwork && policy" class="rounded-lg border border-line bg-sunken p-3">
           <div class="mb-2 flex items-center justify-between text-[11px] text-fg-subtle">
             <span>champion network · {{ policy.layerSizes.join(" → ") }} · {{ policy.weights.length }} weights</span>
             <span class="flex gap-2">

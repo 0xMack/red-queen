@@ -30,6 +30,7 @@ seeds, default) or e.g. `resample:5` (fresh seeds every generation, nothing to m
 Run with:
   uv run python jobs/snake_neuro_run.py [interface_id] [--seeds fixed:5|fixed:N|resample:N]
                                         [--held-out-every 10] [--generations 250]
+                                        [--selection lexicase|tournament] [--rng-seed 0] [--experiment NAME]
 (default interface snake/features.v1+relative3.v1; e.g. snake/grid-flat.v1+relative3.v1 for the grid)
 """
 
@@ -39,6 +40,7 @@ import argparse
 import random
 import time
 from pathlib import Path
+from typing import Any
 
 from control import make_control_callback
 from costs import TrainingCostMeter
@@ -49,6 +51,7 @@ from evolve import (
     GenerationSummary,
     LexicaseSelection,
     SimulationFitnessEvaluator,
+    TournamentSelection,
     evolve,
     random_weight_vector,
 )
@@ -72,6 +75,8 @@ POPULATION_SIZE = 100
 GENERATIONS = 250
 MAX_STEPS = 200
 BOARD = {"width": 10, "height": 10}
+TOURNAMENT_K = 4
+TOURNAMENT_LABEL = f"tournament(k={TOURNAMENT_K})"  # matches the label the pre-existing tournament runs used
 
 
 def make_act(interface):
@@ -118,6 +123,7 @@ def make_telemetry_callback(
                 diversity=summary.diversity,
                 champion_ref=champion_ref,
                 held_out_score=held_out_score,
+                extras=summary.extras or None,  # algorithm-specific (NEAT's species count, ...)
             )
         )
 
@@ -138,9 +144,14 @@ def main(
     seed_strategy: str = "fixed:5",
     held_out_every: int = 10,
     generations: int = GENERATIONS,
-) -> None:
+    rng_seed: int = RNG_SEED,
+    selection_name: str = "lexicase",
+    tags: dict[str, Any] | None = None,
+) -> str:
+    """Trains one run, records it to telemetry, and returns its run_id. `tags` are extra config entries
+    (jobs/snake_experiment.py records `experiment` and `arm` so repeated runs can be grouped)."""
     interface = interfaces.get(interface_id)
-    seeds = SeedStrategy.parse(seed_strategy, rng_seed=RNG_SEED)
+    seeds = SeedStrategy.parse(seed_strategy, rng_seed=rng_seed)
     envs = [interface.make_game(seed=seed, **BOARD) for seed in seeds.initial()]
     layer_sizes = (len(interface.observer.feature_names(envs[0])), HIDDEN, interface.action.num_outputs)
 
@@ -157,18 +168,19 @@ def main(
             "population_size": POPULATION_SIZE,
             "generations": generations,
             "max_steps": MAX_STEPS,
-            "selection": "lexicase",
+            "selection": TOURNAMENT_LABEL if selection_name == "tournament" else "lexicase",
             "variation": "gaussian_mutation(sigma=0.2)",
             "benchmark": "games.snake (10x10)",
             **seeds.config(),  # seed_strategy + training_seeds (docs/design/0007: overfitting)
             "held_out_every": held_out_every,
             "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
-            "rng_seed": RNG_SEED,
+            "rng_seed": rng_seed,
+            **(tags or {}),
         }
     )
     print(f"run_id={run_id}")
 
-    rng = random.Random(RNG_SEED)
+    rng = random.Random(rng_seed)
     population = [
         random_weight_vector(layer_sizes, rng, scale=0.5)
         for _ in range(POPULATION_SIZE)
@@ -179,7 +191,7 @@ def main(
     evolve(
         population,
         fitness=fitness,
-        selection=LexicaseSelection(),
+        selection=TournamentSelection(k=TOURNAMENT_K) if selection_name == "tournament" else LexicaseSelection(),
         variation=GaussianMutation(sigma=0.2),
         generations=generations,
         on_generation=[
@@ -216,6 +228,7 @@ def main(
     champion_bytes = artifacts.get_program(final_history[-1].champion_ref)
     print(f"final champion ({len(champion_bytes)} bytes stored):")
     print(champion_bytes.decode("utf-8")[:200] + "...")
+    return run_id
 
 
 if __name__ == "__main__":
@@ -224,5 +237,16 @@ if __name__ == "__main__":
     parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)")
     parser.add_argument("--held-out-every", type=int, default=10, help="generations between held-out checks")
     parser.add_argument("--generations", type=int, default=GENERATIONS)
+    parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
+    parser.add_argument("--selection", choices=["lexicase", "tournament"], default="lexicase")
+    parser.add_argument("--experiment", default=None, help="tag recorded in the run config (jobs/snake_experiment.py)")
     args = parser.parse_args()
-    main(args.interface, args.seeds, args.held_out_every, args.generations)
+    main(
+        args.interface,
+        args.seeds,
+        args.held_out_every,
+        args.generations,
+        args.rng_seed,
+        args.selection,
+        {"experiment": args.experiment} if args.experiment else None,
+    )

@@ -24,6 +24,7 @@ export interface RunMeta {
 const REPRESENTATION_LABELS: Record<string, string> = {
   linear_gp: "Linear GP",
   neuroevolution: "Neuroevolution",
+  neat: "NEAT",
   tree_gp: "Tree GP",
 }
 
@@ -64,7 +65,8 @@ export function describeRun(run: RunInfo): RunMeta {
     benchmark,
     populationSize: num(c.population_size),
     targetGenerations: num(c.generations),
-    network: layers && layers.length > 0 ? layers.join(" → ") : null,
+    // A NEAT run has no fixed shape -- only what goes in and out; the hidden structure is what it evolves.
+    network: layers && layers.length > 0 ? layers.join(" → ") : num(c.num_inputs) !== null && num(c.num_outputs) !== null ? `${c.num_inputs} → evolved → ${c.num_outputs}` : null,
     parameterCount,
     note: str(c.note),
     seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),

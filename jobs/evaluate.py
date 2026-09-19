@@ -22,7 +22,8 @@ from pathlib import Path
 from typing import Any
 
 from costs import hardware_fingerprint
-from evolve.neuro import WeightVector
+from evolve import network_from_json
+from evolve.networks import describe, parameter_count
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
@@ -194,20 +195,26 @@ def champion_entrants(
         # once it completes).
         if run.status in ("running", "paused"):
             continue
+        # Repeated runs of a comparison (jobs/snake_experiment.py) are aggregated there, not ranked
+        # one by one: twenty seeds of four arms would bury every other entrant.
+        if run.config.get("experiment"):
+            continue
         history = metrics.history(run.run_id)
         if not history:
             continue
         champion_ref = history[-1].champion_ref
         raw = artifacts.get_program(champion_ref)
-        champion = WeightVector.from_json(raw.decode("utf-8"))
+        champion = network_from_json(raw.decode("utf-8"))  # WeightVector or NeatGenome
         interface = interfaces.get(interface_id)
 
         def factory(_seed: int, champion=champion, interface=interface) -> Policy:
             return lambda observation: interface.action.decode(champion.forward(observation))
 
         selection = run.config.get("selection")
-        network = " → ".join(str(n) for n in champion.layer_sizes)
-        label = f"Neuroevolution {network}" + (f" · {selection}" if selection else "")
+        network = describe(champion)
+        representation = run.config.get("representation", "unknown")
+        kind = "NEAT" if representation == "neat" else "Neuroevolution"
+        label = f"{kind} {network}" + (f" · {selection}" if selection else "")
         entrants.append(
             {
                 "entrant_id": f"run:{run.run_id}",
@@ -216,8 +223,12 @@ def champion_entrants(
                 "factory": factory,
                 "run": run,
                 "champion_ref": champion_ref,
-                "model": f"MLP {network}, tanh ({run.config.get('representation', 'unknown')})",
-                "parameters": len(champion.weights),
+                "model": (
+                    f"evolved graph {network}, tanh (neat)"
+                    if representation == "neat"
+                    else f"MLP {network}, tanh ({representation})"
+                ),
+                "parameters": parameter_count(champion),
                 "artifact_bytes": len(raw),
                 # None for resampled runs (no fixed training set, so no train-vs-held-out gap to show).
                 "training_seeds": run.config.get("training_seeds", list(BENCHMARK_SEEDS)) or [],
