@@ -175,6 +175,45 @@ const attention = (() => {
       </foreignObject>
     </g>
 
+    <!-- A fixed network read off a flat list of weights, one of them mid-mutation -->
+    <g v-else-if="kind === 'neuroevolution'" font-family="JetBrains Mono, monospace" font-size="10">
+      <g v-for="(from, fi) in [0, 1, 2]" :key="`e${fi}`">
+        <line v-for="(to, ti) in [0, 1, 2, 3]" :key="`e${fi}${ti}`" :x1="90" :y1="55 + fi * 45" :x2="200" :y2="40 + ti * 40" :stroke="(fi + ti) % 3 === 0 ? '#ff5c7a' : '#4ade80'" :stroke-opacity="0.25 + ((fi * 3 + ti * 5) % 7) / 12" stroke-width="1.5" />
+      </g>
+      <line v-for="(from, fi) in [0, 1, 2, 3]" :key="`o${fi}`" :x1="200" :y1="40 + fi * 40" x2="310" y2="100" :stroke="fi % 2 ? '#ff5c7a' : '#4ade80'" :stroke-opacity="0.3 + fi * 0.15" stroke-width="1.5" />
+      <circle v-for="fi in [0, 1, 2]" :key="`i${fi}`" cx="90" :cy="55 + fi * 45" r="8" fill="#151924" stroke="#323a4d" />
+      <circle v-for="ti in [0, 1, 2, 3]" :key="`h${ti}`" cx="200" :cy="40 + ti * 40" r="8" fill="#151924" stroke="#323a4d" />
+      <circle cx="310" cy="100" r="9" fill="#0f1f16" stroke="#4ade80" />
+      <g>
+        <rect v-for="i in 14" :key="`g${i}`" :x="28 + (i - 1) * 25" y="188" width="22" height="26" rx="4" :fill="i === 6 ? '#3a2a0d' : '#151924'" :stroke="i === 6 ? '#fbbf24' : '#323a4d'" />
+        <text v-for="(w, i) in ['.4', '-1', '.9', '.2', '-.7', '1.3', '.1', '-.3', '.8', '-.5', '.6', '-1', '.3', '.7']" :key="`t${i}`" :x="39 + i * 25" y="205" text-anchor="middle" :fill="i === 5 ? '#fcd34d' : '#a0a8ba'">{{ w }}</text>
+      </g>
+      <text x="200" y="232" text-anchor="middle" fill="#6b7489">the genome: one flat list, mutated in place</text>
+    </g>
+
+    <!-- A NEAT graph that has grown a hidden node, genes tagged with innovation numbers -->
+    <g v-else-if="kind === 'neat'" font-family="JetBrains Mono, monospace" font-size="10">
+      <g fill="none" stroke-width="1.6">
+        <path d="M70 60 C 130 60, 150 60, 210 60" stroke="#4ade80" stroke-opacity="0.5" stroke-dasharray="4 3" />
+        <path d="M70 60 C 110 60, 120 110, 160 130" stroke="#fbbf24" stroke-width="2.4" />
+        <path d="M160 130 C 190 130, 200 70, 210 62" stroke="#fbbf24" stroke-width="2.4" />
+        <path d="M70 125 C 130 125, 150 130, 160 130" stroke="#4ade80" stroke-opacity="0.6" />
+        <path d="M70 125 C 140 125, 170 190, 210 190" stroke="#ff5c7a" stroke-opacity="0.55" />
+        <path d="M70 190 C 130 190, 160 190, 210 190" stroke="#4ade80" stroke-opacity="0.5" />
+        <path d="M70 190 C 130 190, 170 65, 210 60" stroke="#ff5c7a" stroke-opacity="0.4" />
+        <path d="M210 60 L330 90" stroke="#4ade80" stroke-opacity="0.6" />
+        <path d="M210 190 L330 100" stroke="#4ade80" stroke-opacity="0.6" />
+      </g>
+      <circle v-for="n in [{ x: 70, y: 60 }, { x: 70, y: 125 }, { x: 70, y: 190 }, { x: 210, y: 60 }, { x: 210, y: 190 }, { x: 330, y: 95 }]" :key="`${n.x}${n.y}`" :cx="n.x" :cy="n.y" r="8" fill="#151924" stroke="#323a4d" />
+      <circle cx="160" cy="130" r="9" fill="#3a2a0d" stroke="#fbbf24" stroke-width="2" />
+      <text x="160" y="152" text-anchor="middle" fill="#fcd34d">new node</text>
+      <text x="118" y="88" fill="#fcd34d">#7</text>
+      <text x="196" y="104" fill="#fcd34d">#8</text>
+      <text x="128" y="55" fill="#6b7489">#1 off</text>
+      <rect x="28" y="214" width="344" height="24" rx="6" fill="#151924" stroke="#323a4d" />
+      <text x="200" y="230" text-anchor="middle" fill="#a0a8ba">innovation numbers line up different structures</text>
+    </g>
+
     <!-- Training job -> telemetry -> API/SSE -> browser -->
     <g v-else-if="kind === 'pipeline'" font-family="JetBrains Mono, monospace" font-size="10">
       <g v-for="(s, i) in [

@@ -1,4 +1,13 @@
-export type ChapterArtKind = "ga-loop" | "selection" | "genomes" | "autodiff" | "attention" | "checkers" | "pipeline"
+export type ChapterArtKind =
+  | "ga-loop"
+  | "selection"
+  | "genomes"
+  | "autodiff"
+  | "attention"
+  | "checkers"
+  | "pipeline"
+  | "neuroevolution"
+  | "neat"
 
 export interface LearnChapter {
   slug: string
@@ -69,6 +78,49 @@ export const learnChapters: LearnChapter[] = [
       "Tree GP: expressions as trees",
       "Head to head",
       "Same algorithms, any genome",
+    ],
+  },
+  {
+    slug: "neuroevolution",
+    title: "Neuroevolution: Evolving a Network's Weights",
+    summary:
+      "A network as one flat list of numbers, scored by playing and improved by Gaussian mutation -- the loop behind the Snake policy, opened up and made touchable.",
+    path: "/learn/neuroevolution",
+    status: "available",
+    part: "Neuroevolution",
+    readMinutes: 9,
+    tags: ["neuroevolution", "evolution strategies", "mutation", "weight vector", "XOR"],
+    art: "neuroevolution",
+    prerequisites: ["genetic-algorithms", "genome-representations"],
+    sections: [
+      "A network is a list of numbers",
+      "Fitness comes from playing",
+      "Mutation is the whole search operator",
+      "The whole loop, live",
+      "Why there's no crossover",
+      "What a fixed shape costs",
+    ],
+  },
+  {
+    slug: "neat",
+    title: "NEAT: Evolving the Structure Too",
+    summary:
+      "Innovation numbers, crossover between different structures, and speciation -- how a network can start minimal and grow, tested against Snake with tracked experiments.",
+    path: "/learn/neat",
+    status: "available",
+    part: "Neuroevolution",
+    readMinutes: 12,
+    tags: ["NEAT", "topology", "speciation", "innovation numbers", "crossover", "snake"],
+    art: "neat",
+    prerequisites: ["neuroevolution"],
+    sections: [
+      "A genome is a list of genes",
+      "Adding a node without breaking anything",
+      "Innovation numbers: telling genes apart",
+      "Speciation: protecting new structure",
+      "Putting it together, live",
+      "NEAT against Snake",
+      "What NEAT costs",
     ],
   },
   {

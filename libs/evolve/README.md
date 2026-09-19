@@ -49,6 +49,22 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   run it. JSON, not pickle/numpy, so the exact same Python code works loading it back inside
   Pyodide -- every `evolve` submodule is pure stdlib on purpose, verified before that bridge was
   built (see `docs/CODING_GUIDELINES.md`).
+- `neat.py` — `NeatGenome`: the fourth representation (docs/design/0008), and the first whose
+  *structure* evolves — a feedforward graph of connection genes, each tagged with a global innovation
+  number from an `InnovationTracker`, so genomes of different shapes can be aligned for crossover
+  (`align`, `crossover`) and compared (`compatibility_distance`). Mutations add connections (never a
+  cycle), split connections into a new node (near-neutral by construction), and tweak weights;
+  `evolve_neat()` adds speciation + fitness sharing on top, reporting through the same
+  `GenerationSummary` `evolve()` uses, with NEAT's own numbers (species, champion size, adaptive
+  threshold) in its `extras` field. Its own loop rather than a `SelectionStrategy`/`VariationStrategy`
+  pair, because speciation is a population-level operation the per-child `vary(parents)` shape can't
+  express. `NeatConfig.target_species` makes the compatibility threshold adaptive — needed for any
+  genome that starts at ≥20 genes, where the paper's fixed 3.0 never separates anything. `forward()`
+  compiles the graph once per genome (`cached_property`), pruning nodes that can't reach an output.
+- `networks.py` — `network_from_json()`: one loader for every trained-network wire format
+  (`WeightVector`, or a NEAT genome, which carries `"type": "neat"`), plus `parameter_count()`/
+  `describe()` — what `jobs/evaluate.py` and the Pyodide bridge use so they don't care which kind a
+  champion is.
 - `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value
   per environment/episode, same per-test-case contract as `SymbolicRegressionFitness` so

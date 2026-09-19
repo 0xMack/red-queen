@@ -1,11 +1,16 @@
 import type { RunInfo } from "~/types/telemetry"
+import { genomeFromJson, type Genome, type GenomeJson } from "~/utils/neat"
 
+// A champion is either a fixed-topology network (`weights` + `layerSizes`, evolve.neuro.WeightVector) or an
+// evolved graph (`genome`, evolve.neat.NeatGenome) -- `kind` says which; the unused half is empty/null.
 export interface LoadedPolicy {
   ref: string
   interfaceId: string | null
   generation: number | null
+  kind: "weights" | "neat"
   weights: number[]
   layerSizes: number[]
+  genome: Genome | null
 }
 
 // Watch a trained Snake policy play. Modes 2 (a finished run) and 3 (a still-training run's live
@@ -60,14 +65,12 @@ export function useWatchSession(runId: string, options: { manageStream?: boolean
     const interfaceId = typeof run.value?.config?.interface === "string" ? run.value.config.interface : undefined
 
     try {
-      const parsed = JSON.parse(policyJson) as { weights: number[]; layer_sizes: number[] }
-      policy.value = {
-        ref: target.champion_ref,
-        interfaceId: interfaceId ?? null,
-        generation: target.generation,
-        weights: parsed.weights,
-        layerSizes: parsed.layer_sizes,
-      }
+      const parsed = JSON.parse(policyJson) as { type?: string; weights?: number[]; layer_sizes?: number[] }
+      const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation }
+      policy.value =
+        parsed.type === "neat"
+          ? { ...base, kind: "neat", weights: [], layerSizes: [], genome: genomeFromJson(parsed as unknown as GenomeJson) }
+          : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
     } catch {
       policy.value = null // the worker will report the real error if the artifact is unusable
     }

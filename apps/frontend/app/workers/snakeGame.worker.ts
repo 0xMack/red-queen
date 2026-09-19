@@ -3,7 +3,7 @@
 // Runs games.snake.Snake entirely inside this worker, in one of two modes (doc 0005 steps 5-6):
 //
 // - "play": a human steers via keydown-translated relative actions (doc 0005's worked example).
-// - "watch": a loaded evolve.neuro.WeightVector policy decides every action instead (interaction
+// - "watch": a loaded trained network (evolve.neuro.WeightVector or evolve.neat.NeatGenome) decides every action instead (interaction
 //   modes 2/3) -- the run detail / watch page feeds it a champion's serialized weights, fetched
 //   from apis/backend's existing artifact endpoint (no backend changes needed there: a serialized
 //   WeightVector is just opaque bytes to ArtifactStore, same as a LinearProgram's repr()).
@@ -26,7 +26,7 @@ interface RenderState {
 }
 
 // What drives the snake in watch mode: a trained network (policyJson, a serialized
-// evolve.neuro.WeightVector) or a named games.baselines entry -- either way with the interface
+// evolve.neuro.WeightVector or evolve.neat.NeatGenome) or a named games.baselines entry -- either way with the interface
 // (docs/design/0007: observer + action adapter) it plays under. Absent interfaceId = the game's
 // default observer.
 interface PolicySpec {
@@ -195,7 +195,7 @@ import sys
 if "/py" not in sys.path:
     sys.path.insert(0, "/py")
 
-from evolve.neuro import WeightVector
+from evolve.networks import network_from_json
 from games import baselines as _baselines
 from games import interfaces as _interfaces
 from games.snake import Snake
@@ -224,7 +224,8 @@ def new_snake(interface_id=None):
     return Snake(seed=seed)
 
 class _NetworkPolicy:
-    """A trained WeightVector, decoded through the current interface's action adapter."""
+    """A trained network (a fixed-topology WeightVector or an evolved NEAT graph -- both expose
+    forward()), decoded through the current interface's action adapter."""
     def __init__(self, weights):
         self.weights = weights
     def decide(self, observation):
@@ -246,7 +247,7 @@ class _BaselinePolicy:
 def make_policy(policy_json=None, baseline=None):
     if baseline:
         return _BaselinePolicy(_baselines.get("snake", baseline).factory(random.randint(0, 2**31 - 1)))
-    return _NetworkPolicy(WeightVector.from_json(policy_json))
+    return _NetworkPolicy(network_from_json(policy_json))
 
 def watch_tick(env, policy, observation):
     action = policy.decide(observation)

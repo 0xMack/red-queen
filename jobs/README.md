@@ -20,11 +20,26 @@ themselves — see docs/design/0001) get wired to it for a real run.
   `uv run python jobs/snake_neuro_run.py [interface_id] [--seeds fixed:5|fixed:N|resample:N]
   [--held-out-every 10] [--generations 250]` — takes a few minutes (250 generations ×
   100 individuals × 5 benchmark scenarios; about 2.5× longer under the 100-input
-  `snake/grid-flat.v1+relative3.v1`). Records `config.interface`, `training_seeds`, `rng_seed`, and
+  `snake/grid-flat.v1+relative3.v1`). Also takes `--selection lexicase|tournament`, `--rng-seed`,
+  and `--experiment NAME` (see `snake_experiment.py`). Records `config.interface`, `training_seeds`, `rng_seed`, and
   a measured `summary.cost` block (below). Deterministic: the same interface, seed strategy, and
   `RNG_SEED` reproduce the same champion exactly. Every `--held-out-every` generations it also records
   the champion's game score on `evaluate.MONITOR_SEEDS` (`GenerationStats.held_out_score`) -- the
   curve that shows overfitting.
+- `snake_neat_run.py` — NEAT (`libs/evolve/src/evolve/neat.py`, docs/design/0008) against the same
+  Snake interface, seed strategies, held-out monitoring, and cost meter as `snake_neuro_run.py` —
+  it imports that script's callbacks — so the two are directly comparable. Champions are stored as
+  `NeatGenome.to_json()`; per-generation telemetry carries `extras` (species count, the champion's
+  hidden nodes and connections, the adaptive compatibility threshold). Run with `uv run python
+  jobs/snake_neat_run.py [--seeds resample:5] [--rng-seed 0] [--no-speciation]`; ~1.5 min for 250
+  generations. Deterministic per `--rng-seed`.
+- `snake_experiment.py` — a tracked *comparison*: arms (`neuro-lexicase`, `neuro-tournament`, `neat`,
+  `neat-no-speciation`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/
+  `arm`/`rng_seed`, resumable, arms parallelizable as separate processes. `report --name NAME`
+  scores each run's *final* champion on the 200 leaderboard games and writes per-arm aggregates to
+  `run-data/experiments/NAME.json` (gitignored — the durable record of a result is
+  docs/design/0008 and the Learn chapter). Experiment-tagged runs are deliberately kept off the
+  leaderboard (`evaluate.py` skips them) so 20 seeds don't bury every other entrant.
 - `seeding.py` — training-seed strategies: `fixed:N` (the same N games every generation; `fixed:5`
   is the original behavior) or `resample:N` (fresh games every generation from a pool disjoint from
   every evaluation seed range, via a seeded rng). With `fixed:5` the Snake champion memorizes its 5

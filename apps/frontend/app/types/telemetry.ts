@@ -26,4 +26,7 @@ export interface GenerationStats {
   // The champion's mean game score on unseen games, when the job measured it (every N generations);
   // absent/null otherwise. Monitoring only -- see telemetry.GenerationStats.
   held_out_score?: number | null
+  // Algorithm-specific numbers (NEAT: species, champion_hidden_nodes, champion_connections, ...); null/absent
+  // for algorithms with nothing extra -- see telemetry.GenerationStats.extras.
+  extras?: Record<string, number> | null
 }

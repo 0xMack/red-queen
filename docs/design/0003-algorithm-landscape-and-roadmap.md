@@ -43,6 +43,9 @@ shaped now, and a phased plan for adding complexity incrementally rather than al
   population of parameter-vector perturbations, selected/weighted by reward, no gradient at all.
 - **Neuroevolution** (NEAT/HyperNEAT) — a GA evolving NN weights and topology directly as the
   policy. Same `Population`/selection/variation shape as GP, just a different genome type.
+  *Update:* weights-only neuroevolution shipped as phase 5 (`evolve.neuro`); NEAT shipped in
+  docs/design/0008 (with its own loop, since speciation is population-level, not per-child).
+  HyperNEAT remains open.
 - **Population-Based Training (PBT)** — gradient-trained agents, with evolutionary *selection*
   (exploit/explore, copying weights/hyperparameters between population members) layered on top.
   Selection operates on checkpoints, not the gradient step itself — probably the sharpest existing
