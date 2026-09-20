@@ -48,7 +48,7 @@ INTERFACE = snake_neuro_run.DEFAULT_INTERFACE
 SEED_STRATEGY = "resample:5"
 HELD_OUT_EVERY = 10
 # Where the report samples each arm's held-out monitor curve.
-CURVE_GENERATIONS = (0, 50, 100, 150, 200, 249)
+CURVE_GENERATIONS = (0, 50, 100, 150, 200, 249, 500, 599, 999)
 
 # (rng_seed, generations, tags) -> run_id
 Trainer = Callable[[int, int, dict[str, Any]], str]
@@ -69,16 +69,27 @@ def _train_neuro(selection: str) -> Trainer:
     return train
 
 
-def _train_neat(config: NeatConfig) -> Trainer:
-    def train(rng_seed: int, generations: int, tags: dict[str, Any]) -> str:
+def _train_neat(
+    config: NeatConfig,
+    *,
+    generations: int | None = None,
+    population: int = snake_neuro_run.POPULATION_SIZE,
+    max_steps: int = snake_neuro_run.MAX_STEPS,
+    seeds: str = SEED_STRATEGY,
+) -> Trainer:
+    """`generations` (when given) overrides the experiment-wide budget: the long-run arms *are* a bigger budget."""
+
+    def train(rng_seed: int, default_generations: int, tags: dict[str, Any]) -> str:
         return snake_neat_run.main(
             INTERFACE,
-            SEED_STRATEGY,
+            seeds,
             HELD_OUT_EVERY,
-            generations,
+            generations or default_generations,
             rng_seed,
             tags,
             config,
+            population,
+            max_steps,
         )
 
     return train
@@ -90,6 +101,19 @@ ARMS: dict[str, Trainer] = {
     "neat": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG),
     "neat-no-speciation": _train_neat(
         dataclasses.replace(snake_neat_run.SNAKE_NEAT_CONFIG, speciation=False)
+    ),
+    # docs/design/0008 "Longer runs": one change at a time from `neat`, then everything together. Training
+    # games were capped at 200 steps while the leaderboard scores 1000-step games, so `h1000` trains on the
+    # horizon it is judged on.
+    "neat-long": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, generations=1000),
+    "neat-pop400": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, population=400),
+    "neat-h1000": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, max_steps=1000),
+    "neat-max": _train_neat(
+        snake_neat_run.SNAKE_NEAT_CONFIG,
+        generations=600,
+        population=300,
+        max_steps=1000,
+        seeds="resample:10",
     ),
 }
 

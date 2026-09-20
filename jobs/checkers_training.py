@@ -109,7 +109,9 @@ class OpponentPool:
         margin: bool = False,
         resample: bool = False,
         games_per_opponent: int = 1,
+        opening_plies: int = 0,
     ):
+        self._opening_plies = opening_plies
         self._names = list(names)
         self._resample = resample
         self._repeats = games_per_opponent
@@ -126,11 +128,34 @@ class OpponentPool:
         offset = 100_000 + (self._generation * 1_009 if self._resample else 0)
         return opponent_pool(self._names, offset, self._repeats)
 
+    def _env_factory(self):
+        """Fresh games, each opened by `opening_plies` random moves. Deterministic players otherwise replay the very
+        same game from the standard start, so a genome's fitness would be a handful of games however many opponents
+        it plays. Both seats of an opponent get the same opening (matches are created in order, seat 0 then 1), so
+        an opening's luck cancels; every genome in a generation faces the same openings, so they compare fairly."""
+        if not self._opening_plies:
+            return Checkers
+        count = [0]
+        base = 500_000 + (self._generation * 1_009 if self._resample else 0)
+
+        def make() -> Checkers:
+            rng = random.Random(base + count[0] // 2)
+            count[0] += 1
+            env = Checkers()
+            for _ in range(self._opening_plies):
+                moves = env.legal_moves()
+                if not moves or env.winner() is not None:
+                    break
+                env.step(rng.choice(moves))
+            return env
+
+        return make
+
     def evaluate(self, genome: Genome) -> list[float]:
         depth = self._depth
         hall = [lambda env, g=g: strategy_factory(g, depth)(env, random.Random(1000 + i)) for i, g in enumerate(self.hall)]
         inner = MatchFitnessEvaluator(
-            env_factory=Checkers,
+            env_factory=self._env_factory(),
             opponents=[*self._fixed(), *hall],
             act=make_act(depth),
             max_moves=self._max_moves,

@@ -66,6 +66,7 @@ def main(
     tags: dict[str, Any] | None = None,
     config: NeatConfig | None = None,
     population_size: int = POPULATION_SIZE,
+    max_steps: int = MAX_STEPS,
 ) -> str:
     """Trains one NEAT run, records it to telemetry, and returns its run_id. `tags` are extra config
     entries (jobs/snake_experiment.py records `experiment` and `arm`)."""
@@ -89,7 +90,7 @@ def main(
             "num_outputs": num_outputs,
             "population_size": population_size,
             "generations": generations,
-            "max_steps": MAX_STEPS,
+            "max_steps": max_steps,
             "selection": "speciation"
             if config.speciation
             else "single species (no speciation)",
@@ -114,7 +115,7 @@ def main(
         for _ in range(population_size)
     ]
     fitness = SimulationFitnessEvaluator(
-        envs=envs, act=make_act(interface), max_steps=MAX_STEPS
+        envs=envs, act=make_act(interface), max_steps=max_steps
     )
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 
@@ -184,6 +185,13 @@ if __name__ == "__main__":
     parser.add_argument("--held-out-every", type=int, default=10)
     parser.add_argument("--generations", type=int, default=GENERATIONS)
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
+    parser.add_argument("--population", type=int, default=POPULATION_SIZE)
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=MAX_STEPS,
+        help="training episode cap (the leaderboard scores 1000-step games)",
+    )
     parser.add_argument(
         "--experiment", default=None, help="tag recorded in the run config"
     )
@@ -199,4 +207,6 @@ if __name__ == "__main__":
         args.rng_seed,
         {"experiment": args.experiment} if args.experiment else None,
         dataclasses.replace(SNAKE_NEAT_CONFIG, speciation=not args.no_speciation),
+        args.population,
+        args.max_steps,
     )

@@ -169,6 +169,19 @@ what belongs here and how to add to it). Read before writing code, not after.
   (a since-removed route landed two segments off, not one). Resolve from `process.cwd()` (`nuxt dev`
   and the built server both run from `apps/frontend`), and run it before trusting a path.
 
+- **Train on the horizon you are judged on.** Snake trained on 200-step games and was scored on 1000-step games;
+  nothing rewarded surviving longer, and NEAT sat at ~20.6 however many generations or individuals it got (4x
+  either: +1). Training on 1000-step games alone gave 31.0, with a larger population and resampled games 38.0
+  (`snake-long-v1`, docs/design/0008). Before buying compute, check the training episode matches the evaluation one.
+- **Deterministic players make a tiny fitness set.** Checkers strategies that don't randomize replay the same game from
+  the standard start, so "3 opponents x 2 seats" is six games however many you list, and `--resample` only reseeds
+  tie-breaks. Random openings (`--opening-plies`, both seats sharing one) help the signal but did not by themselves
+  make evolution learn. Print `champion gen0 == final` as a first check on any long run: six 300-600 generation
+  Checkers runs never left generation 0.
+- **A regression target only teaches what its labels contain.** Evolving an evaluator to predict a deeper *material*
+  search reached MSE 0.06 yet played far worse than exact material (an approximate leaf evaluator is a worse leaf
+  evaluator); playout-outcome labels were too noisy in 300 generations. Distillation needs labels with information the
+  student lacks.
 - **A shared page/component contract is one interface, not per-game `if`s.** The game page is one
   `GamePage.vue` driven by a `GameModule` (`app/games/types.ts`: score format, extra columns, stage
   components, copy); a second game found the first game's assumptions (a score that's an integer count,

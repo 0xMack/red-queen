@@ -119,6 +119,40 @@ trained Snake champion** still runs the real `evolve` + `games` in Pyodide, load
 
 Also: `NeatDiagram.vue` draws any NEAT genome as a graph and is what `WatchChampion` shows for a NEAT run.
 
+## Result: longer runs (`snake-long-v1`) and what did not work for Checkers
+
+**Snake.** Five NEAT arms x 5 seeds, 200 held-out games per run (`snake.score.v2`), exact permutation test vs. `neat`:
+
+| arm | change from `neat` | held-out (mean +- sd) | vs. `neat` |
+|---|---|---|---|
+| `neat` | (control: 250 gens, pop 100, 200-step training games) | 20.59 +- 0.29 | -- |
+| `neat-long` | 1000 generations | 21.71 +- 1.75 | +1.1, p=0.27 |
+| `neat-pop400` | population 400 | 21.44 +- 1.10 | +0.85, p=0.04 |
+| `neat-h1000` | train on 1000-step games | 30.98 +- 2.56 | +10.4, p=0.008 |
+| `neat-max` | 1000-step games, pop 300, 600 gens, resample:10 | 37.98 +- 1.17 | +17.4, p=0.008 |
+
+More generations or a bigger population barely helped; the lever was the **training horizon**. Training games were
+capped at 200 steps while the leaderboard scores 1000-step games, so nothing rewarded surviving past step 200.
+p=0.008 is the smallest a 5-vs-5 exact test can give. The leaderboard entry is an untagged flagship run of the
+`neat-max` config with an unseen rng seed (100): 37.95 +- 1.21 (previous best 20.25, Greedy 17.89).
+
+**Checkers (negative results, all against `Material 4-ply` at 0.900 on `checkers.versus.v1`).**
+- `checkers-long-v1`: 4x longer runs, and depth 4 trained against `material-4`, changed nothing -- in all six runs
+  the final champion is byte-identical to generation 0 (a seeded material evaluator that full-rate mutation never
+  beat). The extra compute was wasted.
+- `checkers-fix-v1` / `checkers-open-v1`: sparse mutation + margin fitness (+ resampling, + random 6-ply openings so
+  deterministic players stop replaying one game). Mean fitness now moved, but best training fitness stayed flat and
+  held-out play against the pool drifted down (0.50 -> 0.26): win/loss over a handful of games is too weak a signal.
+- `checkers-distill-v1/v2`: evolve the evaluator to *predict* labelled positions (a material-6/8 search's value;
+  playout outcomes; a blend). The fit is excellent (MSE 0.66 -> 0.06) but every variant ends near -0.65 against
+  material-3/4: search labels contain nothing beyond material, and an approximate material evaluator is worse than
+  the exact one at the leaves; playout labels were too noisy per position to add positional knowledge in 300
+  generations. No untagged Checkers run was promoted, so the versus leaderboard is unchanged.
+
+Infrastructure added: `--max-steps`/`--population` on `snake_neat_run.py`, `evolve.fitness.evaluate_all` (an evaluator
+may offer `evaluate_many`) with `jobs/parallel.py`'s process pool (identical results to serial, ~4-6x faster),
+`--workers`/`--opening-plies`/`--experiment` on `checkers_neuro_run.py`, and `jobs/checkers_distill_run.py`.
+
 ## Explicitly out of scope
 
 - HyperNEAT, recurrent/CPPN genomes, NEAT's steepened sigmoid and other activations.

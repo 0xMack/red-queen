@@ -32,6 +32,7 @@ import argparse
 import random
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from checkers_training import (
     INPUTS,
@@ -47,6 +48,7 @@ from checkers_training import (
     strategy_factory,
 )
 from control import make_control_callback
+from parallel import ProcessPoolEvaluator
 from costs import TrainingCostMeter
 from evolve import GaussianMutation, LexicaseSelection, evolve, random_weight_vector
 from games.checkers_strategies import STRATEGIES
@@ -78,6 +80,9 @@ def main(
     games_per_opponent: int = 1,
     sigma: float = 0.2,
     mutation_rate: float = 1.0,
+    tags: dict[str, Any] | None = None,
+    workers: int = 1,
+    opening_plies: int = 0,
 ) -> str:
     """Trains one run, records it to telemetry, returns its run_id."""
     layer_sizes = (INPUTS, hidden, 1)
@@ -105,8 +110,10 @@ def main(
             "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
             "resampled_opponents": resample,
             "games_per_opponent": games_per_opponent,
+            "opening_plies": opening_plies,
             "held_out_every": held_out_every,
             "rng_seed": rng_seed,
+            **(tags or {}),  # e.g. `experiment`/`arm`: kept off the leaderboard, aggregated by the experiment
         }
     )
     print(f"run_id={run_id}", flush=True)
@@ -117,15 +124,16 @@ def main(
         material_seed_weights(layer_sizes, rng) if i < seeded else random_weight_vector(layer_sizes, rng, scale=0.5)
         for i in range(population_size)
     ]
-    pool = OpponentPool(opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent)
-    cost = TrainingCostMeter(population_size=population_size, fitness=pool)
+    pool = OpponentPool(opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent, opening_plies=opening_plies)
+    fitness = ProcessPoolEvaluator(pool, workers) if workers > 1 else pool
+    cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 
     # A run that dies (an exception, Ctrl-C) must not stay "running" forever: the runs page would show
     # it as live. A hard kill can't be caught -- that one still needs marking by hand.
     try:
         evolve(
             population,
-            fitness=pool,
+            fitness=fitness,
             selection=LexicaseSelection(),
             variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
             generations=generations,
@@ -169,6 +177,10 @@ if __name__ == "__main__":
     parser.add_argument("--games-per-opponent", type=int, default=1, help="games each opponent plays per seat per generation")
     parser.add_argument("--sigma", type=float, default=0.2, help="Gaussian mutation step")
     parser.add_argument("--mutation-rate", type=float, default=1.0, help="chance each weight is perturbed (small = sparse mutation)")
+    parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
+    parser.add_argument("--arm", default=None, help="which arm of the experiment this run is")
+    parser.add_argument("--opening-plies", type=int, default=0, help="random moves opening every fitness game (both seats share one)")
+    parser.add_argument("--workers", type=int, default=1, help="processes scoring a generation's genomes (same result as 1, faster)")
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
     parser.add_argument("--held-out-every", type=int, default=5)
     args = parser.parse_args()
@@ -187,4 +199,7 @@ if __name__ == "__main__":
         args.games_per_opponent,
         args.sigma,
         args.mutation_rate,
+        {"experiment": args.experiment, "arm": args.arm} if args.experiment else None,
+        args.workers,
+        args.opening_plies,
     )
