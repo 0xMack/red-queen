@@ -82,6 +82,13 @@ themselves — see docs/design/0001) get wired to it for a real run.
   (`metrics.versus`, for the head-to-head matrix). Same `EvaluationRecord`s as `evaluate.py`, so the game
   page's leaderboard components need nothing game-specific. Scores are relative to the field: re-run it
   whenever entrants change (it replaces the old records).
+- `parallel.py` — `ProcessPoolEvaluator(inner, workers)`: scores a generation's genomes across processes
+  (`evolve.fitness.evaluate_all` calls its `evaluate_many`). Fitness evaluators here are deterministic, so a parallel
+  run reproduces a serial one; used by `checkers_neuro_run.py --workers N` and `checkers_distill_run.py`. Cost meters
+  then report wall time, not summed CPU time of the workers.
+- `checkers_distill_run.py` — search distillation for Checkers: evolve an evaluator to predict labelled positions
+  (`--label-kind search|rollout|blend`; pools are cached under `run-data/distill/`), played `--depth` plies. A
+  documented negative result (docs/design/0008): it never got near `Material 4-ply`.
 - `backfill_interfaces.py` — one-off: sets `config.interface` on game runs recorded before
   interfaces existed, resolved from each champion's own layer sizes (idempotent).
 - `control.py` — `make_control_callback(registry, run_id)`, an `on_generation` callback that blocks

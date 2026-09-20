@@ -15,7 +15,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
-from evolve.fitness import FitnessEvaluator
+from evolve.fitness import FitnessEvaluator, evaluate_all
 from evolve.selection import SelectionStrategy
 from evolve.variation import VariationStrategy
 
@@ -60,7 +60,7 @@ def evolve(
     for generation in range(generations):
         # per-test-case fitness (needed by LexicaseSelection); `aggregate` reduces it to one
         # scalar per individual for elitism ranking and the generation summary/telemetry.
-        case_fitnesses = [fitness.evaluate(genome) for genome in population]
+        case_fitnesses = evaluate_all(fitness, population)
         aggregate = [statistics.fmean(cf) for cf in case_fitnesses]
         ranked = sorted(range(len(population)), key=lambda i: aggregate[i], reverse=True)
 
