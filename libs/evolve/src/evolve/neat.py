@@ -171,6 +171,20 @@ class NeatGenome:
     def act(self, observation: Sequence[float]) -> float:
         return self.forward(observation)[0]
 
+    def graph_encoding(self) -> list[float]:
+        """The compiled evaluation plan as one flat list of numbers -- what a runtime that evaluates the graph
+        itself (the game core's `GraphNet`, docs/design/0009) is built from, so it needn't re-implement the
+        topological sort. Layout: `[num_inputs, num_slots, num_steps, (slot, k, (source, weight) * k) *
+        num_steps, num_outputs, output slots...]`; slots are inputs, then the bias (fixed at 1.0), then every
+        live node in evaluation order; each step computes tanh of the weighted sum of its sources."""
+        node_of_slot, steps, outputs = self._plan
+        flat: list[float] = [float(self.num_inputs), float(len(node_of_slot)), float(len(steps))]
+        for slot, incoming in steps:
+            flat += [float(slot), float(len(incoming))]
+            for source, weight in incoming:
+                flat += [float(source), weight]
+        return flat + [float(len(outputs)), *map(float, outputs)]
+
     def complexity(self) -> tuple[int, int]:
         """(hidden nodes, enabled connections) -- how big the evolved structure has become."""
         return len(self.hidden_ids), len(self.enabled_connections)

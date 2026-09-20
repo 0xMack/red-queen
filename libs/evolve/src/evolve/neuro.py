@@ -96,12 +96,19 @@ class GaussianMutation:
     crossover -- unlike swapping GP instructions/subtrees, averaging or splicing two networks'
     weights doesn't generally combine their behavior (the same weight plays a different role
     depending on everything around it), so standard neuroevolution/ES practice is mutation-only.
+
+    `rate` is the chance each weight is perturbed at all (default 1: every weight, the classic ES
+    step). On a network of hundreds of weights that is a large step even for a small `sigma` -- the
+    perturbation's size grows with sqrt(weights) -- so a parent that is already good (a seeded
+    evaluator, a late-run champion) is far more likely to be wrecked than improved. A small `rate`
+    (a handful of weights per child) makes local, *findable* improvements possible.
     """
 
-    def __init__(self, sigma: float = 0.1):
+    def __init__(self, sigma: float = 0.1, rate: float = 1.0):
         self._sigma = sigma
+        self._rate = rate
 
     def vary(self, parents: list[WeightVector], rng: random.Random) -> WeightVector:
         parent = parents[0]
-        new_weights = tuple(w + rng.gauss(0.0, self._sigma) for w in parent.weights)
+        new_weights = tuple(w + rng.gauss(0.0, self._sigma) if self._rate >= 1.0 or rng.random() < self._rate else w for w in parent.weights)
         return replace(parent, weights=new_weights)

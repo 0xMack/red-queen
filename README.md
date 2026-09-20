@@ -65,5 +65,6 @@ a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
 - `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
   architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
   scratch), `0005` (frontend + API contracts/endpoint definitions), `0006` (multi-agent games and
-  the strategy/match framework, checkers as the first exercise of it — phase 1 of 4 done: the
-  framework and the game, pure Python, no API/frontend yet)
+  the strategy/match framework, checkers as the first exercise of it — done: the framework, the game,
+  an evolved position-evaluator champion, and a playable page (human vs. bot, bot vs. bot, an arena
+  that measures strategies), all client-side)

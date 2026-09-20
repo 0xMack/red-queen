@@ -10,7 +10,7 @@ await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs
 // The featured champion: a Snake run that's training right now if there is one (you get to watch
 // it improve live), otherwise the best finished one.
 const featured = computed(() => {
-  const snakeRuns = runsStore.runs.filter((r) => describeRun(r).watchable && bestFitnessOf(r) !== null)
+  const snakeRuns = runsStore.runs.filter((r) => describeRun(r).game === "snake" && bestFitnessOf(r) !== null)
   const live = snakeRuns.find((r) => r.status === "running" && !isStale(r))
   if (live) return { run: live, live: true }
   const best = [...snakeRuns].sort((a, b) => (bestFitnessOf(b) ?? -Infinity) - (bestFitnessOf(a) ?? -Infinity))[0]

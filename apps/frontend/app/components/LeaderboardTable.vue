@@ -1,12 +1,17 @@
 <script setup lang="ts">
+import type { LeaderboardColumn, ScoreSpec } from "~/games/types"
 import type { EvaluationRecord, InterfaceInfo } from "~/types/leaderboard"
 
 // The full leaderboard table (docs/design/0007): quality, inference, and training measurements per
 // entrant, in rank order. Clicking a row selects that entrant (the game page then plays it); the run
-// id links out to the run itself.
+// id links out to the run itself. Game-agnostic: the score's name and format come from the game's
+// ScoreSpec, and a game adds its own columns (Snake: score spread and train gap; Checkers: its
+// win/draw/loss record) between the score and the cost columns.
 const props = defineProps<{
   entries: EvaluationRecord[]
   interfacesById: Record<string, InterfaceInfo>
+  score: ScoreSpec
+  columns?: LeaderboardColumn[]
   selectedId?: string | null
 }>()
 defineEmits<{ select: [entrantId: string] }>()
@@ -20,7 +25,7 @@ const ranked = computed(() =>
     return { record: r, rank: i + 1, tiedWithPrev }
   }),
 )
-const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics.quality.mean + r.metrics.quality.ci95)))
+const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.map((r) => r.metrics.quality.mean + r.metrics.quality.ci95)))
 </script>
 
 <template>
@@ -31,9 +36,8 @@ const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics
           <th class="px-4 py-3 font-medium">#</th>
           <th class="px-3 py-3 font-medium">Entrant</th>
           <th class="px-3 py-3 font-medium">Representation</th>
-          <th class="px-3 py-3 font-medium">Held-out score</th>
-          <th class="px-3 py-3 text-right font-medium" title="median / best / % of games scoring zero">Median · max · zero</th>
-          <th class="px-3 py-3 text-right font-medium" title="mean on its own training seeds minus held-out mean -- large = overfit">Train gap</th>
+          <th class="px-3 py-3 font-medium">{{ score.label }}</th>
+          <th v-for="c in columns" :key="c.id" class="px-3 py-3 text-right font-medium" :title="c.title">{{ c.header }}</th>
           <th class="px-3 py-3 text-right font-medium" title="per decision: encoding the board + running the model">Inference</th>
           <th class="px-3 py-3 text-right font-medium">Params</th>
           <th class="px-3 py-3 text-right font-medium">Training</th>
@@ -71,8 +75,8 @@ const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics
           </td>
           <td class="min-w-48 px-3 py-3">
             <div class="flex items-baseline gap-2">
-              <span class="num text-base font-semibold">{{ r.metrics.quality.mean.toFixed(2) }}</span>
-              <span class="num text-[11px] text-fg-subtle">± {{ r.metrics.quality.ci95.toFixed(2) }}</span>
+              <span class="num text-base font-semibold">{{ score.format(r.metrics.quality.mean) }}</span>
+              <span class="num text-[11px] text-fg-subtle">± {{ score.format(r.metrics.quality.ci95) }}</span>
             </div>
             <div class="relative mt-1.5 h-1.5 rounded-full bg-raised">
               <div class="absolute inset-y-0 left-0 rounded-full" :style="{ width: `${(r.metrics.quality.mean / maxMean) * 100}%`, background: entrantColor(r) }" />
@@ -85,17 +89,11 @@ const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics
               />
             </div>
           </td>
-          <td class="num px-3 py-3 text-right text-xs text-fg-muted">
-            {{ r.metrics.quality.median }} · {{ r.metrics.quality.max }} · {{ Math.round(r.metrics.quality.zero_rate * 100) }}%
-          </td>
-          <td class="num px-3 py-3 text-right text-xs">
-            <span
-              v-if="r.metrics.quality.generalization_gap !== null"
-              :class="r.metrics.quality.generalization_gap > 2 ? 'text-queen-300' : 'text-fg-muted'"
-              :title="`training seeds mean ${r.metrics.quality.train_mean}`"
-            >
-              {{ formatSigned(r.metrics.quality.generalization_gap, 1) }}
-            </span>
+          <td v-for="c in columns" :key="c.id" class="num px-3 py-3 text-right text-xs">
+            <template v-if="c.cell(r)">
+              <span :class="c.cell(r)!.tone === 'warn' ? 'text-queen-300' : c.cell(r)!.tone === 'muted' ? 'text-fg-muted' : 'text-fg'">{{ c.cell(r)!.text }}</span>
+              <p v-if="c.cell(r)!.sub" class="text-[10px] text-fg-subtle">{{ c.cell(r)!.sub }}</p>
+            </template>
           </td>
           <td class="num px-3 py-3 text-right text-xs">
             <span class="text-fg">{{ r.metrics.inference.total_us.toFixed(1) }} µs</span>
@@ -111,6 +109,9 @@ const maxMean = computed(() => Math.max(1, ...props.entries.map((r) => r.metrics
               <span class="text-fg" :title="r.metrics.training.measured ? 'measured' : 'estimated from config + timestamps (recorded before cost tracking)'">
                 <template v-if="r.metrics.training.episodes != null">
                   {{ r.metrics.training.measured ? "" : "~" }}{{ compactNumber(r.metrics.training.episodes) }} ep
+                </template>
+                <template v-else-if="r.metrics.training.fitness_evaluations != null">
+                  {{ compactNumber(r.metrics.training.fitness_evaluations) }} evals
                 </template>
                 <template v-else>? ep</template>
               </span>

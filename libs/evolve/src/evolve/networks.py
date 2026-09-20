@@ -34,6 +34,17 @@ def parameter_count(network: Network) -> int:
     return len(network.weights)
 
 
+def compiled(network: Network) -> dict:
+    """A trained network as plain numbers a runtime that evaluates it itself can be built from -- the game
+    core (docs/design/0009), in Python through PyO3 or in a browser through WebAssembly -- so no consumer
+    re-implements NEAT's topological sort or the weight layout. Fixed topology: `{"kind": "layered",
+    "weights": [...], "layer_sizes": [...]}` (`WeightVector`'s flat layout, tanh layers). Evolved graph:
+    `{"kind": "graph", "encoding": [...]}` (`NeatGenome.graph_encoding()`, tanh on every node)."""
+    if isinstance(network, NeatGenome):
+        return {"kind": "graph", "encoding": network.graph_encoding()}
+    return {"kind": "layered", "weights": list(network.weights), "layer_sizes": list(network.layer_sizes)}
+
+
 def describe(network: Network) -> str:
     """Short human label for the model's shape: `11 → 16 → 3` for a fixed network, `11 → 7 hidden → 3 · 54
     conns` for an evolved graph (a NEAT genome has no layers, only how many hidden nodes it grew)."""

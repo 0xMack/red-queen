@@ -37,7 +37,8 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `notebooks/0003-linear-vs-tree.ipynb`.
 - `neuro.py` — `WeightVector`: the third genome representation (docs/design/0003 phase 5), and the
   first that isn't program-shaped at all — a small feedforward network's flattened weights,
-  evolved directly (Evolution Strategies). `GaussianMutation` is mutation-only, deliberately no
+  evolved directly (Evolution Strategies). `GaussianMutation` (`rate` = chance each weight is perturbed; the default 1.0 perturbs all of them, which on a
+  network of hundreds of weights wrecks a good parent -- use a small rate for a seeded or late-run population) is mutation-only, deliberately no
   crossover — averaging two networks' weights doesn't generally combine their behavior the way
   swapping GP instructions/subtrees does. `l2_norm()` is this representation's `ParetoSelection`
   complexity measure. `act()` returns just the first output (a bounded scalar, e.g. `reach1d`);
@@ -81,7 +82,13 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   strategy" mechanic requested as first-class infrastructure, not built into `games.checkers`
   specifically. `MatchFitnessEvaluator` is `SimulationFitnessEvaluator` with "N fixed environments"
   replaced by "N fixed reference opponents" (one fitness value per opponent per seat, so
-  `LexicaseSelection` works unchanged). A concrete game (e.g. `games.checkers`) implements
+  `LexicaseSelection` works unchanged). A strategy that needs the environment -- lookahead, or a genome
+  scoring the position each legal move leads to -- can't be a plain `Strategy` (it only sees the
+  observation and move list), so `MatchFitnessEvaluator(..., env_aware=True)` takes `StrategyFactory`s
+  (`env -> Strategy`) and binds each to the match's own fresh env. `scorer(env, seat, result)` replaces win 1 /
+  draw 0 / loss -1 with a finer per-match score (Checkers pays a draw the material edge held), because many
+  matches against a strong opponent end as draws or losses and a fitness that can't tell those apart gives
+  selection nothing to climb. A concrete game (e.g. `games.checkers`) implements
   `MultiAgentEnvironment` but never imports this module — same dependency direction as
   `Environment`/`games`.
 

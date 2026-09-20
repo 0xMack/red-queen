@@ -41,6 +41,12 @@ class MultiAgentEnvironment(Protocol):
 # pattern already used for Snake, not a new concept.
 Strategy = Callable[[Observation, list[Move]], Move]
 
+# A strategy that needs the environment itself -- to look ahead (`env.simulate(move)`, a copy + step) or
+# evaluate the position each legal move leads to. The plain `Strategy` shape can't do that: it only
+# sees the observation and the move list. Binding to the env is a separate step so a fitness
+# evaluator, which builds a fresh env per match, can hand each match's own env to the strategy.
+StrategyFactory = Callable[[MultiAgentEnvironment], Strategy]
+
 
 @dataclass(frozen=True, slots=True)
 class MatchResult:
@@ -85,6 +91,17 @@ class MatchFitnessEvaluator:
 
     `act` is injected `(genome, observation, legal_moves) -> move`, the multi-agent-aware sibling
     of SimulationFitnessEvaluator's `act` -- this evaluator never touches genome internals.
+
+    `env_aware=True` is for strategies that need the match's environment (lookahead opponents, a
+    genome that scores the position each legal move leads to -- see `StrategyFactory`): `opponents`
+    are then `StrategyFactory`s and `act` is `(genome, env) -> Strategy`, both called once per match
+    with that match's fresh env. Without it, both are plain strategies, exactly as before.
+
+    `scorer(env, genome_seat, result) -> float` replaces the default win 1 / draw 0 / loss -1 with a finer
+    score, given the finished environment (a draw can be worth the material edge held, so a genome is rewarded
+    for building an advantage before it learns to convert it; keep it inside (-1, 1) so a win still counts
+    most). Many matches against a strong opponent end as draws or losses, and a fitness that can't tell those
+    apart gives selection nothing to climb.
     """
 
     def __init__(
@@ -93,11 +110,15 @@ class MatchFitnessEvaluator:
         opponents: Sequence[Strategy],
         act: Callable[[Genome, Observation, list[Move]], Move],
         max_moves: int = 200,
+        env_aware: bool = False,
+        scorer: Callable[[MultiAgentEnvironment, int, MatchResult], float] | None = None,
     ):
         self._env_factory = env_factory
         self._opponents = list(opponents)
         self._act = act
         self._max_moves = max_moves
+        self._env_aware = env_aware
+        self._scorer = scorer
 
     def evaluate(self, genome: Genome) -> list[float]:
         def genome_strategy(observation: Observation, legal_moves: list[Move]) -> Move:
@@ -106,9 +127,15 @@ class MatchFitnessEvaluator:
         fitnesses = []
         for opponent in self._opponents:
             for genome_seat in (0, 1):
-                strategies = {genome_seat: genome_strategy, 1 - genome_seat: opponent}
-                result = play_match(self._env_factory(), strategies, max_moves=self._max_moves)
-                if result.winner is None:
+                env = self._env_factory()
+                if self._env_aware:
+                    strategies = {genome_seat: self._act(genome, env), 1 - genome_seat: opponent(env)}
+                else:
+                    strategies = {genome_seat: genome_strategy, 1 - genome_seat: opponent}
+                result = play_match(env, strategies, max_moves=self._max_moves)
+                if self._scorer is not None:
+                    fitnesses.append(self._scorer(env, genome_seat, result))
+                elif result.winner is None:
                     fitnesses.append(0.0)
                 elif result.winner == genome_seat:
                     fitnesses.append(1.0)

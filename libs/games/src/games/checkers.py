@@ -32,6 +32,7 @@ last), and strategies pick by position in that list.
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 
 from games import _native
 
@@ -40,6 +41,47 @@ Move = tuple[Square, ...]
 _Piece = tuple[int, bool]  # (owner, is_king)
 
 _PLAYABLE_SQUARES: tuple[Square, ...] = tuple((x, y) for y in range(8) for x in range(8) if (x + y) % 2 == 1)
+
+
+def _square_name(x: int, y: int) -> str:
+    return f"{'abcdefgh'[x]}{y + 1}"
+
+
+class CheckersBoard32:
+    """`board32.v1` -- the observer every Checkers model sees today (docs/design/0007, level 1: the whole
+    board, symbolically): the 32 playable squares, each from the *player to move's* side (own man 1, own
+    king 2, opponent -1 / -2, empty 0). Same values `Checkers.reset()`/`step()` return."""
+
+    id = "board32.v1"
+    level = 1
+    description = (
+        "The 32 playable squares, signed from the mover's perspective: own man +1, own king +2, "
+        "opponent man -1, opponent king -2, empty 0. Row by row from Red's side."
+    )
+
+    def encode(self, game: Checkers) -> list[float]:
+        return game._observation()
+
+    def feature_names(self, game: Checkers) -> list[str]:
+        return [_square_name(x, y) for x, y in _PLAYABLE_SQUARES]
+
+
+class Evaluate1Ply:
+    """`evaluate1ply.v1` -- how a model's output becomes a move. Not a fixed action space: a Checkers
+    model is a *position evaluator* with one output, and the player scores the position each legal move
+    leads to (`Checkers.simulate()`) and plays the best -- one ply of lookahead, the reason the observer
+    can be a plain board (docs/design/0006)."""
+
+    id = "evaluate1ply.v1"
+    description = (
+        "One output: how good a position is for the player to move. The player scores the position "
+        "every legal move leads to and plays the move whose position is worst for the opponent."
+    )
+    num_outputs = 1
+
+    def decode(self, outputs: Sequence[float]) -> float:
+        """The evaluation itself; choosing the move is `games.checkers_strategies.evaluator`'s job."""
+        return outputs[0]
 
 
 class Checkers:
@@ -87,6 +129,10 @@ class Checkers:
             winner = self._core.winner
             rewards = {winner: 1.0, 1 - winner: -1.0} if winner is not None else {0: 0.0, 1: 0.0}
         return self._core.observation(), rewards, done
+
+    def choose(self, strategy: _native.CheckersStrategy) -> Move:
+        """The move a native strategy (games.checkers_strategies) picks in the current position."""
+        return self.legal_moves()[strategy.pick(self._core)]
 
     def simulate(self, move: Move) -> list[float]:
         """The observation that *would* result from playing `move` (from the next mover's

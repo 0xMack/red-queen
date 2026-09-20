@@ -18,8 +18,10 @@ const props = withDefaults(
     showInnovations?: boolean
     // Fixed drawing height in viewBox units; default fits the tallest column.
     height?: number
+    /** Fill the parent's height (aspect ratio kept) instead of sizing to the parent's width. */
+    fit?: boolean
   }>(),
-  { activations: null, highlight: () => [], inputLabels: () => [], outputLabels: () => [], showDisabled: true, showInnovations: false, height: 0 },
+  { activations: null, highlight: () => [], inputLabels: () => [], outputLabels: () => [], showDisabled: true, showInnovations: false, height: 0, fit: false },
 )
 
 const W = 460
@@ -120,7 +122,7 @@ const nodes = computed(() => {
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${W} ${H}`" class="block h-auto w-full" role="img" :aria-label="`NEAT network: ${genome.numInputs} inputs, ${hiddenIds(genome).length} hidden nodes, ${genome.numOutputs} outputs`">
+  <svg :viewBox="`0 0 ${W} ${H}`" class="block w-full" :class="fit ? 'h-full' : 'h-auto'" role="img" :aria-label="`NEAT network: ${genome.numInputs} inputs, ${hiddenIds(genome).length} hidden nodes, ${genome.numOutputs} outputs`">
     <path
       v-for="e in edges"
       :key="e.key"

@@ -2,12 +2,14 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_checkersgame_free: (a: number, b: number) => void;
+export const __wbg_checkersstrategy_free: (a: number, b: number) => void;
 export const __wbg_randompolicy_free: (a: number, b: number) => void;
 export const __wbg_reach1dgame_free: (a: number, b: number) => void;
 export const __wbg_snakegame_free: (a: number, b: number) => void;
 export const checkersgame_cells: (a: number) => [number, number];
 export const checkersgame_currentPlayer: (a: number) => number;
 export const checkersgame_done: (a: number) => number;
+export const checkersgame_duplicate: (a: number) => number;
 export const checkersgame_legalMoves: (a: number) => [number, number];
 export const checkersgame_new: (a: number) => number;
 export const checkersgame_observation: (a: number) => [number, number];
@@ -15,6 +17,10 @@ export const checkersgame_reset: (a: number) => void;
 export const checkersgame_simulate: (a: number, b: number) => [number, number, number, number];
 export const checkersgame_step: (a: number, b: number) => [number, number, number];
 export const checkersgame_winner: (a: number) => number;
+export const checkersstrategy_activations: (a: number, b: number, c: number) => [number, number];
+export const checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+export const checkersstrategy_pick: (a: number, b: number) => [number, number, number];
+export const checkersstrategy_scores: (a: number, b: number) => [number, number];
 export const decodeRelative3: (a: number, b: number) => number;
 export const greedyDecide: (a: number, b: number) => number;
 export const randompolicy_decide: (a: number, b: number, c: number) => number;

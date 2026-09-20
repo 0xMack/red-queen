@@ -172,3 +172,25 @@ def test_get_artifact(backend):
 
     resp = client.get(f"/runs/{run_id}/artifacts/no-such-ref")
     assert resp.status_code == 404
+
+
+def test_get_brain_serves_a_champion_as_plain_numbers_for_the_game_core(backend):
+    from evolve import InnovationTracker, WeightVector, initial_genome
+
+    client, registry, _, artifacts = backend
+    run_id = registry.create_run(config={})
+    layered = WeightVector(weights=(0.5,) * 33, layer_sizes=(32, 1))
+    artifacts.put_program("layered", layered.to_json().encode())
+    genome = initial_genome(32, 1, InnovationTracker(first_hidden_id=34), __import__("random").Random(0))
+    artifacts.put_program("graph", genome.to_json().encode())
+    artifacts.put_program("junk", b'{"type": "mystery"}')
+
+    body = client.get(f"/runs/{run_id}/artifacts/layered/brain").json()
+    assert body == {"kind": "layered", "weights": [0.5] * 33, "layer_sizes": [32, 1]}
+
+    body = client.get(f"/runs/{run_id}/artifacts/graph/brain").json()
+    assert body["kind"] == "graph" and body["encoding"] == genome.graph_encoding()
+    assert body["genome"]["type"] == "neat" and len(body["genome"]["connections"]) == len(genome.connections)  # for the diagram
+
+    assert client.get(f"/runs/{run_id}/artifacts/nope/brain").status_code == 404
+    assert client.get(f"/runs/{run_id}/artifacts/junk/brain").status_code == 422

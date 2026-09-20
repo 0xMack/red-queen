@@ -79,6 +79,17 @@ so a seed is the same game in training, evaluation and a visitor's browser.
   clean once given more (multiple opponent-strategy instances in the pool to average out the
   opponent's own randomness) — the same "verify by running, not just by reasoning" lesson this
   project keeps re-learning, this time about fitness-signal noise rather than reward shaping.
+- `checkers_strategies.py` — the static Checkers strategies (random, first-legal, 1- and 2-ply material)
+  and `evaluator(weights, layer_sizes)` (a trained network, one ply ahead) as env-bound
+  `(env, rng) -> Strategy` factories; the fixed opponents every Checkers experiment measures against.
+  Beyond the fixed players (`material-N` for N >= 3 is alpha-beta material search), a trained evaluator can
+  *search*: `evaluator(weights, layer_sizes, depth)` for a `WeightVector`, `graph_evaluator(encoding, depth)` for
+  a NEAT genome (`NeatGenome.graph_encoding()`, evaluated by the core's `GraphNet`) -- neuroevolution supplies the
+  evaluation, minimax the lookahead. `Strategy::scores` and `activations` expose the reasoning to diagnostics.
+  They are Rust (`rust/core/src/checkers_strategies.rs`, also `games._native.CheckersStrategy` and the
+  browser's WASM `CheckersStrategy`): seeded PCG32 tie-breaks, so a seed is the same player in
+  training and in the browser. `tests/reference_checkers_strategies.py` keeps the original Python
+  scoring as oracles: the Rust pick must be a top-scoring move in thousands of real positions.
 
 ## Usage
 

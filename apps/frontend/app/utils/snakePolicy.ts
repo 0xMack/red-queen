@@ -22,7 +22,7 @@ export function forwardActivations(weights: number[], layerSizes: number[], obse
 }
 
 /** Weight connecting input k of layer i to output o, same layout as above. */
-export function weightAt(weights: number[], layerSizes: number[], layer: number, k: number, o: number): number {
+export function weightAt(weights: readonly number[], layerSizes: readonly number[], layer: number, k: number, o: number): number {
   let offset = 0
   for (let i = 0; i < layer; i++) offset += layerSizes[i]! * layerSizes[i + 1]! + layerSizes[i + 1]!
   return weights[offset + o * layerSizes[layer]! + k]!

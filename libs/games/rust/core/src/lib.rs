@@ -4,6 +4,7 @@
 
 pub mod baselines;
 pub mod checkers;
+pub mod checkers_strategies;
 pub mod pcg;
 pub mod reach1d;
 pub mod snake;

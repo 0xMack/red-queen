@@ -19,62 +19,15 @@ Run with: uv run python jobs/checkers_round_robin.py
 
 from __future__ import annotations
 
-import copy
 import itertools
 import random
-from collections.abc import Callable
 
 from evolve import play_match
 from games.checkers import Checkers
+from games.checkers_strategies import STRATEGIES
 
 GAMES = 200
 MAX_PLIES = 300
-
-StrategyFactory = Callable[[Checkers, random.Random], Callable]
-
-
-def random_strategy(env: Checkers, rng: random.Random):
-    return lambda observation, moves: rng.choice(moves)
-
-
-def first_legal(env: Checkers, rng: random.Random):
-    return lambda observation, moves: moves[0]
-
-
-def material_1(env: Checkers, rng: random.Random):
-    # simulate() encodes the resulting position from the *opponent's* perspective (it's their move
-    # next), so the mover's material is the negated sum.
-    return lambda observation, moves: max((-sum(env.simulate(m)), rng.random(), m) for m in moves)[2]
-
-
-def material_2(env: Checkers, rng: random.Random):
-    def pick(observation, moves):
-        me = env.current_player()
-        best = None
-        for move in moves:
-            child = copy.deepcopy(env)
-            _, _, done = child.step(move)
-            if done:
-                score = 1000 if child.winner() == me else 0
-            else:
-                # After the opponent's reply it's my move again, so simulate() is from my perspective;
-                # assume they pick the reply that's worst for me.
-                score = min(sum(child.simulate(reply)) for reply in child.legal_moves())
-            key = (score, rng.random())
-            if best is None or key > best[0]:
-                best = (key, move)
-        return best[1]
-
-    return pick
-
-
-STRATEGIES: dict[str, StrategyFactory] = {
-    "random": random_strategy,
-    "first-legal": first_legal,
-    "material-1": material_1,
-    "material-2": material_2,
-}
-
 
 def play_pairing(a: str, b: str, games: int = GAMES) -> dict[str, int]:
     """Results from `a`'s point of view."""

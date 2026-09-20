@@ -63,17 +63,13 @@ onUnmounted(() => session.stop())
     <template v-else-if="renderState">
       <div class="relative rounded-xl ring-queen-400/70 transition group-focus-visible/demo:ring-2 group-focus/demo:ring-2">
         <GridBoard :state="renderState" />
-        <div
-          v-if="done"
-          class="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-bg/70 backdrop-blur-sm"
-        >
-          <p class="font-display text-xl font-semibold">Game over · {{ renderState.score }}</p>
-          <button class="btn-primary btn-sm" @click="restart">Play again</button>
-        </div>
+        <!-- The same result overlay every game uses (BoardResult); the demo's action sits below the board. -->
+        <BoardResult v-if="done" title="Game over" :sub="`${renderState.score} 🍎`" tone="draw" />
       </div>
       <div class="mt-3 flex items-center justify-between gap-4">
         <GameStatRow :score="renderState.score" :step="stepCount" :reward="reward" />
-        <p class="text-[11px] text-fg-subtle">click the board, then arrow keys</p>
+        <button v-if="done" class="btn-primary btn-sm" @click="restart">Play again</button>
+        <p v-else class="text-[11px] text-fg-subtle">click the board, then arrow keys</p>
       </div>
     </template>
   </div>

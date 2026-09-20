@@ -201,16 +201,112 @@ Same phasing principle as doc 0005 (prove the contract server-side/REST before m
    test (too slow/noisy to assert on reliably) or a job (no telemetry wiring needed yet — that's
    real work for whenever a trained checkers champion needs to be served to a frontend, mirroring
    `jobs/snake_neuro_run.py`).
-2. `apis/backend`: `MoveRequest`, the multi-agent session state, per-seat human/strategy sessions,
-   bot-vs-bot auto-play. REST only, mirrors doc 0005 step 4.
-3. `apps/frontend`: checkers board + opponent-selection UI, driven by the step-2 REST API. Resolves
-   the `GridBoard.vue` question for real.
-4. Pyodide client-side checkers (mirrors doc 0005 step 5) — bot-vs-bot and human-vs-bot fully
-   client-side, reusing the existing `libs/games`/`libs/evolve` Pyodide-source-loading pattern.
+2. ~~`apis/backend`: `MoveRequest`, the multi-agent session state, per-seat sessions, bot-vs-bot
+   auto-play.~~ **Skipped, superseded by doc 0009.** Once the game core runs in the browser as WebAssembly
+   there is nothing for a server session to do: a move is `CheckersGame.step(index)`, a bot's turn is a
+   function call. The `MoveRequest{move_index}` idea survives as the WASM interface (moves cross as
+   indexes into `legalMoves()`, the same list and order Python sees). No REST surface was added.
+3. ✅ `apps/frontend`: `/games/checkers`. Each seat is a human or a strategy, so human-vs-bot, bot-vs-bot
+   and pass-and-play are one code path; an arena plays N games between any two strategies at full speed
+   in the browser. **Resolves the `GridBoard.vue` question: it doesn't fit.** Checkers gets its own
+   board component (`CheckersBoard`) -- pieces are captured and crowned, not glided, a human builds a
+   multi-jump one landing at a time, and the board flips so the human's pieces sit at the bottom --
+   sharing only the checkerboard idea and the `{width, height, cells}` shape. **Everything else is
+   game-agnostic** (below), so the second two-player game only supplies rules, strategies and a board.
+4. ✅ Client-side: done as part of 3 -- there was never a Pyodide checkers to port (0009 came first).
+5. ✅ A run viewer, `CheckersWatch`: a checkers run's champion (newest, live, or any generation) playing an
+   opponent on the same stage. It was missing at first (the run and watch pages were Snake-only:
+   `useWatchSession` refused any `config.game` but `"snake"`, and the run page said "no viewer for this
+   representation yet") -- an omission, not a decision.
+
+## Results and findings (the framework, exercised)
+
+**One real gap, found by training against it.** `Strategy = (observation, legal_moves) -> move` can't see
+the environment, but lookahead opponents (`material-1/2`) and a genome that scores "the position each legal
+move leads to" both need `env.simulate()`. The round robin got away with it by closing over one `env`;
+`MatchFitnessEvaluator` builds a fresh env per match, so neither could plug in. Fix:
+`StrategyFactory = env -> Strategy` and `MatchFitnessEvaluator(..., env_aware=True)` binding each strategy
+to its match's env. Nothing else in the protocol needed to change -- `MultiAgentEnvironment`, `play_match`,
+`render_state()`'s shape and the `Strategy` type all held up.
+
+**Strategies are Rust, once.** The static players and the trained evaluator first existed twice (Python,
+plus a TypeScript port for the browser), agreeing only in strength because each broke ties with its own
+PRNG -- exactly what doc 0009 exists to prevent. They now live in `rust/core/src/checkers_strategies.rs`
+(`Strategy` owns a PCG32; ties broken uniformly), exposed as `games._native.CheckersStrategy` and the WASM
+`CheckersStrategy`; Python and TypeScript are thin faces. The original Python scoring survives as test
+oracles: the Rust pick must be a top-scoring move across thousands of real positions
+(`tests/test_checkers_strategies.py`). Side effect: evaluating a network in Rust instead of one Python
+forward pass per candidate move made training ~4x faster, and the 1,200-game round robin takes 1 second.
+
+**A game-agnostic two-player stack.** `VersusEngine` (one game's rules: legal moves as cell lists, `play`,
+`position`, `notate`, `spawn`), `VersusStrategy`/`Bot`, `useVersusSession` (seats, click-to-move from the
+engine's own legal moves, bot turns, history, arena, replay) and `VersusStage` (the page around a `#board`
+slot). Checkers adds `utils/checkersEngine.ts` + `CheckersBoard`; the run viewer is the same stage with a
+run's champion as a seat, which is the test that the split is real -- it needed no change to the session
+beyond accepting a *changing* strategy list (one generation's champion swapped for another's while a game
+is in progress). A move as "the cells it touches, in order" covers checkers' multi-jump chains and would
+cover chess's from/to (promotion is the one thing it would need extending for).
+
+**Evolving a checkers player.** `jobs/checkers_neuro_run.py`: a genome is a 32→H→1 *position evaluator*
+(the observation encoding was designed for this), played one ply ahead; fitness is match outcomes against
+random, 1-ply and 2-ply material players, both seats each, lexicase selection; held-out score is on games
+whose opponent seeds training never used. A 100-generation run (population 60, hidden 12) reaches training
+fitness +0.83 of a possible +1.0, and on 400 fresh games per opponent scores **+0.40 vs random, +0.34 vs
+1-ply material, −0.85 vs 2-ply material** (win +1, loss −1). So it learned real strategy (it beats a
+heuristic that itself only barely beats random) but a one-ply evaluator can't out-play a two-ply search;
+that's the ceiling this setup hits, not a bug. A 300-generation, population-100, hidden-16 run finished with
+a held-out score of −0.03, no better than the small run's: the champion stopped changing around generation
+20-80 (its held-out score is identical from there on), so more of the same isn't the lever. What likely is:
+opponents that improve (co-evolution / a hall of fame), deeper search, or richer inputs than 32 squares.
+That is the next experiment, not built here.
+
+**Measurement noise is large -- and it picked the wrong champion.** The held-out score used during training
+(10 games per opponent) and even a 40-game record are too small: the same champion's score vs 1-ply material
+read +0.7, +0.33, +0.05 and finally +0.34 as the sample and the tie-breaking PRNG changed. Choosing the
+"best" champion by that noisy 3-opponent held-out score (+0.03 vs -0.03) picked the 100-generation run; the
+round-robin leaderboard (`jobs/evaluate_versus.py`) later put the 300-generation `32→16→1` champion clearly
+ahead (0.58 vs 0.46 points per game). The leaderboard, not a training-time monitor, is now the source of
+truth for which champion is best -- and the page draws its players from it.
+
+**One page for every game.** Checkers first got its own page (`CheckersPlay`) with no leaderboard, no
+diagnostics and a hand-exported champion; Snake had all of that. Both now render through one `GamePage`
+driven by a per-game `GameModule` (frontend README). The versus leaderboard follows doc 0007: a round robin
+(`checkers.versus.v1`), entrants are the baselines plus every finished champion, score is points per game
+against the field (win 1, draw ½) with a 95% interval, plus a head-to-head matrix. Glicko-2, which doc 0007
+plans, is still future work; points per game has the drawback that adding an entrant shifts every score.
+Diagnostics come from the strategy itself -- Rust `Strategy::scores` -- so they show what it actually
+computed, not a reconstruction.
+
+**A second attempt: search, NEAT, and a null result.** The one-ply evaluator can't out-play a two-ply search, so the
+classic recipe was tried: the evolved network scores the *leaves* of an alpha-beta search (`--depth`), for a
+fixed-topology network (`checkers_neuro_run.py`) and for NEAT (`checkers_neat_run.py`, the genome evaluated in
+the Rust core through a compiled `GraphNet`). The fair opponent is then material search *at the same depth*
+(`material-3`, `material-4`, now baselines) -- beating a shallower baseline than you search measures depth, not
+learning. Result on the round-robin (16 entrants, 20 games per pair): `material-4` 0.90, `material-3` 0.79, the best
+evolved champions 0.76 (statistical ties with `material-3`, and they lose to `material-4`), `material-2` 0.63. **No
+evolved player beat its same-depth material baseline.** The evolved entrants that score well are runs whose
+champion never changed -- the seeded material evaluator (half the population started as one), i.e. a material
+search under another name -- and the run that did evolve away from its seed got worse (0.46; NEAT grew 3 hidden
+nodes and scored 0.58).
+
+Getting there took three fixes, each found by measuring rather than guessing (see docs/CODING_GUIDELINES.md):
+mutating every weight of a 500-weight network wrecked every child (a **sparse mutation `rate`**); a
+win/draw/loss fitness gave selection nothing to climb when most games are draws (a **material-margin score for
+draws**, via `MatchFitnessEvaluator(scorer=...)`); and opponents seeded by index replayed the same games every
+generation so training fitness reached +1 while held-out fell (**resample opponents per generation**). With all
+three the population no longer memorizes or stalls -- but it still doesn't improve on material. Plausible next
+steps, none tried: richer inputs than 32 signed squares (mobility, advancement, back-row -- what makes material
+*insufficient*), self-play against a much larger and more varied hall of fame, choosing the reported champion by a
+large fresh-game evaluation instead of one noisy generation (resampling makes the per-generation "best" a lucky
+pick), and a longer horizon than 100 generations. What the attempt does leave: the search/graph machinery, the
+fair baselines, and a leaderboard that says plainly where things stand.
+
+**Run bookkeeping.** A job that is killed hard leaves its run "running" forever; `checkers_neuro_run.py` now
+marks a run "failed" on any exception or Ctrl-C (a hard kill can't be caught).
 
 ## Explicitly out of scope for now
 
 - N-player (>2) match running — the protocol allows for it, `play_match()` doesn't build it yet.
 - Real RL (as distinct from evolution/ES) and classifier strategies — the `Strategy` shape supports
   them, but building one is separate work from building the framework.
-- Chess — same framework, once checkers has exercised it for real.
+- Chess — same framework; checkers has now exercised it (findings above), so it's unblocked.
