@@ -186,6 +186,7 @@ name = "backend"
 version = "0.1.0"
 source = { editable = "apis/backend" }
 dependencies = [
+    { name = "evolve" },
     { name = "fastapi" },
     { name = "games" },
     { name = "modelpack" },
@@ -201,6 +202,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "evolve", editable = "libs/evolve" },
     { name = "fastapi", specifier = ">=0.141" },
     { name = "games", editable = "libs/games" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },

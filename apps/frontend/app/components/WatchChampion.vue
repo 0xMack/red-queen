@@ -53,6 +53,7 @@ const {
   renderState,
   stepCount,
   observation,
+  done: gameOver,
   episodes,
   episodeScores,
   bestScore,
@@ -76,13 +77,6 @@ watch(
 )
 
 onMounted(session.start)
-
-const SPEEDS = [
-  { label: "½×", ms: 220 },
-  { label: "1×", ms: 110 },
-  { label: "2×", ms: 55 },
-  { label: "4×", ms: 28 },
-]
 
 const activations = computed(() => {
   if (!policy.value || !observation.value || policy.value.kind !== "weights") return null
@@ -168,6 +162,16 @@ const runningVariant = computed(() =>
         </div>
         <template v-else>
           <GridBoard :state="renderState" :tick-ms="tickMs" />
+          <BoardResult v-if="gameOver && renderState" title="Game over" :sub="`${renderState.score} 🍎`" tone="draw" />
+          <PlaybackControls
+            class="mt-3"
+            :paused="session.paused.value"
+            :speed="session.speed.value"
+            new-game-label="Replay"
+            @update:paused="session.setPaused"
+            @update:speed="session.setSpeedMultiplier"
+            @new-game="session.restart"
+          />
           <div
             v-if="progressLabel"
             class="absolute inset-0 flex items-center justify-center rounded-xl bg-bg/70 text-sm text-fg-muted backdrop-blur-sm"
@@ -220,22 +224,8 @@ const runningVariant = computed(() =>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-[11px] text-fg-subtle">speed</span>
-          <div class="flex rounded-lg border border-line bg-sunken p-0.5">
-            <button
-              v-for="s in SPEEDS"
-              :key="s.ms"
-              class="num rounded-md px-2.5 py-1 text-xs transition"
-              :class="tickMs === s.ms ? 'bg-raised text-fg shadow' : 'text-fg-subtle hover:text-fg'"
-              @click="session.setSpeed(s.ms)"
-            >
-              {{ s.label }}
-            </button>
-          </div>
-          <button v-if="sessionPinned !== null" class="btn-ghost btn-sm ml-auto" @click="emit('unpin')">
-            Follow latest champion
-          </button>
+        <div v-if="sessionPinned !== null" class="flex justify-end">
+          <button class="btn-ghost btn-sm" @click="emit('unpin')">Follow latest champion</button>
         </div>
 
         <div v-if="!baseline && source" data-runtime class="rounded-lg border border-line bg-sunken px-3 py-2 text-xs">

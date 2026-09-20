@@ -120,3 +120,47 @@ def test_match_fitness_evaluator_act_receives_the_actual_genome():
     evaluator.evaluate(genome)
 
     assert all(g is genome for g in seen_genomes)
+
+
+def test_env_aware_evaluator_binds_each_strategy_to_that_matchs_own_env():
+    # Lookahead opponents and position-scoring genomes need the env; the evaluator builds a fresh one
+    # per match, so it must hand each strategy the env *its* match is played on.
+    envs_made = []
+    bound = []
+
+    def env_factory():
+        envs_made.append(_NimEnvironment(tokens=5))
+        return envs_made[-1]
+
+    def opponent(env):
+        bound.append(env)
+        return _always_take_one
+
+    def act(genome, env):
+        bound.append(env)
+        return _optimal_nim_strategy
+
+    evaluator = MatchFitnessEvaluator(env_factory, [opponent], act, env_aware=True)
+
+    assert evaluator.evaluate(genome=None) == [1.0, 1.0]
+    assert len(envs_made) == 2
+    # per match: the genome's strategy and the opponent are both bound to that match's env
+    assert [id(e) for e in bound] == [id(envs_made[0])] * 2 + [id(envs_made[1])] * 2
+
+
+def test_a_custom_scorer_replaces_win_draw_loss_and_sees_the_finished_env():
+    seen = []
+
+    def scorer(env, genome_seat, result):
+        seen.append((env.tokens, genome_seat, result.winner))
+        return 0.25 if result.winner == genome_seat else -0.25
+
+    def act(genome, observation, legal_moves):
+        return _optimal_nim_strategy(observation, legal_moves)
+
+    evaluator = MatchFitnessEvaluator(
+        env_factory=lambda: _NimEnvironment(tokens=13), opponents=[_always_take_one], act=act, scorer=scorer
+    )
+
+    assert evaluator.evaluate(genome=None) == [0.25, 0.25]
+    assert [tokens for tokens, _seat, _winner in seen] == [0, 0]  # the scorer got the finished game

@@ -13,6 +13,11 @@ export class CheckersGame {
      */
     cells(): Int32Array;
     /**
+     * An independent copy of this game in its current position -- what a lookahead strategy steps
+     * through to see a move's consequences without touching the real game.
+     */
+    duplicate(): CheckersGame;
+    /**
      * Flattened: for each move, its square count n, then n (x, y) pairs.
      */
     legalMoves(): Int32Array;
@@ -30,6 +35,31 @@ export class CheckersGame {
      * -1 while undecided or for a draw; check `done` to tell them apart.
      */
     readonly winner: number;
+}
+
+/**
+ * A Checkers strategy for the browser -- the same players training and evaluation use
+ * (rust/core/src/checkers_strategies.rs). `pick` returns an index into the game's `legalMoves()`.
+ */
+export class CheckersStrategy {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Every layer's values, concatenated (input layer first; split by the network's layer sizes), when the
+     * network evaluated the position legal move `index` leads to -- or undefined for a strategy without one.
+     */
+    activations(game: CheckersGame, index: number): Float64Array | undefined;
+    /**
+     * `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
+     * `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
+     * deep (1 = one ply; omit for the default).
+     */
+    constructor(name: string, seed: number, weights?: Float64Array | null, layer_sizes?: Uint32Array | null, depth?: number | null, graph?: Float64Array | null);
+    pick(game: CheckersGame): number;
+    /**
+     * One score per legal move (higher = better), or undefined for a strategy that doesn't score moves.
+     */
+    scores(game: CheckersGame): Float64Array | undefined;
 }
 
 export class RandomPolicy {
@@ -100,12 +130,14 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_checkersgame_free: (a: number, b: number) => void;
+    readonly __wbg_checkersstrategy_free: (a: number, b: number) => void;
     readonly __wbg_randompolicy_free: (a: number, b: number) => void;
     readonly __wbg_reach1dgame_free: (a: number, b: number) => void;
     readonly __wbg_snakegame_free: (a: number, b: number) => void;
     readonly checkersgame_cells: (a: number) => [number, number];
     readonly checkersgame_currentPlayer: (a: number) => number;
     readonly checkersgame_done: (a: number) => number;
+    readonly checkersgame_duplicate: (a: number) => number;
     readonly checkersgame_legalMoves: (a: number) => [number, number];
     readonly checkersgame_new: (a: number) => number;
     readonly checkersgame_observation: (a: number) => [number, number];
@@ -113,6 +145,10 @@ export interface InitOutput {
     readonly checkersgame_simulate: (a: number, b: number) => [number, number, number, number];
     readonly checkersgame_step: (a: number, b: number) => [number, number, number];
     readonly checkersgame_winner: (a: number) => number;
+    readonly checkersstrategy_activations: (a: number, b: number, c: number) => [number, number];
+    readonly checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly checkersstrategy_pick: (a: number, b: number) => [number, number, number];
+    readonly checkersstrategy_scores: (a: number, b: number) => [number, number];
     readonly decodeRelative3: (a: number, b: number) => number;
     readonly greedyDecide: (a: number, b: number) => number;
     readonly randompolicy_decide: (a: number, b: number, c: number) => number;

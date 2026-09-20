@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ScoreSpec } from "~/games/types"
 import type { EvaluationRecord } from "~/types/leaderboard"
 import type { DeviceFit } from "~/types/modelpack"
 
@@ -9,6 +10,8 @@ import type { DeviceFit } from "~/types/modelpack"
 // this device can't run -- still listed, with the reason on hover, never hidden unless asked.
 const props = defineProps<{
   entries: EvaluationRecord[]
+  /** How a score prints, and the floor its bars scale to (a game's ScoreSpec). */
+  score: ScoreSpec
   selectedId?: string | null
   human?: { score: number; label: string; live: boolean } | null
   runsHere?: Record<string, DeviceFit>
@@ -53,7 +56,7 @@ const rows = computed<Row[]>(() => {
   return list.sort((a, b) => b.value - a.value || (a.human ? 1 : b.human ? -1 : 0))
 })
 
-const scale = computed(() => Math.max(1, ...rows.value.map((r) => r.value + r.err)))
+const scale = computed(() => Math.max(props.score.scaleMin, ...rows.value.map((r) => r.value + r.err)))
 </script>
 
 <template>
@@ -61,6 +64,7 @@ const scale = computed(() => Math.max(1, ...rows.value.map((r) => r.value + r.er
     <li
       v-for="(row, i) in rows"
       :key="row.key"
+      :data-selected="!row.human && selectedId === row.key"
       class="group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors"
       :class="[
         row.human
@@ -88,8 +92,8 @@ const scale = computed(() => Math.max(1, ...rows.value.map((r) => r.value + r.er
           />
         </div>
       </div>
-      <p class="num w-10 text-right text-sm font-semibold" :class="row.human ? 'text-queen-200' : 'text-fg'">
-        {{ row.human ? row.value : row.value.toFixed(1) }}
+      <p class="num w-12 text-right text-sm font-semibold" :class="row.human ? 'text-queen-200' : 'text-fg'">
+        {{ score.compact(row.value) }}
       </p>
     </li>
   </TransitionGroup>

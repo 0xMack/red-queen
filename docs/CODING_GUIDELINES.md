@@ -99,6 +99,7 @@ what belongs here and how to add to it). Read before writing code, not after.
   (mean fitness ~0.09 → ~0.21 over 40 generations). If evolution against a match-outcome fitness
   looks stuck, check whether there's enough independent opponent sampling before concluding the
   representation or algorithm is at fault.
+- A multi-agent `Strategy` is `(observation, legal_moves) -> move` and can't see the environment, so anything that looks ahead (`simulate()`, a copy + `step()`) or scores each move's resulting position must be an env-bound `StrategyFactory` — a fitness evaluator builds a fresh env per match, so closing over one shared `env` (fine in a single-game script) silently breaks there. Use `MatchFitnessEvaluator(..., env_aware=True)`.
 - Training fitness is not performance. It's shaped reward on the seeds the population trained on,
   so it overstates: the best Snake champion scores 16–19 on its 5 training seeds but 11.9 on 200
   held-out ones, and a 3-line greedy heuristic beats it (18.5). Judge a policy with
@@ -167,6 +168,56 @@ what belongs here and how to add to it). Read before writing code, not after.
   nested in a subdirectory** — Nitro's dev bundler doesn't preserve a nested route's source-tree depth
   (a since-removed route landed two segments off, not one). Resolve from `process.cwd()` (`nuxt dev`
   and the built server both run from `apps/frontend`), and run it before trusting a path.
+
+- **A shared page/component contract is one interface, not per-game `if`s.** The game page is one
+  `GamePage.vue` driven by a `GameModule` (`app/games/types.ts`: score format, extra columns, stage
+  components, copy); a second game found the first game's assumptions (a score that's an integer count,
+  ONNX model availability, a human "best score") baked into the page, and each became a module field or an
+  optional hook. When a new game needs something the page hardcodes, add a module field -- don't fork the
+  page.
+- **If a run's champion never changes, selection isn't working -- check that before tuning anything else.**
+  A checkers run showed a held-out score frozen at its generation-0 value for 149 generations while training
+  fitness sat at 0.91; the champion's weights were byte-identical throughout. Three separate causes stacked
+  up, each found by measuring: (1) mutating *every* weight of a 500-weight network (`GaussianMutation`'s
+  default) wrecks a good parent faster than it can improve it -- mean fitness sat at -0.4; use a small
+  per-weight `rate`; (2) a coarse win/draw/loss fitness gives selection nothing to climb when most games are
+  draws -- score the margin; (3) opponents seeded by index replay the *same games* every generation, so
+  training fitness climbs to +1 while unseen games get worse -- resample per generation (identical within a
+  generation, so genomes are still compared fairly).
+- **An exception thrown inside a watcher (or any pre-render hook) doesn't just log -- it aborts that component's
+  update and leaves Vue's renderer inconsistent, after which *unrelated* components stop updating and the console
+  fills with `Cannot read properties of null (reading 'emitsOptions')`.** That is the signature to recognise: a page
+  where part of the UI freezes while the rest keeps going. The *first* error in the log is the cause; the cascade
+  after it is noise (find it by capturing `unhandledrejection` stacks and looking at the earliest, not by counting
+  errors). Here it was an unguarded `path.at(-1)![0]` in the piece-motion watcher. Wrap anything decorative
+  (animation planning) in try/catch that falls back to plain state, and guard index access on possibly-empty arrays.
+- **A component file created while `nuxt dev` is running may not be registered**: it renders as an unknown
+  lowercase custom element (`<boardresult>`), silently, with no Vue warning. Restart the dev server after adding
+  components; if a new component "does nothing", look for the unresolved tag in the DOM before debugging its logic.
+- **Animating a keyed list: render in a stable order, or Vue will move the DOM nodes.** If a list is keyed (so each
+  item is one element) but *rendered in the data's order*, an item whose position in the data changes -- a moved
+  piece an engine lists last -- makes Vue physically re-insert its node, and re-inserting restarts its CSS: the
+  transition glide is lost and the entrance animation replays (with its staggered delay, the item is invisible
+  meanwhile). Sort by a stable key. And when the *scene* changes (a new game), change the keys too, or the
+  survivors keep their elements and glide across from wherever the last scene left them. Measure it with a
+  `MutationObserver` counting inserted nodes during ordinary play (should be ~0), not by eye.
+- **A hidden browser pane freezes CSS animations and transitions** (the tool says "Browser pane is currently
+  hidden"): every animated element sits on its first frame -- opacity 0, un-moved -- and any test reading
+  *computed* styles reports nonsense. Test animation *logic* through what doesn't depend on the clock (the `style`
+  attribute a component set, node identity, DOM mutations), and be honest that timing/visuals were not seen.
+- **A live panel must not change size as its contents change.** Anything that updates every game step (a
+  status line, a candidate list, a move log, a hint that appears on some plies) needs a fixed or reserved
+  height, single-line truncation with a `title` for long text, and its own slot per player rather than one
+  panel that swaps between them -- otherwise each ply re-flows the page. Verify by sampling the board's
+  top offset and `scrollHeight` across many plies (they should each take one value), not by eye.
+- **Nuxt/Vue gotchas that only show at runtime here** (no `vue-tsc`/TypeScript installed): (0) an *absent*
+  boolean prop is `false`, not `undefined` -- an on-by-default prop (`diagnostics`, `showPlayers`) needs
+  `withDefaults`, or `x !== false` silently hides it; (1) an imported
+  type can't be the *whole* props type (`defineProps<StageProps>()` fails to compile; spell members
+  out inline, imported types inside members are fine); (2) in a plain composable, start every
+  `useAsyncData` *before* the first `await` -- unlike `<script setup>`, it doesn't preserve Nuxt's context
+  across awaits ("composable called outside of a plugin..."); (3) files outside `composables/`/`utils/`
+  aren't auto-imported (`app/games/*`): import them explicitly.
 
 ## Client-side inference (docs/design/0009)
 

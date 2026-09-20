@@ -11,6 +11,7 @@ from evolve.match import (
     MatchResult,
     MultiAgentEnvironment,
     Strategy,
+    StrategyFactory,
     play_match,
 )
 from evolve.neat import (
@@ -66,6 +67,7 @@ __all__ = [
     "SelectionStrategy",
     "SimulationFitnessEvaluator",
     "Strategy",
+    "StrategyFactory",
     "SymbolicRegressionFitness",
     "Terminal",
     "TournamentSelection",

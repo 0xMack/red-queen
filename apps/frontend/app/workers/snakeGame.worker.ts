@@ -38,6 +38,9 @@ interface PolicySpec {
 }
 
 type InboundMessage =
+  // Pause / resume the tick loop (and the replay timer) without tearing the session down; "stop" is for leaving.
+  | { type: "pause" }
+  | { type: "resume" }
   // A start with neither model nor baseline is play mode (a human steers).
   | ({ type: "start" } & PolicySpec)
   | { type: "input"; action: number }
@@ -86,6 +89,9 @@ const WATCH_RESTART_DELAY_MS = 1000
 function post(message: OutboundMessage) {
   self.postMessage(message)
 }
+
+// Set by the page's Pause button; cleared by Resume, a new game, or a fresh start.
+let paused = false
 
 function stopTicking() {
   if (timer !== null) {
@@ -195,6 +201,7 @@ function tick() {
 
 function startTicking() {
   stopTicking()
+  if (paused) return // a paused session doesn't tick, whatever asked it to start
   timer = setInterval(tick, tickIntervalMs)
 }
 
@@ -249,6 +256,7 @@ async function loadPolicy(spec: PolicySpec) {
 }
 
 async function initialize(spec: PolicySpec) {
+  paused = false
   await ensureReady()
   // The worker is reused across page visits: clear whatever the previous page left running.
   stopTicking()
@@ -289,8 +297,18 @@ self.onmessage = (event: MessageEvent<InboundMessage>) => {
     initialize(message).catch(reportError)
   } else if (message.type === "input") {
     if (mode === "play") pendingAction = message.action
+  } else if (message.type === "pause") {
+    paused = true
+    stopTicking()
+    clearRestart()
+  } else if (message.type === "resume") {
+    paused = false
+    if (game && !game.done) startTicking()
+    else if (lastSpec && mode === "watch") void loadPolicy(lastSpec) // it ended while paused: play the next one
   } else if (message.type === "restart") {
-    restart()
+    paused = false // a new game means play
+    if (mode === "watch" && lastSpec) void loadPolicy(lastSpec) // watching: replay the same policy on a fresh game
+    else restart()
   } else if (message.type === "load_policy") {
     loadPolicy(message).catch(reportError)
   } else if (message.type === "warmup") {

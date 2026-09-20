@@ -123,17 +123,6 @@ const glowId = `food-glow-${uid}`
       :filter="`url(#${glowId})`"
       class="food-pulse"
     />
-
-    <text
-      v-if="!props.state.alive"
-      :x="(props.state.width * cellSize) / 2"
-      :y="(props.state.height * cellSize) / 2"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      class="fill-queen-300 font-display text-2xl font-bold"
-    >
-      game over
-    </text>
   </svg>
 </template>
 

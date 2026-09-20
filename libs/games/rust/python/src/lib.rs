@@ -6,6 +6,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::checkers::{Board, Checkers, Piece, Square};
+use redqueen_games::checkers_strategies::Strategy;
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
@@ -249,6 +250,49 @@ impl CheckersCore {
     }
 }
 
+/// A Checkers strategy (rust/core/src/checkers_strategies.rs): owns its PRNG, picks an index into the
+/// game's current `legal_moves()`.
+#[pyclass(module = "games._native")]
+struct CheckersStrategy {
+    inner: Strategy,
+}
+
+#[pymethods]
+impl CheckersStrategy {
+    /// Only the "evaluator" strategy takes a network: `weights` + `layer_sizes` (an `evolve.WeightVector`'s) or
+    /// `graph` (a compiled NEAT genome, see `GraphNet::from_flat`), searched to `depth` plies (1 = one ply).
+    #[new]
+    #[pyo3(signature = (name, seed, weights=None, layer_sizes=None, depth=1, graph=None))]
+    fn new(
+        name: &str,
+        seed: u64,
+        weights: Option<Vec<f64>>,
+        layer_sizes: Option<Vec<usize>>,
+        depth: u32,
+        graph: Option<Vec<f64>>,
+    ) -> PyResult<Self> {
+        Ok(CheckersStrategy { inner: Strategy::build(name, seed, weights, layer_sizes, depth, graph).map_err(PyValueError::new_err)? })
+    }
+
+    /// One score per legal move (higher = better), or None for a strategy that doesn't score moves.
+    fn scores(&self, game: PyRef<'_, CheckersCore>) -> Option<Vec<f64>> {
+        self.inner.scores(&game.inner)
+    }
+
+    /// Each layer's values (input layer first) when the network evaluated the position legal move
+    /// `index` leads to; None for a strategy without a network.
+    fn activations(&self, game: PyRef<'_, CheckersCore>, index: usize) -> Option<Vec<Vec<f64>>> {
+        self.inner.activations(&game.inner, index)
+    }
+
+    fn pick(&mut self, game: PyRef<'_, CheckersCore>) -> PyResult<usize> {
+        if game.inner.legal_moves().is_empty() {
+            return Err(PyValueError::new_err("no legal moves to pick from"));
+        }
+        Ok(self.inner.pick(&game.inner))
+    }
+}
+
 #[pyclass(module = "games._native")]
 struct Reach1DCore {
     inner: Reach1D,
@@ -302,6 +346,7 @@ impl Reach1DCore {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
     m.add_class::<CheckersCore>()?;
+    m.add_class::<CheckersStrategy>()?;
     m.add_class::<Reach1DCore>()?;
     m.add_class::<Pcg32>()?;
     m.add_class::<SnakeRandomPolicy>()?;

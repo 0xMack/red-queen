@@ -52,6 +52,9 @@ export function useSnakeSession() {
     episodeScores.value.length ? episodeScores.value.reduce((a, b) => a + b, 0) / episodeScores.value.length : 0,
   )
   const tickMs = ref(DEFAULT_TICK_MS)
+  // The shared playback vocabulary (utils/playback.ts): a multiplier over the base tick, and a pause.
+  const speed = computed(() => Math.round((SNAKE_BASE_TICK_MS / tickMs.value) * 100) / 100)
+  const paused = ref(false)
   // Model-package mode only.
   const modelProgress = ref<LoadProgress | null>(null)
   const modelStatus = ref<ModelStatus | null>(null)
@@ -125,12 +128,23 @@ export function useSnakeSession() {
   }
 
   function restart() {
+    paused.value = false
     worker?.postMessage({ type: "restart" })
   }
 
   function setSpeed(intervalMs: number) {
     tickMs.value = intervalMs
     worker?.postMessage({ type: "set_speed", intervalMs })
+  }
+
+  /** A speed multiplier (utils/playback.ts) instead of a raw tick interval. */
+  function setSpeedMultiplier(multiplier: number) {
+    setSpeed(Math.round(SNAKE_BASE_TICK_MS / multiplier))
+  }
+
+  function setPaused(value: boolean) {
+    paused.value = value
+    worker?.postMessage({ type: value ? "pause" : "resume" })
   }
 
   function handleModelErrors(handler: (failure: ModelFailure) => void) {
@@ -162,6 +176,8 @@ export function useSnakeSession() {
     bestScore,
     meanScore,
     tickMs,
+    speed,
+    paused,
     modelProgress,
     modelStatus,
     handleModelErrors,
@@ -171,6 +187,8 @@ export function useSnakeSession() {
     sendInput,
     restart,
     setSpeed,
+    setSpeedMultiplier,
+    setPaused,
     resetStats,
     stop,
   }

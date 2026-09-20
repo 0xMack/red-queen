@@ -60,6 +60,28 @@ themselves — see docs/design/0001) get wired to it for a real run.
   material lookahead) played against each other, 200 games per pairing with seats alternating; the
   numbers the "Multi-Agent Games" Learn chapter cites (headline: one ply of lookahead ≈ random,
   because captures are mandatory; two plies wins ~95%).
+- `checkers_training.py` — what the two Checkers training jobs share: a genome (layered or NEAT) becomes a
+  player via `strategy_factory(genome, depth)` (alpha-beta to `depth` plies in the Rust core, the network
+  scoring the leaves); `OpponentPool` is the fitness evaluator (fixed opponents, optionally a hall of fame of
+  the run's own past champions, optionally *resampled every generation* -- fixed opponent games are
+  memorized: training fitness reached +1 while games never seen got worse); `margin_scorer` scores a draw by
+  the material edge held; `material_seed_*` start part of a population as a noisy material evaluator.
+- `checkers_neat_run.py` — the NEAT counterpart of `checkers_neuro_run.py`, same opponents / depth / hall /
+  monitor, evolving a graph that starts as a linear evaluator (NEAT's structural mutations grow it) and is
+  played through the core's `GraphNet`. Gentler weight mutation than NEAT's default (see the file).
+- `checkers_neuro_run.py` — neuroevolution against Checkers, recorded to telemetry: a genome is a
+  32→H→1 *position evaluator* (the Rust `evaluator` strategy plays the move whose resulting
+  position is worst for the opponent, so a whole match is a few native calls: ~4x faster than scoring
+  in Python), fitness is `MatchFitnessEvaluator(env_aware=True)`
+  against the static strategies (one value per opponent per seat, lexicase selection), and the
+  held-out score is win/draw/loss on games with opponent seeds training never used.
+- `evaluate_versus.py` — the two-player leaderboard (docs/design/0007's "Versus"): protocol
+  `checkers.versus.v1`, a round robin over every finished checkers champion plus the fixed baselines,
+  20 games per pair with seats alternating. An entrant's score is **points per game** (win 1, draw ½)
+  against every *other* entrant, with a 95% interval, and per-opponent W/D/L beside it
+  (`metrics.versus`, for the head-to-head matrix). Same `EvaluationRecord`s as `evaluate.py`, so the game
+  page's leaderboard components need nothing game-specific. Scores are relative to the field: re-run it
+  whenever entrants change (it replaces the old records).
 - `backfill_interfaces.py` — one-off: sets `config.interface` on game runs recorded before
   interfaces existed, resolved from each champion's own layer sizes (idempotent).
 - `control.py` — `make_control_callback(registry, run_id)`, an `on_generation` callback that blocks

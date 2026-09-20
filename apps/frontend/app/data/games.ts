@@ -33,11 +33,11 @@ export const games: GameEntry[] = [
     title: "Checkers",
     tagline: "Two-player · strategy vs. strategy",
     summary:
-      "The first two-player game (docs/design/0006): real rules -- mandatory captures, multi-jump chains, kinging -- and a framework for pitting any strategy against any strategy. Rules and match framework are built and tested; the UI is next.",
-    status: "coming-soon",
+      "The first two-player game (docs/design/0006): real rules -- mandatory captures, multi-jump chains, kinging. Ranked by a round robin between fixed strategies and evolved champions; watch the top two play with their reasoning on screen, or play the one you pick.",
+    status: "available",
     href: "/games/checkers",
     art: "checkers",
-    facts: ["8×8 board", "mandatory captures", "multi-jump chains", "kinging"],
-    techniques: ["Match fitness", "Co-evolution (planned)"],
+    facts: ["8×8 board", "round-robin leaderboard", "2 players", "held-out games"],
+    techniques: ["Match fitness", "Neuroevolution", "Lexicase selection"],
   },
 ]

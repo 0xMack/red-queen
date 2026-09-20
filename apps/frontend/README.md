@@ -12,7 +12,61 @@ for the full contract and incremental plan this implements (steps 3-6).
   panel (network, selection, population, fitness curve) -- visitors watch an evolved policy first
   rather than being asked to play. Then games, recent runs, and Learn chapters.
 - `/games` — hub of playable games (`app/data/games.ts` drives `GameCard`s with cover images and
-  facts; Checkers shows as "coming soon" until doc 0006 phases 2-4 land).
+  facts).
+- `/games/{game}` — **one page layout for every game** (docs/design/0007). `pages/games/[game].vue` only
+  looks the game up; `GamePage.vue` renders the shared skeleton -- header and Watch/Play toggle, a live
+  stage (with `EntrantHeader`: name, rank, representation, score ± 95% interval), a ranked side
+  `LeaderboardList` ("You" slotted in by score), then the full `LeaderboardTable`, `LeaderboardPareto`
+  (score vs. cost), `LeaderboardMatrix` (head to head, versus games) and `RepresentationCards`. All of it
+  reads `EvaluationRecord`s (`composables/useGameBoard.ts`), never training fitness. What differs per game
+  is a **`GameModule`** (`app/games/types.ts` documents the contract; `games/snake.ts`, `games/checkers.ts`,
+  registered in `games/registry.ts`): the score's name and format (`ScoreSpec`), extra leaderboard columns,
+  which entrant opens by default, the Watch/Play stage components, optional device probing (Snake's ONNX
+  model availability), and page copy. **To add a game:** write its module and stage(s), register it, add it
+  to `data/games.ts`, and produce leaderboard records with an evaluation job (`jobs/evaluate.py` for a
+  single-agent score, `jobs/evaluate_versus.py` for a round robin). Stage components receive `mode`,
+  `entry`, `entries`, `device` and may emit `score`/`exit`; spell those props out inline -- the SFC compiler
+  can't resolve an imported type as the *whole* props type without TypeScript installed.
+  - **Snake** wraps its existing pieces (`SnakeWatchStage` -> `WatchChampion`, `SnakePlayStage` ->
+    `HumanPlay`) and supplies the model-package device probe.
+  - **Checkers** is a two-player game, so its stage (`CheckersStage`, both Watch and Play) is built on the
+    game-agnostic **versus stack** (docs/design/0006): `types/versus.ts` (`VersusEngine` = one game's
+    rules, `VersusStrategy`/`Bot`), `composables/useVersusSession.ts` (seats, human click-to-move built
+    from the engine's own legal moves, bot turns, history, arena, replay, and the diagnostics record) and
+    `VersusStage` + `VersusSeatPicker`/`VersusMoveLog`/`VersusArena`/`VersusStrategyList` (the whole
+    stage around a `#board` slot and a `#stats` slot). Layout is the same for every versus game: players, board
+    and the playback controls *underneath* it on the left; seat pickers, this session's record, the game's own
+    live stats (`#stats`) and the move history on the right; diagnostics, arena below. Diagnostics are also
+    game-agnostic (`VersusDiagnostics`, rendered by the stage itself): one `VersusPlayerPanel` per player, side by
+    side and fixed-height, each holding `VersusCandidates` (every legal move with the score its strategy gave
+    it, the chosen one marked) and -- if the bot evaluates with a network -- `VersusNetwork`, the same
+    `NetworkDiagram` Snake's champion uses, lit by the activations of the position the bot chose to leave
+    behind (from the Rust core's own `Strategy::activations`, not a JS forward pass); below them
+    `VersusEvalTrace` plots how each bot valued its chosen move, ply by ply. A bot opts in by exposing
+    `scores()`, `network` and `activations()` (`types/versus.ts`). The move log is a collapsed disclosure:
+    a record, not something to watch. A game supplies an engine, its strategies and a board: Checkers' are
+    `utils/checkersEngine.ts` (the WASM `CheckersGame` and Rust `CheckersStrategy` players -- nothing
+    re-implemented in JS) and `CheckersBoard` (deliberately not a `GridBoard` variant: pieces are captured
+    and crowned rather than glide, and a human builds a multi-jump one landing at a time). Pieces have
+    stable ids (`CheckersEngine` replays the core's insertion-order board semantics on them), so
+    `composables/usePieceMotion.ts` -- game-agnostic -- can diff each position and replay the move as
+    motion: the mover hops along its path square by square, a jumped piece shrinks away with a burst as it
+    passes over, a crowned piece flashes, a new game pops the pieces in; anything it can't explain as one
+    move, or a move arriving before the last finished, snaps instead of lagging. `CheckersPiece` owns a
+    piece's look and CSS transitions (all off under `prefers-reduced-motion`); `CheckersBoard` adds
+    coordinates, the last-move trail, capture-aware target markers, a glow in the side to move's colour and
+    a result banner. Its players are
+    the leaderboard's entrants (`useCheckersEntrants`: baselines are Rust players named in their id, a
+    champion is fetched as plain numbers from `/runs/{id}/artifacts/{ref}/brain` -- layered weights, or a
+    NEAT genome compiled to its evaluation plan -- and searched to its run's depth), so seats, arena and leaderboard speak about the
+    same things. Watching opens the top entrant against the next best; playing puts you (Red) against the
+    entrant you pick, and clicking another entrant swaps your opponent. **`CheckersWatch`** is the run
+    viewer for a checkers run (on `/watch/{runId}` with a generation slider, and in the run page's
+    champion column, pinned by its chart/table).
+- **Shared across games:** `PlaybackControls` (pause / speed / new game -- speed is a *multiplier*, `utils/
+  playback.ts`, over each game's base timing: Snake's tick, a versus game's pause between moves) sits under every
+  game's board, in Snake's watch panel and in `VersusStage`; `BoardResult` is the one game-over overlay (Checkers'
+  "Red wins" / "Draw", Snake's "Game over · N 🍎"), shown only once the board has stopped moving.
 - `/learn` — an interactive textbook. `app/pages/learn.vue` is the parent route: the index renders
   full-width (search, part filter, `ChapterCard` grid with covers); a chapter gets a sidebar (chapter
   nav grouped by part + `LearnSearch`), a header generated from `app/data/learnChapters.ts`

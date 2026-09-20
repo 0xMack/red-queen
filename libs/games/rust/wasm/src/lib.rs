@@ -132,6 +132,12 @@ impl CheckersGame {
         self.moves = self.inner.legal_moves();
     }
 
+    /// An independent copy of this game in its current position -- what a lookahead strategy steps
+    /// through to see a move's consequences without touching the real game.
+    pub fn duplicate(&self) -> CheckersGame {
+        CheckersGame { inner: self.inner.clone(), moves: self.moves.clone() }
+    }
+
     /// Flattened: for each move, its square count n, then n (x, y) pairs.
     #[wasm_bindgen(js_name = legalMoves)]
     pub fn legal_moves(&self) -> Vec<i32> {
@@ -185,6 +191,52 @@ impl CheckersGame {
     #[wasm_bindgen(getter)]
     pub fn done(&self) -> bool {
         self.inner.done
+    }
+}
+
+/// A Checkers strategy for the browser -- the same players training and evaluation use
+/// (rust/core/src/checkers_strategies.rs). `pick` returns an index into the game's `legalMoves()`.
+#[wasm_bindgen]
+pub struct CheckersStrategy {
+    inner: redqueen_games::checkers_strategies::Strategy,
+}
+
+#[wasm_bindgen]
+impl CheckersStrategy {
+    /// `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
+    /// `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
+    /// deep (1 = one ply; omit for the default).
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        name: &str,
+        seed: u32,
+        weights: Option<Vec<f64>>,
+        layer_sizes: Option<Vec<u32>>,
+        depth: Option<u32>,
+        graph: Option<Vec<f64>>,
+    ) -> Result<CheckersStrategy, JsError> {
+        let layers = layer_sizes.map(|l| l.into_iter().map(|n| n as usize).collect());
+        let inner = redqueen_games::checkers_strategies::Strategy::build(name, seed as u64, weights, layers, depth.unwrap_or(1), graph)
+            .map_err(|e| JsError::new(&e))?;
+        Ok(CheckersStrategy { inner })
+    }
+
+    /// One score per legal move (higher = better), or undefined for a strategy that doesn't score moves.
+    pub fn scores(&self, game: &CheckersGame) -> Option<Vec<f64>> {
+        self.inner.scores(&game.inner)
+    }
+
+    /// Every layer's values, concatenated (input layer first; split by the network's layer sizes), when the
+    /// network evaluated the position legal move `index` leads to -- or undefined for a strategy without one.
+    pub fn activations(&self, game: &CheckersGame, index: usize) -> Option<Vec<f64>> {
+        self.inner.activations(&game.inner, index).map(|layers| layers.into_iter().flatten().collect())
+    }
+
+    pub fn pick(&mut self, game: &CheckersGame) -> Result<usize, JsError> {
+        if game.moves.is_empty() {
+            return Err(JsError::new("no legal moves to pick from"));
+        }
+        Ok(self.inner.pick(&game.inner))
     }
 }
 

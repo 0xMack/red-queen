@@ -5,6 +5,13 @@
  * list, in the same order, the Python side and every strategy see.
  */
 export class CheckersGame {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(CheckersGame.prototype);
+        obj.__wbg_ptr = ptr;
+        CheckersGameFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -38,6 +45,15 @@ export class CheckersGame {
     get done() {
         const ret = wasm.checkersgame_done(this.__wbg_ptr);
         return ret !== 0;
+    }
+    /**
+     * An independent copy of this game in its current position -- what a lookahead strategy steps
+     * through to see a move's consequences without touching the real game.
+     * @returns {CheckersGame}
+     */
+    duplicate() {
+        const ret = wasm.checkersgame_duplicate(this.__wbg_ptr);
+        return CheckersGame.__wrap(ret);
     }
     /**
      * Flattened: for each move, its square count n, then n (x, y) pairs.
@@ -105,6 +121,96 @@ export class CheckersGame {
     }
 }
 if (Symbol.dispose) CheckersGame.prototype[Symbol.dispose] = CheckersGame.prototype.free;
+
+/**
+ * A Checkers strategy for the browser -- the same players training and evaluation use
+ * (rust/core/src/checkers_strategies.rs). `pick` returns an index into the game's `legalMoves()`.
+ */
+export class CheckersStrategy {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CheckersStrategyFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_checkersstrategy_free(ptr, 0);
+    }
+    /**
+     * Every layer's values, concatenated (input layer first; split by the network's layer sizes), when the
+     * network evaluated the position legal move `index` leads to -- or undefined for a strategy without one.
+     * @param {CheckersGame} game
+     * @param {number} index
+     * @returns {Float64Array | undefined}
+     */
+    activations(game, index) {
+        _assertClass(game, CheckersGame);
+        const ret = wasm.checkersstrategy_activations(this.__wbg_ptr, game.__wbg_ptr, index);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        }
+        return v1;
+    }
+    /**
+     * `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
+     * `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
+     * deep (1 = one ply; omit for the default).
+     * @param {string} name
+     * @param {number} seed
+     * @param {Float64Array | null} [weights]
+     * @param {Uint32Array | null} [layer_sizes]
+     * @param {number | null} [depth]
+     * @param {Float64Array | null} [graph]
+     */
+    constructor(name, seed, weights, layer_sizes, depth, graph) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(weights) ? 0 : passArrayF64ToWasm0(weights, wasm.__wbindgen_malloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(layer_sizes) ? 0 : passArray32ToWasm0(layer_sizes, wasm.__wbindgen_malloc);
+        var len2 = WASM_VECTOR_LEN;
+        var ptr3 = isLikeNone(graph) ? 0 : passArrayF64ToWasm0(graph, wasm.__wbindgen_malloc);
+        var len3 = WASM_VECTOR_LEN;
+        const ret = wasm.checkersstrategy_new(ptr0, len0, seed, ptr1, len1, ptr2, len2, isLikeNone(depth) ? 0x100000001 : (depth) >>> 0, ptr3, len3);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        CheckersStrategyFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {CheckersGame} game
+     * @returns {number}
+     */
+    pick(game) {
+        _assertClass(game, CheckersGame);
+        const ret = wasm.checkersstrategy_pick(this.__wbg_ptr, game.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
+    }
+    /**
+     * One score per legal move (higher = better), or undefined for a strategy that doesn't score moves.
+     * @param {CheckersGame} game
+     * @returns {Float64Array | undefined}
+     */
+    scores(game) {
+        _assertClass(game, CheckersGame);
+        const ret = wasm.checkersstrategy_scores(this.__wbg_ptr, game.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        }
+        return v1;
+    }
+}
+if (Symbol.dispose) CheckersStrategy.prototype[Symbol.dispose] = CheckersStrategy.prototype.free;
 
 export class RandomPolicy {
     __destroy_into_raw() {
@@ -345,6 +451,9 @@ function __wbg_get_imports() {
 const CheckersGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_checkersgame_free(ptr >>> 0, 1));
+const CheckersStrategyFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_checkersstrategy_free(ptr >>> 0, 1));
 const RandomPolicyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_randompolicy_free(ptr >>> 0, 1));
@@ -354,6 +463,12 @@ const Reach1DGameFinalization = (typeof FinalizationRegistry === 'undefined')
 const SnakeGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_snakegame_free(ptr >>> 0, 1));
+
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
+}
 
 function getArrayF64FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
@@ -386,12 +501,31 @@ function getStringFromWasm0(ptr, len) {
     return decodeText(ptr, len);
 }
 
+let cachedUint32ArrayMemory0 = null;
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
+
 let cachedUint8ArrayMemory0 = null;
 function getUint8ArrayMemory0() {
     if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
+function passArray32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArrayF64ToWasm0(arg, malloc) {
@@ -479,6 +613,7 @@ function __wbg_finalize_init(instance, module) {
     wasmModule = module;
     cachedFloat64ArrayMemory0 = null;
     cachedInt32ArrayMemory0 = null;
+    cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;

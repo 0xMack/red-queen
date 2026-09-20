@@ -5,13 +5,15 @@
 // sensor is driving the current move. Purely a visualization; the worker's Python copy decides.
 const props = withDefaults(
   defineProps<{
-    weights: number[]
-    layerSizes: number[]
+    weights: readonly number[]
+    layerSizes: readonly number[]
     activations?: number[][] | null
-    inputLabels?: string[]
-    outputLabels?: string[]
+    inputLabels?: readonly string[]
+    outputLabels?: readonly string[]
+    /** Fill the parent's height (aspect ratio kept) instead of sizing to the parent's width. */
+    fit?: boolean
   }>(),
-  { activations: null, inputLabels: () => [], outputLabels: () => [] },
+  { activations: null, inputLabels: () => [], outputLabels: () => [], fit: false },
 )
 
 const W = 460
@@ -88,7 +90,7 @@ function nodeFill(li: number, ni: number): string {
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${W} ${H}`" class="block h-auto w-full">
+  <svg :viewBox="`0 0 ${W} ${H}`" class="block w-full" :class="fit ? 'h-full' : 'h-auto'">
     <path
       v-for="(e, i) in edges"
       :key="i"

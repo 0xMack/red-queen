@@ -56,8 +56,19 @@ export interface EvaluationRecord {
     quality: QualityMetrics
     inference: InferenceMetrics
     training: TrainingMetrics
+    // Two-player games only (jobs/evaluate_versus.py): the record behind the points-per-game score, and
+    // against each other entrant, for the head-to-head matrix.
+    versus?: {
+      wins: number
+      draws: number
+      losses: number
+      games_per_pair: number
+      by_opponent: Record<string, { wins: number; draws: number; losses: number }>
+    }
     model: {
       description: string
+      // Alpha-beta plies a trained evaluator searches (1 = one ply); absent on records that predate search.
+      search_depth?: number
       observer_level: number
       note: string | null
       shape?: import("~/utils/modelLabel").ModelShape | null // absent on records evaluated before it existed

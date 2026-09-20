@@ -24,7 +24,7 @@ const standing = ref<{ record: EvaluationRecord; rank: number; of: number } | nu
 const greedyMean = ref<number | null>(null) // reference line for the held-out chart
 async function loadStanding() {
   const game = run.value?.config?.game
-  if (typeof game !== "string") return
+  if (game !== "snake") return // only Snake has a leaderboard (docs/design/0007); versus games have none yet
   try {
     const board = await $fetch<EvaluationRecord[]>(`/games/${game}/leaderboard`, { baseURL: config.public.apiBase })
     greedyMean.value = board.find((r) => r.entrant_id === "baseline:greedy")?.metrics.quality.mean ?? null
@@ -330,7 +330,8 @@ async function copyId() {
 
           <div class="mt-4">
             <ClientOnly v-if="meta?.watchable">
-              <WatchChampion :run-id="runId" :manage-stream="false" :pinned-generation="pinned" @unpin="pinned = null" />
+              <CheckersWatch v-if="meta.game === 'checkers'" :run-id="runId" :manage-stream="false" :pinned-generation="pinned" compact @unpin="pinned = null" />
+              <WatchChampion v-else :run-id="runId" :manage-stream="false" :pinned-generation="pinned" @unpin="pinned = null" />
             </ClientOnly>
             <ChampionProgram v-else-if="latest && meta?.representation === 'linear_gp'" :run-id="runId" :champion-ref="latest.champion_ref" />
             <p v-else-if="latest" class="text-sm text-fg-subtle">

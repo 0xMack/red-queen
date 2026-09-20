@@ -119,9 +119,13 @@ versioned **protocol** and stores the results. Training fitness is never used fo
   step cap, metric = game score (food eaten). Report mean with a 95% interval, median, min, max,
   zero-score rate, plus the mean on the entrant's *training* seeds so the generalization gap is
   visible. Rank by mean; overlapping intervals are shown as statistical ties, not hidden.
-- **Versus (Checkers), later**: round-robin, both seats, several games per pair, reusing
-  `evolve.play_match()`. Ratings via Glicko-2 (tracks uncertainty, which suits few-game entrants
-  such as humans), anchored by fixed baselines so the scale doesn't drift.
+- **Versus (Checkers), `checkers.versus.v1` -- built** (`jobs/evaluate_versus.py`): round-robin, both
+  seats, 20 games per pair, reusing `evolve.play_match()`; every finished champion plus the fixed
+  baselines. Score = points per game against every other entrant (win 1, draw ½) with a 95% interval, and
+  per-opponent W/D/L kept for a head-to-head matrix. It is *relative to the field* (adding an entrant
+  shifts every score), which is the drawback of this first version. Still planned: ratings via Glicko-2
+  (tracks uncertainty, which suits few-game entrants such as humans), anchored by fixed baselines so the
+  scale doesn't drift.
 - **Humans, later**: for Snake, a short fixed "challenge" seed set, compared on those same seeds;
   for Checkers, a human is just another `Strategy` behind a UI. Humans always play L0 visual with
   absolute controls, and are labelled that way.

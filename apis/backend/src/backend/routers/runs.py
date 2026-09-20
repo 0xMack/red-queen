@@ -5,10 +5,12 @@ per doc 0005 "Reusing existing pydantic models directly" -- no duplicate API-lay
 that already has a canonical shape.
 """
 
+import json
 import time
 from typing import Annotated, Literal
 
 import anyio
+from evolve.networks import compiled, network_from_json
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
@@ -132,3 +134,24 @@ def get_artifact(
             status_code=404, detail=f"no such {kind} artifact: {ref}"
         ) from None
     return Response(content=data, media_type="application/octet-stream")
+
+
+@router.get("/{run_id}/artifacts/{ref}/brain")
+def get_brain(run_id: str, ref: str, artifacts: ArtifactStoreDep) -> dict:
+    """A champion as plain numbers a game core can be built from (`evolve.networks.compiled`): a layered
+    network's weights, or a NEAT genome's compiled evaluation plan. What the browser feeds the Rust
+    `CheckersStrategy` -- so no client re-implements NEAT or the weight layout."""
+    try:
+        data = artifacts.get_program(ref)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"no such program artifact: {ref}") from None
+    try:
+        network = network_from_json(data.decode("utf-8"))
+        brain = compiled(network)
+        if brain["kind"] == "graph":
+            # The compiled plan is what the game core evaluates; the genome itself is what a diagram draws (nodes,
+            # depths, disabled genes) -- so a NEAT champion carries both.
+            brain["genome"] = json.loads(network.to_json())
+        return brain
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=422, detail=f"artifact {ref} isn't a trained network: {e}") from None

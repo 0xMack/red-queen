@@ -191,3 +191,17 @@ def test_simulation_fitness_evaluator_can_swap_environments():
     fitness.set_environments([_ConstantTargetEnv(0.1), _ConstantTargetEnv(0.2), _ConstantTargetEnv(0.3)])
 
     assert len(fitness.evaluate(genome)) == 3
+
+
+def test_gaussian_mutation_rate_perturbs_only_a_fraction_of_the_weights():
+    import random
+
+    from evolve import GaussianMutation, WeightVector
+
+    parent = WeightVector(weights=tuple([0.5] * 400), layer_sizes=(1, 1))  # layer_sizes unused by the mutation
+    everything = GaussianMutation(sigma=0.1).vary([parent], random.Random(0))
+    sparse = GaussianMutation(sigma=0.1, rate=0.05).vary([parent], random.Random(0))
+
+    changed = lambda child: sum(1 for a, b in zip(parent.weights, child.weights) if a != b)  # noqa: E731
+    assert changed(everything) == 400
+    assert 5 <= changed(sparse) <= 40  # ~5% of 400

@@ -24,7 +24,10 @@ architectural change that might conflict with a decision already made.
     the chosen backend needs, `device.ts` probes WebGPU/WASM/storage, `match.ts` picks a variant or says
     in plain language why none fits, `blobs.ts` fetches hash-verified blobs into the Cache API forever,
     `lm.ts` + `workers/lm.worker.ts` generate text with a KV cache). No Pyodide anywhere any more.
-    - `/games/{game}` (`snake` today) — the game's one page (docs/design/0007): watch leaderboard
+    - `/games/{game}` (`snake`, `checkers`) — **one page layout for every game** (docs/design/0007):
+      `GamePage.vue` renders the shared skeleton (Watch/Play stage, ranked leaderboard, measurements,
+      cost tradeoffs, head-to-head, representations) from a per-game `GameModule` (`app/games/`); adding a
+      game means a module + stage + an evaluation job, not another page. For Snake: watch leaderboard
       entrants play (published champions from the model catalog, `games.baselines` from the WASM
       core), "Play it yourself" on the same stage, full leaderboard below. Every entrant is listed;
       the ones this device can't run are marked with the reason (`?device=nowebgpu,nowasm` forces the
@@ -106,6 +109,23 @@ architectural change that might conflict with a decision already made.
     small evolved population measurably improves against a randomized opponent via
     `MatchFitnessEvaluator` (noisy with too few opponent samples, clean with more — see
     docs/CODING_GUIDELINES.md).
+  - The Checkers strategies (random, first-legal, `material-N` up to alpha-beta search) and the trained
+    position `evaluator` -- a layered network *or* a NEAT genome (`GraphNet`, from
+    `NeatGenome.graph_encoding()`), one ply or searched `depth` plies -- are **Rust** (`rust/core/src/checkers_strategies.rs`), so training and the
+    browser play identical players — `checkers_strategies.py` and the WASM `CheckersStrategy` are thin
+    faces of it (`tests/reference_checkers_strategies.py` holds the old Python scoring as oracles).
+    They are env-bound `(env, rng) -> Strategy` factories — lookahead needs the environment, which a
+    plain `Strategy` can't see, hence `evolve.StrategyFactory` and `MatchFitnessEvaluator(env_aware=True)`.
+    `apps/frontend`'s two-player stack is game-agnostic: `useVersusSession` drives any `VersusEngine`
+    (`types/versus.ts`) with any strategies, `VersusStage` is the whole stage around a board slot, and
+    strategies that expose per-move `scores()` (Rust `Strategy::scores`) get candidate-move and
+    evaluation-trace diagnostics for free. Checkers only supplies `utils/checkersEngine.ts` +
+    `CheckersBoard` + `CheckersStage` (its `GameModule` is `app/games/checkers.ts`; the run viewer
+    `CheckersWatch` is the same stage on a run's champion). Its leaderboard is a round robin
+    (`jobs/evaluate_versus.py`, protocol `checkers.versus.v1`, points per game); champions come from
+    `jobs/checkers_neuro_run.py` / `jobs/checkers_neat_run.py` (shared parts in `jobs/checkers_training.py`),
+    and the browser gets a champion as plain numbers from `GET /runs/{id}/artifacts/{ref}/brain`
+    (`evolve.networks.compiled`), so there is no hand-exported champion file and no client-side NEAT. `games.interfaces` registers `checkers/board32.v1+evaluate1ply.v1`.
   - `evolve/neat.py` (docs/design/0008) — NEAT: a graph genome of innovation-numbered connection genes
     whose *structure* evolves (add connection / split a connection into a node), with
     innovation-aligned crossover, speciation, and fitness sharing. Has its own loop
@@ -181,12 +201,18 @@ Each directory has its own README with specifics — this file is the map, not t
 - **`libs/games` needs a Rust toolchain** (cargo) to install — maturin builds `games._native` during
   `uv sync`, and `[tool.uv] cache-keys` rebuilds it when `rust/**` changes. On Windows the sync fails
   with `os error 32` while any running process (a backend dev server, a notebook kernel) has
-  `_native.pyd` loaded — stop it first. After changing `rust/core` or `rust/wasm`, run
+  `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
+  allows renaming a mapped DLL, and the build then writes a fresh one. Note `uv sync --all-packages`
+  *uninstalls* whatever isn't named — pass `--group notebooks --extra examples` if they were installed.
+  After changing `rust/core` or `rust/wasm`, run
   `uv run python libs/games/build-wasm.py` (needs the `wasm32-unknown-unknown` target and
   `wasm-bindgen-cli` matching `rust/wasm`'s pinned version); `tests/test_wasm_build.py` fails until you do.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.
+- Long jobs: redirected stdout is block-buffered (an empty log ≠ a dead job — use `python -u`), and git-bash
+  `ps` can't see Windows processes (`Get-CimInstance Win32_Process` can). Check a run's metrics file before
+  concluding it died or launching a second copy.
 - Run tests/scripts via `uv run` (e.g. `uv run pytest libs/telemetry/tests`) or the venv's
   interpreter directly (`.venv/Scripts/python.exe` on Windows) — the workspace `.venv` has no
   `pip` bootstrapped into it; use `uv pip install <pkg>` for one-off additions, but prefer adding

@@ -70,7 +70,7 @@ export function describeRun(run: RunInfo): RunMeta {
     parameterCount,
     note: str(c.note),
     seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),
-    watchable: game === "snake",
+    watchable: game === "snake" || game === "checkers", // has a champion viewer: WatchChampion / CheckersWatch
   }
 }
 
