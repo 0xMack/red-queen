@@ -76,12 +76,13 @@ def _train_neat(
     population: int = snake_neuro_run.POPULATION_SIZE,
     max_steps: int = snake_neuro_run.MAX_STEPS,
     seeds: str = SEED_STRATEGY,
+    interface: str = INTERFACE,
 ) -> Trainer:
     """`generations` (when given) overrides the experiment-wide budget: the long-run arms *are* a bigger budget."""
 
     def train(rng_seed: int, default_generations: int, tags: dict[str, Any]) -> str:
         return snake_neat_run.main(
-            INTERFACE,
+            interface,
             seeds,
             HELD_OUT_EVERY,
             generations or default_generations,
@@ -114,6 +115,16 @@ ARMS: dict[str, Trainer] = {
         population=300,
         max_steps=1000,
         seeds="resample:10",
+    ),
+    # docs/design/0007's L2 observer: the same budget as `neat-max`, only the observation differs, so a seed-for-seed
+    # comparison with `neat-max` (snake-long-v1, same rng seeds) isolates the representation.
+    "neat-max-ego": _train_neat(
+        snake_neat_run.SNAKE_NEAT_CONFIG,
+        generations=600,
+        population=300,
+        max_steps=1000,
+        seeds="resample:10",
+        interface="snake/egocentric.v1+relative3.v1",
     ),
 }
 

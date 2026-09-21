@@ -6,7 +6,7 @@ import random
 
 import pytest
 from games import _native, baselines
-from games.snake import Snake, SnakeFeatures, SnakeGridFlat
+from games.snake import Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
 
 from reference_snake import Pcg32, ReferenceSnake, reference_greedy
 
@@ -28,14 +28,17 @@ def test_pcg32_reference_vector():
 def _play_both(seed: int, width: int, height: int, choose) -> int:
     native = Snake(width=width, height=height, seed=seed, observer=SnakeFeatures())
     grid = Snake(width=width, height=height, seed=seed, observer=SnakeGridFlat())
+    ego = Snake(width=width, height=height, seed=seed, observer=SnakeEgocentric())
     reference = ReferenceSnake(width=width, height=height, seed=seed)
     observation = native.reset()
     assert grid.reset() == reference.grid_flat()
+    assert ego.reset() == reference.egocentric()
     assert observation == reference.features()
     for step in range(2000):
         action = choose(observation, step)
         observation, reward, done = native.step(action)
         grid_observation, _, _ = grid.step(action)
+        ego_observation, _, _ = ego.step(action)
         expected_reward, expected_done = reference.step(action)
         assert (reward, done) == (expected_reward, expected_done), f"seed {seed} step {step}"
         if not reference.alive:
@@ -43,6 +46,7 @@ def _play_both(seed: int, width: int, height: int, choose) -> int:
             break
         assert observation == reference.features(), f"seed {seed} step {step}"
         assert grid_observation == reference.grid_flat(), f"seed {seed} step {step}"
+        assert ego_observation == reference.egocentric(), f"seed {seed} step {step}"
         assert native.body == reference.body and native.food == reference.food
         assert list(native.render_state()["cells"].items()) == [((x, y), label) for x, y, label in reference.cells()]
     assert native.score == reference.score

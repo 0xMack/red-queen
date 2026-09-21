@@ -9,7 +9,7 @@
 import type { Availability } from "~/composables/useModelCatalog"
 import type { ModelFailure } from "~/composables/useSnakeSession"
 import { formatBytes } from "~/inference/match"
-import { SNAKE_INPUT_LABELS, SNAKE_OUTPUT_LABELS } from "~/utils/snakePolicy"
+import { SNAKE_OUTPUT_LABELS, snakeInputLabels } from "~/utils/snakePolicy"
 import { activations as neatActivations, complexity as neatComplexity } from "~/utils/neat"
 
 // Plays either a run's champion (runId) or a fixed baseline (baseline + its interface) -- every kind
@@ -271,7 +271,7 @@ const runningVariant = computed(() =>
           <NeatDiagram
             :genome="policy.genome"
             :activations="neatLive"
-            :input-labels="policy.genome.numInputs === SNAKE_INPUT_LABELS.length ? SNAKE_INPUT_LABELS : []"
+            :input-labels="snakeInputLabels(policy.genome.numInputs)"
             :output-labels="policy.genome.numOutputs === SNAKE_OUTPUT_LABELS.length ? SNAKE_OUTPUT_LABELS : []"
           />
         </div>
@@ -286,7 +286,7 @@ const runningVariant = computed(() =>
             :weights="policy.weights"
             :layer-sizes="policy.layerSizes"
             :activations="activations"
-            :input-labels="policy.layerSizes[0] === SNAKE_INPUT_LABELS.length ? SNAKE_INPUT_LABELS : []"
+            :input-labels="snakeInputLabels(policy.layerSizes[0]!)"
             :output-labels="policy.layerSizes.at(-1) === SNAKE_OUTPUT_LABELS.length ? SNAKE_OUTPUT_LABELS : []"
           />
         </div>

@@ -192,6 +192,38 @@ Rules that keep the numbers honest:
 5. **Checkers** — observers per level, round-robin + Glicko-2, then a human-play UI.
 6. **Reproducibility** — repeated-seed training for leaderboard-bound configs.
 
+## Implementation note: `egocentric.v1`, Snake's first L2 observer
+
+The L2 row of the levels table had no Snake entry. `snake/egocentric.v1+relative3.v1` (27 inputs) is it: what the
+head can *see*, in its own frame, so there is no absolute heading in it.
+
+- **7 line-of-sight rays** (left, front-left, front, front-right, right, back-left, back-right; straight back is the
+  neck), each giving the wall, the first body segment, and food as `1 / distance` (0 = not seen; food is hidden behind
+  body). A body segment counts only if it will still be there when the head arrives (the tail vacates one segment per
+  move; a diagonal step is two moves), so at distance 1 a ray is exactly `features.v1`'s danger.
+- **Food and tail** as (ahead, right) offsets, scaled by the board's longer side.
+- **Apples eaten** (score / board cells: the count of rewards collected, not the snake's length) and a **hunger**
+  clock (steps since food / the starvation limit -- state `features.v1` cannot see).
+
+Chosen from a measurement, not a guess: the leaderboard-#1 `features.v1` champion (37.95) dies by hitting its own body
+in 137 of 139 deaths, 71% of them with room to spare (it had not yet boxed itself in), and 30% of its games are ended
+by the 1000-step cap, not by death. Cost is O(rays x board side) per step, in the Rust core, so the browser runs the
+same code. Checked against an independent pure-Python oracle (`tests/reference_snake.py`) on every step of ~100 games.
+
+**Result (`snake-ego-v1`, 5 seeds, the `neat-max` config, paired seed-for-seed with `snake-long-v1`'s `neat-max` on
+`features.v1`; 200 held-out games each):** `egocentric.v1` scored **35.79 +- 3.21** against `features.v1`'s
+**37.98 +- 1.17** (per seed 32.6 / 39.3 / 35.8 / 38.7 / 32.6 vs. 39.4 / 38.9 / 37.7 / 37.4 / 36.5; paired sign-flip
+p=0.25, unpaired exact p=0.21) -- **not better**, and less consistent. It learns much faster early (27.7 vs. 19.5 at
+generation 50) and plateaus lower, with larger networks (170 vs. 105 parameters).
+
+Why, from the death analysis of the same held-out games: the rays make the snake more *efficient* (15-18 steps per food
+vs. 22) but it dies by hitting its own body more (163-200 of 200 games vs. 137 of 139 for the `features.v1`
+flagship, which also survives the 1000-step cap in 30% of games) and is already boxed into a region smaller than its
+body before the fatal move in 49-58% of deaths (vs. 29%). A ray sees along a line; it cannot tell that the space it is
+heading into is enclosed. That points at *reachable space* as the missing information -- not more rays. Caveats: five
+seeds, and the difference is within noise; the interface is registered and published-package-ready but has no
+leaderboard entry (experiment-tagged runs stay off it).
+
 ## Explicitly out of scope for now
 
 - Energy/power measurement (not measurable reliably from inside a Python process on this machine;

@@ -184,6 +184,42 @@ class SnakeFeatures:
         ]
 
 
+_RAY_NAMES = ("left", "front-left", "front", "front-right", "right", "back-left", "back-right")
+
+
+class SnakeEgocentric:
+    """Level 2, local / egocentric: what the head can *see*, in its own frame (docs/design/0007's L2, which Snake
+    had no observer for until now). 7 line-of-sight rays fan out from the head (left, front-left, front,
+    front-right, right, back-left, back-right; straight back is always the neck) and each reports three
+    proximities, `1 / distance` (0 = not seen): the wall, the first body segment that will still be there when the
+    head arrives, and food (hidden behind body). Then the food and the tail as (ahead, right) offsets from the head,
+    apples eaten (score / board cells) and the hunger clock (steps since food / starvation limit). No absolute
+    heading, because every value is already relative to it. 27 values, board-size independent, and cheap:
+    O(rays x board side) per step. A ray at distance 1 is exactly `features.v1`'s danger."""
+
+    id = "egocentric.v1"
+    native_id = "egocentric.v1"
+    level = 2
+    description = (
+        "7 line-of-sight rays from the head (wall / body / food proximity each), plus the food and tail as "
+        "ahead/right offsets, apples eaten and a hunger clock. Everything in the head's frame."
+    )
+
+    def encode(self, game: Snake) -> list[float]:
+        return game._core.encode(self.native_id)
+
+    def feature_names(self, game: Snake) -> list[str]:
+        return [
+            *(f"{ray} {kind}" for ray in _RAY_NAMES for kind in ("wall", "body", "food")),
+            "food ahead",
+            "food right",
+            "tail ahead",
+            "tail right",
+            "apples eaten",
+            "hunger",
+        ]
+
+
 class SnakeGridFlat:
     """Level 1, full state: every cell as one float (empty 0, body 1, head 2, food 3), row-major.
     width*height inputs, so board-size dependent. What notebooks/0005 trained against before the

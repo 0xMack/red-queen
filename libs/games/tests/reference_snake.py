@@ -136,6 +136,45 @@ class ReferenceSnake:
             1.0 if self.food[1] > head_y else 0.0,
         ]
 
+    EGO_RAYS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, -1), (-1, 1))  # (ahead, right)
+
+    def egocentric(self) -> list[float]:
+        """`egocentric.v1`, written from the spec rather than ported: what a ray sees is found by walking it and
+        asking, at each step, which of the *original* body segments still exist after that many moves (the tail
+        vacates one segment per move, so the segments left are the first `len - moves`)."""
+        head_x, head_y = self.body[0]
+        forward = ((1, 0), (0, 1), (-1, 0), (0, -1))[self._direction_index]
+        right = ((1, 0), (0, 1), (-1, 0), (0, -1))[(self._direction_index + 1) % 4]
+        out: list[float] = []
+        for ahead, side in self.EGO_RAYS:
+            step = (ahead * forward[0] + side * right[0], ahead * forward[1] + side * right[1])
+            moves = abs(ahead) + abs(side)
+            wall = body = food = 0.0
+            k = 1
+            while True:
+                x, y = head_x + k * step[0], head_y + k * step[1]
+                if not (0 <= x < self.width and 0 <= y < self.height):
+                    wall = 1.0 / k
+                    break
+                remaining = self.body[: max(len(self.body) - k * moves, 0)]
+                if not body and (x, y) in remaining:
+                    body = 1.0 / k
+                elif not body and not food and (x, y) == self.food:
+                    food = 1.0 / k
+                k += 1
+            out += [wall, body, food]
+
+        scale = max(max(self.width, self.height) - 1, 1)
+
+        def offset(cell):
+            dx, dy = cell[0] - head_x, cell[1] - head_y
+            return [(dx * forward[0] + dy * forward[1]) / scale, (dx * right[0] + dy * right[1]) / scale]
+
+        out += offset(self.food) if self.food is not None else [0.0, 0.0]
+        out += offset(self.body[-1])
+        out += [self.score / (self.width * self.height), self._steps_without_food / self.max_steps_without_food]
+        return out
+
     def grid_flat(self) -> list[float]:
         grid = [0.0] * (self.width * self.height)
         for x, y, label in self.cells():
