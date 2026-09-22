@@ -43,4 +43,23 @@ export const SNAKE_INPUT_LABELS = [
   "food ↑",
   "food ↓",
 ]
+// games.snake's `egocentric.v1` (27 values, in order): per ray wall / body / food proximity, then the food and tail
+// as (ahead, right) offsets, apples eaten, and the hunger clock. Mirrors `SnakeEgocentric.feature_names`.
+const RAY_NAMES = ["left", "front-left", "front", "front-right", "right", "back-left", "back-right"]
+export const SNAKE_EGOCENTRIC_LABELS = [
+  ...RAY_NAMES.flatMap((ray) => ["wall", "body", "food"].map((kind) => `${ray} ${kind}`)),
+  "food ahead",
+  "food right",
+  "tail ahead",
+  "tail right",
+  "apples eaten",
+  "hunger",
+]
 export const SNAKE_OUTPUT_LABELS = ["turn left", "straight", "turn right"]
+
+/** The input labels for a Snake network of `numInputs` inputs (the observers differ in size), or none if unknown. */
+export function snakeInputLabels(numInputs: number): string[] {
+  if (numInputs === SNAKE_INPUT_LABELS.length) return SNAKE_INPUT_LABELS
+  if (numInputs === SNAKE_EGOCENTRIC_LABELS.length) return SNAKE_EGOCENTRIC_LABELS
+  return []
+}

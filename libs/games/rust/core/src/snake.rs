@@ -16,6 +16,12 @@ pub const DIRECTIONS: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
 
 pub type Cell = (i32, i32);
 
+/// `egocentric.v1`'s rays as (ahead, right) unit steps in the head's frame: left, front-left, front,
+/// front-right, right, back-left, back-right. Straight back is left out -- it is always the neck.
+pub const EGO_RAYS: [(i32, i32); 7] = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, -1), (-1, 1)];
+/// 3 values per ray, then food (2), tail (2), apples eaten, hunger.
+pub const EGO_SIZE: usize = EGO_RAYS.len() * 3 + 2 + 2 + 1 + 1;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Label {
     Body,
@@ -42,6 +48,10 @@ pub enum Observer {
     Features,
     /// `grid-flat.v1`, level 1: every cell, row-major, empty 0 / body 1 / head 2 / food 3.
     GridFlat,
+    /// `egocentric.v1`, level 2: line-of-sight rays in the head's own frame (`EGO_RAYS`), each giving wall / body /
+    /// food proximity (1 / distance, 0 = not seen), then the food and tail as (ahead, right) offsets, apples eaten
+    /// and the hunger clock. 27 values; no absolute heading, because everything is relative to it.
+    Egocentric,
 }
 
 impl Observer {
@@ -49,6 +59,7 @@ impl Observer {
         match id {
             "features.v1" => Some(Observer::Features),
             "grid-flat.v1" => Some(Observer::GridFlat),
+            "egocentric.v1" => Some(Observer::Egocentric),
             _ => None,
         }
     }
@@ -57,6 +68,7 @@ impl Observer {
         match self {
             Observer::Features => "features.v1",
             Observer::GridFlat => "grid-flat.v1",
+            Observer::Egocentric => "egocentric.v1",
         }
     }
 }
@@ -211,6 +223,48 @@ impl Snake {
         }
     }
 
+    /// What one ray sees from the head: `[wall, body, food]` proximity, each `1 / distance` in steps along the ray
+    /// (0 when not seen). The wall is always found; food is only seen before the first body segment (line of
+    /// sight). A body segment counts only if it will still be there when the head arrives -- the tail vacates as the
+    /// snake moves, so segment `i` (head = 0) is gone after `len - i` moves, and a step along a diagonal ray takes
+    /// two moves. At distance 1 that is exactly `danger()`.
+    fn ego_ray(&self, (ahead, right): (i32, i32)) -> [f64; 3] {
+        let (hx, hy) = self.body[0];
+        let forward = DIRECTIONS[self.direction];
+        let side = DIRECTIONS[(self.direction + 1) % 4];
+        let (dx, dy) = (ahead * forward.0 + right * side.0, ahead * forward.1 + right * side.1);
+        let moves_per_step = (ahead.abs() + right.abs()) as usize;
+        let len = self.body.len();
+        let (mut body, mut food) = (0.0, 0.0);
+        let mut k = 1;
+        loop {
+            let cell = (hx + k * dx, hy + k * dy);
+            if !self.in_bounds(cell) {
+                return [1.0 / k as f64, body, food];
+            }
+            if body == 0.0 {
+                if let Some(i) = self.body.iter().position(|&c| c == cell) {
+                    if len - i > k as usize * moves_per_step {
+                        body = 1.0 / k as f64;
+                    }
+                } else if food == 0.0 && Some(cell) == self.food {
+                    food = 1.0 / k as f64;
+                }
+            }
+            k += 1;
+        }
+    }
+
+    /// `cell` relative to the head as (ahead, right), scaled by the board's longer side so it stays in [-1, 1].
+    fn ego_offset(&self, cell: Cell) -> [f64; 2] {
+        let (hx, hy) = self.body[0];
+        let forward = DIRECTIONS[self.direction];
+        let side = DIRECTIONS[(self.direction + 1) % 4];
+        let (vx, vy) = (cell.0 - hx, cell.1 - hy);
+        let scale = (self.width.max(self.height) - 1).max(1) as f64;
+        [(vx * forward.0 + vy * forward.1) as f64 / scale, (vx * side.0 + vy * side.1) as f64 / scale]
+    }
+
     pub fn encode(&self, observer: Observer) -> Vec<f64> {
         match observer {
             Observer::Features => {
@@ -222,6 +276,17 @@ impl Snake {
                     Some((fx, fy)) => out.extend([flag(fx < hx), flag(fx > hx), flag(fy < hy), flag(fy > hy)]),
                     None => out.extend([0.0; 4]),
                 }
+                out
+            }
+            Observer::Egocentric => {
+                let mut out = Vec::with_capacity(EGO_SIZE);
+                for ray in EGO_RAYS {
+                    out.extend(self.ego_ray(ray));
+                }
+                out.extend(self.food.map_or([0.0, 0.0], |f| self.ego_offset(f)));
+                out.extend(self.ego_offset(*self.body.back().expect("a snake has a tail")));
+                out.push(self.score as f64 / (self.width * self.height) as f64);
+                out.push(self.steps_without_food as f64 / self.max_steps_without_food as f64);
                 out
             }
             Observer::GridFlat => {
@@ -241,6 +306,7 @@ impl Snake {
     pub fn observation_size(&self, observer: Observer) -> usize {
         match observer {
             Observer::Features => 11,
+            Observer::Egocentric => EGO_SIZE,
             Observer::GridFlat => (self.width * self.height) as usize,
         }
     }
@@ -309,6 +375,44 @@ mod tests {
         assert_eq!(s.step(0), (1.0, true));
         assert_eq!((s.score, s.alive, s.food), (1, false, None));
         assert_eq!(s.encode(Observer::Features)[7..], [0.0; 4]);
+    }
+
+    #[test]
+    fn egocentric_rays_see_walls_body_and_food_in_the_heads_frame() {
+        let mut s = Snake::new(10, 10, 0, None);
+        // Heading right at (5, 5), body trailing left; food two cells ahead.
+        s.set_state(vec![(5, 5), (4, 5), (3, 5)], 0, Some((7, 5)));
+        let obs = s.encode(Observer::Egocentric);
+        assert_eq!(obs.len(), EGO_SIZE);
+        let ray = |i: usize| obs[i * 3..i * 3 + 3].to_vec();
+        // front: wall 5 cells away (x = 10), food at distance 2, no body ahead.
+        assert_eq!(ray(2), vec![1.0 / 5.0, 0.0, 0.5]);
+        // left is "up" on the board (y - 1): wall at distance 6 (y = -1), nothing else.
+        assert_eq!(ray(0), vec![1.0 / 6.0, 0.0, 0.0]);
+        // right is "down": wall at distance 5.
+        assert_eq!(ray(4), vec![1.0 / 5.0, 0.0, 0.0]);
+        // Food is 2 ahead, 0 to the right; the tail is 2 behind.
+        assert_eq!(obs[21..25].to_vec(), vec![2.0 / 9.0, 0.0, -2.0 / 9.0, 0.0]);
+    }
+
+    #[test]
+    fn egocentric_ignores_a_tail_that_will_have_vacated() {
+        let mut s = Snake::new(5, 5, 0, None);
+        // A U-shape: the tail sits directly in front of the head, one cell away -- it vacates on the first move.
+        s.set_state(vec![(2, 2), (2, 1), (1, 1), (1, 2)], 2, Some((4, 4)));
+        let obs = s.encode(Observer::Egocentric);
+        assert_eq!(obs[2 * 3 + 1], 0.0); // front body proximity: the tail cell is free by the time we arrive
+        assert_eq!(s.danger(0), 0.0); // and that is what features.v1 says too
+    }
+
+    #[test]
+    fn egocentric_offsets_are_the_same_whatever_the_heading() {
+        // The same local picture rotated a quarter turn about the head reads the same ahead/right offsets.
+        let mut a = Snake::new(10, 10, 0, None);
+        a.set_state(vec![(5, 5), (4, 5), (3, 5), (3, 4)], 0, Some((7, 6)));
+        let mut b = Snake::new(10, 10, 0, None);
+        b.set_state(vec![(5, 5), (5, 4), (5, 3), (6, 3)], 1, Some((4, 7)));
+        assert_eq!(a.encode(Observer::Egocentric)[21..], b.encode(Observer::Egocentric)[21..]);
     }
 
     #[test]

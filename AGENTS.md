@@ -100,7 +100,9 @@ architectural change that might conflict with a decision already made.
     rather than one `libs/` package per game, so shared utilities have an obvious home. `snake.py`'s
     observation is 11 hand-engineered features (danger/heading/food-direction), not a raw flattened
     grid — swapped after a real trained result confirmed the earlier representation, not compute,
-    was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments"). `checkers.py`
+    was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments"). `egocentric.v1` (27 inputs,
+    L2, docs/design/0007) is the head-frame alternative: line-of-sight rays + food/tail offsets, no absolute
+    heading. `checkers.py`
     (docs/design/0006 phase 1) — real rules (mandatory captures, mandatory multi-jump chains,
     kinging), a `Move` is a whole turn so `current_player()` alternates strictly every `step()`;
     `render_state()` reuses `snake.py`'s exact `{width, height, cells}` shape, just a wider label
