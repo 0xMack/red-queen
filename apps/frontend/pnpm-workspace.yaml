@@ -1,2 +1,4 @@
 allowBuilds:
   esbuild: true
+  # onnxruntime-web's protobufjs ships an optional postinstall (a version check); nothing here needs it.
+  protobufjs: false

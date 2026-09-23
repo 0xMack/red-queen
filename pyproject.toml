@@ -28,3 +28,9 @@ extend-select = [
     "RUF", # Ruff-specific
     "UP",  # pyupgrade
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # Inside starlette.testclient itself (1.6.0, the latest release) -- nothing in this repo to change.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]

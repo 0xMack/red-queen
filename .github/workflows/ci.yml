@@ -16,12 +16,12 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable # maturin builds games._native during the sync
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: libs/games
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
         with:
           python-version: "3.11"
           enable-cache: true
@@ -40,14 +40,14 @@ jobs:
       run:
         working-directory: libs/games
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: libs/games
-      - uses: actions/setup-python@v5 # pyo3's build script needs an interpreter to configure against
+      - uses: actions/setup-python@v7 # pyo3's build script needs an interpreter to configure against
         with:
           python-version: "3.11"
       - name: Format
@@ -65,11 +65,11 @@ jobs:
       run:
         working-directory: apps/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
