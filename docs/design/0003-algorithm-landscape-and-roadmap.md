@@ -38,7 +38,8 @@ shaped now, and a phased plan for adding complexity incrementally rather than al
 - **Gradient-based RL** (DQN, PPO, actor-critic) is a different paradigm entirely: one policy
   improved by gradient descent, not a population improved by selection. Shares the
   environment interface (`reset`/`step`/`reward`) with anything in `libs/`, shares nothing else
-  architecturally with a `Population`.
+  architecturally with a `Population`. *Update:* planned in docs/design/0010 (`libs/rl`: tabular Q → DQN →
+  policy gradients → Checkers self-play, learning in the Rust core).
 - **Evolution Strategies (ES)** — the case where RL and EA are literally the same algorithm: a
   population of parameter-vector perturbations, selected/weighted by reward, no gradient at all.
 - **Neuroevolution** (NEAT/HyperNEAT) — a GA evolving NN weights and topology directly as the
