@@ -84,6 +84,14 @@ class Snake:
         reward, done = self._core.step(int(action))
         return self.observer.encode(self), reward, done
 
+    def play(self, policy: _native.Policy, max_steps: int) -> tuple[float, int]:
+        """One whole episode from a fresh reset, `policy` (`games.nets.native_policy`) choosing every move
+        through this game's observer and `relative3.v1`, for at most `max_steps` steps: (total reward, steps).
+        The same loop as stepping from Python -- the same moves and total, bit for bit -- in one native call."""
+        if self._native_observer is None:
+            raise ValueError(f"{self.observer.id} isn't implemented in the game core, so it can't play natively")
+        return self._core.play(policy, self._native_observer, max_steps)
+
     # --- State (read by observers, renderers, tests; settable to set up a scenario) -----------------
 
     @property

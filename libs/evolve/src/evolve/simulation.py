@@ -15,6 +15,9 @@ from typing import Any, Protocol, TypeVar
 Genome = TypeVar("Genome")
 Observation = Any
 Action = Any
+# (genome, environments, max_steps) -> one (total reward, steps taken) per environment, each episode played
+# from a fresh reset -- a whole generation's episodes run by whatever can run them faster than the Python loop.
+Rollout = Callable[[Any, Sequence["Environment"], int], list[tuple[float, int]]]
 
 
 class Environment(Protocol):
@@ -33,7 +36,9 @@ class SimulationFitnessEvaluator:
     different scenario the policy has to handle.
 
     `act` is injected `(genome, observation) -> action`, the same pattern as
-    SymbolicRegressionFitness's `run` -- this evaluator never touches genome internals.
+    SymbolicRegressionFitness's `run` -- this evaluator never touches genome internals. `rollout`, if
+    given, plays the episodes instead (e.g. the game core running the whole episode natively, see
+    jobs/snake_neuro_run.py's `make_rollout`); it must return exactly what this loop would.
 
     `episodes`/`steps` count everything this evaluator has simulated -- exact, hardware-independent
     training-cost counters (docs/design/0007), cheap enough to always keep.
@@ -44,10 +49,12 @@ class SimulationFitnessEvaluator:
         envs: Sequence[Environment],
         act: Callable[[Genome, Observation], Action],
         max_steps: int = 200,
+        rollout: Rollout | None = None,
     ):
         self._envs = list(envs)
         self._act = act
         self._max_steps = max_steps
+        self._rollout = rollout
         self.episodes = 0
         self.steps = 0
 
@@ -57,6 +64,11 @@ class SimulationFitnessEvaluator:
         self._envs = list(envs)
 
     def evaluate(self, genome: Genome) -> list[float]:
+        if self._rollout is not None:
+            results = self._rollout(genome, self._envs, self._max_steps)
+            self.episodes += len(results)
+            self.steps += sum(steps for _, steps in results)
+            return [total for total, _ in results]
         fitnesses = []
         for env in self._envs:
             observation = env.reset()

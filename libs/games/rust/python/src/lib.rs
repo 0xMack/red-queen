@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
+use redqueen_games::nets::{GraphNet, Net, Network};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
@@ -78,6 +79,12 @@ impl SnakeCore {
         Ok(())
     }
 
+    /// One whole episode from a fresh reset, `policy` choosing every move: (total reward, steps). See
+    /// `Snake::play` -- the training hot path, with no Python in the loop.
+    fn play(&mut self, policy: PyRef<'_, Policy>, observer_id: &str, max_steps: u32) -> PyResult<(f64, u32)> {
+        self.inner.play(observer(observer_id)?, &policy.inner, max_steps).map_err(PyValueError::new_err)
+    }
+
     #[getter]
     fn body(&self) -> Vec<(i32, i32)> {
         self.inner.body.iter().copied().collect()
@@ -105,6 +112,43 @@ impl SnakeCore {
     #[getter]
     fn max_steps_without_food(&self) -> u32 {
         self.inner.max_steps_without_food
+    }
+}
+
+/// A trained network the core runs itself (rust/core/src/nets.rs), built from `evolve.networks.compiled()`'s
+/// numbers: `Policy.layered(weights, layer_sizes)` or `Policy.graph(encoding)`.
+#[pyclass(module = "games._native", frozen)]
+struct Policy {
+    inner: Net,
+}
+
+#[pymethods]
+impl Policy {
+    #[staticmethod]
+    fn layered(weights: Vec<f64>, layer_sizes: Vec<usize>) -> PyResult<Self> {
+        Ok(Policy { inner: Net::Layered(Network::new(weights, layer_sizes).map_err(PyValueError::new_err)?) })
+    }
+
+    #[staticmethod]
+    fn graph(encoding: Vec<f64>) -> PyResult<Self> {
+        Ok(Policy { inner: Net::Graph(GraphNet::from_flat(&encoding).map_err(PyValueError::new_err)?) })
+    }
+
+    fn forward(&self, observation: Vec<f64>) -> PyResult<Vec<f64>> {
+        if observation.len() != self.inner.inputs() {
+            return Err(PyValueError::new_err(format!("expected {} inputs, got {}", self.inner.inputs(), observation.len())));
+        }
+        Ok(self.inner.forward(&observation))
+    }
+
+    #[getter]
+    fn inputs(&self) -> usize {
+        self.inner.inputs()
+    }
+
+    #[getter]
+    fn outputs(&self) -> usize {
+        self.inner.outputs()
     }
 }
 
@@ -349,6 +393,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CheckersStrategy>()?;
     m.add_class::<Reach1DCore>()?;
     m.add_class::<Pcg32>()?;
+    m.add_class::<Policy>()?;
     m.add_class::<SnakeRandomPolicy>()?;
     m.add_function(wrap_pyfunction!(snake_greedy_decide, m)?)?;
     m.add_function(wrap_pyfunction!(relative3_decode, m)?)?;

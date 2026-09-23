@@ -30,135 +30,19 @@ pub const WIN_SCORE: f64 = 1000.0;
 /// Number of network inputs: the 32 playable squares (`checkers::encode`).
 pub const INPUTS: usize = 32;
 
-/// A feedforward network as `evolve.neuro.WeightVector` stores it: per layer, `out * in` weights
-/// (row-major by output) then `out` biases; tanh on every layer.
-#[derive(Clone, Debug)]
-pub struct Network {
-    weights: Vec<f64>,
-    layers: Vec<usize>,
-}
+/// A trained position evaluator: how good is this board for the player to move (`crate::nets`; only its first
+/// output is read, and it must take the 32-square encoding -- see `check_evaluator`).
+pub use crate::nets::Net as Brain;
+pub use crate::nets::{GraphNet, Network};
 
-impl Network {
-    pub fn new(weights: Vec<f64>, layers: Vec<usize>) -> Result<Network, String> {
-        if layers.len() < 2 || layers[0] != INPUTS || *layers.last().unwrap() != 1 {
-            return Err(format!("an evaluator maps {INPUTS} inputs to 1 score, got layers {layers:?}"));
-        }
-        let expected: usize = layers.windows(2).map(|w| w[1] * (w[0] + 1)).sum();
-        if weights.len() != expected {
-            return Err(format!("layers {layers:?} need {expected} weights, got {}", weights.len()));
-        }
-        Ok(Network { weights, layers })
+/// A network can evaluate Checkers positions only if it reads the 32-square encoding; a layered one must have
+/// exactly one output (a compiled NEAT graph may have more -- only the first is read).
+fn check_evaluator(brain: &Brain) -> Result<(), String> {
+    let (inputs, outputs) = (brain.inputs(), brain.outputs());
+    if inputs != INPUTS || (matches!(brain, Brain::Layered(_)) && outputs != 1) {
+        return Err(format!("an evaluator maps {INPUTS} inputs to 1 score, got {inputs} inputs and {outputs} outputs"));
     }
-
-    /// The network's single output for `observation`.
-    pub fn score(&self, observation: &[f64]) -> f64 {
-        self.activations(observation).pop().unwrap()[0]
-    }
-
-    /// Every layer's values for `observation`, input layer first (`layers.len()` vectors): what the page's
-    /// network diagram lights up. `score` is the last one's only element.
-    pub fn activations(&self, observation: &[f64]) -> Vec<Vec<f64>> {
-        let mut layers = vec![observation.to_vec()];
-        let mut activations = observation.to_vec();
-        let mut offset = 0;
-        for pair in self.layers.windows(2) {
-            let (n_in, n_out) = (pair[0], pair[1]);
-            let next: Vec<f64> = (0..n_out)
-                .map(|o| {
-                    let row = &self.weights[offset + o * n_in..offset + (o + 1) * n_in];
-                    let bias = self.weights[offset + n_in * n_out + o];
-                    (bias + row.iter().zip(&activations).map(|(w, a)| w * a).sum::<f64>()).tanh()
-                })
-                .collect();
-            offset += n_out * (n_in + 1);
-            layers.push(next.clone());
-            activations = next;
-        }
-        layers
-    }
-}
-
-/// A NEAT genome compiled to its evaluation plan (`evolve.NeatGenome.plan()`): a slot per value (inputs, then
-/// the bias fixed at 1.0, then every live node in topological order), and per computed node its incoming
-/// `(source slot, weight)` pairs. tanh on every computed node, exactly as `NeatGenome.forward`.
-#[derive(Clone, Debug)]
-pub struct GraphNet {
-    n_inputs: usize,
-    n_slots: usize,
-    steps: Vec<(usize, Vec<(usize, f64)>)>,
-    output: usize,
-}
-
-impl GraphNet {
-    /// From the flat encoding the bindings pass: `[n_inputs, n_slots, n_steps, (slot, k, (src, w) * k) * n_steps,
-    /// n_outputs, output slots...]`. Only the first output is used as the evaluation.
-    pub fn from_flat(flat: &[f64]) -> Result<GraphNet, String> {
-        let mut at = 0;
-        let mut next = |what: &str| -> Result<f64, String> {
-            let v = *flat.get(at).ok_or_else(|| format!("graph encoding ends early, reading {what}"))?;
-            at += 1;
-            Ok(v)
-        };
-        let n_inputs = next("n_inputs")? as usize;
-        let n_slots = next("n_slots")? as usize;
-        let n_steps = next("n_steps")? as usize;
-        if n_inputs != INPUTS || n_slots <= n_inputs {
-            return Err(format!("a graph evaluator needs {INPUTS} inputs and a bias slot, got {n_inputs} inputs / {n_slots} slots"));
-        }
-        let mut steps = Vec::with_capacity(n_steps);
-        for _ in 0..n_steps {
-            let slot = next("slot")? as usize;
-            let k = next("edge count")? as usize;
-            let mut incoming = Vec::with_capacity(k);
-            for _ in 0..k {
-                let source = next("source")? as usize;
-                let weight = next("weight")?;
-                if source >= slot {
-                    return Err(format!("slot {slot} reads slot {source}: steps must be in topological order"));
-                }
-                incoming.push((source, weight));
-            }
-            if slot >= n_slots || slot <= n_inputs {
-                return Err(format!("step writes slot {slot}, outside the computed slots {}..{n_slots}", n_inputs + 1));
-            }
-            steps.push((slot, incoming));
-        }
-        let n_outputs = next("n_outputs")? as usize;
-        if n_outputs == 0 {
-            return Err("a graph evaluator needs an output".into());
-        }
-        let output = next("output slot")? as usize;
-        if output >= n_slots {
-            return Err(format!("output slot {output} is outside the {n_slots} slots"));
-        }
-        Ok(GraphNet { n_inputs, n_slots, steps, output })
-    }
-
-    pub fn score(&self, observation: &[f64]) -> f64 {
-        let mut values = vec![0.0; self.n_slots];
-        values[..self.n_inputs].copy_from_slice(observation);
-        values[self.n_inputs] = 1.0; // bias
-        for (slot, incoming) in &self.steps {
-            values[*slot] = incoming.iter().map(|&(source, weight)| weight * values[source]).sum::<f64>().tanh();
-        }
-        values[self.output]
-    }
-}
-
-/// A trained position evaluator: how good is this board for the player to move.
-#[derive(Clone, Debug)]
-pub enum Brain {
-    Layered(Network),
-    Graph(GraphNet),
-}
-
-impl Brain {
-    pub fn score(&self, observation: &[f64]) -> f64 {
-        match self {
-            Brain::Layered(network) => network.score(observation),
-            Brain::Graph(graph) => graph.score(observation),
-        }
-    }
+    Ok(())
 }
 
 /// What a search scores a leaf position with, always from the side to move.
@@ -236,7 +120,11 @@ impl Strategy {
             "first-legal" => Kind::FirstLegal,
             "material-1" => Kind::Material1,
             "material-2" => Kind::Material2,
-            "evaluator" => Kind::Evaluator(network.ok_or("the evaluator strategy needs a network")?),
+            "evaluator" => {
+                let network = network.ok_or("the evaluator strategy needs a network")?;
+                check_evaluator(&Brain::Layered(network.clone()))?;
+                Kind::Evaluator(network)
+            }
             other => match other.strip_prefix("material-").and_then(|n| n.parse::<u32>().ok()) {
                 Some(depth) if depth >= 3 => Kind::Search { depth, eval: Eval::Material },
                 _ => return Err(format!("no such checkers strategy: {other}")),
@@ -276,6 +164,7 @@ impl Strategy {
         if depth == 0 {
             return Err("search depth is at least 1".into());
         }
+        check_evaluator(&brain)?;
         let kind = match (brain, depth) {
             (Brain::Layered(network), 1) => Kind::Evaluator(network),
             (brain, depth) => Kind::Search { depth, eval: Eval::Brain(brain) },
@@ -500,6 +389,14 @@ mod tests {
     }
 
     #[test]
+    fn an_evaluator_must_read_the_32_square_encoding() {
+        let network = |layers: Vec<usize>| Network::new(vec![0.0; layers[0] * layers[1] + layers[1]], layers).unwrap();
+        assert!(Strategy::parse("evaluator", 0, Some(network(vec![31, 1]))).is_err());
+        assert!(Strategy::evaluator(0, Brain::Layered(network(vec![32, 2])), 2).is_err());
+        assert!(Strategy::evaluator(0, Brain::Layered(network(vec![32, 1])), 2).is_ok());
+    }
+
+    #[test]
     fn graph_net_matches_a_hand_computed_plan() {
         // slots: 0..32 inputs, 32 bias, 33 hidden, 34 output. hidden = tanh(2*in0 + 0.5*bias);
         // output = tanh(-1*hidden + 0.25*in1).
@@ -521,13 +418,4 @@ mod tests {
         assert!(GraphNet::from_flat(&bad).is_err());
     }
 
-    #[test]
-    fn network_checks_its_shape_and_computes_tanh() {
-        assert!(Network::new(vec![0.0; 10], vec![32, 1]).is_err());
-        assert!(Network::new(vec![0.0; 33], vec![31, 1]).is_err());
-        let mut weights = vec![0.0; 33];
-        weights[32] = 0.5;
-        let network = Network::new(weights, vec![32, 1]).unwrap();
-        assert!((network.score(&[0.0; 32]) - 0.5f64.tanh()).abs() < 1e-15);
-    }
 }

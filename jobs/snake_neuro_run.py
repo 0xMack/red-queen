@@ -52,7 +52,9 @@ from evolve import (
     evolve,
     random_weight_vector,
 )
+from evolve.networks import compiled
 from games import interfaces
+from games.nets import native_policy
 from run_context import recorded_run
 from seeding import SeedStrategy
 from telemetry import (
@@ -78,13 +80,27 @@ TOURNAMENT_LABEL = f"tournament(k={TOURNAMENT_K})"  # matches the label the pre-
 
 def make_act(interface):
     """(genome, observation) -> action through the interface's action adapter -- for
-    relative3.v1, 3 outputs -> {-1, 0, 1} via argmax, the same adapter apps/frontend's Pyodide
-    watch-mode bridge uses to drive a loaded champion."""
+    relative3.v1, 3 outputs -> {-1, 0, 1} via argmax (games.snake.RelativeTurn3, the game core's)."""
 
     def act(genome, observation):
         return interface.action.decode(genome.forward(observation))
 
     return act
+
+
+def make_rollout(interface):
+    """SimulationFitnessEvaluator's `rollout`: each training episode played entirely by the game core
+    (games.snake.Snake.play), the genome compiled once per evaluation. The same fitness as `make_act`'s
+    Python loop, bit for bit (jobs/tests/test_snake_rollout.py), and many times faster -- the Python
+    forward pass was ~87% of a generation's time."""
+    if interface.action.id != "relative3.v1":
+        raise ValueError(f"the game core plays relative3.v1 policies, not {interface.action.id}")
+
+    def rollout(genome, envs, max_steps):
+        policy = native_policy(compiled(genome))
+        return [env.play(policy, max_steps) for env in envs]
+
+    return rollout
 
 
 def make_telemetry_callback(
@@ -104,7 +120,7 @@ def make_telemetry_callback(
         if held_out is not None:
             interface, every, last = held_out
             if summary.generation % every == 0 or summary.generation == last:
-                champion = summary.champion
+                champion = native_policy(compiled(summary.champion))
                 held_out_score = monitor_score(
                     interface, lambda o: interface.action.decode(champion.forward(o))
                 )
@@ -175,7 +191,7 @@ def main(
         random_weight_vector(layer_sizes, rng, scale=0.5)
         for _ in range(POPULATION_SIZE)
     ]
-    fitness = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=MAX_STEPS)
+    fitness = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=MAX_STEPS, rollout=make_rollout(interface))
     cost = TrainingCostMeter(population_size=POPULATION_SIZE, fitness=fitness)
 
     with recorded_run(config) as run:

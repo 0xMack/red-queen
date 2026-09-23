@@ -8,6 +8,7 @@
 
 use std::collections::VecDeque;
 
+use crate::nets::Net;
 use crate::pcg::Pcg32;
 
 /// Clockwise, so a right turn (+1) is the next direction and a left turn (-1) the previous one:
@@ -329,6 +330,36 @@ impl Snake {
         self.direction = direction % 4;
         self.food = food;
     }
+
+    /// Plays one episode from a fresh `reset()`, `policy` choosing every move (`observer` in, `relative3.v1`
+    /// out), for at most `max_steps` steps: `(total reward, steps taken)`. Exactly the loop
+    /// `evolve.SimulationFitnessEvaluator` runs in Python -- the same moves, the same total, bit for bit
+    /// (`crate::nets`) -- as one native call instead of a Python forward pass per step.
+    pub fn play(&mut self, observer: Observer, policy: &Net, max_steps: u32) -> Result<(f64, u32), String> {
+        let size = self.observation_size(observer);
+        if policy.inputs() != size || policy.outputs() != 3 {
+            return Err(format!(
+                "{} needs a policy of {size} inputs and 3 outputs (relative3.v1), got {} and {}",
+                observer.id(),
+                policy.inputs(),
+                policy.outputs()
+            ));
+        }
+        self.reset();
+        let mut observation = self.encode(observer);
+        let (mut total, mut steps) = (0.0, 0);
+        while steps < max_steps {
+            let action = decode_relative3(&policy.forward(&observation));
+            let (reward, done) = self.step(action as i64);
+            total += reward;
+            steps += 1;
+            if done {
+                break;
+            }
+            observation = self.encode(observer);
+        }
+        Ok((total, steps))
+    }
 }
 
 #[cfg(test)]
@@ -413,6 +444,31 @@ mod tests {
         let mut b = Snake::new(10, 10, 0, None);
         b.set_state(vec![(5, 5), (5, 4), (5, 3), (6, 3)], 1, Some((4, 7)));
         assert_eq!(a.encode(Observer::Egocentric)[21..], b.encode(Observer::Egocentric)[21..]);
+    }
+
+    #[test]
+    fn play_runs_the_policy_to_the_end_and_checks_its_shape() {
+        use crate::nets::Network;
+        // A constant "go straight" policy (only the middle output's bias is set) runs into the wall.
+        let mut weights = vec![0.0; 11 * 3 + 3];
+        weights[11 * 3 + 1] = 1.0;
+        let straight = Net::Layered(Network::new(weights, vec![11, 3]).unwrap());
+        let mut game = Snake::new(10, 10, 3, None);
+        let (total, steps) = game.play(Observer::Features, &straight, 200).unwrap();
+        let mut twin = Snake::new(10, 10, 3, None);
+        let (mut expected, mut n) = (0.0, 0);
+        loop {
+            let (reward, done) = twin.step(0);
+            expected += reward;
+            n += 1;
+            if done {
+                break;
+            }
+        }
+        assert_eq!((total, steps), (expected, n));
+        assert!(!game.alive && game.body == twin.body);
+        assert_eq!(game.play(Observer::Features, &straight, 2).unwrap().1, 2, "max_steps caps the episode");
+        assert!(game.play(Observer::GridFlat, &straight, 10).is_err(), "11 inputs can't read a 100-cell grid");
     }
 
     #[test]
