@@ -14,7 +14,9 @@ class GenerationStats(BaseModel):
     best_fitness: float = Field(..., description="Fitness of the best individual in this generation.")
     mean_fitness: float = Field(..., description="Mean fitness across the generation's population.")
     worst_fitness: float = Field(..., description="Fitness of the worst individual in this generation.")
-    diversity: float = Field(..., ge=0, description="Population diversity metric for this generation (higher = more diverse).")
+    diversity: float = Field(
+        ..., ge=0, description="Population diversity metric for this generation (higher = more diverse)."
+    )
     champion_ref: str = Field(
         ..., min_length=1, description="ArtifactStore key for this generation's best individual's stored program."
     )

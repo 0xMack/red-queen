@@ -1,18 +1,15 @@
-import redqueen
 # print(redqueen.__file__)
 # print(dir(redqueen))
 
 from redqueen import Population
-
 from sklearn.datasets import load_iris
-import numpy as np
 
 # Load dataset
 iris = load_iris()
 
 # Convert to NumPy arrays
-X = iris.data          # features
-y = iris.target        # labels
+X = iris.data  # features
+y = iris.target  # labels
 feature_names = iris.feature_names
 target_names = iris.target_names
 

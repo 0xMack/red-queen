@@ -50,13 +50,17 @@ def test_the_game_core_plays_a_neat_genome_exactly_as_its_python_forward_pass():
         scores = strategy.scores(env._core)
         for move, score in zip(env.legal_moves(), scores, strict=True):
             # depth 1: a move is worth minus the network's value for the position it leaves behind
-            assert score == -genome.forward(env.simulate(move))[0] or abs(score) > 500  # (a game-ending move scores WIN)
+            assert (
+                score == -genome.forward(env.simulate(move))[0] or abs(score) > 500
+            )  # (a game-ending move scores WIN)
             checked += 1
     assert checked > 100
 
 
 def test_layered_evaluator_reaches_the_same_scores_at_any_depth_one_search():
-    weights = WeightVector(weights=tuple(random.Random(1).uniform(-0.5, 0.5) for _ in range(32 * 4 + 4 + 4 + 1)), layer_sizes=(32, 4, 1))
+    weights = WeightVector(
+        weights=tuple(random.Random(1).uniform(-0.5, 0.5) for _ in range(32 * 4 + 4 + 4 + 1)), layer_sizes=(32, 4, 1)
+    )
     plain = _native.CheckersStrategy("evaluator", 0, list(weights.weights), list(weights.layer_sizes))
     via_graph = None  # a layered network has no graph form; the two kinds agree through `compiled` instead
     assert compiled(weights)["kind"] == "layered" and via_graph is None
@@ -105,7 +109,15 @@ def test_neat_run_records_structure_curves_and_a_searching_champion(tmp_path, mo
     monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_neat_run, "MONITOR_GAMES", 2)
 
-    run_id = checkers_neat_run.main(generations=2, population_size=8, opponents=("random", "material-2"), held_out_every=1, depth=2, hall=2, seed_material=0.5)
+    run_id = checkers_neat_run.main(
+        generations=2,
+        population_size=8,
+        opponents=("random", "material-2"),
+        held_out_every=1,
+        depth=2,
+        hall=2,
+        seed_material=0.5,
+    )
 
     run = SqliteRunRegistry(tmp_path / "runs.db").get_run(run_id)
     assert run.status == "completed" and run.config["representation"] == "neat" and run.config["search_depth"] == 2

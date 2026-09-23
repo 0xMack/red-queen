@@ -41,8 +41,15 @@ def test_legacy_run_training_cost_is_estimated_and_labelled(tmp_path):
     for generation in range(3):
         metrics.record_generation(
             GenerationStats(
-                run_id="r1", island_id=None, generation=generation, timestamp=100.0 + generation * 10,
-                best_fitness=0.0, mean_fitness=0.0, worst_fitness=0.0, diversity=0.0, champion_ref=f"r1-gen{generation}",
+                run_id="r1",
+                island_id=None,
+                generation=generation,
+                timestamp=100.0 + generation * 10,
+                best_fitness=0.0,
+                mean_fitness=0.0,
+                worst_fitness=0.0,
+                diversity=0.0,
+                champion_ref=f"r1-gen{generation}",
             )
         )
     run = RunInfo(run_id="r1", config={"population_size": 10}, status="completed", created_at=1.0, updated_at=2.0)

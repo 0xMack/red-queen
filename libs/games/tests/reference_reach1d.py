@@ -14,7 +14,6 @@ a SimulationFitnessEvaluator to this environment, same shape as evolve/telemetry
 """
 
 
-
 class ReachTarget1D:
     def __init__(
         self,

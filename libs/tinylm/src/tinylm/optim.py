@@ -6,7 +6,6 @@ framework's optimizer step)."""
 from __future__ import annotations
 
 import numpy as np
-
 from autodiff import Tensor
 
 

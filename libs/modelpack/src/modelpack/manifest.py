@@ -59,7 +59,9 @@ class Parity(BaseModel):
     Numeric error alone isn't what matters -- a flipped argmax is -- so the publishing job adds the
     action-agreement numbers from playing the evaluation protocol's games with both."""
 
-    reference: str = Field(..., description="what the variant was compared against, e.g. 'evolve.neuro.WeightVector.forward (float64)'")
+    reference: str = Field(
+        ..., description="what the variant was compared against, e.g. 'evolve.neuro.WeightVector.forward (float64)'"
+    )
     samples: int
     max_abs_error: float
     tolerance: float
@@ -95,16 +97,27 @@ class Provenance(BaseModel):
 class ModelManifest(BaseModel):
     format_version: int = FORMAT_VERSION
     package_id: str = Field("", description="sha256 of this manifest with package_id empty")
-    kind: Literal["policy", "causal-lm"] = Field("policy", description="how a client drives it: one decision per call, or token-by-token generation with a KV cache")
+    kind: Literal["policy", "causal-lm"] = Field(
+        "policy",
+        description="how a client drives it: one decision per call, or token-by-token generation with a KV cache",
+    )
     label: str
     description: str
     interface: str | None = Field(None, description="docs/design/0007 interface id the model runs under")
     parameters: int
     provenance: Provenance
     variants: list[Variant] = Field(..., min_length=1)
-    parity_fixture: Blob | None = Field(None, description="JSON a client can self-test against: {inputs, outputs} for a policy, {input_ids, logits} for a causal LM")
-    config: dict[str, Any] = Field(default_factory=dict, description="architecture facts a client needs to drive the model (e.g. an LM's layers, heads, max_seq_len)")
-    assets: dict[str, Blob] = Field(default_factory=dict, description="other files the model needs, by role (e.g. 'tokenizer')")
+    parity_fixture: Blob | None = Field(
+        None,
+        description="JSON a client can self-test against: {inputs, outputs} for a policy, {input_ids, logits} for a causal LM",
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="architecture facts a client needs to drive the model (e.g. an LM's layers, heads, max_seq_len)",
+    )
+    assets: dict[str, Blob] = Field(
+        default_factory=dict, description="other files the model needs, by role (e.g. 'tokenizer')"
+    )
 
     def variant(self, variant_id: str) -> Variant:
         for v in self.variants:

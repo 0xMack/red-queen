@@ -58,7 +58,17 @@ GENERATIONS = 60
 RNG_SEED = 0
 DEFAULT_OPPONENTS = ("random", "material-1", "material-2")
 
-__all__ = ["INPUTS", "MAX_MOVES", "MONITOR_GAMES", "MONITOR_SEED_BASE", "make_act", "monitor_score", "opponent_pool", "strategy_factory", "main"]
+__all__ = [
+    "INPUTS",
+    "MAX_MOVES",
+    "MONITOR_GAMES",
+    "MONITOR_SEED_BASE",
+    "main",
+    "make_act",
+    "monitor_score",
+    "opponent_pool",
+    "strategy_factory",
+]
 
 
 def main(
@@ -98,7 +108,9 @@ def main(
         "seeded_fraction": seed_material,
         "selection": "lexicase",
         "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
-        "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
+        "fitness": "match outcomes + material margin on draws, both seats per opponent"
+        if margin
+        else "match outcomes, both seats per opponent",
         "resampled_opponents": resample,
         "games_per_opponent": games_per_opponent,
         "opening_plies": opening_plies,
@@ -113,7 +125,15 @@ def main(
         material_seed_weights(layer_sizes, rng) if i < seeded else random_weight_vector(layer_sizes, rng, scale=0.5)
         for i in range(population_size)
     ]
-    pool = OpponentPool(opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent, opening_plies=opening_plies)
+    pool = OpponentPool(
+        opponents,
+        depth,
+        hall_size=hall,
+        margin=margin,
+        resample=resample,
+        games_per_opponent=games_per_opponent,
+        opening_plies=opening_plies,
+    )
     fitness = ProcessPoolEvaluator(pool, workers) if workers > 1 else pool
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 
@@ -125,7 +145,16 @@ def main(
             variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
             generations=generations,
             on_generation=[
-                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(
+                    run.metrics,
+                    run.artifacts,
+                    run.run_id,
+                    opponents,
+                    depth,
+                    held_out_every,
+                    generations - 1,
+                    MONITOR_GAMES,
+                ),
                 pool.on_generation,
                 cost.on_generation,
                 run.control_callback(cost),
@@ -143,18 +172,32 @@ if __name__ == "__main__":
     parser.add_argument("--population", type=int, default=POPULATION_SIZE)
     parser.add_argument("--hidden", type=int, default=HIDDEN)
     parser.add_argument("--depth", type=int, default=1, help="alpha-beta plies the evaluator searches (1 = one ply)")
-    parser.add_argument("--opponents", default=",".join(DEFAULT_OPPONENTS), help=f"comma list from {sorted(STRATEGIES)}")
+    parser.add_argument(
+        "--opponents", default=",".join(DEFAULT_OPPONENTS), help=f"comma list from {sorted(STRATEGIES)}"
+    )
     parser.add_argument("--hall", type=int, default=0, help="hall-of-fame size: past champions as extra opponents")
-    parser.add_argument("--seed-material", type=float, default=0.0, help="fraction of the population started as a material evaluator")
+    parser.add_argument(
+        "--seed-material", type=float, default=0.0, help="fraction of the population started as a material evaluator"
+    )
     parser.add_argument("--margin", action="store_true", help="score draws by the material edge held")
-    parser.add_argument("--resample", action="store_true", help="fresh opponent games every generation (nothing to memorize)")
-    parser.add_argument("--games-per-opponent", type=int, default=1, help="games each opponent plays per seat per generation")
+    parser.add_argument(
+        "--resample", action="store_true", help="fresh opponent games every generation (nothing to memorize)"
+    )
+    parser.add_argument(
+        "--games-per-opponent", type=int, default=1, help="games each opponent plays per seat per generation"
+    )
     parser.add_argument("--sigma", type=float, default=0.2, help="Gaussian mutation step")
-    parser.add_argument("--mutation-rate", type=float, default=1.0, help="chance each weight is perturbed (small = sparse mutation)")
+    parser.add_argument(
+        "--mutation-rate", type=float, default=1.0, help="chance each weight is perturbed (small = sparse mutation)"
+    )
     parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
     parser.add_argument("--arm", default=None, help="which arm of the experiment this run is")
-    parser.add_argument("--opening-plies", type=int, default=0, help="random moves opening every fitness game (both seats share one)")
-    parser.add_argument("--workers", type=int, default=1, help="processes scoring a generation's genomes (same result as 1, faster)")
+    parser.add_argument(
+        "--opening-plies", type=int, default=0, help="random moves opening every fitness game (both seats share one)"
+    )
+    parser.add_argument(
+        "--workers", type=int, default=1, help="processes scoring a generation's genomes (same result as 1, faster)"
+    )
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
     parser.add_argument("--held-out-every", type=int, default=5)
     args = parser.parse_args()

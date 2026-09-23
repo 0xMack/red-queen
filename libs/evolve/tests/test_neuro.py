@@ -95,9 +95,7 @@ def test_simulation_fitness_evaluator_returns_one_value_per_environment():
 def test_simulation_fitness_evaluator_stops_episode_on_done():
     always_done_env = _ConstantTargetEnv(0.0)
     genome = WeightVector(weights=tuple([0.0] * _param_count((2, 4, 1))), layer_sizes=(2, 4, 1))
-    fitness = SimulationFitnessEvaluator(
-        envs=[always_done_env], act=lambda g, obs: g.act(obs), max_steps=1000
-    )
+    fitness = SimulationFitnessEvaluator(envs=[always_done_env], act=lambda g, obs: g.act(obs), max_steps=1000)
 
     # if this didn't stop on done=True, evaluate() would run 1000 steps instead of 1 -- both
     # finish "instantly" in wall-clock terms here, so assert on the actual mechanism instead:
@@ -202,6 +200,6 @@ def test_gaussian_mutation_rate_perturbs_only_a_fraction_of_the_weights():
     everything = GaussianMutation(sigma=0.1).vary([parent], random.Random(0))
     sparse = GaussianMutation(sigma=0.1, rate=0.05).vary([parent], random.Random(0))
 
-    changed = lambda child: sum(1 for a, b in zip(parent.weights, child.weights, strict=True) if a != b)  # noqa: E731
+    changed = lambda child: sum(1 for a, b in zip(parent.weights, child.weights, strict=True) if a != b)
     assert changed(everything) == 400
     assert 5 <= changed(sparse) <= 40  # ~5% of 400

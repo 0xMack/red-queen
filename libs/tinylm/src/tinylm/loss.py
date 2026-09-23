@@ -4,7 +4,6 @@ token, averaged over every position in the batch."""
 from __future__ import annotations
 
 import numpy as np
-
 from autodiff import Tensor, softmax
 
 

@@ -20,11 +20,16 @@ pub struct Network {
 impl Network {
     pub fn new(weights: Vec<f64>, layers: Vec<usize>) -> Result<Network, String> {
         if layers.len() < 2 || layers.contains(&0) {
-            return Err(format!("a network needs at least an input and an output layer, none empty; got {layers:?}"));
+            return Err(format!(
+                "a network needs at least an input and an output layer, none empty; got {layers:?}"
+            ));
         }
         let expected: usize = layers.windows(2).map(|w| w[1] * (w[0] + 1)).sum();
         if weights.len() != expected {
-            return Err(format!("layers {layers:?} need {expected} weights, got {}", weights.len()));
+            return Err(format!(
+                "layers {layers:?} need {expected} weights, got {}",
+                weights.len()
+            ));
         }
         Ok(Network { weights, layers })
     }
@@ -87,7 +92,9 @@ impl GraphNet {
     pub fn from_flat(flat: &[f64]) -> Result<GraphNet, String> {
         let mut at = 0;
         let mut next = |what: &str| -> Result<f64, String> {
-            let v = *flat.get(at).ok_or_else(|| format!("graph encoding ends early, reading {what}"))?;
+            let v = *flat
+                .get(at)
+                .ok_or_else(|| format!("graph encoding ends early, reading {what}"))?;
             at += 1;
             Ok(v)
         };
@@ -95,7 +102,9 @@ impl GraphNet {
         let n_slots = next("n_slots")? as usize;
         let n_steps = next("n_steps")? as usize;
         if n_slots <= n_inputs {
-            return Err(format!("a graph needs a bias slot after its {n_inputs} inputs, got {n_slots} slots"));
+            return Err(format!(
+                "a graph needs a bias slot after its {n_inputs} inputs, got {n_slots} slots"
+            ));
         }
         let mut steps = Vec::with_capacity(n_steps);
         for _ in 0..n_steps {
@@ -106,12 +115,17 @@ impl GraphNet {
                 let source = next("source")? as usize;
                 let weight = next("weight")?;
                 if source >= slot {
-                    return Err(format!("slot {slot} reads slot {source}: steps must be in topological order"));
+                    return Err(format!(
+                        "slot {slot} reads slot {source}: steps must be in topological order"
+                    ));
                 }
                 incoming.push((source, weight));
             }
             if slot >= n_slots || slot <= n_inputs {
-                return Err(format!("step writes slot {slot}, outside the computed slots {}..{n_slots}", n_inputs + 1));
+                return Err(format!(
+                    "step writes slot {slot}, outside the computed slots {}..{n_slots}",
+                    n_inputs + 1
+                ));
             }
             steps.push((slot, incoming));
         }
@@ -127,7 +141,12 @@ impl GraphNet {
             }
             outputs.push(output);
         }
-        Ok(GraphNet { n_inputs, n_slots, steps, outputs })
+        Ok(GraphNet {
+            n_inputs,
+            n_slots,
+            steps,
+            outputs,
+        })
     }
 
     pub fn inputs(&self) -> usize {

@@ -40,13 +40,25 @@ def source_hash() -> str:
 
 
 def main() -> None:
-    subprocess.run(["cargo", "build", "-p", "games-wasm", "--target", TARGET, "--profile", PROFILE], cwd=HERE, check=True)
+    subprocess.run(
+        ["cargo", "build", "-p", "games-wasm", "--target", TARGET, "--profile", PROFILE], cwd=HERE, check=True
+    )
     wasm = HERE / "target" / TARGET / PROFILE / "games_wasm.wasm"
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
     subprocess.run(
-        ["wasm-bindgen", str(wasm), "--out-dir", str(OUT), "--out-name", "games", "--target", "web", "--omit-default-module-path"],
+        [
+            "wasm-bindgen",
+            str(wasm),
+            "--out-dir",
+            str(OUT),
+            "--out-name",
+            "games",
+            "--target",
+            "web",
+            "--omit-default-module-path",
+        ],
         check=True,
     )
     (OUT / "source-hash.txt").write_text(source_hash() + "\n", encoding="utf-8")

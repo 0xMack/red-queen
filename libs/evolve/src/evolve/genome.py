@@ -92,9 +92,7 @@ class LinearProgram:
         return count
 
 
-def random_instruction(
-    num_registers: int, num_inputs: int, num_ops: int, rng: random.Random
-) -> Instruction:
+def random_instruction(num_registers: int, num_inputs: int, num_ops: int, rng: random.Random) -> Instruction:
     return Instruction(
         op=rng.randrange(num_ops),
         dst=rng.randrange(num_registers),
@@ -110,9 +108,5 @@ def random_program(
     rng: random.Random,
     ops: tuple[Op, ...] = DEFAULT_OPS,
 ) -> LinearProgram:
-    instructions = tuple(
-        random_instruction(num_registers, num_inputs, len(ops), rng) for _ in range(num_instructions)
-    )
-    return LinearProgram(
-        instructions=instructions, num_registers=num_registers, num_inputs=num_inputs, ops=ops
-    )
+    instructions = tuple(random_instruction(num_registers, num_inputs, len(ops), rng) for _ in range(num_instructions))
+    return LinearProgram(instructions=instructions, num_registers=num_registers, num_inputs=num_inputs, ops=ops)

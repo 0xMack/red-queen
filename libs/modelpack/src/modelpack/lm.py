@@ -41,8 +41,22 @@ import onnxruntime as ort
 from onnx import TensorProto, helper, numpy_helper
 
 from modelpack.exporters import IR_VERSION, OPSET
-from modelpack.manifest import Blob, ModelManifest, Parity, Provenance, TensorSpec, Variant
-from modelpack.packaging import Package, _versions, requirements_for, sha256, shard_initializers, with_parity
+from modelpack.manifest import (
+    Blob,
+    ModelManifest,
+    Parity,
+    Provenance,
+    TensorSpec,
+    Variant,
+)
+from modelpack.packaging import (
+    Package,
+    _versions,
+    requirements_for,
+    sha256,
+    shard_initializers,
+    with_parity,
+)
 from modelpack.runtime import inline_external_data, session_options
 
 MASKED = -1e9  # what tinylm adds above the diagonal; exp() of it underflows to exactly 0
@@ -104,16 +118,33 @@ def export_tinylm(weights: dict[str, np.ndarray], config: LMConfig) -> onnx.Mode
     axis1 = init("const.axis1", [1], np.int64)
 
     # Causal mask for this call: [seq, past + seq], MASKED where key position > query position.
-    past_len = node("Gather", [node("Shape", ["past_key_0"], "mask.past_shape"), init("const.i2", 2, np.int64)], "mask.past_len", axis=0)
+    past_len = node(
+        "Gather",
+        [node("Shape", ["past_key_0"], "mask.past_shape"), init("const.i2", 2, np.int64)],
+        "mask.past_len",
+        axis=0,
+    )
     seq_len = node("Gather", [node("Shape", ["input_ids"], "mask.ids_shape"), one_i], "mask.seq_len", axis=0)
     total = node("Add", [past_len, seq_len], "mask.total")
-    query_pos = node("Unsqueeze", [node("Range", [past_len, total, one_i], "mask.query_range"), axis1], "mask.query_pos")
+    query_pos = node(
+        "Unsqueeze", [node("Range", [past_len, total, one_i], "mask.query_range"), axis1], "mask.query_pos"
+    )
     key_pos = node("Unsqueeze", [node("Range", [zero_i, total, one_i], "mask.key_range"), axis0], "mask.key_pos")
     future = node("Greater", [key_pos, query_pos], "mask.future")
     mask = node("Where", [future, masked, zero_f], "mask")
 
-    tokens = node("Gather", [init("token_embedding.weight", weights["token_embedding.weight"]), "input_ids"], "embed.tokens", axis=0)
-    positions = node("Gather", [init("position_embedding.weight", weights["position_embedding.weight"]), "position_ids"], "embed.positions", axis=0)
+    tokens = node(
+        "Gather",
+        [init("token_embedding.weight", weights["token_embedding.weight"]), "input_ids"],
+        "embed.tokens",
+        axis=0,
+    )
+    positions = node(
+        "Gather",
+        [init("position_embedding.weight", weights["position_embedding.weight"]), "position_ids"],
+        "embed.positions",
+        axis=0,
+    )
     x = node("Add", [tokens, positions], "embed.out")
 
     for i in range(c.n_layers):
@@ -132,7 +163,11 @@ def export_tinylm(weights: dict[str, np.ndarray], config: LMConfig) -> onnx.Mode
         scores = node("Mul", [node("MatMul", [q, k_t], f"{p}.attn.qk"), scale], f"{p}.attn.scaled")
         weights_ = node("Softmax", [node("Add", [scores, mask], f"{p}.attn.masked")], f"{p}.attn.weights", axis=-1)
         attended = node("MatMul", [weights_, present_v], f"{p}.attn.attended")
-        merged = node("Reshape", [node("Transpose", [attended], f"{p}.attn.merge_t", perm=[0, 2, 1, 3]), merged_shape], f"{p}.attn.merged")
+        merged = node(
+            "Reshape",
+            [node("Transpose", [attended], f"{p}.attn.merge_t", perm=[0, 2, 1, 3]), merged_shape],
+            f"{p}.attn.merged",
+        )
         x = node("Add", [x, linear(merged, f"{p}.attn.out_proj")], f"{p}.residual1")
 
         hidden = node("Relu", [linear(layer_norm(x, f"{p}.ln2"), f"{p}.mlp.fc1")], f"{p}.mlp.relu")
@@ -141,7 +176,7 @@ def export_tinylm(weights: dict[str, np.ndarray], config: LMConfig) -> onnx.Mode
     logits = linear(layer_norm(x, "ln_final"), "head")
     nodes.append(helper.make_node("Identity", [logits], ["logits"], name="logits"))
 
-    cache_dims = lambda n: ["batch", c.n_heads, n, c.head_dim]  # noqa: E731
+    cache_dims = lambda n: ["batch", c.n_heads, n, c.head_dim]
     inputs = [
         helper.make_tensor_value_info("input_ids", TensorProto.INT64, ["batch", "seq"]),
         helper.make_tensor_value_info("position_ids", TensorProto.INT64, ["batch", "seq"]),
@@ -183,16 +218,28 @@ class LMRunner:
 
     def __init__(self, model: onnx.ModelProto, config: LMConfig):
         self.config = config
-        self.session = ort.InferenceSession(model.SerializeToString(), sess_options=session_options(), providers=["CPUExecutionProvider"])
-        self.float = np.float16 if model.graph.input[2].type.tensor_type.elem_type == TensorProto.FLOAT16 else np.float32
+        self.session = ort.InferenceSession(
+            model.SerializeToString(), sess_options=session_options(), providers=["CPUExecutionProvider"]
+        )
+        self.float = (
+            np.float16 if model.graph.input[2].type.tensor_type.elem_type == TensorProto.FLOAT16 else np.float32
+        )
 
     def empty_cache(self, batch: int = 1) -> dict[str, np.ndarray]:
         shape = (batch, self.config.n_heads, 0, self.config.head_dim)
-        return {f"past_{kind}_{i}": np.zeros(shape, self.float) for i in range(self.config.n_layers) for kind in ("key", "value")}
+        return {
+            f"past_{kind}_{i}": np.zeros(shape, self.float)
+            for i in range(self.config.n_layers)
+            for kind in ("key", "value")
+        }
 
-    def run(self, ids: np.ndarray, positions: np.ndarray, cache: dict[str, np.ndarray]) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    def run(
+        self, ids: np.ndarray, positions: np.ndarray, cache: dict[str, np.ndarray]
+    ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
         names = [o.name for o in self.session.get_outputs()]
-        results = self.session.run(names, {"input_ids": ids.astype(np.int64), "position_ids": positions.astype(np.int64), **cache})
+        results = self.session.run(
+            names, {"input_ids": ids.astype(np.int64), "position_ids": positions.astype(np.int64), **cache}
+        )
         by_name = dict(zip(names, results, strict=True))
         present = {n.replace("present_", "past_"): v for n, v in by_name.items() if n.startswith("present_")}
         return by_name["logits"].astype(np.float64), present
@@ -251,7 +298,9 @@ def build_lm_package(
         if variant_id == "int8":
             # MatMulInteger/DynamicQuantizeLinear: CPU kernels only (ORT's WebGPU EP has none).
             requirements = requirements.model_copy(update={"backends": ["wasm"]})
-        cache_spec = lambda kind, i, n: TensorSpec(name=f"{kind}_{i}", dtype="float32", shape=["batch", config.n_heads, n, config.head_dim])  # noqa: E731
+        cache_spec = lambda kind, i, n: TensorSpec(
+            name=f"{kind}_{i}", dtype="float32", shape=["batch", config.n_heads, n, config.head_dim]
+        )
         built.append(
             Variant(
                 id=variant_id,
@@ -259,16 +308,29 @@ def build_lm_package(
                 inputs=[
                     TensorSpec(name="input_ids", dtype="int64", shape=["batch", "seq"]),
                     TensorSpec(name="position_ids", dtype="int64", shape=["batch", "seq"]),
-                    *[cache_spec(f"past_{kind}", i, "past") for i in range(config.n_layers) for kind in ("key", "value")],
+                    *[
+                        cache_spec(f"past_{kind}", i, "past")
+                        for i in range(config.n_layers)
+                        for kind in ("key", "value")
+                    ],
                 ],
                 outputs=[
                     TensorSpec(name="logits", dtype="float32", shape=["batch", "seq", config.vocab_size]),
-                    *[cache_spec(f"present_{kind}", i, "total") for i in range(config.n_layers) for kind in ("key", "value")],
+                    *[
+                        cache_spec(f"present_{kind}", i, "total")
+                        for i in range(config.n_layers)
+                        for kind in ("key", "value")
+                    ],
                 ],
                 graph=Blob(sha256=sha256(graph), bytes=len(graph)),
                 shards=shards,
                 requirements=requirements,
-                parity=Parity(reference="tinylm.TinyLM (float64, autodiff)", samples=0, max_abs_error=0.0, tolerance=VARIANT_TOLERANCE[variant_id]),
+                parity=Parity(
+                    reference="tinylm.TinyLM (float64, autodiff)",
+                    samples=0,
+                    max_abs_error=0.0,
+                    tolerance=VARIANT_TOLERANCE[variant_id],
+                ),
             )
         )
 
@@ -285,7 +347,9 @@ def build_lm_package(
         description=description,
         interface="text/char.v1",
         parameters=int(sum(w.size for w in weights.values())),
-        provenance=Provenance(trainer="tinylm (autodiff)", source_format="tinylm.npz", exported_with=_versions(), **(provenance or {})),
+        provenance=Provenance(
+            trainer="tinylm (autodiff)", source_format="tinylm.npz", exported_with=_versions(), **(provenance or {})
+        ),
         config={**config.__dict__, "head_dim": config.head_dim, "masked": MASKED},
         assets={"tokenizer": Blob(sha256=sha256(tokenizer), bytes=len(tokenizer))},
         variants=built,
@@ -295,12 +359,16 @@ def build_lm_package(
 
     # Check what was packaged -- shards and all -- per variant.
     for variant in built:
-        restored = inline_external_data(blobs[variant.graph.sha256], blobs.__getitem__, {s.path: s.sha256 for s in variant.shards})
+        restored = inline_external_data(
+            blobs[variant.graph.sha256], blobs.__getitem__, {s.path: s.sha256 for s in variant.shards}
+        )
         runner = LMRunner(restored, config)
         logits = runner.full(held_out_windows)
         error = float(np.abs(logits - reference).max())
         if not error <= variant.parity.tolerance:
-            raise ValueError(f"{label} ({variant.id}): logits differ from the checkpoint by {error:.3g} (> {variant.parity.tolerance})")
+            raise ValueError(
+                f"{label} ({variant.id}): logits differ from the checkpoint by {error:.3g} (> {variant.parity.tolerance})"
+            )
         # Agreement is measured the way a client generates -- a prompt, then one token at a time through
         # the cache -- because that's what visitors see. For float variants that equals a full pass
         # (checked); int8 quantizes activations per call, so a one-token call legitimately rounds
@@ -311,7 +379,9 @@ def build_lm_package(
         if variant.dtype == "float32":
             cache_error = float(np.abs(generated - logits[: len(sampled)]).max())
             if not cache_error <= 1e-3:
-                raise ValueError(f"{label} ({variant.id}): decoding through the cache differs from a full pass by {cache_error:.3g}")
+                raise ValueError(
+                    f"{label} ({variant.id}): decoding through the cache differs from a full pass by {cache_error:.3g}"
+                )
         agree = float((generated.argmax(-1) == expected_top1[: len(sampled)]).mean())
         package = with_parity(
             package,

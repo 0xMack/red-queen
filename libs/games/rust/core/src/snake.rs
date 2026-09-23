@@ -263,7 +263,10 @@ impl Snake {
         let side = DIRECTIONS[(self.direction + 1) % 4];
         let (vx, vy) = (cell.0 - hx, cell.1 - hy);
         let scale = (self.width.max(self.height) - 1).max(1) as f64;
-        [(vx * forward.0 + vy * forward.1) as f64 / scale, (vx * side.0 + vy * side.1) as f64 / scale]
+        [
+            (vx * forward.0 + vy * forward.1) as f64 / scale,
+            (vx * side.0 + vy * side.1) as f64 / scale,
+        ]
     }
 
     pub fn encode(&self, observer: Observer) -> Vec<f64> {
@@ -443,7 +446,10 @@ mod tests {
         a.set_state(vec![(5, 5), (4, 5), (3, 5), (3, 4)], 0, Some((7, 6)));
         let mut b = Snake::new(10, 10, 0, None);
         b.set_state(vec![(5, 5), (5, 4), (5, 3), (6, 3)], 1, Some((4, 7)));
-        assert_eq!(a.encode(Observer::Egocentric)[21..], b.encode(Observer::Egocentric)[21..]);
+        assert_eq!(
+            a.encode(Observer::Egocentric)[21..],
+            b.encode(Observer::Egocentric)[21..]
+        );
     }
 
     #[test]
@@ -467,8 +473,15 @@ mod tests {
         }
         assert_eq!((total, steps), (expected, n));
         assert!(!game.alive && game.body == twin.body);
-        assert_eq!(game.play(Observer::Features, &straight, 2).unwrap().1, 2, "max_steps caps the episode");
-        assert!(game.play(Observer::GridFlat, &straight, 10).is_err(), "11 inputs can't read a 100-cell grid");
+        assert_eq!(
+            game.play(Observer::Features, &straight, 2).unwrap().1,
+            2,
+            "max_steps caps the episode"
+        );
+        assert!(
+            game.play(Observer::GridFlat, &straight, 10).is_err(),
+            "11 inputs can't read a 100-cell grid"
+        );
     }
 
     #[test]

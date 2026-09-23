@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
+from modelpack import LocalModelStore
 from telemetry import (
     ArtifactStore,
     EvaluationStore,
@@ -19,8 +20,6 @@ from telemetry import (
     SqliteEvaluationStore,
     SqliteRunRegistry,
 )
-
-from modelpack import LocalModelStore
 
 from backend.settings import models_dir, run_data_dir
 
@@ -48,7 +47,6 @@ def _evaluation_store() -> SqliteEvaluationStore:
 @lru_cache
 def _model_store() -> LocalModelStore:
     return LocalModelStore(models_dir())
-
 
 
 RunRegistryDep = Annotated[RunRegistry, Depends(_run_registry)]

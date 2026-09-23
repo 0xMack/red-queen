@@ -131,7 +131,9 @@ def measure_quality(interface: Interface, factory: PolicyFactory, training_seeds
     return quality
 
 
-def measure_inference(interface: Interface, factory: PolicyFactory, repeats: int = 5, decisions: int = 400) -> dict[str, Any]:
+def measure_inference(
+    interface: Interface, factory: PolicyFactory, repeats: int = 5, decisions: int = 400
+) -> dict[str, Any]:
     """Median-of-repeats per-decision latency, split into encoding the game (observer) and deciding
     (policy), after a warm-up. Uses real game states from one episode, replayed."""
     game = interface.make_game(seed=HELD_OUT_SEEDS[0], **BOARD)
@@ -156,7 +158,11 @@ def measure_inference(interface: Interface, factory: PolicyFactory, repeats: int
 
     encode_us = per_call_us(lambda: [interface.observer.encode(game) for _ in observations])
     decide_us = per_call_us(lambda: [policy(o) for o in observations])
-    return {"encode_us": round(encode_us, 3), "decide_us": round(decide_us, 3), "total_us": round(encode_us + decide_us, 3)}
+    return {
+        "encode_us": round(encode_us, 3),
+        "decide_us": round(decide_us, 3),
+        "total_us": round(encode_us + decide_us, 3),
+    }
 
 
 # --- Entrants from runs -----------------------------------------------------------------------------
@@ -193,8 +199,14 @@ def model_shape(network, algorithm: str, selection: str | None) -> dict[str, Any
 
     if isinstance(network, NeatGenome):
         hidden, connections = network.complexity()
-        return {"algorithm": algorithm, "selection": selection, "hidden_nodes": hidden, "connections": connections,
-                "inputs": network.num_inputs, "outputs": network.num_outputs}
+        return {
+            "algorithm": algorithm,
+            "selection": selection,
+            "hidden_nodes": hidden,
+            "connections": connections,
+            "inputs": network.num_inputs,
+            "outputs": network.num_outputs,
+        }
     return {"algorithm": algorithm, "selection": selection, "layer_sizes": list(network.layer_sizes)}
 
 
@@ -295,7 +307,9 @@ def packaged_entrants(entrants: list[dict[str, Any]], store: ModelStore, game: s
     return result
 
 
-def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, hardware: dict[str, Any]) -> EvaluationRecord:
+def evaluate_entrant(
+    entrant: dict[str, Any], metrics: FileMetricsStore | None, hardware: dict[str, Any]
+) -> EvaluationRecord:
     interface = interfaces.get(entrant["interface"])
     run: RunInfo | None = entrant.get("run")
     quality = measure_quality(interface, entrant["factory"], entrant.get("training_seeds", BENCHMARK_SEEDS))

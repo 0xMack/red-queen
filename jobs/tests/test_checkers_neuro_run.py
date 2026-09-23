@@ -8,7 +8,9 @@ def test_training_run_evolves_a_position_evaluator_through_match_fitness(tmp_pat
     monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_neuro_run, "MONITOR_GAMES", 2)
 
-    run_id = checkers_neuro_run.main(generations=2, population_size=6, hidden=4, opponents=("random", "material-1"), held_out_every=1)
+    run_id = checkers_neuro_run.main(
+        generations=2, population_size=6, hidden=4, opponents=("random", "material-1"), held_out_every=1
+    )
 
     run = SqliteRunRegistry(tmp_path / "runs.db").get_run(run_id)
     assert run.status == "completed"

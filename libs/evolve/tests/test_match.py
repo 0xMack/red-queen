@@ -63,9 +63,7 @@ def test_play_match_alternates_players_and_reports_the_winner():
 
 def test_play_match_stops_at_max_moves_without_a_winner():
     # A pile far bigger than max_moves * 3 can possibly exhaust -- the match must be cut off.
-    result = play_match(
-        _NimEnvironment(tokens=1000), {0: _always_take_one, 1: _always_take_one}, max_moves=5
-    )
+    result = play_match(_NimEnvironment(tokens=1000), {0: _always_take_one, 1: _always_take_one}, max_moves=5)
 
     assert result.moves_played == 5
     assert result.winner is None

@@ -193,6 +193,10 @@ Each directory has its own README with specifics — this file is the map, not t
 ## Working in this repo
 
 - **Read [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) before writing code, not after.**
+- **CI (`.github/workflows/ci.yml`) runs on every PR**: `ruff check`/`ruff format --check`/`pytest` (which also
+  checks the WASM build and the frontend's OpenAPI snapshot are current), `cargo fmt --check`/`clippy -D
+  warnings`/`cargo test` in `libs/games`, and the frontend's generated-types check, `pnpm typecheck` and
+  `pnpm build`. Run the same locally before pushing.
 - **Python tooling is `uv`**, as a workspace (root `pyproject.toml`, `[tool.uv.workspace]`, one
   shared `.venv`/`uv.lock` for every `libs/*` package). `uv sync --all-packages` installs
   everything into that one venv — plain `uv sync` only installs the (virtual, package-less) root

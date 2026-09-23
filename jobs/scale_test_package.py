@@ -28,13 +28,20 @@ MODELS_DIR = Path(__file__).parent / "run-data" / "models"
 def main(d_model: int = 768, n_layers: int = 12) -> None:
     tokenizer, _, held_out = split_corpus()
     config = TinyLMConfig(
-        vocab_size=tokenizer.vocab_size, max_seq_len=128, d_model=d_model, n_heads=d_model // 64, n_layers=n_layers, d_hidden=4 * d_model
+        vocab_size=tokenizer.vocab_size,
+        max_seq_len=128,
+        d_model=d_model,
+        n_heads=d_model // 64,
+        n_layers=n_layers,
+        d_hidden=4 * d_model,
     )
     started = time.perf_counter()
     model = build(config, seed=0)
     weights = named_parameters(model)
     parameters = sum(w.size for w in weights.values())
-    print(f"{parameters:,} parameters ({parameters * 4 / 1e6:,.0f} MB fp32), built in {time.perf_counter() - started:.0f}s")
+    print(
+        f"{parameters:,} parameters ({parameters * 4 / 1e6:,.0f} MB fp32), built in {time.perf_counter() - started:.0f}s"
+    )
 
     windows = held_out[: 16 * config.max_seq_len].reshape(16, config.max_seq_len)
     package = build_lm_package(

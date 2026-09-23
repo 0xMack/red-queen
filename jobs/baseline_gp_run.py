@@ -90,8 +90,7 @@ def main() -> None:
 
     rng = random.Random(0)
     population = [
-        random_program(NUM_INSTRUCTIONS, NUM_REGISTERS, num_inputs=1, rng=rng)
-        for _ in range(POPULATION_SIZE)
+        random_program(NUM_INSTRUCTIONS, NUM_REGISTERS, num_inputs=1, rng=rng) for _ in range(POPULATION_SIZE)
     ]
 
     with recorded_run(config) as run:

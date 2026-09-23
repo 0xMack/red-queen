@@ -93,9 +93,7 @@ def test_json_round_trips_and_network_from_json_dispatches_on_type():
 
     assert NeatGenome.from_json(g.to_json()) == g
     assert network_from_json(g.to_json()) == g
-    assert (
-        network_from_json(wv.to_json()) == wv
-    )  # no "type" field: old artifacts keep loading
+    assert network_from_json(wv.to_json()) == wv  # no "type" field: old artifacts keep loading
     with pytest.raises(ValueError):
         network_from_json(json.dumps({"type": "nope"}))
 
@@ -130,9 +128,7 @@ def test_initial_genome_wires_every_input_and_the_bias_to_every_output_with_no_h
 
     assert len(g.connections) == (2 + 1) * 3
     assert g.hidden_ids == ()
-    assert [c.innovation for c in g.connections] == sorted(
-        c.innovation for c in g.connections
-    )
+    assert [c.innovation for c in g.connections] == sorted(c.innovation for c in g.connections)
 
 
 def test_add_node_splits_a_connection_the_way_the_paper_describes():
@@ -162,15 +158,11 @@ def test_add_node_never_splits_a_bias_connection_or_a_disabled_one():
 
 def test_add_node_does_not_burn_node_ids_on_connections_it_does_not_split():
     tracker = InnovationTracker(first_hidden_id=4)
-    g = genome(
-        (tracker.connection(0, 3), 0, 3, 1.0), (tracker.connection(1, 3), 1, 3, 1.0)
-    )
+    g = genome((tracker.connection(0, 3), 0, 3, 1.0), (tracker.connection(1, 3), 1, 3, 1.0))
 
     child = add_node(g, tracker, CONFIG, random.Random(0))
 
-    assert child.hidden_ids == (
-        4,
-    )  # the first id, not the second: only the chosen split was allocated
+    assert child.hidden_ids == (4,)  # the first id, not the second: only the chosen split was allocated
 
 
 def test_add_node_respects_the_hidden_node_cap():
@@ -188,9 +180,7 @@ def test_two_genomes_splitting_the_same_connection_get_the_same_hidden_node():
     a = add_node(base, tracker, CONFIG, random.Random(1))
     b = add_node(base, tracker, CONFIG, random.Random(2))
 
-    assert [c.innovation for c in a.connections] == [
-        c.innovation for c in b.connections
-    ]
+    assert [c.innovation for c in a.connections] == [c.innovation for c in b.connections]
     assert a.hidden_ids == b.hidden_ids == (4,)
 
 
@@ -244,13 +234,7 @@ def test_toggle_flips_exactly_one_gene():
 
     toggled = toggle_connection(g, random.Random(0))
 
-    assert (
-        sum(
-            a.enabled != b.enabled
-            for a, b in zip(g.connections, toggled.connections, strict=True)
-        )
-        == 1
-    )
+    assert sum(a.enabled != b.enabled for a, b in zip(g.connections, toggled.connections, strict=True)) == 1
 
 
 # --- alignment / crossover / compatibility -------------------------------------------------------------
@@ -283,9 +267,7 @@ def test_crossover_picks_each_matching_gene_from_either_parent():
     origins = set()
     for seed in range(40):
         child = crossover(PARENT_A, PARENT_B, CONFIG, random.Random(seed))
-        origins |= {
-            c.source for c in child.connections if c.innovation <= 5
-        }  # A's source is 0, B's is 1
+        origins |= {c.source for c in child.connections if c.innovation <= 5}  # A's source is 0, B's is 1
 
     assert origins == {0, 1}
 
@@ -302,20 +284,14 @@ def test_a_gene_disabled_in_either_parent_is_usually_disabled_in_the_child():
 
 def test_compatibility_distance_is_zero_for_identical_genomes_and_symmetric():
     assert compatibility_distance(PARENT_A, PARENT_A, CONFIG) == 0.0
-    assert compatibility_distance(PARENT_A, PARENT_B, CONFIG) == compatibility_distance(
-        PARENT_B, PARENT_A, CONFIG
-    )
+    assert compatibility_distance(PARENT_A, PARENT_B, CONFIG) == compatibility_distance(PARENT_B, PARENT_A, CONFIG)
 
 
 def test_compatibility_distance_matches_a_hand_computed_value():
     # E=2 (9,10), D=3 (8 in A; 6,7 in B), N=1 (small genomes), mean |dw| over matching = |1-(-1)| = 2
-    config = NeatConfig(
-        excess_coefficient=1.0, disjoint_coefficient=1.0, weight_coefficient=0.4
-    )
+    config = NeatConfig(excess_coefficient=1.0, disjoint_coefficient=1.0, weight_coefficient=0.4)
 
-    assert compatibility_distance(PARENT_A, PARENT_B, config) == pytest.approx(
-        2 + 3 + 0.4 * 2.0
-    )
+    assert compatibility_distance(PARENT_A, PARENT_B, config) == pytest.approx(2 + 3 + 0.4 * 2.0)
 
 
 def test_compatibility_distance_normalizes_by_size_once_genomes_are_large():
@@ -343,16 +319,12 @@ class XorFitness:
         return [1.0 - ((g.forward(x)[0] + 1) / 2 - y) ** 2 for x, y in self.CASES]
 
 
-def _run_xor(
-    config: NeatConfig, seed: int, generations: int = 60, population_size: int = 100
-):
+def _run_xor(config: NeatConfig, seed: int, generations: int = 60, population_size: int = 100):
     rng = random.Random(seed)
     tracker = InnovationTracker(first_hidden_id=2 + 1 + 1)
     population = [initial_genome(2, 1, tracker, rng) for _ in range(population_size)]
     summaries = []
-    evolve_neat(
-        population, tracker, XorFitness(), config, generations, [summaries.append], rng
-    )
+    evolve_neat(population, tracker, XorFitness(), config, generations, [summaries.append], rng)
     return summaries
 
 
@@ -362,9 +334,7 @@ def test_evolve_neat_learns_xor_and_reports_species_and_structure_in_extras():
     # XOR is not linearly separable: the initial no-hidden-node structure cannot get above ~0.75 mean
     assert summaries[-1].best_fitness > 0.9
     assert summaries[-1].best_fitness > summaries[0].best_fitness
-    assert {"species", "champion_hidden_nodes", "champion_connections"} <= summaries[
-        -1
-    ].extras.keys()
+    assert {"species", "champion_hidden_nodes", "champion_connections"} <= summaries[-1].extras.keys()
     assert summaries[-1].champion.complexity()[0] >= 1  # it grew structure to get there
 
 
@@ -397,9 +367,7 @@ def test_evolve_neat_never_loses_its_best_genome_between_generations():
     summaries = _run_xor(NeatConfig(), seed=2, generations=25)
 
     bests = [s.best_fitness for s in summaries]
-    assert all(
-        b2 >= b1 - 1e-9 for b1, b2 in itertools.pairwise(bests)
-    )  # elitism: the champion is carried over
+    assert all(b2 >= b1 - 1e-9 for b1, b2 in itertools.pairwise(bests))  # elitism: the champion is carried over
 
 
 def test_a_target_species_count_steers_the_compatibility_threshold_toward_it():

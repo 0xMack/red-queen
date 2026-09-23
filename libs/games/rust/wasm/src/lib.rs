@@ -20,11 +20,15 @@ impl SnakeGame {
     /// `seed` is a u32 (JS numbers carry 53 bits; every seed the site generates fits in 32).
     #[wasm_bindgen(constructor)]
     pub fn new(width: i32, height: i32, seed: u32, observer_id: &str) -> Result<SnakeGame, JsError> {
-        let observer = Observer::from_id(observer_id).ok_or_else(|| JsError::new(&format!("unknown snake observer: {observer_id}")))?;
+        let observer = Observer::from_id(observer_id)
+            .ok_or_else(|| JsError::new(&format!("unknown snake observer: {observer_id}")))?;
         if !Snake::fits(width, height) {
             return Err(JsError::new("board too small for the starting snake"));
         }
-        Ok(SnakeGame { inner: Snake::new(width, height, seed as u64, None), observer })
+        Ok(SnakeGame {
+            inner: Snake::new(width, height, seed as u64, None),
+            observer,
+        })
     }
 
     pub fn reset(&mut self) {
@@ -67,7 +71,15 @@ impl SnakeGame {
         use redqueen_games::snake::Label;
         let mut out = Vec::new();
         for (x, y, label) in self.inner.cells() {
-            out.extend([x, y, match label { Label::Body => 0, Label::Head => 1, Label::Food => 2 }]);
+            out.extend([
+                x,
+                y,
+                match label {
+                    Label::Body => 0,
+                    Label::Head => 1,
+                    Label::Food => 2,
+                },
+            ]);
         }
         out
     }
@@ -92,7 +104,9 @@ pub struct RandomPolicy {
 impl RandomPolicy {
     #[wasm_bindgen(constructor)]
     pub fn new(seed: u32) -> RandomPolicy {
-        RandomPolicy { inner: SnakeRandom::new(seed as u64) }
+        RandomPolicy {
+            inner: SnakeRandom::new(seed as u64),
+        }
     }
 
     pub fn decide(&mut self, observation: &[f64]) -> i32 {
@@ -135,7 +149,10 @@ impl CheckersGame {
     /// An independent copy of this game in its current position -- what a lookahead strategy steps
     /// through to see a move's consequences without touching the real game.
     pub fn duplicate(&self) -> CheckersGame {
-        CheckersGame { inner: self.inner.clone(), moves: self.moves.clone() }
+        CheckersGame {
+            inner: self.inner.clone(),
+            moves: self.moves.clone(),
+        }
     }
 
     /// Flattened: for each move, its square count n, then n (x, y) pairs.
@@ -153,7 +170,11 @@ impl CheckersGame {
 
     /// Play the `index`-th legal move; returns whether the game is over.
     pub fn step(&mut self, index: usize) -> Result<bool, JsError> {
-        let mv = self.moves.get(index).ok_or_else(|| JsError::new("no such legal move"))?.clone();
+        let mv = self
+            .moves
+            .get(index)
+            .ok_or_else(|| JsError::new("no such legal move"))?
+            .clone();
         let done = self.inner.step(&mv).map_err(|e| JsError::new(&e))?;
         self.moves = if done { Vec::new() } else { self.inner.legal_moves() };
         Ok(done)
@@ -164,7 +185,10 @@ impl CheckersGame {
     }
 
     pub fn simulate(&self, index: usize) -> Result<Vec<f64>, JsError> {
-        let mv = self.moves.get(index).ok_or_else(|| JsError::new("no such legal move"))?;
+        let mv = self
+            .moves
+            .get(index)
+            .ok_or_else(|| JsError::new("no such legal move"))?;
         self.inner.simulate(mv).map_err(|e| JsError::new(&e))
     }
 
@@ -216,8 +240,15 @@ impl CheckersStrategy {
         graph: Option<Vec<f64>>,
     ) -> Result<CheckersStrategy, JsError> {
         let layers = layer_sizes.map(|l| l.into_iter().map(|n| n as usize).collect());
-        let inner = redqueen_games::checkers_strategies::Strategy::build(name, seed as u64, weights, layers, depth.unwrap_or(1), graph)
-            .map_err(|e| JsError::new(&e))?;
+        let inner = redqueen_games::checkers_strategies::Strategy::build(
+            name,
+            seed as u64,
+            weights,
+            layers,
+            depth.unwrap_or(1),
+            graph,
+        )
+        .map_err(|e| JsError::new(&e))?;
         Ok(CheckersStrategy { inner })
     }
 
@@ -229,7 +260,9 @@ impl CheckersStrategy {
     /// Every layer's values, concatenated (input layer first; split by the network's layer sizes), when the
     /// network evaluated the position legal move `index` leads to -- or undefined for a strategy without one.
     pub fn activations(&self, game: &CheckersGame, index: usize) -> Option<Vec<f64>> {
-        self.inner.activations(&game.inner, index).map(|layers| layers.into_iter().flatten().collect())
+        self.inner
+            .activations(&game.inner, index)
+            .map(|layers| layers.into_iter().flatten().collect())
     }
 
     pub fn pick(&mut self, game: &CheckersGame) -> Result<usize, JsError> {
@@ -248,8 +281,24 @@ pub struct Reach1DGame {
 #[wasm_bindgen]
 impl Reach1DGame {
     #[wasm_bindgen(constructor)]
-    pub fn new(target: f64, start_position: f64, start_velocity: f64, dt: f64, max_acceleration: f64, damping: f64) -> Reach1DGame {
-        Reach1DGame { inner: redqueen_games::reach1d::Reach1D::new(target, start_position, start_velocity, dt, max_acceleration, damping) }
+    pub fn new(
+        target: f64,
+        start_position: f64,
+        start_velocity: f64,
+        dt: f64,
+        max_acceleration: f64,
+        damping: f64,
+    ) -> Reach1DGame {
+        Reach1DGame {
+            inner: redqueen_games::reach1d::Reach1D::new(
+                target,
+                start_position,
+                start_velocity,
+                dt,
+                max_acceleration,
+                damping,
+            ),
+        }
     }
 
     pub fn reset(&mut self) {

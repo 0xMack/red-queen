@@ -7,9 +7,16 @@ mistake no individual primitive's test could catch.
 """
 
 import numpy as np
-
 from autodiff import Tensor
-from tinylm.layers import MLP, CausalSelfAttention, Embedding, LayerNorm, Linear, TransformerBlock
+
+from tinylm.layers import (
+    MLP,
+    CausalSelfAttention,
+    Embedding,
+    LayerNorm,
+    Linear,
+    TransformerBlock,
+)
 
 
 def _numerical_grad(f, x: np.ndarray, eps: float = 1e-5) -> np.ndarray:

@@ -89,7 +89,9 @@ def baseline_entrants() -> list[dict[str, Any]]:
     ]
 
 
-def champion_entrants(registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore) -> list[dict[str, Any]]:
+def champion_entrants(
+    registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore
+) -> list[dict[str, Any]]:
     entrants = []
     for run in registry.list_runs():
         if run.config.get("game") != GAME or run.config.get("interface") != INTERFACE:
@@ -112,8 +114,12 @@ def champion_entrants(registry: SqliteRunRegistry, metrics: FileMetricsStore, ar
         entrants.append(
             {
                 "entrant_id": f"run:{run.run_id}",
-                "label": f"{kind} {network}" + (f" · {selection}" if selection else "") + (f" · {depth}-ply" if depth > 1 else ""),
-                "factory": graph_evaluator(champion.graph_encoding(), depth) if neat else evaluator(champion.weights, champion.layer_sizes, depth),
+                "label": f"{kind} {network}"
+                + (f" · {selection}" if selection else "")
+                + (f" · {depth}-ply" if depth > 1 else ""),
+                "factory": graph_evaluator(champion.graph_encoding(), depth)
+                if neat
+                else evaluator(champion.weights, champion.layer_sizes, depth),
                 "run": run,
                 "champion_ref": champion_ref,
                 "model": f"{'evolved graph' if neat else 'MLP'} {network}, tanh: a position evaluator, {searching}",
@@ -147,7 +153,9 @@ def play_pairing(a: Factory, b: Factory, games: int, seed_base: int) -> list[tup
     return results
 
 
-def round_robin(entrants: list[dict[str, Any]], games: int = GAMES_PER_PAIR) -> dict[str, dict[str, list[tuple[float, int]]]]:
+def round_robin(
+    entrants: list[dict[str, Any]], games: int = GAMES_PER_PAIR
+) -> dict[str, dict[str, list[tuple[float, int]]]]:
     """results[a][b] = a's (points, plies) games against b (b's are the mirror image)."""
     results: dict[str, dict[str, list[tuple[float, int]]]] = {e["entrant_id"]: {} for e in entrants}
     for index, (a, b) in enumerate(itertools.combinations(entrants, 2)):
@@ -185,7 +193,11 @@ def versus_of(by_opponent: dict[str, list[tuple[float, int]]]) -> dict[str, Any]
         }
 
     everything = [g for games in by_opponent.values() for g in games]
-    return {**wdl(everything), "games_per_pair": len(next(iter(by_opponent.values()))), "by_opponent": {k: wdl(v) for k, v in by_opponent.items()}}
+    return {
+        **wdl(everything),
+        "games_per_pair": len(next(iter(by_opponent.values()))),
+        "by_opponent": {k: wdl(v) for k, v in by_opponent.items()},
+    }
 
 
 def measure_inference(factory: Factory, positions: int = 200, repeats: int = 3) -> dict[str, Any]:
@@ -218,7 +230,12 @@ def _copy(env: Checkers) -> Checkers:
     return copy.deepcopy(env)
 
 
-def evaluate_all(entrants: list[dict[str, Any]], metrics: FileMetricsStore | None, hardware: dict[str, Any], games: int = GAMES_PER_PAIR) -> list[EvaluationRecord]:
+def evaluate_all(
+    entrants: list[dict[str, Any]],
+    metrics: FileMetricsStore | None,
+    hardware: dict[str, Any],
+    games: int = GAMES_PER_PAIR,
+) -> list[EvaluationRecord]:
     results = round_robin(entrants, games)
     interface = interfaces.get(INTERFACE)
     records = []

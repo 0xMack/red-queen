@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
-from modelpack import LocalModelStore
-from modelpack.lm import LMConfig, LMRunner, build_lm_package, export_tinylm
 from tinylm import CharTokenizer, TinyLM
 from tinylm.checkpoint import named_parameters
+
+from modelpack import LocalModelStore
+from modelpack.lm import LMConfig, LMRunner, build_lm_package, export_tinylm
 
 CONFIG = LMConfig(vocab_size=12, max_seq_len=10, d_model=16, n_heads=4, n_layers=2, d_hidden=24)
 
@@ -55,7 +56,16 @@ def test_a_wrong_export_is_rejected(trained_like):
     weights = dict(named_parameters(model))
     weights["head.bias"] = weights["head.bias"] + 1.0  # the reference below doesn't have this
     with pytest.raises(ValueError, match="differ"):
-        build_lm_package(weights, CONFIG, list("abcdefghijkl"), _reference(model), windows, label="broken", description="", variants=("fp32",))
+        build_lm_package(
+            weights,
+            CONFIG,
+            list("abcdefghijkl"),
+            _reference(model),
+            windows,
+            label="broken",
+            description="",
+            variants=("fp32",),
+        )
 
 
 def test_tokenizer_is_the_checkpoints():
@@ -68,8 +78,9 @@ def test_shapes_and_small_tensors_stay_in_the_graph(trained_like):
     # ONNX Runtime Web resolves Reshape targets before attaching external data; a sharded int64 shape
     # makes session creation fail in the browser (never in Python, which inlines everything first).
     import onnx
-    from modelpack.packaging import INLINE_BELOW_BYTES, shard_initializers
     from onnx.external_data_helper import uses_external_data
+
+    from modelpack.packaging import INLINE_BELOW_BYTES, shard_initializers
 
     model, _ = trained_like
     sharded, shards, _ = shard_initializers(export_tinylm(named_parameters(model), CONFIG))
@@ -84,9 +95,10 @@ def test_shapes_and_small_tensors_stay_in_the_graph(trained_like):
 
 
 def test_quantized_weights_are_sharded_not_left_in_the_graph(trained_like):
+    from onnx.external_data_helper import uses_external_data
+
     from modelpack.lm import quantize_int8
     from modelpack.packaging import INLINE_BELOW_BYTES, shard_initializers
-    from onnx.external_data_helper import uses_external_data
 
     model, _ = trained_like
     sharded, _, _ = shard_initializers(quantize_int8(export_tinylm(named_parameters(model), CONFIG)))

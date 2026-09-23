@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from games.checkers import Checkers, CheckersBoard32, Evaluate1Ply
 from games.observation import Interface
-from games.snake import RelativeTurn3, Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
+from games.snake import (
+    RelativeTurn3,
+    Snake,
+    SnakeEgocentric,
+    SnakeFeatures,
+    SnakeGridFlat,
+)
 
 
 def _snake_interface(observer) -> Interface:
@@ -26,7 +32,12 @@ _ALL: list[Interface] = [
     _snake_interface(SnakeFeatures()),
     _snake_interface(SnakeGridFlat()),
     _snake_interface(SnakeEgocentric()),
-    Interface(game="checkers", observer=CheckersBoard32(), action=Evaluate1Ply(), make_game=lambda **kwargs: Checkers(**kwargs)),
+    Interface(
+        game="checkers",
+        observer=CheckersBoard32(),
+        action=Evaluate1Ply(),
+        make_game=lambda **kwargs: Checkers(**kwargs),
+    ),
 ]
 _BY_ID: dict[str, Interface] = {i.id: i for i in _ALL}
 

@@ -8,9 +8,7 @@ def test_reset_returns_position_relative_to_target():
 
 
 def test_step_matches_hand_traced_physics():
-    env = ReachTarget1D(
-        target=5.0, start_position=0.0, start_velocity=0.0, dt=0.1, max_acceleration=1.0, damping=0.98
-    )
+    env = ReachTarget1D(target=5.0, start_position=0.0, start_velocity=0.0, dt=0.1, max_acceleration=1.0, damping=0.98)
     env.reset()
 
     (relative_position, velocity), reward, done = env.step(action=1.0)

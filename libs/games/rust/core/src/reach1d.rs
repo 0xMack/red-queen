@@ -17,8 +17,24 @@ pub struct Reach1D {
 }
 
 impl Reach1D {
-    pub fn new(target: f64, start_position: f64, start_velocity: f64, dt: f64, max_acceleration: f64, damping: f64) -> Reach1D {
-        Reach1D { target, start_position, start_velocity, dt, max_acceleration, damping, position: start_position, velocity: start_velocity }
+    pub fn new(
+        target: f64,
+        start_position: f64,
+        start_velocity: f64,
+        dt: f64,
+        max_acceleration: f64,
+        damping: f64,
+    ) -> Reach1D {
+        Reach1D {
+            target,
+            start_position,
+            start_velocity,
+            dt,
+            max_acceleration,
+            damping,
+            position: start_position,
+            velocity: start_velocity,
+        }
     }
 
     pub fn reset(&mut self) -> (f64, f64) {

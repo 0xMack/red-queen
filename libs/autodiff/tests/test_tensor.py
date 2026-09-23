@@ -104,9 +104,7 @@ def test_sum_and_mean_with_axis_gradient_match_numerical():
 
     x_mean = Tensor(x_data.copy())
     x_mean.mean(axis=1).sum().backward()
-    assert np.allclose(
-        x_mean.grad, numerical_grad(lambda x: x.mean(axis=1).sum(), x_data.copy()), atol=1e-4
-    )
+    assert np.allclose(x_mean.grad, numerical_grad(lambda x: x.mean(axis=1).sum(), x_data.copy()), atol=1e-4)
 
 
 def test_exp_and_log_gradient_match_numerical():
@@ -128,15 +126,11 @@ def test_relu_and_tanh_gradient_match_numerical():
 
     x_relu = Tensor(x_data.copy())
     x_relu.relu().sum().backward()
-    assert np.allclose(
-        x_relu.grad, numerical_grad(lambda x: np.maximum(0.0, x).sum(), x_data.copy()), atol=1e-4
-    )
+    assert np.allclose(x_relu.grad, numerical_grad(lambda x: np.maximum(0.0, x).sum(), x_data.copy()), atol=1e-4)
 
     x_tanh = Tensor(x_data.copy())
     x_tanh.tanh().sum().backward()
-    assert np.allclose(
-        x_tanh.grad, numerical_grad(lambda x: np.tanh(x).sum(), x_data.copy()), atol=1e-4
-    )
+    assert np.allclose(x_tanh.grad, numerical_grad(lambda x: np.tanh(x).sum(), x_data.copy()), atol=1e-4)
 
 
 def test_transpose_and_reshape_gradient_match_numerical():
@@ -262,9 +256,7 @@ def test_backward_through_a_small_two_layer_network_matches_numerical():
     def forward(x_, w1_, w2_):
         return np.maximum(0.0, x_ @ w1_) @ w2_
 
-    assert np.allclose(
-        x.grad, numerical_grad(lambda v: forward(v, w1_data, w2_data).sum(), x_data.copy()), atol=1e-4
-    )
+    assert np.allclose(x.grad, numerical_grad(lambda v: forward(v, w1_data, w2_data).sum(), x_data.copy()), atol=1e-4)
     assert np.allclose(
         w1.grad,
         numerical_grad(lambda v: forward(x_data, v, w2_data).sum(), w1_data.copy()),

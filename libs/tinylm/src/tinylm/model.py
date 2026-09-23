@@ -4,8 +4,8 @@ norm, and an output projection to vocabulary logits."""
 from __future__ import annotations
 
 import numpy as np
-
 from autodiff import Tensor
+
 from tinylm.layers import Embedding, LayerNorm, Linear, TransformerBlock
 
 

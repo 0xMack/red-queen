@@ -5,10 +5,10 @@ many seeds, board sizes and action sequences (random and greedy, which reach lon
 import random
 
 import pytest
+from reference_snake import Pcg32, ReferenceSnake, reference_greedy
+
 from games import _native, baselines
 from games.snake import Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
-
-from reference_snake import Pcg32, ReferenceSnake, reference_greedy
 
 
 @pytest.mark.parametrize("seed", [0, 1, 42, 2**31 - 1, 2**40 + 7, 2**64 - 1])
@@ -76,7 +76,9 @@ def test_baselines_match_their_python_originals():
     greedy = baselines.get("snake", "greedy").factory(0)
     rng = random.Random(0)
     for _ in range(2000):
-        observation = [float(rng.random() < 0.3) for _ in range(3)] + [0.0] * 4 + [float(rng.random() < 0.5) for _ in range(4)]
+        observation = (
+            [float(rng.random() < 0.3) for _ in range(3)] + [0.0] * 4 + [float(rng.random() < 0.5) for _ in range(4)]
+        )
         observation[3 + rng.randrange(4)] = 1.0
         assert greedy(observation) == reference_greedy(observation)
     random_policy = baselines.get("snake", "random").factory(5)
@@ -93,8 +95,9 @@ def test_a_board_too_narrow_for_the_starting_snake_is_rejected():
 
 
 def _play_checkers(seed: int, max_moves_without_capture: int = 40) -> None:
-    from games.checkers import Checkers
     from reference_checkers import Checkers as ReferenceCheckers
+
+    from games.checkers import Checkers
 
     native, reference = Checkers(max_moves_without_capture), ReferenceCheckers(max_moves_without_capture)
     rng = random.Random(seed)
@@ -126,8 +129,9 @@ def test_checkers_draw_limit_is_identical(seed):
 
 
 def test_checkers_positions_set_from_python_play_identically():
-    from games.checkers import Checkers
     from reference_checkers import Checkers as ReferenceCheckers
+
+    from games.checkers import Checkers
 
     board = {(4, 4): (0, True), (5, 3): (1, False), (3, 5): (1, False), (1, 5): (1, True), (0, 2): (0, False)}
     native, reference = Checkers(), ReferenceCheckers()
@@ -144,8 +148,9 @@ def test_checkers_positions_set_from_python_play_identically():
 
 @pytest.mark.parametrize("seed", range(10))
 def test_reach1d_is_bit_identical(seed):
-    from games.reach1d import ReachTarget1D
     from reference_reach1d import ReachTarget1D as ReferenceReach
+
+    from games.reach1d import ReachTarget1D
 
     rng = random.Random(seed)
     kwargs = {"target": rng.uniform(-9, 9), "start_position": rng.uniform(-9, 9), "start_velocity": rng.uniform(-3, 3)}
@@ -154,13 +159,18 @@ def test_reach1d_is_bit_identical(seed):
     for _ in range(500):
         action = rng.choice([rng.uniform(-3, 3), 1.0, -1.0, 0, float("nan"), float("inf")])
         assert native.step(action) == reference.step(action) or _nan_equal(native, reference)
-        assert (native.position, native.velocity) == (reference.position, reference.velocity) or _nan_equal(native, reference)
+        assert (native.position, native.velocity) == (reference.position, reference.velocity) or _nan_equal(
+            native, reference
+        )
 
 
 def _nan_equal(native, reference) -> bool:
     import math
 
-    return all(math.isnan(a) == math.isnan(b) for a, b in ((native.position, reference.position), (native.velocity, reference.velocity)))
+    return all(
+        math.isnan(a) == math.isnan(b)
+        for a, b in ((native.position, reference.position), (native.velocity, reference.velocity))
+    )
 
 
 def test_games_deep_copy_into_independent_states():

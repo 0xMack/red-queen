@@ -102,7 +102,9 @@ def _games_chunk(args: tuple[int, int, int, str]) -> list[tuple[list[float], flo
     return out
 
 
-def build_pool(label_depth: int, games: int, workers: int, seed: int = 0, kind: str = "search") -> tuple[list[list[float]], list[float]]:
+def build_pool(
+    label_depth: int, games: int, workers: int, seed: int = 0, kind: str = "search"
+) -> tuple[list[list[float]], list[float]]:
     """The labelled positions, generated once and cached (the labels cost a deep search each)."""
     POOL_DIR.mkdir(parents=True, exist_ok=True)
     path = POOL_DIR / f"pool-{kind}-k{label_depth}-g{games}-s{seed}.json"
@@ -213,7 +215,16 @@ def main(
             variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
             generations=generations,
             on_generation=[
-                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(
+                    run.metrics,
+                    run.artifacts,
+                    run.run_id,
+                    opponents,
+                    depth,
+                    held_out_every,
+                    generations - 1,
+                    MONITOR_GAMES,
+                ),
                 fitness_inner.on_generation,
                 cost.on_generation,
                 run.control_callback(cost),
@@ -246,8 +257,19 @@ if __name__ == "__main__":
     parser.add_argument("--arm", default=None)
     a = parser.parse_args()
     main(
-        a.generations, a.population, a.hidden, a.depth, a.label_depth, a.pool_games, a.sample, a.sigma,
-        a.mutation_rate, tuple(a.opponents.split(",")), a.rng_seed, a.held_out_every, a.workers,
+        a.generations,
+        a.population,
+        a.hidden,
+        a.depth,
+        a.label_depth,
+        a.pool_games,
+        a.sample,
+        a.sigma,
+        a.mutation_rate,
+        tuple(a.opponents.split(",")),
+        a.rng_seed,
+        a.held_out_every,
+        a.workers,
         {"experiment": a.experiment, "arm": a.arm} if a.experiment else None,
         a.label_kind,
     )
