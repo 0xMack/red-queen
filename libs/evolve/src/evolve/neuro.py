@@ -67,10 +67,9 @@ class WeightVector:
     def to_json(self) -> str:
         """The real (round-trippable) wire format for a WeightVector -- unlike LinearProgram's
         repr()-based serialize_program() in jobs/baseline_gp_run.py (explicitly a prototype, never
-        read back), this one has two real readers: a training job writing champions to
-        ArtifactStore, and the Pyodide bridge (apps/frontend) loading one back to actually run it.
-        JSON, not pickle/numpy, so the exact same code works loading it back inside Pyodide with no
-        extra packages -- this module is pure stdlib on purpose."""
+        read back), this one is read back: training jobs write champions to ArtifactStore, and
+        evaluation, model publishing and the backend's on-demand export load them (a browser plays
+        the `modelpack` export, docs/design/0009). JSON, not pickle/numpy."""
         return json.dumps(
             {"weights": list(self.weights), "layer_sizes": list(self.layer_sizes)}
         )

@@ -23,12 +23,12 @@ async function openCache(): Promise<Cache | null> {
   }
 }
 
-async function sha256Hex(data: Uint8Array): Promise<string> {
+async function sha256Hex(data: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", data)
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function readWithProgress(response: Response, expected: number, onProgress?: Progress): Promise<Uint8Array> {
+async function readWithProgress(response: Response, expected: number, onProgress?: Progress): Promise<Uint8Array<ArrayBuffer>> {
   if (!response.body || !onProgress) return new Uint8Array(await response.arrayBuffer())
   const out = new Uint8Array(expected)
   const reader = response.body.getReader()

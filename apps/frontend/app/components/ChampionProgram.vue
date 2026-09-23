@@ -3,7 +3,7 @@
 // (instructions that can't affect the output register) dimmed -- see utils/linearProgram.ts.
 const props = defineProps<{ runId: string; championRef: string }>()
 
-const config = useRuntimeConfig()
+const api = useApi()
 const raw = ref<string | null>(null)
 const failed = ref(false)
 
@@ -12,10 +12,7 @@ watch(
   async (ref) => {
     failed.value = false
     try {
-      raw.value = await $fetch<string>(`/runs/${props.runId}/artifacts/${ref}`, {
-        baseURL: config.public.apiBase,
-        responseType: "text",
-      })
+      raw.value = await api.fetch<string>(`/runs/${props.runId}/artifacts/${ref}`, { responseType: "text" })
     } catch {
       failed.value = true
     }

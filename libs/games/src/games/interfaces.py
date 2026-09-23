@@ -2,7 +2,8 @@
 
 The one place that maps an interface id -- as recorded in a run's config, a champion, or a
 leaderboard entry -- back to something that can build a correctly-observed game and decode a
-model's outputs. Used by jobs (training, evaluation), apis/backend, and the Pyodide worker alike.
+model's outputs. Used by jobs (training, evaluation) and apis/backend; the browser's worker reads the same
+ids from a model package's manifest.
 """
 
 from __future__ import annotations

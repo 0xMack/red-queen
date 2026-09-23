@@ -5,7 +5,7 @@ import type { GenerationStats, RunInfo } from "~/types/telemetry"
 // the run page does, asking to start a few generations back -- so it demonstrates both halves of
 // backfill-then-live: the backlog arrives at once, then new generations as the job records them.
 // Uses a training run if one is live, otherwise the latest run (which replays and then idles).
-const config = useRuntimeConfig()
+const api = useApi()
 const run = ref<RunInfo | null>(null)
 const events = ref<{ stats: GenerationStats; receivedAt: number }[]>([])
 const status = ref<"connecting" | "open" | "error" | "none">("connecting")
@@ -13,7 +13,7 @@ let source: EventSource | null = null
 
 onMounted(async () => {
   try {
-    const runs = await $fetch<RunInfo[]>("/runs", { baseURL: config.public.apiBase })
+    const runs = await api.fetch<RunInfo[]>("/runs")
     run.value = runs.find((r) => r.status === "running") ?? runs[0] ?? null
   } catch {
     status.value = "error"
@@ -23,11 +23,9 @@ onMounted(async () => {
     status.value = "none"
     return
   }
-  const history = await $fetch<GenerationStats[]>(`/runs/${run.value.run_id}/metrics/history`, {
-    baseURL: config.public.apiBase,
-  }).catch(() => [])
+  const history = await api.fetch<GenerationStats[]>(`/runs/${run.value.run_id}/metrics/history`).catch(() => [])
   const since = Math.max(0, (history.at(-1)?.generation ?? 0) - 4)
-  source = new EventSource(`${config.public.apiBase}/runs/${run.value.run_id}/metrics/stream?since_generation=${since}`)
+  source = new EventSource(api.url(`/runs/${run.value.run_id}/metrics/stream?since_generation=${since}`))
   source.onopen = () => (status.value = "open")
   source.onerror = () => (status.value = "error")
   source.addEventListener("generation", (event) => {

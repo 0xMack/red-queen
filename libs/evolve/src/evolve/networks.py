@@ -2,8 +2,8 @@
 
 `WeightVector.to_json()` (fixed topology) and `NeatGenome.to_json()` (evolved topology) both end up
 as opaque artifacts in `telemetry.ArtifactStore`; whoever reads one back -- `jobs/evaluate.py`,
-`apps/frontend`'s Pyodide bridge -- only needs `forward(observation) -> outputs`, so this picks the
-right class from the payload. NEAT's JSON carries `"type": "neat"`; a WeightVector's never had a
+`jobs/publish_models.py`, `apis/backend`'s on-demand export -- only needs `forward(observation) -> outputs`
+(or `compiled()`), so this picks the right class from the payload. NEAT's JSON carries `"type": "neat"`; a WeightVector's never had a
 type field (and old artifacts must keep loading), so "no type" means WeightVector.
 """
 

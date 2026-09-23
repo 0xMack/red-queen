@@ -149,7 +149,7 @@ export function useVersusSession<P>(
   function recordResult() {
     const w = winner.value
     if (w === null) record.value.draws++
-    else record.value.wins[w]++
+    else record.value.wins[w] = (record.value.wins[w] ?? 0) + 1
   }
 
   function setLatest(c: Candidates) {

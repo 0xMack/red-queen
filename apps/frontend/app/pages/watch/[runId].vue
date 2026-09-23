@@ -8,11 +8,11 @@ import type { RunInfo } from "~/types/telemetry"
 // next to its charts.
 const route = useRoute()
 const runId = route.params.runId as string
-const config = useRuntimeConfig()
+const api = useApi()
 useHead({ title: "Watch" })
 
 const { data: run } = await useAsyncData(`watch-run-${runId}`, () =>
-  $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase }).catch(() => null),
+  api.fetch<RunInfo>(`/runs/${runId}`).catch(() => null),
 )
 const game = computed(() => (typeof run.value?.config?.game === "string" ? run.value.config.game : null))
 </script>

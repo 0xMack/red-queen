@@ -16,8 +16,9 @@ function snakeDevice(slug: string, entries: Readonly<Ref<EvaluationRecord[]>>): 
     const fits: Record<string, DeviceFit> = {}
     for (const r of entries.value) {
       const available = models.availability.value[r.entrant_id]
-      if (available?.match?.ok) fits[r.entrant_id] = { ok: true, note: `${available.match.variant.id} · ${available.match.backend}` }
-      else if (available?.match) fits[r.entrant_id] = { ok: false, note: available.match.summary }
+      const match = available?.match
+      if (match?.ok) fits[r.entrant_id] = { ok: true, note: `${match.variant.id} · ${match.backend}` }
+      else if (match) fits[r.entrant_id] = { ok: false, note: match.summary }
       else if (!available && models.catalog.value) fits[r.entrant_id] = { ok: true, note: "Python (not a published package)" }
     }
     return fits

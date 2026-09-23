@@ -1,0 +1,993 @@
+{
+  "components": {
+    "schemas": {
+      "ControlAction": {
+        "enum": [
+          "pause",
+          "resume",
+          "step"
+        ],
+        "title": "ControlAction",
+        "type": "string"
+      },
+      "ControlRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ControlAction",
+            "description": "Control action to apply to a running evolve() call."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ControlRequest",
+        "type": "object"
+      },
+      "EvaluationRecord": {
+        "properties": {
+          "champion_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Champion Ref"
+          },
+          "created_at": {
+            "exclusiveMinimum": 0.0,
+            "title": "Created At",
+            "type": "number"
+          },
+          "entrant_id": {
+            "description": "Stable id, e.g. 'run:<run_id>' or 'baseline:greedy'.",
+            "minLength": 1,
+            "title": "Entrant Id",
+            "type": "string"
+          },
+          "entrant_kind": {
+            "enum": [
+              "champion",
+              "baseline",
+              "human"
+            ],
+            "title": "Entrant Kind",
+            "type": "string"
+          },
+          "game": {
+            "minLength": 1,
+            "title": "Game",
+            "type": "string"
+          },
+          "hardware": {
+            "additionalProperties": true,
+            "title": "Hardware",
+            "type": "object"
+          },
+          "interface": {
+            "description": "Interface id the entrant played under (docs/design/0007).",
+            "title": "Interface",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable entrant name.",
+            "title": "Label",
+            "type": "string"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "protocol": {
+            "description": "Versioned evaluation protocol, e.g. 'snake.score.v1'.",
+            "minLength": 1,
+            "title": "Protocol",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "game",
+          "protocol",
+          "entrant_id",
+          "entrant_kind",
+          "label",
+          "interface",
+          "created_at"
+        ],
+        "title": "EvaluationRecord",
+        "type": "object"
+      },
+      "GenerationStats": {
+        "description": "Per-generation summary stats for one run (and, if using islands, one island).",
+        "properties": {
+          "best_fitness": {
+            "description": "Fitness of the best individual in this generation.",
+            "title": "Best Fitness",
+            "type": "number"
+          },
+          "champion_ref": {
+            "description": "ArtifactStore key for this generation's best individual's stored program.",
+            "minLength": 1,
+            "title": "Champion Ref",
+            "type": "string"
+          },
+          "diversity": {
+            "description": "Population diversity metric for this generation (higher = more diverse).",
+            "minimum": 0.0,
+            "title": "Diversity",
+            "type": "number"
+          },
+          "extras": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Algorithm-specific numbers for this generation, free-form (e.g. NEAT's species count and its champion's structure size). None for algorithms with nothing extra to say. Kept generic on purpose so a new algorithm needs no telemetry schema change.",
+            "title": "Extras"
+          },
+          "generation": {
+            "description": "0-indexed generation number within the run.",
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "held_out_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The champion's mean *game score* on games it never trained on, if the job measured it this generation (usually every N generations -- None otherwise). Monitoring only, never used for selection: it's what shows overfitting, i.e. training fitness rising while this falls (docs/design/0007).",
+            "title": "Held Out Score"
+          },
+          "island_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Island id, if the run uses an island model; None for a single population.",
+            "title": "Island Id"
+          },
+          "mean_fitness": {
+            "description": "Mean fitness across the generation's population.",
+            "title": "Mean Fitness",
+            "type": "number"
+          },
+          "run_id": {
+            "description": "Registry-assigned id of the run this generation belongs to.",
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Unix timestamp when this generation's stats were recorded.",
+            "exclusiveMinimum": 0.0,
+            "title": "Timestamp",
+            "type": "number"
+          },
+          "worst_fitness": {
+            "description": "Fitness of the worst individual in this generation.",
+            "title": "Worst Fitness",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_id",
+          "generation",
+          "timestamp",
+          "best_fitness",
+          "mean_fitness",
+          "worst_fitness",
+          "diversity",
+          "champion_ref"
+        ],
+        "title": "GenerationStats",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "RunInfo": {
+        "description": "Metadata for one evolution run, as stored in the RunRegistry.",
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "description": "Run configuration/hyperparameters as provided at creation.",
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "description": "Unix timestamp when the run was created.",
+            "exclusiveMinimum": 0.0,
+            "title": "Created At",
+            "type": "number"
+          },
+          "run_id": {
+            "description": "Unique id for this run, assigned at creation.",
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current lifecycle status of the run.",
+            "enum": [
+              "running",
+              "paused",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Final summary metrics once the run completes, if set.",
+            "title": "Summary"
+          },
+          "updated_at": {
+            "description": "Unix timestamp of the last status/summary update.",
+            "exclusiveMinimum": 0.0,
+            "title": "Updated At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_id",
+          "config",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RunInfo",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "red-queen backend",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/games/{game}/interfaces": {
+      "get": {
+        "description": "The representations (observer + action adapter) a model can be trained under for `game`.",
+        "operationId": "get_interfaces_games__game__interfaces_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game",
+            "required": true,
+            "schema": {
+              "title": "Game",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Interfaces Games  Game  Interfaces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Interfaces",
+        "tags": [
+          "leaderboards"
+        ]
+      }
+    },
+    "/games/{game}/leaderboard": {
+      "get": {
+        "description": "Every evaluation of `game` (optionally one protocol), best mean score first. Records from\ndifferent protocols aren't comparable -- a client showing more than one groups by protocol.",
+        "operationId": "get_leaderboard_games__game__leaderboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game",
+            "required": true,
+            "schema": {
+              "title": "Game",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "protocol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Protocol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvaluationRecord"
+                  },
+                  "title": "Response Get Leaderboard Games  Game  Leaderboard Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Leaderboard",
+        "tags": [
+          "leaderboards"
+        ]
+      }
+    },
+    "/games/{game}/models": {
+      "get": {
+        "description": "Published packages for `game`, per leaderboard entrant, plus `base_url` -- where `blobs/<sha>`\nand `manifests/<id>.json` are fetched from. Empty (not 404) for a game with nothing published.",
+        "operationId": "get_catalog_games__game__models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game",
+            "required": true,
+            "schema": {
+              "title": "Game",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Catalog Games  Game  Models Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Catalog",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/models/blobs/{sha256}": {
+      "get": {
+        "operationId": "get_blob_models_blobs__sha256__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Blob",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/models/manifests/{package_id}.json": {
+      "get": {
+        "operationId": "get_manifest_models_manifests__package_id__json_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "title": "Package Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Manifest",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/runs": {
+      "get": {
+        "operationId": "list_runs_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunInfo"
+                  },
+                  "title": "Response List Runs Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Runs",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/artifacts/{ref}": {
+      "get": {
+        "operationId": "get_artifact_runs__run_id__artifacts__ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "program",
+              "enum": [
+                "program",
+                "trace"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Artifact",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/artifacts/{ref}/brain": {
+      "get": {
+        "description": "A champion as plain numbers a game core can be built from (`evolve.networks.compiled`): a layered\nnetwork's weights, or a NEAT genome's compiled evaluation plan. What the browser feeds the Rust\n`CheckersStrategy` -- so no client re-implements NEAT or the weight layout.",
+        "operationId": "get_brain_runs__run_id__artifacts__ref__brain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Brain Runs  Run Id  Artifacts  Ref  Brain Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Brain",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/artifacts/{ref}/package": {
+      "post": {
+        "description": "Package any stored champion on demand -- how the browser watches a champion that was never\npublished (a still-training run's latest, a pinned generation). Development/live-training only:\nit costs a little server compute per *new* champion, never per frame, and packages are\ncontent-addressed, so asking again for the same champion re-uses the stored one. Unlike\njobs/publish_models.py it measures only numeric parity (on random inputs), not action agreement\non the protocol's games -- so it's marked `on_demand`, and never becomes a leaderboard entrant.",
+        "operationId": "export_champion_runs__run_id__artifacts__ref__package_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Champion Runs  Run Id  Artifacts  Ref  Package Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Champion",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/runs/{run_id}/control": {
+      "post": {
+        "operationId": "control_run_runs__run_id__control_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Run",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/metrics/history": {
+      "get": {
+        "operationId": "get_metrics_history_runs__run_id__metrics_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since_generation",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Since Generation",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GenerationStats"
+                  },
+                  "title": "Response Get Metrics History Runs  Run Id  Metrics History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Metrics History",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/metrics/stream": {
+      "get": {
+        "operationId": "stream_metrics_runs__run_id__metrics_stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since_generation",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Since Generation",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Metrics",
+        "tags": [
+          "runs"
+        ]
+      }
+    }
+  }
+}

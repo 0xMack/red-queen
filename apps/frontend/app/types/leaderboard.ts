@@ -1,9 +1,13 @@
-// Mirrors libs/telemetry/src/telemetry/evaluations.py's EvaluationRecord and
-// libs/games/src/games/observation.py's Interface.describe() (docs/design/0007) -- keep in sync by
-// hand. `metrics` is free-form on the Python side; the shape below is what jobs/evaluate.py writes
-// for protocols snake.score.v1/v2.
+// libs/telemetry's EvaluationRecord (docs/design/0007) is generated from the backend's OpenAPI schema
+// (`api.gen.ts`, see types/telemetry.ts) -- except `metrics` and `hardware`, free-form dicts on the Python
+// side, whose shape below is what jobs/evaluate.py and jobs/evaluate_versus.py write. InterfaceInfo mirrors
+// libs/games/src/games/observation.py's Interface.describe() by hand (the endpoint returns a plain dict).
 
-export type EntrantKind = "champion" | "baseline" | "human"
+import type { components } from "./api.gen"
+
+type GeneratedRecord = Required<components["schemas"]["EvaluationRecord"]>
+
+export type EntrantKind = GeneratedRecord["entrant_kind"]
 
 export interface QualityMetrics {
   n: number
@@ -42,16 +46,7 @@ export interface TrainingMetrics {
   hardware?: Record<string, unknown> | null
 }
 
-export interface EvaluationRecord {
-  game: string
-  protocol: string
-  entrant_id: string
-  entrant_kind: EntrantKind
-  label: string
-  interface: string
-  run_id: string | null
-  champion_ref: string | null
-  created_at: number
+export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
   metrics: {
     quality: QualityMetrics
     inference: InferenceMetrics

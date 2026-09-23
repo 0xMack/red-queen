@@ -179,6 +179,11 @@ one service, one process, one `pyproject.toml` for now.
 | POST | `/games/{game}/sessions/{id}/actions` | `GameSessionState` | `ActionRequest` — one step, human or scripted; not on the interaction's critical path once gameplay moves client-side (see "Real-time player interaction" below) — used for recording/archival, not driving the loop |
 | GET | `/games/{game}/sessions/{id}/trajectory` | `TrajectoryArtifact` | full recorded episode — the seed + action sequence a client re-simulates locally, or training data (doc 0003 phase 6/7) |
 
+> **Superseded (September 2026):** these three session endpoints were built (step 4) and later removed.
+> Once every game ran client-side (docs/design/0009), nothing called them, and no recording/archival use ever
+> materialized. If recorded human play is wanted as training data, it should come back as a new, tested endpoint
+> designed for that job.
+
 Note what's *not* here relative to the original draft: a per-frame `GET .../stream` for game state.
 Working through real-time interaction (below) concluded gameplay itself doesn't need server
 round-trips at all once Pyodide is in the picture — removed rather than left in as an unused,

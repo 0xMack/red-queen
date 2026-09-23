@@ -14,8 +14,8 @@ export const useRunsStore = defineStore("runs", () => {
     loading.value = true
     error.value = null
     try {
-      const config = useRuntimeConfig()
-      const fetched = await $fetch<RunInfo[]>("/runs", { baseURL: config.public.apiBase })
+      const api = useApi()
+      const fetched = await api.fetch<RunInfo[]>("/runs")
       runs.value = [...fetched].sort((a, b) => b.created_at - a.created_at)
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
@@ -25,13 +25,11 @@ export const useRunsStore = defineStore("runs", () => {
   }
 
   async function fetchHistories(ids = runs.value.map((r) => r.run_id)) {
-    const config = useRuntimeConfig()
+    const api = useApi()
     await Promise.all(
       ids.map(async (id) => {
         try {
-          const history = await $fetch<GenerationStats[]>(`/runs/${id}/metrics/history`, {
-            baseURL: config.public.apiBase,
-          })
+          const history = await api.fetch<GenerationStats[]>(`/runs/${id}/metrics/history`)
           histories.value = { ...histories.value, [id]: history }
         } catch {
           // A run with no metrics yet (or an unreachable file) just shows no sparkline.

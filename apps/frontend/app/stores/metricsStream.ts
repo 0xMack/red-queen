@@ -25,11 +25,9 @@ export const useMetricsStreamStore = defineStore("metricsStream", () => {
     history.value = []
     error.value = null
 
-    const config = useRuntimeConfig()
+    const api = useApi()
     try {
-      history.value = await $fetch<GenerationStats[]>(`/runs/${id}/metrics/history`, {
-        baseURL: config.public.apiBase,
-      })
+      history.value = await api.fetch<GenerationStats[]>(`/runs/${id}/metrics/history`)
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
       return
@@ -37,7 +35,7 @@ export const useMetricsStreamStore = defineStore("metricsStream", () => {
 
     const lastSeen = history.value.at(-1)
     const sinceGeneration = lastSeen ? lastSeen.generation + 1 : 0
-    const url = `${config.public.apiBase}/runs/${id}/metrics/stream?since_generation=${sinceGeneration}`
+    const url = api.url(`/runs/${id}/metrics/stream?since_generation=${sinceGeneration}`)
 
     source = new EventSource(url)
     // Event name matches apis/backend/src/backend/routers/runs.py's

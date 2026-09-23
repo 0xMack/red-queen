@@ -261,11 +261,16 @@ Revisit if the chapter count grows enough that hand-authoring markup becomes the
 - `app/stores/runs.ts`, `app/stores/metricsStream.ts` — Pinia stores (auto-imported by
   `@pinia/nuxt` from `app/stores/`) holding the run list and the live-metrics subscription,
   respectively. The watch page reuses `metricsStream` directly, not a separate store.
-- `app/types/telemetry.ts`, `app/types/games.ts` — TypeScript interfaces mirroring
-  `apis/backend`'s response models (`telemetry.RunInfo`/`GenerationStats` reused directly;
-  `backend.schemas.GameSessionState` et al.) — `games.ts`'s `RenderState`/`GridCell` are also what
-  the worker builds from the WASM core's cells. `app/types/modelpack.ts` mirrors `libs/modelpack`'s
-  manifest and catalog. Keep all of them in sync by hand if those change.
+- `app/types/api.gen.ts` — **generated** from `app/types/openapi.json`, the backend's OpenAPI schema
+  (`uv run python apis/backend/scripts/export_openapi.py`, then `pnpm gen:api-types`;
+  `apis/backend/tests/test_openapi_snapshot.py` fails while the snapshot is stale). `telemetry.ts`'s
+  `RunInfo`/`GenerationStats` and `leaderboard.ts`'s `EvaluationRecord` are derived from it; what the
+  backend returns as a free-form dict (`EvaluationRecord.metrics`, `InterfaceInfo`) and
+  `app/types/modelpack.ts` (`libs/modelpack`'s manifest and catalog) are still kept in sync by hand.
+  `games.ts`'s `RenderState`/`GridCell` are what the worker builds from the WASM core's cells.
+- `app/composables/useApi.ts` — `useApi()`: `fetch(path)` and `url(path)` against the backend
+  (`runtimeConfig.public.apiBase`). Every backend request goes through it.
+- `pnpm typecheck` (`nuxi typecheck`, vue-tsc) — the whole app type-checks clean; keep it that way.
 - `nuxt.config.ts` — `runtimeConfig.public.apiBase` (default `http://127.0.0.1:8000`, override via
   `NUXT_PUBLIC_API_BASE` -- copy `.env.example` to `.env`), Tailwind CSS 4 wired in via
   `@tailwindcss/vite` (not the `@nuxtjs/tailwindcss` module), Pinia via `@pinia/nuxt`.

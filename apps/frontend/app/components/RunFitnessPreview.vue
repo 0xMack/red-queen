@@ -9,14 +9,12 @@ import type { GenerationStats } from "~/types/telemetry"
 // mostly prose.
 const props = defineProps<{ runId: string }>()
 
-const config = useRuntimeConfig()
+const api = useApi()
 const history = ref<GenerationStats[] | null>(null)
 
 onMounted(async () => {
   try {
-    history.value = await $fetch<GenerationStats[]>(`/runs/${props.runId}/metrics/history`, {
-      baseURL: config.public.apiBase,
-    })
+    history.value = await api.fetch<GenerationStats[]>(`/runs/${props.runId}/metrics/history`)
   } catch {
     history.value = null
   }

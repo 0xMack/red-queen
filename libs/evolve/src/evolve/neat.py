@@ -23,8 +23,8 @@ Differences from the paper, on purpose:
 - Fitness comes from any `FitnessEvaluator` (a list of per-case values, reduced to the mean) --
   NEAT's own selection is species-based, so lexicase has no role here.
 
-Pure stdlib, like the rest of this package, so `apps/frontend`'s Pyodide bridge loads a trained
-genome back with the exact same code that evolved it.
+Pure stdlib, like the rest of this package. A browser never runs this code: it plays a genome's
+`modelpack` export (docs/design/0009), and the game core runs its `graph_encoding()` natively.
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ import type { RunInfo } from "~/types/telemetry"
 
 const route = useRoute()
 const runId = route.params.id as string
-const config = useRuntimeConfig()
+const api = useApi()
 
 const metricsStream = useMetricsStreamStore()
 const run = ref<RunInfo | null>(null)
@@ -12,7 +12,7 @@ const runError = ref<string | null>(null)
 
 async function loadRun() {
   try {
-    run.value = await $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase })
+    run.value = await api.fetch<RunInfo>(`/runs/${runId}`)
   } catch (e) {
     runError.value = e instanceof Error ? e.message : String(e)
   }
@@ -26,7 +26,7 @@ async function loadStanding() {
   const game = run.value?.config?.game
   if (game !== "snake") return // only Snake has a leaderboard (docs/design/0007); versus games have none yet
   try {
-    const board = await $fetch<EvaluationRecord[]>(`/games/${game}/leaderboard`, { baseURL: config.public.apiBase })
+    const board = await api.fetch<EvaluationRecord[]>(`/games/${game}/leaderboard`)
     greedyMean.value = board.find((r) => r.entrant_id === "baseline:greedy")?.metrics.quality.mean ?? null
     const mine = board.find((r) => r.run_id === runId)
     if (!mine) return
@@ -130,7 +130,7 @@ async function control(action: "pause" | "resume" | "step") {
   controlBusy.value = true
   controlError.value = null
   try {
-    await $fetch(`/runs/${runId}/control`, { baseURL: config.public.apiBase, method: "POST", body: { action } })
+    await api.fetch(`/runs/${runId}/control`, { method: "POST", body: { action } })
     await loadRun()
   } catch (e) {
     controlError.value = e instanceof Error ? e.message : String(e)

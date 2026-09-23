@@ -45,7 +45,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
   const manageStream = options.manageStream ?? true
   const session = useSnakeSession()
   const metricsStream = useMetricsStreamStore()
-  const config = useRuntimeConfig()
+  const api = useApi()
 
   const run = ref<RunInfo | null>(null)
   const lastLoadedRef = ref<string | null>(null)
@@ -70,9 +70,9 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
   // A champion that was never published (a still-training run's latest, a pinned generation) is
   // exported on demand by the backend -- the same package format, so it runs the same way.
   async function onDemand(ref: string): Promise<Availability> {
-    const exported = await $fetch<{ base_url: string; package_id: string; variants: string[] }>(
+    const exported = await api.fetch<{ base_url: string; package_id: string; variants: string[] }>(
       `/runs/${runId}/artifacts/${ref}/package`,
-      { baseURL: config.public.apiBase, method: "POST" },
+      { method: "POST" },
     )
     const [manifest, profile] = await Promise.all([
       $fetch<ModelManifest>(`${exported.base_url}/manifests/${exported.package_id}.json`),
@@ -151,7 +151,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     const interfaceId = typeof run.value?.config?.interface === "string" ? run.value.config.interface : undefined
 
     // The trained network itself, only to *draw* it (its live activations): the package is what plays.
-    $fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, { baseURL: config.public.apiBase, responseType: "text" })
+    api.fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, { responseType: "text" })
       .then((text) => {
         const parsed = JSON.parse(text) as { type?: string; weights?: number[]; layer_sizes?: number[] }
         const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation }
@@ -216,7 +216,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     session.error.value = null
 
     try {
-      run.value = await $fetch<RunInfo>(`/runs/${runId}`, { baseURL: config.public.apiBase })
+      run.value = await api.fetch<RunInfo>(`/runs/${runId}`)
     } catch (e) {
       session.error.value = e instanceof Error ? e.message : String(e)
       session.loading.value = false
