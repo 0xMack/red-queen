@@ -1,0 +1,16 @@
+[package]
+name = "rl-native"
+description = "PyO3 bindings: the `rl._native` extension module of the `rl` Python package."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+redqueen-rl = { path = "../core" }
+redqueen-rl-envs = { path = "../envs" }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py311"] }

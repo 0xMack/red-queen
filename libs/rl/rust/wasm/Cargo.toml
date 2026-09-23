@@ -1,0 +1,15 @@
+[package]
+name = "rl-wasm"
+description = "wasm-bindgen bindings: the RL core for Learn's live demos (apps/frontend)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+redqueen-rl = { path = "../core" }
+redqueen-rl-envs = { path = "../envs" }
+wasm-bindgen = "=0.2.108"

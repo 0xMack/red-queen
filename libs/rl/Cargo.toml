@@ -1,0 +1,21 @@
+# Reinforcement learning (docs/design/0010): a game-agnostic learning core (rust/core), the adapters that plug
+# the games crate's environments into it (rust/envs), and its two faces -- PyO3 for training jobs (rust/python ->
+# the `rl._native` extension of this package) and wasm-bindgen for Learn's live demos (rust/wasm).
+[workspace]
+members = ["rust/core", "rust/envs", "rust/python", "rust/wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+# The browser build: RL demos train in it, so optimize for speed, not size (unlike the games module).
+[profile.wasm-release]
+inherits = "release"
+panic = "abort"

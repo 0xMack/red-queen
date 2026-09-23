@@ -1,0 +1,33 @@
+{
+  "training": [
+    {
+      "seed": 0,
+      "updates": 200,
+      "digest": "c556c9551a466dd5"
+    },
+    {
+      "seed": 1,
+      "updates": 50,
+      "digest": "bb4aa22c673151a1"
+    },
+    {
+      "seed": 7,
+      "updates": 500,
+      "digest": "f746be3198d747c5"
+    }
+  ],
+  "rollouts": [
+    {
+      "seed": 0,
+      "digest": "3fe8a38dbcb6503a"
+    },
+    {
+      "seed": 1,
+      "digest": "68d6bd3eb2740693"
+    },
+    {
+      "seed": 42,
+      "digest": "749a238a70a9725c"
+    }
+  ]
+}

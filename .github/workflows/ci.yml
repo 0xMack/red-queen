@@ -17,10 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable # maturin builds games._native during the sync
+      - uses: dtolnay/rust-toolchain@stable # maturin builds games._native and rl._native during the sync
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: libs/games
+          workspaces: |
+            libs/games
+            libs/rl
       - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag for this action
         with:
           python-version: "3.11"
@@ -36,9 +38,20 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The cores hold the unit tests; the PyO3 crates are extension modules (no libpython to link a test binary
+          # against) and are exercised through the Python tests instead.
+          - workspace: libs/games
+            tests: -p redqueen-games
+          - workspace: libs/rl
+            tests: -p redqueen-rl -p redqueen-rl-envs
+    name: rust (${{ matrix.workspace }})
     defaults:
       run:
-        working-directory: libs/games
+        working-directory: ${{ matrix.workspace }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -46,7 +59,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: libs/games
+          workspaces: ${{ matrix.workspace }}
       - uses: actions/setup-python@v7 # pyo3's build script needs an interpreter to configure against
         with:
           python-version: "3.11"
@@ -54,10 +67,8 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
-      # The core holds the unit tests; the PyO3 crate is an extension module (no libpython to link a test
-      # binary against) and is exercised through the Python tests instead.
       - name: Test
-        run: cargo test -p redqueen-games
+        run: cargo test ${{ matrix.tests }}
 
   frontend:
     runs-on: ubuntu-latest
@@ -80,6 +91,8 @@ jobs:
         run: |
           pnpm gen:api-types
           git diff --exit-code -- app/types/api.gen.ts
+      - name: The browser's RL core trains exactly like the native one
+        run: node scripts/check-rl-determinism.mjs
       - name: Typecheck
         run: pnpm typecheck
       - name: Build
