@@ -10,7 +10,7 @@ members = ["libs/*", "apis/*"]
 package = false
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.16"]
+dev = ["pytest>=8", "ruff>=0.16", "httpx2"]  # httpx2: starlette.testclient (apis/backend tests)
 notebooks = ["jupyter>=1", "matplotlib>=3"]
 
 [tool.ruff]
