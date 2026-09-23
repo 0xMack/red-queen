@@ -18,7 +18,37 @@ export interface RunMeta {
   parameterCount: number | null
   note: string | null
   seedStrategy: string | null // "fixed:5" / "resample:5" (jobs/seeding.py); null for runs before it existed
+  paradigm: "evolution" | "reinforcement_learning"
+  terms: RunTerms
   watchable: boolean
+}
+
+// What a run's GenerationStats *mean* (docs/design/0010 Decision 3): an RL run records training iterations, episode
+// returns and policy entropy in the same fields evolution uses for generations, fitness and population diversity.
+export interface RunTerms {
+  unit: string // "generation" | "iteration"
+  fitness: string // "fitness" | "return"
+  diversity: string // "diversity" | "policy entropy"
+  diversityTitle: string // its chart's heading
+  diversityNote: string
+  learner: string // "population" | "agent"
+}
+
+const EVOLUTION_TERMS: RunTerms = {
+  unit: "generation",
+  fitness: "fitness",
+  diversity: "diversity",
+  diversityTitle: "Population diversity",
+  diversityNote: "Genotypic spread of the population -- a collapse toward zero is premature convergence.",
+  learner: "population",
+}
+const RL_TERMS: RunTerms = {
+  unit: "iteration",
+  fitness: "return",
+  diversity: "policy entropy",
+  diversityTitle: "Policy entropy",
+  diversityNote: "How undecided the agent's policy still is (nats) -- falling toward zero as it commits to its choices.",
+  learner: "agent",
 }
 
 const REPRESENTATION_LABELS: Record<string, string> = {
@@ -26,6 +56,14 @@ const REPRESENTATION_LABELS: Record<string, string> = {
   neuroevolution: "Neuroevolution",
   neat: "NEAT",
   tree_gp: "Tree GP",
+  // reinforcement learning (docs/design/0010)
+  random: "Random agent",
+  q_learning: "Q-learning",
+  dqn: "DQN",
+  reinforce: "REINFORCE",
+  a2c: "A2C",
+  ppo: "PPO",
+  td_lambda: "TD(λ)",
 }
 
 function str(value: unknown): string | null {
@@ -36,7 +74,7 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
-function capitalize(s: string): string {
+export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
@@ -54,6 +92,7 @@ export function describeRun(run: RunInfo): RunMeta {
     : null
 
   const subject = game ? capitalize(game) : benchmark ? `f(x) = ${benchmark}` : "Run"
+  const paradigm = c.paradigm === "reinforcement_learning" ? "reinforcement_learning" : "evolution"
 
   return {
     title: `${subject} · ${representationLabel}`,
@@ -70,7 +109,11 @@ export function describeRun(run: RunInfo): RunMeta {
     parameterCount,
     note: str(c.note),
     seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),
-    watchable: game === "snake" || game === "checkers", // has a champion viewer: WatchChampion / CheckersWatch
+    paradigm,
+    terms: paradigm === "reinforcement_learning" ? RL_TERMS : EVOLUTION_TERMS,
+    // Has a champion viewer (WatchChampion / CheckersWatch). RL champions become watchable once modelpack exports
+    // them (docs/design/0010 Phase 1).
+    watchable: (game === "snake" || game === "checkers") && paradigm === "evolution",
   }
 }
 

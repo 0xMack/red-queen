@@ -1,0 +1,35 @@
+[build-system]
+# Mixed Rust/Python (docs/design/0010): the Python modules under src/rl plus the RL core as the `rl._native`
+# extension (rust/python). `uv sync` needs a Rust toolchain (cargo) to build it.
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rl"
+version = "0.1.0"
+description = "Reinforcement learning from scratch: a Rust learning core, bound to Python for training jobs and compiled to WASM for Learn's live demos."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+
+[tool.maturin]
+manifest-path = "rust/python/Cargo.toml"
+python-source = "src"
+module-name = "rl._native"
+features = ["pyo3/extension-module"]
+
+[tool.uv]
+# Rebuild the extension whenever the Rust changes -- including the games core it links (a path dependency).
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "rust/**/Cargo.toml" },
+    { file = "rust/**/*.rs" },
+    { file = "../games/rust/core/Cargo.toml" },
+    { file = "../games/rust/core/**/*.rs" },
+]
+
+[tool.ruff]
+# One config for the whole repo -- ruff uses the nearest pyproject.toml and does not inherit.
+extend = "../../pyproject.toml"

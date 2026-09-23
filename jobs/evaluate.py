@@ -226,6 +226,10 @@ def champion_entrants(
         # one by one: twenty seeds of four arms would bury every other entrant.
         if run.config.get("experiment"):
             continue
+        # RL champions (docs/design/0010) need modelpack's loaders for their formats, which arrive with the first
+        # learning algorithm (Phase 1); until then an RL run is never an entrant.
+        if run.config.get("paradigm") == "reinforcement_learning":
+            continue
         history = metrics.history(run.run_id)
         if not history:
             continue

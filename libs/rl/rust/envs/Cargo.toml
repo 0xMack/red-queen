@@ -1,0 +1,13 @@
+[package]
+name = "redqueen-rl-envs"
+description = "Adapters from the games crate to the RL core's Env trait, shared by both binding crates."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "redqueen_rl_envs"
+
+[dependencies]
+redqueen-rl = { path = "../core" }
+redqueen-games = { path = "../../../games/rust/core" }

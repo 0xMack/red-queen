@@ -5,7 +5,7 @@ import type { GenerationStats } from "~/types/telemetry"
 // the spread collapsing is the visual tell for premature convergence. Built on LineChart.vue; used
 // by the live run page and (statically) by RunFitnessPreview in the Learn chapters.
 const props = withDefaults(
-  defineProps<{ history: GenerationStats[]; height?: number; marker?: number | null; clickable?: boolean }>(),
+  defineProps<{ history: GenerationStats[]; height?: number; marker?: number | null; clickable?: boolean; xLabel?: string }>(),
   { height: 300, marker: null, clickable: false },
 )
 defineEmits<{ select: [generation: number] }>()
@@ -29,7 +29,7 @@ const band = computed(() => ({
       <span class="flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-signal-400" />mean</span>
       <span class="flex items-center gap-1.5"><span class="h-2.5 w-4 rounded-sm bg-queen-400/15" />worst..best spread</span>
     </div>
-    <LineChart
+    <LineChart :x-label="xLabel ?? 'generation'"
       :x="x"
       :series="series"
       :band="band"

@@ -39,7 +39,8 @@ architectural change that might conflict with a decision already made.
       exported and swapped in.
     - `/learn/transformers` embeds `TinyLMPlayground` (the trained TinyLM generating in the browser,
       fp32 vs int8); `/dev/inference` (unlinked) shows the device profile, the model cache, and a
-      ~340 MB scale-test model.
+      ~340 MB scale-test model; `/dev/rl` (unlinked) runs the RL core's WASM build in a worker
+      (`workers/rlBench.worker.ts`): determinism digests against the native fixture, and speed vs. native.
 
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by
@@ -159,6 +160,15 @@ architectural change that might conflict with a decision already made.
     manifest with per-variant device requirements and *measured* parity (numeric error plus
     decision/next-token agreement on held-out data), and `ModelStore`/`LocalModelStore` (the host —
     R2 or the HF Hub — is still undecided; only the catalog is mutable).
+  - `rl/` — reinforcement learning (docs/design/0010), **a mixed Rust/Python package with its own Cargo workspace**:
+    `rust/core` (`redqueen-rl`: the `Env` trait, a batched MLP with explicit backprop, Adam, agents, the `Trainer`
+    loop; never names a game; its one dependency is `libm`, so a seed trains bit-identically natively and in
+    WASM), `rust/envs` (adapters from `libs/games/rust/core` — a path dependency — shared by both bindings),
+    `rust/python` → `rl._native`, `rust/wasm` → `apps/frontend/app/wasm/rl` (`build-wasm.py`; its source hash
+    covers the games core too, so a games-core change needs *both* WASM builds redone). Tests: gradients against a
+    `libs/autodiff` oracle (`reference_nn.py`), adapters against the leaderboard protocol's exact scores, and
+    `determinism.json` — digests the native build, Node (`apps/frontend/scripts/check-rl-determinism.mjs`, CI)
+    and `/dev/rl` must all reproduce. Phase 0: a random agent only; the learning algorithms are the next phases.
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
@@ -179,6 +189,10 @@ architectural change that might conflict with a decision already made.
   `snake_neat_run.py` is the NEAT counterpart of `snake_neuro_run.py`; `snake_experiment.py` runs a
   tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
+  `rl_run.py` runs an `libs/rl` algorithm one *iteration* (a budget of env steps) per call and records it in the
+  same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
+  "reinforcement_learning"`; the frontend's `runMeta` relabels them); `rl_benchmark.py` is the native half of
+  `/dev/rl`'s numbers. RL runs aren't leaderboard entrants until modelpack loads their champions (0010 Phase 1).
   `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
   `failed`; `REDQUEEN_RUN_DATA_DIR` points jobs and the backend at a scratch directory for smoke runs).
   `control.py`'s `make_control_callback`
@@ -210,8 +224,11 @@ Each directory has its own README with specifics — this file is the map, not t
 - **`apps/frontend` is a separate `pnpm` project**, not part of the `uv` workspace — its own
   `node_modules`/`pnpm-lock.yaml`. `pnpm install` / `pnpm dev` from `apps/frontend/`. No JS
   workspace at the repo root yet since there's only one JS package.
-- **`libs/games` needs a Rust toolchain** (cargo) to install — maturin builds `games._native` during
-  `uv sync`, and `[tool.uv] cache-keys` rebuilds it when `rust/**` changes. On Windows the sync fails
+- **`libs/games` and `libs/rl` need a Rust toolchain** (cargo) to install — maturin builds `games._native` /
+  `rl._native` during `uv sync --all-packages`, and `[tool.uv] cache-keys` rebuilds them when their Rust changes —
+  **but only on `uv sync --all-packages`: plain `uv run` never rebuilds a workspace member** (it syncs the virtual
+  root, which depends on nothing, and logs every member as "unnecessary"). After editing Rust, sync before
+  `uv run`, or you'll import the stale extension (`AttributeError` on a method you just added). On Windows the sync fails
   with `os error 32` while any running process (a backend dev server, a notebook kernel) has
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
   allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;

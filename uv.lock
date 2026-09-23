@@ -17,6 +17,7 @@ members = [
     "modelpack",
     "red-queen-workspace",
     "redqueen",
+    "rl",
     "telemetry",
     "tinylm",
 ]
@@ -2782,6 +2783,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/2c/06/37c1a5557acf449e8
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/71/44ce230e1b7fadd372515a97e32a83011f906ddded8d03e3c6aafbdedbb7/rfc3987_syntax-1.1.0-py3-none-any.whl", hash = "sha256:6c3d97604e4c5ce9f714898e05401a0445a641cfa276432b0a648c80856f6a3f", size = 8046, upload-time = "2025-07-18T01:05:03.843Z" },
 ]
+
+[[package]]
+name = "rl"
+version = "0.1.0"
+source = { editable = "libs/rl" }
 
 [[package]]
 name = "rpds-py"

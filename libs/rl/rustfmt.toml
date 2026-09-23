@@ -1,0 +1,2 @@
+# The width the code was always hand-written at (the Python side uses the same, see the root pyproject.toml).
+max_width = 120

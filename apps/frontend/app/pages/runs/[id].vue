@@ -44,6 +44,9 @@ onMounted(() => {
 onUnmounted(() => metricsStream.stop())
 
 const meta = computed(() => (run.value ? describeRun(run.value) : null))
+const terms = computed(
+  () => meta.value?.terms ?? { unit: "generation", fitness: "fitness", diversity: "diversity", diversityTitle: "Population diversity", diversityNote: "", learner: "population" },
+)
 useHead({ title: () => meta.value?.title ?? "Run" })
 
 const history = computed(() => metricsStream.history)
@@ -92,7 +95,7 @@ const heldOutPeak = computed(() =>
 const heldOutSeries = computed(() => {
   const series = [
     { key: "held", label: "game score, unseen games", color: "#4ade80", values: heldOut.value.map((h) => h.held_out_score!), width: 2.5 },
-    { key: "fit", label: "best training fitness", color: "#ff5c7a", values: heldOut.value.map((h) => h.best_fitness), width: 1.5, dashed: true },
+    { key: "fit", label: `best training ${terms.value.fitness}`, color: "#ff5c7a", values: heldOut.value.map((h) => h.best_fitness), width: 1.5, dashed: true },
   ]
   if (greedyMean.value !== null) {
     series.push({ key: "greedy", label: "greedy baseline", color: "#fbbf24", values: heldOut.value.map(() => greedyMean.value!), width: 1, dashed: true })
@@ -184,7 +187,7 @@ async function copyId() {
         <button v-if="run?.status === 'running'" class="btn-ghost btn-sm" :disabled="controlBusy" @click="control('pause')">❚❚ Pause</button>
         <template v-else>
           <button class="btn-primary btn-sm" :disabled="controlBusy" @click="control('resume')">▶ Resume</button>
-          <button class="btn-ghost btn-sm" :disabled="controlBusy" @click="control('step')">Step one generation</button>
+          <button class="btn-ghost btn-sm" :disabled="controlBusy" @click="control('step')">Step one {{ terms.unit }}</button>
         </template>
         <p v-if="controlError" class="text-xs text-queen-300">{{ controlError }}</p>
       </div>
@@ -196,7 +199,7 @@ async function copyId() {
     <template v-else>
       <!-- Stat tiles -->
       <div class="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <StatTile label="Generation" :value="latest ? latest.generation : '--'">
+        <StatTile :label="capitalize(terms.unit)" :value="latest ? latest.generation : '--'">
           <template #hint>
             <span v-if="meta?.targetGenerations">of {{ meta.targetGenerations }}</span>
             <span v-else>{{ history.length }} recorded</span>
@@ -206,19 +209,19 @@ async function copyId() {
           </div>
         </StatTile>
         <StatTile
-          label="Best fitness"
+          :label="`Best ${terms.fitness}`"
           tone="queen"
           :value="formatFitness(latest?.best_fitness, 3)"
-          :hint="latest && first ? `${formatSigned(latest.best_fitness - first.best_fitness)} since gen 0` : undefined"
+          :hint="latest && first ? `${formatSigned(latest.best_fitness - first.best_fitness)} since ${terms.unit} 0` : undefined"
         />
-        <StatTile label="Mean fitness" :value="formatFitness(latest?.mean_fitness, 3)" :hint="latest ? `worst ${formatFitness(latest.worst_fitness, 2)}` : undefined" />
+        <StatTile :label="`Mean ${terms.fitness}`" :value="formatFitness(latest?.mean_fitness, 3)" :hint="latest ? `worst ${formatFitness(latest.worst_fitness, 2)}` : undefined" />
         <StatTile
-          label="Diversity"
+          :label="capitalize(terms.diversity)"
           :value="formatFitness(latest?.diversity, 3)"
-          :hint="first && latest ? `${formatSigned(latest.diversity - first.diversity, 3)} since gen 0` : undefined"
+          :hint="first && latest ? `${formatSigned(latest.diversity - first.diversity, 3)} since ${terms.unit} 0` : undefined"
         />
-        <StatTile label="Best ever" tone="gold" :value="formatFitness(bestEver?.best_fitness, 3)" :hint="bestEver ? `at generation ${bestEver.generation}` : undefined" />
-        <StatTile label="Pace" :value="pace ? `${pace.toFixed(pace < 10 ? 1 : 0)}/min` : '--'" :hint="meta?.populationSize ? `population ${meta.populationSize}` : 'generations per minute'" />
+        <StatTile label="Best ever" tone="gold" :value="formatFitness(bestEver?.best_fitness, 3)" :hint="bestEver ? `at ${terms.unit} ${bestEver.generation}` : undefined" />
+        <StatTile label="Pace" :value="pace ? `${pace.toFixed(pace < 10 ? 1 : 0)}/min` : '--'" :hint="meta?.populationSize ? `population ${meta.populationSize}` : `${terms.unit}s per minute`" />
       </div>
 
       <!-- Leaderboard standing -->
@@ -250,10 +253,10 @@ async function copyId() {
         <div class="flex min-w-0 flex-col gap-6">
           <section class="card p-5">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 class="text-lg font-semibold">Fitness over generations</h2>
+              <h2 class="text-lg font-semibold">{{ capitalize(terms.fitness) }} over {{ terms.unit }}s</h2>
               <p v-if="meta?.watchable" class="text-xs text-fg-subtle">Click anywhere on the chart to watch that generation's champion.</p>
             </div>
-            <FitnessChart
+            <FitnessChart :x-label="terms.unit"
               class="mt-4"
               :history="history"
               :height="320"
@@ -265,23 +268,23 @@ async function copyId() {
 
           <section v-if="heldOut.length" class="card p-5">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 class="text-lg font-semibold">Training fitness vs. real game score</h2>
+              <h2 class="text-lg font-semibold">Training {{ terms.fitness }} vs. real game score</h2>
               <p v-if="heldOutPeak" class="text-xs text-fg-subtle">
                 latest <span class="num text-fg">{{ heldOut.at(-1)!.held_out_score!.toFixed(2) }}</span> · peak
-                <span class="num text-life-300">{{ heldOutPeak.held_out_score!.toFixed(2) }}</span> at gen {{ heldOutPeak.generation }}
+                <span class="num text-life-300">{{ heldOutPeak.held_out_score!.toFixed(2) }}</span> at {{ terms.unit }} {{ heldOutPeak.generation }}
               </p>
             </div>
             <p class="mt-1 text-xs text-fg-subtle">
               The champion's mean score on {{ monitorGames }} games it never trained on, checked every
-              {{ run?.config?.held_out_every ?? "N" }} generations. If training fitness keeps rising while this falls, the
-              population is memorizing its training games instead of learning the game.
+              {{ run?.config?.held_out_every ?? "N" }} {{ terms.unit }}s. If training {{ terms.fitness }} keeps rising while this
+              falls, the {{ terms.learner }} is memorizing its training games instead of learning the game.
             </p>
             <div class="mt-3 flex flex-wrap gap-4 text-xs text-fg-muted">
               <span v-for="s in heldOutSeries" :key="s.key" class="flex items-center gap-1.5">
                 <span class="h-0.5 w-4 rounded" :style="{ background: s.color }" />{{ s.label }}
               </span>
             </div>
-            <LineChart class="mt-2" :x="heldOut.map((h) => h.generation)" :series="heldOutSeries" :height="220" :format="(v: number) => v.toFixed(1)" />
+            <LineChart :x-label="terms.unit" class="mt-2" :x="heldOut.map((h) => h.generation)" :series="heldOutSeries" :height="220" :format="(v: number) => v.toFixed(1)" />
           </section>
 
           <section v-if="structure.length" class="card p-5">
@@ -298,21 +301,21 @@ async function copyId() {
                     <span class="h-0.5 w-4 rounded" :style="{ background: s.color }" />{{ s.label }}
                   </span>
                 </div>
-                <LineChart class="mt-2" :x="structure.map((h) => h.generation)" :series="structureSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
+                <LineChart :x-label="terms.unit" class="mt-2" :x="structure.map((h) => h.generation)" :series="structureSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
               </div>
               <div>
                 <div class="flex flex-wrap gap-4 text-xs text-fg-muted">
                   <span class="flex items-center gap-1.5"><span class="h-0.5 w-4 rounded bg-gold-400" />species</span>
                 </div>
-                <LineChart class="mt-2" :x="structure.map((h) => h.generation)" :series="speciesSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
+                <LineChart :x-label="terms.unit" class="mt-2" :x="structure.map((h) => h.generation)" :series="speciesSeries" :height="180" :format="(v: number) => v.toFixed(0)" />
               </div>
             </div>
           </section>
 
           <section class="card p-5">
-            <h2 class="text-lg font-semibold">Population diversity</h2>
-            <p class="mt-1 text-xs text-fg-subtle">Genotypic spread of the population -- a collapse toward zero is premature convergence.</p>
-            <LineChart
+            <h2 class="text-lg font-semibold">{{ terms.diversityTitle }}</h2>
+            <p class="mt-1 text-xs text-fg-subtle">{{ terms.diversityNote }}</p>
+            <LineChart :x-label="terms.unit"
               class="mt-4"
               :x="history.map((h) => h.generation)"
               :series="[{ key: 'div', label: 'diversity', color: '#fbbf24', values: history.map((h) => h.diversity) }]"
@@ -369,19 +372,19 @@ async function copyId() {
 
         <section class="card overflow-hidden">
           <div class="flex items-baseline justify-between px-5 pt-5">
-            <h2 class="text-lg font-semibold">Recent generations</h2>
+            <h2 class="text-lg font-semibold">Recent {{ terms.unit }}s</h2>
             <span class="text-xs text-fg-subtle">latest 25 of {{ history.length }}</span>
           </div>
           <div class="mt-3 max-h-[420px] overflow-auto">
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-surface">
                 <tr class="border-b border-line text-left text-[11px] tracking-wide text-fg-subtle uppercase">
-                  <th class="px-5 py-2 font-medium">Gen</th>
+                  <th class="px-5 py-2 font-medium">{{ capitalize(terms.unit) }}</th>
                   <th class="px-3 py-2 text-right font-medium">Best</th>
                   <th class="px-3 py-2 text-right font-medium">Δ best</th>
                   <th class="px-3 py-2 text-right font-medium">Mean</th>
                   <th class="px-3 py-2 text-right font-medium">Worst</th>
-                  <th class="px-3 py-2 text-right font-medium">Diversity</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ capitalize(terms.diversity) }}</th>
                   <th class="px-5 py-2 text-right font-medium">Time</th>
                 </tr>
               </thead>

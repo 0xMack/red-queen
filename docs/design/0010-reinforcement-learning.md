@@ -1,7 +1,7 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Planned.** Nothing here is built yet; each phase below lands as its own PR, with its measured results
-written back into this doc (an "Implementation notes" section, as 0008/0009 did) and into the Learn section.
+Status: **Phase 0 implemented** (see "Implementation notes"); Phases 1-4 planned. Each phase lands as its own PR,
+with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
 [0007](0007-representations-leaderboards-and-tradeoffs.md) (interfaces, protocols, measured training cost — all
@@ -274,3 +274,46 @@ for PBT).
 Phase 0 → 1 → 2 → 3 → 4, one PR per phase (larger phases may split into algorithm + Learn PRs). Each PR writes
 its measured results into an "Implementation notes" section here, updates AGENTS.md's map, and adds any
 non-obvious lessons to docs/CODING_GUIDELINES.md.
+
+## Implementation notes
+
+### Phase 0 (2026-09-23)
+
+Built as planned, with one structural addition: **a fourth crate, `rust/envs`** (`redqueen-rl-envs`). The Snake and
+Reach1D adapters are needed by *both* binding crates; putting them in either would duplicate them, and putting them
+in the core would make it name games. So the core depends on the games crate only for `pcg.rs`, and `rust/envs`
+holds the glue (plus the games' baselines as policies and the rollout digest).
+
+- **Adapters are checked against the leaderboard, exactly.** The games' random and greedy baselines played through
+  the Snake adapter reproduce `jobs/evaluate.py`'s protocol — score *and* episode length — on the first 60 held-out
+  games (`tests/test_envs_and_trainer.py`).
+- **Gradients agree with the oracle.** The batched MLP's outputs and gradients match `libs/autodiff` to 1e-12 on
+  four shapes (ReLU, tanh, linear layers); Adam matches the paper to 1e-13; finite differences in the Rust tests too.
+- **Determinism holds across targets.** Six digests (three training runs of up to 500 Adam updates through ReLU, tanh,
+  `sin` and `exp`; three random-agent rollout sets on Snake and Reach1D) are identical from the native build, the
+  WASM build in Node (CI) and the WASM build in Chromium (`/dev/rl`).
+- **An RL run is an ordinary run.** `jobs/rl_run.py` records iterations through `recorded_run()` with no telemetry
+  change; the run page relabels generation/fitness/diversity as iteration/return/policy entropy from
+  `config.paradigm`. RL runs are kept off the leaderboard and have no Watch link until Phase 1's `modelpack` loaders.
+
+**Speed** (`jobs/rl_benchmark.py` natively, `/dev/rl` in Chromium; same desktop, Windows x86-64):
+
+| Case | Native | Browser (WASM) | Browser / native |
+|---|---|---|---|
+| env steps/s, Snake, random agent | 7.05 M | 10.4 M | 147% |
+| act/s, one forward of 11→64→64→3 | 530 K | 430 K | 81% |
+| updates/s, batch 32, 11→64→64→3 | 8.3 K | 3.5 K | 42% |
+| updates/s, batch 32, 27→128→128→3 | 1.9 K | 1.1 K | 59% |
+| updates/s, batch 32, 100→256→256→3 | 429 | 241 | 57% |
+
+- **The browser steps the environment faster than native.** Not a measurement error: every step allocates a new
+  observation `Vec`, and Windows' native allocator is slower than WASM's; the random agent does little else. Writing
+  observations into a reused buffer is a cheap Phase 1 optimization.
+- **What it means for the demos** (a desktop; a phone is likely 3–5× slower — each demo gates on the device's own
+  measurement and falls back to a recorded run):
+  - *Tabular Q-learning:* no constraint at all — millions of steps per second, so the demo is paced by rendering.
+  - *DQN on features.v1 (11→64→64→3):* ~3,500 updates/s is ~14,000 env steps/s at one update per 4 steps: 100 K steps
+    in ~7 s. Live is comfortable on a desktop.
+  - *DQN on egocentric.v1 (27 inputs, 128-wide):* ~1,100 updates/s, 100 K steps in ~25 s — live only on fast devices.
+  - *DQN on grid-flat.v1 (100 inputs, 256-wide):* ~240 updates/s — recorded-run replay, not live.
+

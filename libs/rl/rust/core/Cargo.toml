@@ -1,0 +1,15 @@
+[package]
+name = "redqueen-rl"
+description = "The RL learning core: Env trait, networks with backprop, optimizers, agents and trainers. Never names a game."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "redqueen_rl"
+
+[dependencies]
+# Transcendentals in pure Rust: the same bits natively and in WASM, so one seed is one training run (0010 Decision 2).
+libm = "0.2"
+# Only for the specified PRNG (pcg.rs) -- the learning core never uses a game.
+redqueen-games = { path = "../../../games/rust/core" }

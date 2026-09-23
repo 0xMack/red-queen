@@ -1,0 +1,6 @@
+# cargo build output (the WASM build is copied into apps/frontend/app/wasm/rl by build-wasm.py)
+target/
+# the maturin editable build puts the compiled extension next to the Python sources
+src/rl/_native*.pyd
+src/rl/_native*.so
+src/rl/_native*.pyd.*
