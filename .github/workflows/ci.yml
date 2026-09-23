@@ -1,0 +1,86 @@
+# Every check a change has to pass before it merges: the Python workspace (lint, format, tests -- which also
+# hold the checked-in WASM build and the frontend's OpenAPI snapshot to the sources), the Rust game core
+# (fmt, clippy, tests), and the frontend (generated API types current, typecheck, production build).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable # maturin builds games._native during the sync
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: libs/games
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install the workspace
+        run: uv sync --all-packages --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Test
+        run: uv run pytest libs apis jobs/tests
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: libs/games
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: libs/games
+      - uses: actions/setup-python@v5 # pyo3's build script needs an interpreter to configure against
+        with:
+          python-version: "3.11"
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      # The core holds the unit tests; the PyO3 crate is an extension module (no libpython to link a test
+      # binary against) and is exercised through the Python tests instead.
+      - name: Test
+        run: cargo test -p redqueen-games
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Generated API types are current
+        run: |
+          pnpm gen:api-types
+          git diff --exit-code -- app/types/api.gen.ts
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build

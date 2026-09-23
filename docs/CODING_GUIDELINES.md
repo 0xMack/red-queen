@@ -20,14 +20,11 @@ what belongs here and how to add to it). Read before writing code, not after.
   sensibly a `RunStatus` value — so it's implemented entirely API-side instead (resume, wait for one
   new `GenerationStats` via the existing `MetricsSource`, re-pause), keeping the job-side callback a
   two-state check rather than growing a third state for one caller's benefit.
-- **`ruff format`/`ruff check --fix` a specific set of files you actually touched, not a whole
-  directory** — no `line-length` is configured anywhere in this repo (checked: every `pyproject.toml`
-  omits it, so `ruff format` uses its default, 88), but plenty of pre-existing hand-written code
-  runs longer than that. Formatting a whole directory reflows every one of those files as a side
-  effect, mixing unrelated cosmetic churn into an otherwise-scoped commit. Happened while building
-  docs/design/0005 step 6: `ruff format libs/evolve` reformatted six files this change never
-  touched. Fixed by reverting those and re-running ruff against only the files actually part of the
-  change.
+- **Formatting is enforced, so just run it**: `uv run ruff format . && uv run ruff check --fix .` and `cargo fmt`
+  (in `libs/games`) before committing -- CI fails otherwise. One config at 120 columns (root `pyproject.toml`,
+  `libs/games/rustfmt.toml`); every package's `[tool.ruff]` must `extend` the root, because ruff uses the
+  *nearest* `pyproject.toml` and doesn't inherit -- the per-package copies silently kept everything under
+  `libs/`/`apis/` at the 88-column default. The one-time reformat is in `.git-blame-ignore-revs`.
 
 ## Python
 
