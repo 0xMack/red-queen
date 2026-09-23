@@ -52,3 +52,7 @@ dist/
 
 # job run output (telemetry-store data written by running jobs/ scripts)
 run-data/
+# Claude Code's project-scope MCP config. Only commit one for servers every contributor should get (with
+# secrets as ${ENV_VAR}); an IDE's localhost MCP endpoint (e.g. PyCharm's, on a port it picks) is per-machine --
+# register it with `claude mcp add --scope local` instead, which keeps it out of the repo entirely.
+.mcp.json

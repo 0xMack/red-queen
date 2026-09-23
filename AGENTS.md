@@ -212,7 +212,8 @@ Each directory has its own README with specifics — this file is the map, not t
   `uv sync`, and `[tool.uv] cache-keys` rebuilds it when `rust/**` changes. On Windows the sync fails
   with `os error 32` while any running process (a backend dev server, a notebook kernel) has
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
-  allows renaming a mapped DLL, and the build then writes a fresh one. Note `uv sync --all-packages`
+  allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;
+  it's gitignored meanwhile). Note `uv sync --all-packages`
   *uninstalls* whatever isn't named — pass `--group notebooks --extra examples` if they were installed.
   After changing `rust/core` or `rust/wasm`, run
   `uv run python libs/games/build-wasm.py` (needs the `wasm32-unknown-unknown` target and

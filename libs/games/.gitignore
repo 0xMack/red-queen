@@ -3,3 +3,5 @@ target/
 # the maturin editable build puts the compiled extension next to the Python sources
 src/games/_native*.pyd
 src/games/_native*.so
+# ...and a copy moved aside while a running process held the original (AGENTS.md's Windows workaround)
+src/games/_native*.pyd.*
