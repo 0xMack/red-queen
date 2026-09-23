@@ -100,9 +100,7 @@ ARMS: dict[str, Trainer] = {
     "neuro-lexicase": _train_neuro("lexicase"),
     "neuro-tournament": _train_neuro("tournament"),
     "neat": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG),
-    "neat-no-speciation": _train_neat(
-        dataclasses.replace(snake_neat_run.SNAKE_NEAT_CONFIG, speciation=False)
-    ),
+    "neat-no-speciation": _train_neat(dataclasses.replace(snake_neat_run.SNAKE_NEAT_CONFIG, speciation=False)),
     # docs/design/0008 "Longer runs": one change at a time from `neat`, then everything together. Training
     # games were capped at 200 steps while the leaderboard scores 1000-step games, so `h1000` trains on the
     # horizon it is judged on.
@@ -141,18 +139,14 @@ def experiment_runs(registry: SqliteRunRegistry, name: str) -> list[RunInfo]:
     return [r for r in registry.list_runs() if r.config.get("experiment") == name]
 
 
-def run_experiment(
-    name: str, arms: list[str], seeds: list[int], generations: int
-) -> None:
+def run_experiment(name: str, arms: list[str], seeds: list[int], generations: int) -> None:
     registry = TelemetryStores.open().registry
     for seed in seeds:
         for arm in arms:
             done = [
                 r
                 for r in experiment_runs(registry, name)
-                if r.config.get("arm") == arm
-                and r.config.get("rng_seed") == seed
-                and r.status == "completed"
+                if r.config.get("arm") == arm and r.config.get("rng_seed") == seed and r.status == "completed"
             ]
             if done:
                 print(
@@ -167,13 +161,9 @@ def run_experiment(
 # --- Report ------------------------------------------------------------------------------------------
 
 
-def summarize_run(
-    run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifactStore
-) -> dict[str, Any]:
+def summarize_run(run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifactStore) -> dict[str, Any]:
     history = metrics.history(run.run_id)
-    champion = network_from_json(
-        artifacts.get_program(history[-1].champion_ref).decode("utf-8")
-    )
+    champion = network_from_json(artifacts.get_program(history[-1].champion_ref).decode("utf-8"))
     interface = interfaces.get(run.config["interface"])
     quality = measure_quality(
         interface,
@@ -181,9 +171,7 @@ def summarize_run(
         training_seeds=[],
     )
     cost = (run.summary or {}).get("cost", {})
-    curve = {
-        g.generation: g.held_out_score for g in history if g.held_out_score is not None
-    }
+    curve = {g.generation: g.held_out_score for g in history if g.held_out_score is not None}
     row: dict[str, Any] = {
         "run_id": run.run_id,
         "arm": run.config["arm"],
@@ -229,16 +217,10 @@ def build_report(name: str) -> dict[str, Any]:
             "held_out_mean": _stats([row["held_out_mean"] for row in mine]),
             "held_out_per_seed": [row["held_out_mean"] for row in mine],
             "parameters": _stats([float(row["parameters"]) for row in mine]),
-            "active_s": _stats(
-                [row["active_s"] for row in mine if row["active_s"] is not None]
-            ),
+            "active_s": _stats([row["active_s"] for row in mine if row["active_s"] is not None]),
             "curve_mean": {
                 str(g): round(
-                    statistics.fmean(
-                        row["curve"][str(g)]
-                        for row in mine
-                        if row["curve"][str(g)] is not None
-                    ),
+                    statistics.fmean(row["curve"][str(g)] for row in mine if row["curve"][str(g)] is not None),
                     2,
                 )
                 for g in CURVE_GENERATIONS
@@ -264,17 +246,11 @@ def build_report(name: str) -> dict[str, Any]:
 
 def print_report(report: dict[str, Any]) -> None:
     print(f"\n## {report['name']} -- {report['protocol']}\n")
-    print(
-        "| arm | n | held-out score (mean ± sd) | min-max | params | hidden nodes | train time (s) |"
-    )
+    print("| arm | n | held-out score (mean ± sd) | min-max | params | hidden nodes | train time (s) |")
     print("|---|---|---|---|---|---|---|")
     for arm, a in report["arms"].items():
         h = a["held_out_mean"]
-        hidden = (
-            f"{a['hidden_nodes']['mean']:.1f}"
-            if "hidden_nodes" in a
-            else "0 (fixed 16)"
-        )
+        hidden = f"{a['hidden_nodes']['mean']:.1f}" if "hidden_nodes" in a else "0 (fixed 16)"
         print(
             f"| {arm} | {a['n']} | {h['mean']:.2f} ± {h['sd']:.2f} | {h['min']:.1f}-{h['max']:.1f} | "
             f"{a['parameters']['mean']:.0f} | {hidden} | {a['active_s']['mean']:.0f} |"
@@ -283,10 +259,7 @@ def print_report(report: dict[str, Any]) -> None:
     print("| arm | " + " | ".join(f"g{g}" for g in CURVE_GENERATIONS) + " |")
     print("|---|" + "---|" * len(CURVE_GENERATIONS))
     for arm, a in report["arms"].items():
-        cells = [
-            f"{a['curve_mean'].get(str(g), float('nan')):.1f}"
-            for g in CURVE_GENERATIONS
-        ]
+        cells = [f"{a['curve_mean'].get(str(g), float('nan')):.1f}" for g in CURVE_GENERATIONS]
         print(f"| {arm} | " + " | ".join(cells) + " |")
     print("\nPer-seed final held-out score:")
     for arm, a in report["arms"].items():
@@ -294,15 +267,11 @@ def print_report(report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(
-        description="Tracked NEAT vs. neuroevolution comparison on Snake."
-    )
+    parser = argparse.ArgumentParser(description="Tracked NEAT vs. neuroevolution comparison on Snake.")
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="train the (arm, seed) runs not done yet")
     run.add_argument("--name", required=True)
-    run.add_argument(
-        "--arms", default=",".join(ARMS), help=f"comma list of {sorted(ARMS)}"
-    )
+    run.add_argument("--arms", default=",".join(ARMS), help=f"comma list of {sorted(ARMS)}")
     run.add_argument("--seeds", default="0-4")
     run.add_argument("--generations", type=int, default=snake_neuro_run.GENERATIONS)
     report = sub.add_parser("report", help="aggregate finished runs")
@@ -318,9 +287,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         result = build_report(args.name)
         EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        (EXPERIMENTS_DIR / f"{args.name}.json").write_text(
-            json.dumps(result, indent=2), encoding="utf-8"
-        )
+        (EXPERIMENTS_DIR / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print_report(result)
         print(f"\nwrote {EXPERIMENTS_DIR / (args.name + '.json')}")
 

@@ -13,4 +13,6 @@ def test_wasm_build_is_current():
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     recorded = (build.OUT / "source-hash.txt").read_text(encoding="utf-8").strip()
-    assert recorded == build.source_hash(), "libs/games/rust changed since the WASM build -- run libs/games/build-wasm.py"
+    assert recorded == build.source_hash(), (
+        "libs/games/rust changed since the WASM build -- run libs/games/build-wasm.py"
+    )

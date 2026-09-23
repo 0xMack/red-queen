@@ -29,6 +29,7 @@ from games.checkers_strategies import STRATEGIES
 GAMES = 200
 MAX_PLIES = 300
 
+
 def play_pairing(a: str, b: str, games: int = GAMES) -> dict[str, int]:
     """Results from `a`'s point of view."""
     tally = {"wins": 0, "draws": 0, "losses": 0}

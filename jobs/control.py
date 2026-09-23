@@ -14,9 +14,7 @@ from evolve import GenerationCallback, GenerationSummary
 from telemetry import RunRegistry
 
 
-def make_control_callback(
-    registry: RunRegistry, run_id: str, poll_interval: float = 0.2
-) -> GenerationCallback:
+def make_control_callback(registry: RunRegistry, run_id: str, poll_interval: float = 0.2) -> GenerationCallback:
     """Returns an on_generation callback that blocks while the run's status is "paused".
 
     apis/backend/routers/runs.py's control endpoint flips status between "running" and "paused" via

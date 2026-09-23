@@ -39,9 +39,7 @@ Square = tuple[int, int]
 Move = tuple[Square, ...]
 _Piece = tuple[int, bool]  # (owner, is_king)
 
-_PLAYABLE_SQUARES: tuple[Square, ...] = tuple(
-    (x, y) for y in range(8) for x in range(8) if (x + y) % 2 == 1
-)
+_PLAYABLE_SQUARES: tuple[Square, ...] = tuple((x, y) for y in range(8) for x in range(8) if (x + y) % 2 == 1)
 
 
 def _in_bounds(x: int, y: int) -> bool:
@@ -58,9 +56,7 @@ def _directions(player: int, is_king: bool) -> tuple[tuple[int, int], ...]:
     return ((1, 1), (-1, 1)) if player == 0 else ((1, -1), (-1, -1))
 
 
-def _capture_chains(
-    pos: Square, player: int, is_king: bool, board: dict[Square, _Piece]
-) -> list[list[Square]]:
+def _capture_chains(pos: Square, player: int, is_king: bool, board: dict[Square, _Piece]) -> list[list[Square]]:
     """All maximal capture-chain landing-square sequences starting from `pos` (excluding `pos`
     itself); [] if no capture is available from here. `board` must already have the moving piece's
     original square cleared and every piece captured earlier in this same chain removed, so
@@ -176,11 +172,7 @@ class Checkers:
 
         rewards: dict[int, float] = {}
         if done:
-            rewards = (
-                {self._winner: 1.0, 1 - self._winner: -1.0}
-                if self._winner is not None
-                else {0: 0.0, 1: 0.0}
-            )
+            rewards = {self._winner: 1.0, 1 - self._winner: -1.0} if self._winner is not None else {0: 0.0, 1: 0.0}
 
         return self._observation(), rewards, done
 

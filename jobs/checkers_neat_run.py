@@ -48,7 +48,9 @@ DEFAULT_OPPONENTS = ("random", "material-1", "material-2")
 # so aim for a handful of species and let the threshold adapt -- as the Snake NEAT job does. Weight mutation is
 # gentler than NEAT's default: perturbing every weight and replacing 10% outright (the defaults) erases a
 # well-placed evaluator -- the seeded material one, or a champion -- faster than it can be improved on.
-CHECKERS_NEAT_CONFIG = NeatConfig(target_species=5, weight_perturb_sigma=0.04, weight_replace_rate=0.01, initial_weight_scale=0.5)
+CHECKERS_NEAT_CONFIG = NeatConfig(
+    target_species=5, weight_perturb_sigma=0.04, weight_replace_rate=0.01, initial_weight_scale=0.5
+)
 
 
 def main(
@@ -83,7 +85,9 @@ def main(
         "selection": "speciation" if config.speciation else "single species (no speciation)",
         "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
         "neat": dataclasses.asdict(config),
-        "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
+        "fitness": "match outcomes + material margin on draws, both seats per opponent"
+        if margin
+        else "match outcomes, both seats per opponent",
         "resampled_opponents": resample,
         "games_per_opponent": games_per_opponent,
         "held_out_every": held_out_every,
@@ -99,7 +103,9 @@ def main(
         else initial_genome(INPUTS, 1, tracker, rng, config.initial_weight_scale)
         for i in range(population_size)
     ]
-    pool = OpponentPool(opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent)
+    pool = OpponentPool(
+        opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent
+    )
     cost = TrainingCostMeter(population_size=population_size, fitness=pool)
 
     with recorded_run(run_config) as run:
@@ -110,7 +116,16 @@ def main(
             config,
             generations,
             on_generation=[
-                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(
+                    run.metrics,
+                    run.artifacts,
+                    run.run_id,
+                    opponents,
+                    depth,
+                    held_out_every,
+                    generations - 1,
+                    MONITOR_GAMES,
+                ),
                 pool.on_generation,
                 cost.on_generation,
                 run.control_callback(cost),
@@ -127,12 +142,20 @@ if __name__ == "__main__":
     parser.add_argument("--generations", type=int, default=GENERATIONS)
     parser.add_argument("--population", type=int, default=POPULATION_SIZE)
     parser.add_argument("--depth", type=int, default=1, help="alpha-beta plies the evaluator searches (1 = one ply)")
-    parser.add_argument("--opponents", default=",".join(DEFAULT_OPPONENTS), help=f"comma list from {sorted(STRATEGIES)}")
+    parser.add_argument(
+        "--opponents", default=",".join(DEFAULT_OPPONENTS), help=f"comma list from {sorted(STRATEGIES)}"
+    )
     parser.add_argument("--hall", type=int, default=0, help="hall-of-fame size: past champions as extra opponents")
-    parser.add_argument("--seed-material", type=float, default=0.0, help="fraction of the population started as a material evaluator")
+    parser.add_argument(
+        "--seed-material", type=float, default=0.0, help="fraction of the population started as a material evaluator"
+    )
     parser.add_argument("--margin", action="store_true", help="score draws by the material edge held")
-    parser.add_argument("--resample", action="store_true", help="fresh opponent games every generation (nothing to memorize)")
-    parser.add_argument("--games-per-opponent", type=int, default=1, help="games each opponent plays per seat per generation")
+    parser.add_argument(
+        "--resample", action="store_true", help="fresh opponent games every generation (nothing to memorize)"
+    )
+    parser.add_argument(
+        "--games-per-opponent", type=int, default=1, help="games each opponent plays per seat per generation"
+    )
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
     parser.add_argument("--held-out-every", type=int, default=5)
     args = parser.parse_args()

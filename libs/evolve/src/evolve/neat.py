@@ -45,9 +45,7 @@ from evolve.population import GenerationCallback, GenerationSummary
 
 @dataclass(frozen=True, slots=True)
 class ConnectionGene:
-    innovation: (
-        int  # global historical marking: same (source, target) -> same number, forever
-    )
+    innovation: int  # global historical marking: same (source, target) -> same number, forever
     source: int  # node id
     target: int  # node id
     weight: float
@@ -85,12 +83,7 @@ class NeatGenome:
 
     @property
     def hidden_ids(self) -> tuple[int, ...]:
-        ids = {
-            n
-            for c in self.connections
-            for n in (c.source, c.target)
-            if n >= self.first_hidden_id
-        }
+        ids = {n for c in self.connections for n in (c.source, c.target) if n >= self.first_hidden_id}
         return tuple(sorted(ids))
 
     @property
@@ -109,9 +102,7 @@ class NeatGenome:
             if c.enabled:
                 incoming.setdefault(c.target, []).append((c.source, c.weight))
 
-        outputs = list(
-            range(self.first_output_id, self.first_output_id + self.num_outputs)
-        )
+        outputs = list(range(self.first_output_id, self.first_output_id + self.num_outputs))
         needed: set[int] = set(outputs)
         stack = list(outputs)
         while stack:
@@ -121,9 +112,7 @@ class NeatGenome:
                     stack.append(source)
 
         # Kahn's algorithm over the needed hidden/output nodes; inputs/bias are always ready.
-        remaining = {
-            n: sum(1 for s, _ in incoming.get(n, ()) if s in needed) for n in needed
-        }
+        remaining = {n: sum(1 for s, _ in incoming.get(n, ()) if s in needed) for n in needed}
         dependents: dict[int, list[int]] = {}
         for n in needed:
             for s, _ in incoming.get(n, ()):
@@ -142,9 +131,7 @@ class NeatGenome:
         # value slots: inputs, bias, then every needed node in evaluation order
         node_of_slot = list(range(self.num_inputs + 1)) + order
         slot = {node: i for i, node in enumerate(node_of_slot)}
-        steps = [
-            (slot[n], [(slot[s], w) for s, w in incoming.get(n, ())]) for n in order
-        ]
+        steps = [(slot[n], [(slot[s], w) for s, w in incoming.get(n, ())]) for n in order]
         return node_of_slot, steps, [slot[o] for o in outputs]
 
     def _run(self, observation: Sequence[float]) -> list[float]:
@@ -287,9 +274,7 @@ def initial_genome(
         for o in range(num_outputs)
         for source in range(num_inputs + 1)
     ]
-    return NeatGenome(
-        num_inputs, num_outputs, tuple(sorted(connections, key=lambda c: c.innovation))
-    )
+    return NeatGenome(num_inputs, num_outputs, tuple(sorted(connections, key=lambda c: c.innovation)))
 
 
 # --- Configuration -----------------------------------------------------------------------------------
@@ -303,18 +288,14 @@ class NeatConfig:
     # variation
     weight_mutation_rate: float = 0.8  # chance a genome's weights are mutated at all
     weight_perturb_sigma: float = 0.2  # Gaussian step for a perturbed weight
-    weight_replace_rate: float = (
-        0.1  # of the mutated weights, fraction replaced outright
-    )
+    weight_replace_rate: float = 0.1  # of the mutated weights, fraction replaced outright
     weight_replace_scale: float = 1.0
     add_connection_rate: float = 0.08
     add_node_rate: float = 0.04
     toggle_rate: float = 0.01
     crossover_rate: float = 0.75  # else the child is a mutated clone of one parent
     interspecies_rate: float = 0.001
-    disabled_inherit_rate: float = (
-        0.75  # child of a gene disabled in either parent: chance it stays disabled
-    )
+    disabled_inherit_rate: float = 0.75  # child of a gene disabled in either parent: chance it stays disabled
     # speciation
     compatibility_threshold: float = 3.0
     # The paper's fixed threshold assumes small genomes: distance is normalized by gene count once a
@@ -329,19 +310,13 @@ class NeatConfig:
     weight_coefficient: float = 0.4  # c3
     # reproduction
     survival_threshold: float = 0.2  # top fraction of each species allowed to breed
-    stagnation_limit: int = (
-        15  # generations without species improvement before it stops breeding
-    )
+    stagnation_limit: int = 15  # generations without species improvement before it stops breeding
     min_species_kept: int = 2  # stagnant species are only culled down to this many
     species_elitism_size: int = 5  # a species this large keeps its champion unchanged
     # sizing
     initial_weight_scale: float = 1.0
-    max_hidden_nodes: int = (
-        40  # add_node stops here, a safety valve against runaway growth
-    )
-    speciation: bool = (
-        True  # False: one big species -- the ablation that shows what speciation buys
-    )
+    max_hidden_nodes: int = 40  # add_node stops here, a safety valve against runaway growth
+    speciation: bool = True  # False: one big species -- the ablation that shows what speciation buys
 
 
 # --- Variation ---------------------------------------------------------------------------------------
@@ -367,15 +342,11 @@ def _creates_cycle(genome: NeatGenome, source: int, target: int) -> bool:
     return False
 
 
-def mutate_weights(
-    genome: NeatGenome, config: NeatConfig, rng: random.Random
-) -> NeatGenome:
+def mutate_weights(genome: NeatGenome, config: NeatConfig, rng: random.Random) -> NeatGenome:
     new = []
     for c in genome.connections:
         if rng.random() < config.weight_replace_rate:
-            weight = rng.uniform(
-                -config.weight_replace_scale, config.weight_replace_scale
-            )
+            weight = rng.uniform(-config.weight_replace_scale, config.weight_replace_scale)
         else:
             weight = c.weight + rng.gauss(0.0, config.weight_perturb_sigma)
         new.append(replace(c, weight=weight))
@@ -404,15 +375,11 @@ def add_connection(
             innovation=tracker.connection(source, target),
             source=source,
             target=target,
-            weight=rng.uniform(
-                -config.weight_replace_scale, config.weight_replace_scale
-            ),
+            weight=rng.uniform(-config.weight_replace_scale, config.weight_replace_scale),
         )
         return replace(
             genome,
-            connections=tuple(
-                sorted([*genome.connections, gene], key=lambda c: c.innovation)
-            ),
+            connections=tuple(sorted([*genome.connections, gene], key=lambda c: c.innovation)),
         )
     return genome
 
@@ -435,29 +402,18 @@ def add_node(
     candidates = [
         c
         for c in genome.connections
-        if c.enabled
-        and c.source != genome.bias_id
-        and tracker.known_split_node(c.innovation) not in present
+        if c.enabled and c.source != genome.bias_id and tracker.known_split_node(c.innovation) not in present
     ]
     if not candidates:
         return genome
     old = rng.choice(candidates)
     node = tracker.split_node(old.innovation)
-    incoming = ConnectionGene(
-        tracker.connection(old.source, node), old.source, node, 1.0
-    )
-    outgoing = ConnectionGene(
-        tracker.connection(node, old.target), node, old.target, old.weight
-    )
-    kept = [
-        replace(c, enabled=False) if c.innovation == old.innovation else c
-        for c in genome.connections
-    ]
+    incoming = ConnectionGene(tracker.connection(old.source, node), old.source, node, 1.0)
+    outgoing = ConnectionGene(tracker.connection(node, old.target), node, old.target, old.weight)
+    kept = [replace(c, enabled=False) if c.innovation == old.innovation else c for c in genome.connections]
     return replace(
         genome,
-        connections=tuple(
-            sorted([*kept, incoming, outgoing], key=lambda c: c.innovation)
-        ),
+        connections=tuple(sorted([*kept, incoming, outgoing], key=lambda c: c.innovation)),
     )
 
 
@@ -516,9 +472,7 @@ def align(
     )
 
 
-def crossover(
-    fitter: NeatGenome, other: NeatGenome, config: NeatConfig, rng: random.Random
-) -> NeatGenome:
+def crossover(fitter: NeatGenome, other: NeatGenome, config: NeatConfig, rng: random.Random) -> NeatGenome:
     """Offspring of two parents (`fitter` first). Matching genes come from either parent at random;
     disjoint and excess genes only from the fitter one. A gene disabled in either parent stays
     disabled with probability `disabled_inherit_rate`.
@@ -553,11 +507,7 @@ def compatibility_distance(a: NeatGenome, b: NeatGenome, config: NeatConfig) -> 
     matching, dis_a, dis_b, exc_a, exc_b = align(a, b)
     n = max(len(a.connections), len(b.connections))
     n = 1 if n < 20 else n
-    weight_diff = (
-        statistics.fmean(abs(x.weight - y.weight) for x, y in matching)
-        if matching
-        else 0.0
-    )
+    weight_diff = statistics.fmean(abs(x.weight - y.weight) for x, y in matching) if matching else 0.0
     return (
         config.excess_coefficient * (len(exc_a) + len(exc_b)) / n
         + config.disjoint_coefficient * (len(dis_a) + len(dis_b)) / n
@@ -569,9 +519,7 @@ def compatibility_distance(a: NeatGenome, b: NeatGenome, config: NeatConfig) -> 
 class Species:
     species_id: int
     representative: NeatGenome
-    members: list[int] = field(
-        default_factory=list
-    )  # indices into the current population
+    members: list[int] = field(default_factory=list)  # indices into the current population
     best_fitness: float = -math.inf
     last_improved: int = 0  # generation
 
@@ -594,16 +542,11 @@ def _speciate(
         return species, next_species_id
     for index, genome in enumerate(population):
         for s in species:
-            if (
-                compatibility_distance(genome, s.representative, config)
-                < config.compatibility_threshold
-            ):
+            if compatibility_distance(genome, s.representative, config) < config.compatibility_threshold:
                 s.members.append(index)
                 break
         else:
-            species.append(
-                Species(next_species_id, genome, [index], last_improved=generation)
-            )
+            species.append(Species(next_species_id, genome, [index], last_improved=generation))
             next_species_id += 1
     return [s for s in species if s.members], next_species_id
 
@@ -616,9 +559,7 @@ def _allocate(shares: list[float], total: int) -> list[int]:
     else:
         exact = [total * s / weight for s in shares]
         base = [int(x) for x in exact]
-        remainders = sorted(
-            range(len(shares)), key=lambda i: exact[i] - base[i], reverse=True
-        )
+        remainders = sorted(range(len(shares)), key=lambda i: exact[i] - base[i], reverse=True)
         for i in remainders[: total - sum(base)]:
             base[i] += 1
     for i in range(total - sum(base)):
@@ -654,9 +595,7 @@ def evolve_neat(
     for generation in range(generations):
         case_fitnesses = evaluate_all(fitness, population)
         aggregate = [statistics.fmean(cf) for cf in case_fitnesses]
-        ranked = sorted(
-            range(len(population)), key=lambda i: aggregate[i], reverse=True
-        )
+        ranked = sorted(range(len(population)), key=lambda i: aggregate[i], reverse=True)
         champion = population[ranked[0]]
 
         species, next_species_id = _speciate(
@@ -683,9 +622,7 @@ def evolve_neat(
                 "species": float(len(species)),
                 "champion_hidden_nodes": float(hidden),
                 "champion_connections": float(connections),
-                "mean_connections": statistics.fmean(
-                    len(g.enabled_connections) for g in population
-                ),
+                "mean_connections": statistics.fmean(len(g.enabled_connections) for g in population),
                 "innovations": float(tracker.innovations),
                 "compatibility_threshold": threshold,
             },
@@ -701,9 +638,7 @@ def evolve_neat(
         # next generation's genomes are compared against a random member of each species
         for s in species:
             s.representative = population[rng.choice(s.members)]
-        population = _reproduce(
-            population, aggregate, species, config, tracker, generation, rng
-        )
+        population = _reproduce(population, aggregate, species, config, tracker, generation, rng)
     return population
 
 
@@ -718,18 +653,13 @@ def _reproduce(
 ) -> list[NeatGenome]:
     size = len(population)
     floor = min(aggregate)
-    shifted = [
-        f - floor + 1e-6 for f in aggregate
-    ]  # fitness can be negative; sharing needs > 0
+    shifted = [f - floor + 1e-6 for f in aggregate]  # fitness can be negative; sharing needs > 0
 
     # stagnant species stop breeding (but never cull below `min_species_kept`)
     by_best = sorted(species, key=lambda s: s.best_fitness, reverse=True)
     protected = {s.species_id for s in by_best[: config.min_species_kept]}
     breeding = [
-        s
-        for s in species
-        if generation - s.last_improved < config.stagnation_limit
-        or s.species_id in protected
+        s for s in species if generation - s.last_improved < config.stagnation_limit or s.species_id in protected
     ]
 
     # fitness sharing: each member's fitness is divided by its species' size, so a species' total
@@ -744,9 +674,7 @@ def _reproduce(
             continue
         members = sorted(s.members, key=lambda i: aggregate[i], reverse=True)
         if len(members) >= config.species_elitism_size or global_champion in members:
-            next_population.append(
-                population[members[0]]
-            )  # champion carried over unchanged
+            next_population.append(population[members[0]])  # champion carried over unchanged
             quota -= 1
         parents = members[: max(1, math.ceil(len(members) * config.survival_threshold))]
         for _ in range(quota):

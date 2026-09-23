@@ -214,9 +214,7 @@ def test_linear_crossover_mutation_preserves_shape():
 
 def test_evolve_improves_best_fitness_on_a_simple_regression_problem():
     rng = random.Random(7)
-    population = [
-        random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)
-    ]
+    population = [random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)]
     fitness = SymbolicRegressionFitness(target=lambda x: x**2, inputs=[i / 5 for i in range(-5, 6)])
     summaries = []
 
@@ -234,19 +232,13 @@ def test_evolve_improves_best_fitness_on_a_simple_regression_problem():
     last_gen_best = summaries[-1].best_fitness
     assert last_gen_best > first_gen_best  # higher fitness = lower error = improvement
     # best_fitness is monotonically non-decreasing thanks to elitism
-    assert all(
-        summaries[i + 1].best_fitness >= summaries[i].best_fitness for i in range(len(summaries) - 1)
-    )
+    assert all(summaries[i + 1].best_fitness >= summaries[i].best_fitness for i in range(len(summaries) - 1))
 
 
 def test_evolve_also_improves_with_lexicase_selection():
     rng = random.Random(11)
-    population = [
-        random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)
-    ]
-    fitness = SymbolicRegressionFitness(
-        target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)]
-    )
+    population = [random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)]
+    fitness = SymbolicRegressionFitness(target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)])
     summaries = []
 
     evolve(
@@ -267,12 +259,8 @@ def test_evolve_also_improves_with_lexicase_selection():
 
 def test_evolve_works_with_pareto_selection():
     rng = random.Random(13)
-    population = [
-        random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)
-    ]
-    fitness = SymbolicRegressionFitness(
-        target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)]
-    )
+    population = [random_program(num_instructions=12, num_registers=4, num_inputs=1, rng=rng) for _ in range(60)]
+    fitness = SymbolicRegressionFitness(target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)])
     selection = ParetoSelection(complexity=lambda p: p.effective_instruction_count(), k=3)
     summaries = []
 

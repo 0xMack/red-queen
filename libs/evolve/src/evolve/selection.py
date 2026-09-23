@@ -18,9 +18,7 @@ Genome = TypeVar("Genome")
 
 
 class SelectionStrategy(Protocol[Genome]):
-    def select(
-        self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random
-    ) -> Genome: ...
+    def select(self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random) -> Genome: ...
 
 
 class TournamentSelection:
@@ -29,9 +27,7 @@ class TournamentSelection:
     def __init__(self, k: int = 3):
         self._k = k
 
-    def select(
-        self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random
-    ) -> Genome:
+    def select(self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random) -> Genome:
         indices = [rng.randrange(len(population)) for _ in range(self._k)]
         best_idx = max(indices, key=lambda i: statistics.fmean(case_fitnesses[i]))
         return population[best_idx]
@@ -58,9 +54,7 @@ class LexicaseSelection:
     def __init__(self, epsilon: float | None = None):
         self._epsilon = epsilon
 
-    def select(
-        self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random
-    ) -> Genome:
+    def select(self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random) -> Genome:
         candidates = list(range(len(population)))
         num_cases = len(case_fitnesses[0])
         case_order = list(range(num_cases))
@@ -104,14 +98,10 @@ class ParetoSelection:
         self._complexity = complexity
         self._k = k
 
-    def select(
-        self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random
-    ) -> Genome:
+    def select(self, population: list[Genome], case_fitnesses: list[list[float]], rng: random.Random) -> Genome:
         indices = [rng.randrange(len(population)) for _ in range(self._k)]
         unique = list(dict.fromkeys(indices))
-        objectives = {
-            i: (statistics.fmean(case_fitnesses[i]), -self._complexity(population[i])) for i in unique
-        }
+        objectives = {i: (statistics.fmean(case_fitnesses[i]), -self._complexity(population[i])) for i in unique}
         non_dominated = [
             i for i in unique if not any(_dominates(objectives[j], objectives[i]) for j in unique if j != i)
         ]

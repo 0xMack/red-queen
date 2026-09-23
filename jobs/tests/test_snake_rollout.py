@@ -34,7 +34,9 @@ def _evaluators(interface_id: str):
     interface = interfaces.get(interface_id)
     envs = [interface.make_game(seed=seed, **BOARD) for seed in SEEDS]
     python = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=200)
-    native = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=200, rollout=make_rollout(interface))
+    native = SimulationFitnessEvaluator(
+        envs=envs, act=make_act(interface), max_steps=200, rollout=make_rollout(interface)
+    )
     return interface, envs, python, native
 
 

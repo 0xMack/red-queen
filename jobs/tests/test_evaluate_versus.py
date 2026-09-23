@@ -32,7 +32,9 @@ def test_round_robin_is_zero_sum_and_symmetric():
 
 
 def test_records_carry_points_per_game_and_head_to_head(monkeypatch):
-    monkeypatch.setattr(evaluate_versus, "measure_inference", lambda factory: {"encode_us": 0.0, "decide_us": 1.0, "total_us": 1.0})
+    monkeypatch.setattr(
+        evaluate_versus, "measure_inference", lambda factory: {"encode_us": 0.0, "decide_us": 1.0, "total_us": 1.0}
+    )
     entrants = _entrants()
 
     records = evaluate_versus.evaluate_all(entrants, None, {"cpu": "test"}, games=4)
@@ -72,7 +74,17 @@ def test_champion_entrants_reads_neat_and_layered_runs_with_their_search_depth_a
             ref = f"{run_id}-gen{g}"
             artifacts.put_program(ref, champion_json.encode())
             metrics.record_generation(
-                GenerationStats(run_id=run_id, island_id=None, generation=g, timestamp=time.time(), best_fitness=0.0, mean_fitness=0.0, worst_fitness=0.0, diversity=0.0, champion_ref=ref)
+                GenerationStats(
+                    run_id=run_id,
+                    island_id=None,
+                    generation=g,
+                    timestamp=time.time(),
+                    best_fitness=0.0,
+                    mean_fitness=0.0,
+                    worst_fitness=0.0,
+                    diversity=0.0,
+                    champion_ref=ref,
+                )
             )
         registry.update_status(run_id, "completed")
         return run_id
@@ -86,7 +98,11 @@ def test_champion_entrants_reads_neat_and_layered_runs_with_their_search_depth_a
     entrants = {e["entrant_id"]: e for e in evaluate_versus.champion_entrants(registry, metrics, artifacts)}
 
     assert set(entrants) == {f"run:{neat}", f"run:{layered}"}
-    assert entrants[f"run:{neat}"]["search_depth"] == 3 and "NEAT" in entrants[f"run:{neat}"]["label"] and "3-ply" in entrants[f"run:{neat}"]["label"]
+    assert (
+        entrants[f"run:{neat}"]["search_depth"] == 3
+        and "NEAT" in entrants[f"run:{neat}"]["label"]
+        and "3-ply" in entrants[f"run:{neat}"]["label"]
+    )
     assert entrants[f"run:{layered}"]["search_depth"] == 1
     # Both play: the factories build a working strategy through the game core.
     env = evaluate_versus.Checkers()

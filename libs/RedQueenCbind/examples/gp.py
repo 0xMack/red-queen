@@ -8,8 +8,8 @@ from sklearn.datasets import load_iris
 iris = load_iris()
 
 # Convert to NumPy arrays
-X = iris.data          # features
-y = iris.target        # labels
+X = iris.data  # features
+y = iris.target  # labels
 feature_names = iris.feature_names
 target_names = iris.target_names
 

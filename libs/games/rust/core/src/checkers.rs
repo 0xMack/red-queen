@@ -70,7 +70,9 @@ impl Board {
 
 /// The 32 dark squares, row by row -- the observation's order.
 pub fn playable_squares() -> impl Iterator<Item = Square> {
-    (0..8).flat_map(|y| (0..8).map(move |x| (x, y))).filter(|(x, y)| (x + y) % 2 == 1)
+    (0..8)
+        .flat_map(|y| (0..8).map(move |x| (x, y)))
+        .filter(|(x, y)| (x + y) % 2 == 1)
 }
 
 fn in_bounds((x, y): Square) -> bool {
@@ -129,7 +131,9 @@ fn capture_chains(pos: Square, player: u8, king: bool, board: &Board) -> Vec<Vec
 /// (resulting board, pieces captured). Errors on a move that doesn't start at a piece.
 pub fn apply(board: &Board, mv: &[Square]) -> Result<(Board, u32), String> {
     if mv.len() < 2 {
-        return Err(format!("a move needs a start and at least one landing square, got {mv:?}"));
+        return Err(format!(
+            "a move needs a start and at least one landing square, got {mv:?}"
+        ));
     }
     let mut next = board.clone();
     let mut piece = next.remove(mv[0]).ok_or_else(|| format!("no piece on {:?}", mv[0]))?;
@@ -242,7 +246,11 @@ impl Checkers {
     pub fn step(&mut self, mv: &[Square]) -> Result<bool, String> {
         let (board, captured) = apply(&self.board, mv)?;
         self.board = board;
-        self.moves_without_capture = if captured > 0 { 0 } else { self.moves_without_capture + 1 };
+        self.moves_without_capture = if captured > 0 {
+            0
+        } else {
+            self.moves_without_capture + 1
+        };
         self.current_player = 1 - self.current_player;
         if self.moves_without_capture >= self.max_moves_without_capture {
             self.done = true;

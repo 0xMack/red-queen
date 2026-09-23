@@ -40,7 +40,9 @@ pub use crate::nets::{GraphNet, Network};
 fn check_evaluator(brain: &Brain) -> Result<(), String> {
     let (inputs, outputs) = (brain.inputs(), brain.outputs());
     if inputs != INPUTS || (matches!(brain, Brain::Layered(_)) && outputs != 1) {
-        return Err(format!("an evaluator maps {INPUTS} inputs to 1 score, got {inputs} inputs and {outputs} outputs"));
+        return Err(format!(
+            "an evaluator maps {INPUTS} inputs to 1 score, got {inputs} inputs and {outputs} outputs"
+        ));
     }
     Ok(())
 }
@@ -98,7 +100,10 @@ pub enum Kind {
     /// A layered network, one ply ahead (the original evaluator strategy).
     Evaluator(Network),
     /// Alpha-beta to `depth` plies with `eval` at the leaves.
-    Search { depth: u32, eval: Eval },
+    Search {
+        depth: u32,
+        eval: Eval,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -126,11 +131,17 @@ impl Strategy {
                 Kind::Evaluator(network)
             }
             other => match other.strip_prefix("material-").and_then(|n| n.parse::<u32>().ok()) {
-                Some(depth) if depth >= 3 => Kind::Search { depth, eval: Eval::Material },
+                Some(depth) if depth >= 3 => Kind::Search {
+                    depth,
+                    eval: Eval::Material,
+                },
                 _ => return Err(format!("no such checkers strategy: {other}")),
             },
         };
-        Ok(Strategy { kind, rng: Pcg32::new(seed) })
+        Ok(Strategy {
+            kind,
+            rng: Pcg32::new(seed),
+        })
     }
 
     /// The one constructor the bindings share: `name` as in `parse`; a trained evaluator is described by
@@ -167,9 +178,15 @@ impl Strategy {
         check_evaluator(&brain)?;
         let kind = match (brain, depth) {
             (Brain::Layered(network), 1) => Kind::Evaluator(network),
-            (brain, depth) => Kind::Search { depth, eval: Eval::Brain(brain) },
+            (brain, depth) => Kind::Search {
+                depth,
+                eval: Eval::Brain(brain),
+            },
         };
-        Ok(Strategy { kind, rng: Pcg32::new(seed) })
+        Ok(Strategy {
+            kind,
+            rng: Pcg32::new(seed),
+        })
     }
 
     /// Index into `game.legal_moves()`. The game must have at least one legal move.
@@ -194,7 +211,12 @@ impl Strategy {
             Kind::Material1 => Some(moves.iter().map(|m| -sum(&game.simulate(m).unwrap())).collect()),
             // simulate() encodes the position from the *opponent's* side (they move next), so a move
             // is as good as that position is bad for them.
-            Kind::Evaluator(network) => Some(moves.iter().map(|m| -network.score(&game.simulate(m).unwrap())).collect()),
+            Kind::Evaluator(network) => Some(
+                moves
+                    .iter()
+                    .map(|m| -network.score(&game.simulate(m).unwrap()))
+                    .collect(),
+            ),
             Kind::Material2 => {
                 let me = game.current_player;
                 Some(
@@ -206,7 +228,11 @@ impl Strategy {
                                 return if child.winner == Some(me) { WIN_SCORE } else { 0.0 };
                             }
                             // After the opponent's reply it's my move again, so simulate() is from my side.
-                            child.legal_moves().iter().map(|r| sum(&child.simulate(r).unwrap())).fold(f64::INFINITY, f64::min)
+                            child
+                                .legal_moves()
+                                .iter()
+                                .map(|r| sum(&child.simulate(r).unwrap()))
+                                .fold(f64::INFINITY, f64::min)
                         })
                         .collect(),
                 )
@@ -231,7 +257,10 @@ impl Strategy {
     pub fn activations(&self, game: &Checkers, index: usize) -> Option<Vec<Vec<f64>>> {
         let network = match &self.kind {
             Kind::Evaluator(network) => network,
-            Kind::Search { eval: Eval::Brain(Brain::Layered(network)), .. } => network,
+            Kind::Search {
+                eval: Eval::Brain(Brain::Layered(network)),
+                ..
+            } => network,
             _ => return None,
         };
         let moves = game.legal_moves();
@@ -288,7 +317,10 @@ mod tests {
             (0..20).map(|_| s.pick(&game)).collect::<Vec<_>>()
         };
         assert_eq!(picks(7), picks(7));
-        assert!(picks(1).iter().any(|&i| i != 0), "random should not always pick the first move");
+        assert!(
+            picks(1).iter().any(|&i| i != 0),
+            "random should not always pick the first move"
+        );
     }
 
     #[test]
@@ -300,7 +332,10 @@ mod tests {
             let scores = strategy.scores(&game).unwrap();
             assert_eq!(scores.len(), game.legal_moves().len());
             let picked = strategy.pick(&game);
-            assert!(scores.iter().all(|&s| s <= scores[picked]), "{name} picked a lower-scoring move");
+            assert!(
+                scores.iter().all(|&s| s <= scores[picked]),
+                "{name} picked a lower-scoring move"
+            );
         }
     }
 
@@ -308,7 +343,10 @@ mod tests {
     fn material_2_takes_the_win() {
         // Red (0) man at (2,2) can capture (3,3) landing on (4,4) -- the last black piece.
         let mut game = Checkers::new(40);
-        game.board = Board::from_cells(vec![((2, 2), Piece { owner: 0, king: false }), ((3, 3), Piece { owner: 1, king: false })]);
+        game.board = Board::from_cells(vec![
+            ((2, 2), Piece { owner: 0, king: false }),
+            ((3, 3), Piece { owner: 1, king: false }),
+        ]);
         let moves = game.legal_moves();
         let index = material(2, 0).pick(&game);
         assert_eq!(moves[index], vec![(2, 2), (4, 4)]);
@@ -318,8 +356,14 @@ mod tests {
     fn two_ply_beats_random_from_both_seats() {
         let mut wins = 0;
         for seed in 0..6 {
-            wins += (play(&mut material(2, seed), &mut Strategy::parse("random", seed + 100, None).unwrap()) == Some(0)) as u32;
-            wins += (play(&mut Strategy::parse("random", seed + 100, None).unwrap(), &mut material(2, seed)) == Some(1)) as u32;
+            wins += (play(
+                &mut material(2, seed),
+                &mut Strategy::parse("random", seed + 100, None).unwrap(),
+            ) == Some(0)) as u32;
+            wins += (play(
+                &mut Strategy::parse("random", seed + 100, None).unwrap(),
+                &mut material(2, seed),
+            ) == Some(1)) as u32;
         }
         assert!(wins >= 11, "material-2 won only {wins}/12");
     }
@@ -380,12 +424,18 @@ mod tests {
         for (index, score) in scores.iter().enumerate() {
             let layers = evaluator.activations(&game, index).unwrap();
             assert_eq!(layers.iter().map(Vec::len).collect::<Vec<_>>(), vec![32, 3, 1]);
-            assert_eq!(-layers[2][0], *score, "scores() is the negated network output for that move's position");
+            assert_eq!(
+                -layers[2][0], *score,
+                "scores() is the negated network output for that move's position"
+            );
         }
         assert!(evaluator.activations(&game, 99).is_none());
         assert!(material(2, 0).activations(&game, 0).is_none());
         // A deeper search keeps the network, so the diagram still works.
-        assert!(Strategy::evaluator(0, Brain::Layered(network), 3).unwrap().activations(&game, 0).is_some());
+        assert!(Strategy::evaluator(0, Brain::Layered(network), 3)
+            .unwrap()
+            .activations(&game, 0)
+            .is_some());
     }
 
     #[test]
@@ -417,5 +467,4 @@ mod tests {
         bad[11] = 34.0; // slot 34 reading slot 34 (itself)
         assert!(GraphNet::from_flat(&bad).is_err());
     }
-
 }

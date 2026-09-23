@@ -56,7 +56,16 @@ def test_a_wrong_export_is_rejected(trained_like):
     weights = dict(named_parameters(model))
     weights["head.bias"] = weights["head.bias"] + 1.0  # the reference below doesn't have this
     with pytest.raises(ValueError, match="differ"):
-        build_lm_package(weights, CONFIG, list("abcdefghijkl"), _reference(model), windows, label="broken", description="", variants=("fp32",))
+        build_lm_package(
+            weights,
+            CONFIG,
+            list("abcdefghijkl"),
+            _reference(model),
+            windows,
+            label="broken",
+            description="",
+            variants=("fp32",),
+        )
 
 
 def test_tokenizer_is_the_checkpoints():

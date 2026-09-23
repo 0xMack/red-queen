@@ -48,11 +48,17 @@ def get_catalog(game: str, request: Request, store: LocalModelStoreDep) -> dict[
     if not GAME.match(game):
         raise HTTPException(status_code=404, detail="no such game")
     catalog = store.catalog(game)
-    return {"game": game, "base_url": _base_url(request), "entries": [e.model_dump(mode="json") for e in catalog.entries]}
+    return {
+        "game": game,
+        "base_url": _base_url(request),
+        "entries": [e.model_dump(mode="json") for e in catalog.entries],
+    }
 
 
 @export_router.post("/{run_id}/artifacts/{ref}/package")
-def export_champion(run_id: str, ref: str, request: Request, artifacts: ArtifactStoreDep, store: LocalModelStoreDep) -> dict[str, Any]:
+def export_champion(
+    run_id: str, ref: str, request: Request, artifacts: ArtifactStoreDep, store: LocalModelStoreDep
+) -> dict[str, Any]:
     """Package any stored champion on demand -- how the browser watches a champion that was never
     published (a still-training run's latest, a pinned generation). Development/live-training only:
     it costs a little server compute per *new* champion, never per frame, and packages are

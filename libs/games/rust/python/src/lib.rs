@@ -27,19 +27,27 @@ impl SnakeCore {
     #[pyo3(signature = (width, height, seed, max_steps_without_food=None))]
     fn new(width: i32, height: i32, seed: u64, max_steps_without_food: Option<u32>) -> PyResult<Self> {
         if !Snake::fits(width, height) {
-            return Err(PyValueError::new_err(format!("a {width}x{height} board can't fit the starting snake (need width >= 4)")));
+            return Err(PyValueError::new_err(format!(
+                "a {width}x{height} board can't fit the starting snake (need width >= 4)"
+            )));
         }
-        Ok(SnakeCore { inner: Snake::new(width, height, seed, max_steps_without_food) })
+        Ok(SnakeCore {
+            inner: Snake::new(width, height, seed, max_steps_without_food),
+        })
     }
 
     /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
     /// the whole state, PRNG included.
     fn __copy__(&self) -> Self {
-        SnakeCore { inner: self.inner.clone() }
+        SnakeCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
-        SnakeCore { inner: self.inner.clone() }
+        SnakeCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn reset(&mut self) {
@@ -68,7 +76,11 @@ impl SnakeCore {
 
     /// [(x, y, label)] -- body behind the head first, then head, then food.
     fn cells(&self) -> Vec<(i32, i32, &'static str)> {
-        self.inner.cells().into_iter().map(|(x, y, l)| (x, y, l.as_str())).collect()
+        self.inner
+            .cells()
+            .into_iter()
+            .map(|(x, y, l)| (x, y, l.as_str()))
+            .collect()
     }
 
     fn set_state(&mut self, body: Vec<(i32, i32)>, direction: usize, food: Option<(i32, i32)>) -> PyResult<()> {
@@ -82,7 +94,9 @@ impl SnakeCore {
     /// One whole episode from a fresh reset, `policy` choosing every move: (total reward, steps). See
     /// `Snake::play` -- the training hot path, with no Python in the loop.
     fn play(&mut self, policy: PyRef<'_, Policy>, observer_id: &str, max_steps: u32) -> PyResult<(f64, u32)> {
-        self.inner.play(observer(observer_id)?, &policy.inner, max_steps).map_err(PyValueError::new_err)
+        self.inner
+            .play(observer(observer_id)?, &policy.inner, max_steps)
+            .map_err(PyValueError::new_err)
     }
 
     #[getter]
@@ -126,17 +140,25 @@ struct Policy {
 impl Policy {
     #[staticmethod]
     fn layered(weights: Vec<f64>, layer_sizes: Vec<usize>) -> PyResult<Self> {
-        Ok(Policy { inner: Net::Layered(Network::new(weights, layer_sizes).map_err(PyValueError::new_err)?) })
+        Ok(Policy {
+            inner: Net::Layered(Network::new(weights, layer_sizes).map_err(PyValueError::new_err)?),
+        })
     }
 
     #[staticmethod]
     fn graph(encoding: Vec<f64>) -> PyResult<Self> {
-        Ok(Policy { inner: Net::Graph(GraphNet::from_flat(&encoding).map_err(PyValueError::new_err)?) })
+        Ok(Policy {
+            inner: Net::Graph(GraphNet::from_flat(&encoding).map_err(PyValueError::new_err)?),
+        })
     }
 
     fn forward(&self, observation: Vec<f64>) -> PyResult<Vec<f64>> {
         if observation.len() != self.inner.inputs() {
-            return Err(PyValueError::new_err(format!("expected {} inputs, got {}", self.inner.inputs(), observation.len())));
+            return Err(PyValueError::new_err(format!(
+                "expected {} inputs, got {}",
+                self.inner.inputs(),
+                observation.len()
+            )));
         }
         Ok(self.inner.forward(&observation))
     }
@@ -161,7 +183,9 @@ struct Pcg32 {
 impl Pcg32 {
     #[new]
     fn new(seed: u64) -> Self {
-        Pcg32 { inner: CorePcg32::new(seed) }
+        Pcg32 {
+            inner: CorePcg32::new(seed),
+        }
     }
     fn next_u32(&mut self) -> u32 {
         self.inner.next_u32()
@@ -183,7 +207,9 @@ struct SnakeRandomPolicy {
 impl SnakeRandomPolicy {
     #[new]
     fn new(seed: u64) -> Self {
-        SnakeRandomPolicy { inner: SnakeRandom::new(seed) }
+        SnakeRandomPolicy {
+            inner: SnakeRandom::new(seed),
+        }
     }
     fn __call__(&mut self, observation: Vec<f64>) -> i32 {
         self.inner.decide(&observation)
@@ -221,7 +247,9 @@ fn to_move(mv: Vec<(i32, i32)>) -> Vec<Square> {
 impl CheckersCore {
     #[new]
     fn new(max_moves_without_capture: u32) -> Self {
-        CheckersCore { inner: Checkers::new(max_moves_without_capture) }
+        CheckersCore {
+            inner: Checkers::new(max_moves_without_capture),
+        }
     }
 
     fn reset(&mut self) {
@@ -231,11 +259,15 @@ impl CheckersCore {
     /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
     /// the whole state, PRNG included.
     fn __copy__(&self) -> Self {
-        CheckersCore { inner: self.inner.clone() }
+        CheckersCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
-        CheckersCore { inner: self.inner.clone() }
+        CheckersCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn legal_moves(&self) -> Vec<Vec<(i32, i32)>> {
@@ -261,12 +293,21 @@ impl CheckersCore {
 
     #[getter]
     fn board(&self) -> Vec<(i32, i32, u8, bool)> {
-        self.inner.board.iter().map(|&((x, y), p)| (x, y, p.owner, p.king)).collect()
+        self.inner
+            .board
+            .iter()
+            .map(|&((x, y), p)| (x, y, p.owner, p.king))
+            .collect()
     }
 
     #[setter]
     fn set_board(&mut self, cells: Vec<(i32, i32, u8, bool)>) {
-        self.inner.board = Board::from_cells(cells.into_iter().map(|(x, y, owner, king)| ((x, y), Piece { owner, king })).collect());
+        self.inner.board = Board::from_cells(
+            cells
+                .into_iter()
+                .map(|(x, y, owner, king)| ((x, y), Piece { owner, king }))
+                .collect(),
+        );
     }
 
     #[getter]
@@ -315,7 +356,9 @@ impl CheckersStrategy {
         depth: u32,
         graph: Option<Vec<f64>>,
     ) -> PyResult<Self> {
-        Ok(CheckersStrategy { inner: Strategy::build(name, seed, weights, layer_sizes, depth, graph).map_err(PyValueError::new_err)? })
+        Ok(CheckersStrategy {
+            inner: Strategy::build(name, seed, weights, layer_sizes, depth, graph).map_err(PyValueError::new_err)?,
+        })
     }
 
     /// One score per legal move (higher = better), or None for a strategy that doesn't score moves.
@@ -345,18 +388,31 @@ struct Reach1DCore {
 #[pymethods]
 impl Reach1DCore {
     #[new]
-    fn new(target: f64, start_position: f64, start_velocity: f64, dt: f64, max_acceleration: f64, damping: f64) -> Self {
-        Reach1DCore { inner: Reach1D::new(target, start_position, start_velocity, dt, max_acceleration, damping) }
+    fn new(
+        target: f64,
+        start_position: f64,
+        start_velocity: f64,
+        dt: f64,
+        max_acceleration: f64,
+        damping: f64,
+    ) -> Self {
+        Reach1DCore {
+            inner: Reach1D::new(target, start_position, start_velocity, dt, max_acceleration, damping),
+        }
     }
 
     /// Games are plain values: copying one (e.g. a lookahead strategy's `copy.deepcopy(env)`) clones
     /// the whole state, PRNG included.
     fn __copy__(&self) -> Self {
-        Reach1DCore { inner: self.inner.clone() }
+        Reach1DCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
-        Reach1DCore { inner: self.inner.clone() }
+        Reach1DCore {
+            inner: self.inner.clone(),
+        }
     }
 
     fn reset(&mut self) -> (f64, f64) {

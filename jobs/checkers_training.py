@@ -160,7 +160,10 @@ class OpponentPool:
 
     def evaluate(self, genome: Genome) -> list[float]:
         depth = self._depth
-        hall = [lambda env, g=g, i=i: strategy_factory(g, depth)(env, random.Random(1000 + i)) for i, g in enumerate(self.hall)]
+        hall = [
+            lambda env, g=g, i=i: strategy_factory(g, depth)(env, random.Random(1000 + i))
+            for i, g in enumerate(self.hall)
+        ]
         inner = MatchFitnessEvaluator(
             env_factory=self._env_factory(),
             opponents=[*self._fixed(), *hall],
@@ -175,7 +178,11 @@ class OpponentPool:
         """After each generation: move on to the next one's games, and every `hall_every` generations let the
         champion join the hall (the oldest leaves when it's full)."""
         self._generation = summary.generation + 1
-        if self._hall_size and summary.generation % self._hall_every == 0 and (not self.hall or summary.champion != self.hall[-1]):
+        if (
+            self._hall_size
+            and summary.generation % self._hall_every == 0
+            and (not self.hall or summary.champion != self.hall[-1])
+        ):
             self.hall = [*self.hall, summary.champion][-self._hall_size :]
 
 
@@ -267,7 +274,9 @@ def material_seed_weights(layer_sizes: tuple[int, ...], rng: random.Random, nois
     return WeightVector(weights=tuple(weights), layer_sizes=layer_sizes)
 
 
-def material_seed_neat(tracker: InnovationTracker, rng: random.Random, weight_scale: float, noise: float = 0.1) -> NeatGenome:
+def material_seed_neat(
+    tracker: InnovationTracker, rng: random.Random, weight_scale: float, noise: float = 0.1
+) -> NeatGenome:
     """A NEAT genome that starts as (a noisy) material evaluator: every square wired to the output with the
     same small positive weight (the bias near zero)."""
     genome = initial_genome(INPUTS, 1, tracker, rng, weight_scale)

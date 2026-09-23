@@ -36,7 +36,11 @@ def test_training_run_records_strategy_and_held_out_scores(tmp_path, monkeypatch
     monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(snake_neuro_run, "POPULATION_SIZE", 6)
     monkeypatch.setattr(evaluate, "MONITOR_SEEDS", (20_000, 20_001))
-    monkeypatch.setattr(snake_neuro_run, "monitor_score", lambda interface, policy: evaluate.monitor_score(interface, policy, (20_000, 20_001)))
+    monkeypatch.setattr(
+        snake_neuro_run,
+        "monitor_score",
+        lambda interface, policy: evaluate.monitor_score(interface, policy, (20_000, 20_001)),
+    )
 
     snake_neuro_run.main(seed_strategy="resample:2", held_out_every=2, generations=3)
 

@@ -190,7 +190,9 @@ def test_get_brain_serves_a_champion_as_plain_numbers_for_the_game_core(backend)
 
     body = client.get(f"/runs/{run_id}/artifacts/graph/brain").json()
     assert body["kind"] == "graph" and body["encoding"] == genome.graph_encoding()
-    assert body["genome"]["type"] == "neat" and len(body["genome"]["connections"]) == len(genome.connections)  # for the diagram
+    assert body["genome"]["type"] == "neat" and len(body["genome"]["connections"]) == len(
+        genome.connections
+    )  # for the diagram
 
     assert client.get(f"/runs/{run_id}/artifacts/nope/brain").status_code == 404
     assert client.get(f"/runs/{run_id}/artifacts/junk/brain").status_code == 422

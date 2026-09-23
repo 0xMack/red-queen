@@ -120,13 +120,23 @@ def test_local_store_round_trip(tmp_path):
     store.put(package)  # idempotent
     manifest = store.manifest(package.manifest.package_id)
     assert manifest == package.manifest
-    assert _max_error(network, type(package)(manifest=manifest, blobs={b.sha256: store.read_blob(b.sha256) for b in manifest.blobs()})) < 1e-5
+    assert (
+        _max_error(
+            network,
+            type(package)(manifest=manifest, blobs={b.sha256: store.read_blob(b.sha256) for b in manifest.blobs()}),
+        )
+        < 1e-5
+    )
     fixture = json.loads(store.read_blob(manifest.parity_fixture.sha256))
     assert len(fixture["inputs"]) == len(fixture["outputs"]) > 0
 
     catalog = Catalog(game="snake")
-    catalog.upsert(CatalogEntry(entrant_id="run:a", package_id=manifest.package_id, label="a", interface=None, variants=["fp32"]))
-    catalog.upsert(CatalogEntry(entrant_id="run:a", package_id=manifest.package_id, label="a2", interface=None, variants=["fp32"]))
+    catalog.upsert(
+        CatalogEntry(entrant_id="run:a", package_id=manifest.package_id, label="a", interface=None, variants=["fp32"])
+    )
+    catalog.upsert(
+        CatalogEntry(entrant_id="run:a", package_id=manifest.package_id, label="a2", interface=None, variants=["fp32"])
+    )
     store.put_catalog(catalog)
     assert [e.label for e in store.catalog("snake").entries] == ["a2"]
     assert store.catalog("checkers").entries == []
@@ -162,7 +172,11 @@ def test_garbage_collection_keeps_only_what_catalogs_reference(tmp_path):
     store.put(old)
     store.put(new)
     catalog = Catalog(game="snake")
-    catalog.upsert(CatalogEntry(entrant_id="run:a", package_id=new.manifest.package_id, label="a", interface=None, variants=["fp32"]))
+    catalog.upsert(
+        CatalogEntry(
+            entrant_id="run:a", package_id=new.manifest.package_id, label="a", interface=None, variants=["fp32"]
+        )
+    )
     store.put_catalog(catalog)
 
     removed, freed = store.collect_garbage()

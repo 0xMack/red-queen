@@ -71,7 +71,9 @@ def stays_inline(tensor: onnx.TensorProto) -> bool:
     return len(tensor.raw_data) < INLINE_BELOW_BYTES
 
 
-def shard_initializers(model: onnx.ModelProto, shard_bytes: int = DEFAULT_SHARD_BYTES) -> tuple[onnx.ModelProto, list[WeightShard], dict[str, bytes]]:
+def shard_initializers(
+    model: onnx.ModelProto, shard_bytes: int = DEFAULT_SHARD_BYTES
+) -> tuple[onnx.ModelProto, list[WeightShard], dict[str, bytes]]:
     """Move every weight initializer into external shard files named `weights/<sha256>.bin` (small and
     integer tensors stay inline, `stays_inline`). Tensors are never split across shards; one larger than
     `shard_bytes` gets a shard of its own."""
@@ -163,7 +165,9 @@ def _variant(exported: Exported, shard_bytes: int, blobs: dict[str, bytes]) -> V
         graph=_blob(graph),
         shards=shards,
         requirements=requirements_for(exported.dtype, weight_bytes, max_tensor, len(graph)),
-        parity=Parity(reference=exported.reference_name, samples=0, max_abs_error=0.0, tolerance=TOLERANCE[exported.dtype]),
+        parity=Parity(
+            reference=exported.reference_name, samples=0, max_abs_error=0.0, tolerance=TOLERANCE[exported.dtype]
+        ),
     )
 
 

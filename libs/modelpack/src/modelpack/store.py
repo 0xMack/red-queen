@@ -132,7 +132,9 @@ class LocalModelStore:
         while nothing is mid-publish -- a package is written before the catalog that names it. On-demand
         exports (apis/backend) are in no catalog, so they go too; they are re-created, identically, on
         the next request."""
-        live_packages = {e.package_id for path in (self.root / "catalog").glob("*.json") for e in self.catalog(path.stem).entries}
+        live_packages = {
+            e.package_id for path in (self.root / "catalog").glob("*.json") for e in self.catalog(path.stem).entries
+        }
         live_blobs = {b.sha256 for package_id in live_packages for b in self.manifest(package_id).blobs()}
         removed = freed = 0
         for path in (self.root / "manifests").glob("*.json"):

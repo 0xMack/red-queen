@@ -45,7 +45,9 @@ async def main(run_id: str) -> None:
             await page.wait_for_timeout(250)
 
         # Bare board for the game card: no overlay chips, and no mid-glide segments.
-        await page.add_style_tag(content="[data-board-overlay] { visibility: hidden } svg g { transition: none !important }")
+        await page.add_style_tag(
+            content="[data-board-overlay] { visibility: hidden } svg g { transition: none !important }"
+        )
         await page.wait_for_timeout(60)
         await board.screenshot(path=OUT / "snake.png")
         await page.add_style_tag(content="[data-board-overlay] { visibility: visible }")

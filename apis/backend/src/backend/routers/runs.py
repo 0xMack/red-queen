@@ -44,9 +44,7 @@ def get_metrics_history(
     return metrics.history(run_id, since_generation=since_generation)
 
 
-async def _stream_generation_stats(
-    metrics: MetricsSource, run_id: str, since_generation: int
-):
+async def _stream_generation_stats(metrics: MetricsSource, run_id: str, since_generation: int):
     # subscribe() is a synchronous, never-returning generator that blocks on time.sleep() between
     # polls (see telemetry/metrics.py). Offload each next() call to a worker thread so the blocking
     # sleep doesn't stall the event loop; abandon_on_cancel=True lets a client disconnect cut this
@@ -63,9 +61,7 @@ async def stream_metrics(
     metrics: MetricsSourceDep,
     since_generation: Annotated[int, Query(ge=0)] = 0,
 ) -> EventSourceResponse:
-    return EventSourceResponse(
-        _stream_generation_stats(metrics, run_id, since_generation)
-    )
+    return EventSourceResponse(_stream_generation_stats(metrics, run_id, since_generation))
 
 
 @router.post("/{run_id}/control", status_code=202)
@@ -130,9 +126,7 @@ def get_artifact(
     try:
         data = getter(ref)
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=404, detail=f"no such {kind} artifact: {ref}"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"no such {kind} artifact: {ref}") from None
     return Response(content=data, media_type="application/octet-stream")
 
 

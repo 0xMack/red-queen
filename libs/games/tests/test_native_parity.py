@@ -76,7 +76,9 @@ def test_baselines_match_their_python_originals():
     greedy = baselines.get("snake", "greedy").factory(0)
     rng = random.Random(0)
     for _ in range(2000):
-        observation = [float(rng.random() < 0.3) for _ in range(3)] + [0.0] * 4 + [float(rng.random() < 0.5) for _ in range(4)]
+        observation = (
+            [float(rng.random() < 0.3) for _ in range(3)] + [0.0] * 4 + [float(rng.random() < 0.5) for _ in range(4)]
+        )
         observation[3 + rng.randrange(4)] = 1.0
         assert greedy(observation) == reference_greedy(observation)
     random_policy = baselines.get("snake", "random").factory(5)
@@ -157,13 +159,18 @@ def test_reach1d_is_bit_identical(seed):
     for _ in range(500):
         action = rng.choice([rng.uniform(-3, 3), 1.0, -1.0, 0, float("nan"), float("inf")])
         assert native.step(action) == reference.step(action) or _nan_equal(native, reference)
-        assert (native.position, native.velocity) == (reference.position, reference.velocity) or _nan_equal(native, reference)
+        assert (native.position, native.velocity) == (reference.position, reference.velocity) or _nan_equal(
+            native, reference
+        )
 
 
 def _nan_equal(native, reference) -> bool:
     import math
 
-    return all(math.isnan(a) == math.isnan(b) for a, b in ((native.position, reference.position), (native.velocity, reference.velocity)))
+    return all(
+        math.isnan(a) == math.isnan(b)
+        for a, b in ((native.position, reference.position), (native.velocity, reference.velocity))
+    )
 
 
 def test_games_deep_copy_into_independent_states():

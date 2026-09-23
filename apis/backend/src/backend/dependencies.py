@@ -49,7 +49,6 @@ def _model_store() -> LocalModelStore:
     return LocalModelStore(models_dir())
 
 
-
 RunRegistryDep = Annotated[RunRegistry, Depends(_run_registry)]
 MetricsSourceDep = Annotated[MetricsSource, Depends(_metrics_source)]
 ArtifactStoreDep = Annotated[ArtifactStore, Depends(_artifact_store)]

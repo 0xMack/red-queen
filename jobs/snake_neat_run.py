@@ -85,9 +85,7 @@ def main(
         "population_size": population_size,
         "generations": generations,
         "max_steps": max_steps,
-        "selection": "speciation"
-        if config.speciation
-        else "single species (no speciation)",
+        "selection": "speciation" if config.speciation else "single species (no speciation)",
         "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
         "neat": dataclasses.asdict(config),
         "benchmark": "games.snake (10x10)",
@@ -101,9 +99,7 @@ def main(
     rng = random.Random(rng_seed)
     tracker = InnovationTracker(first_hidden_id=num_inputs + 1 + num_outputs)
     population = [
-        initial_genome(
-            num_inputs, num_outputs, tracker, rng, config.initial_weight_scale
-        )
+        initial_genome(num_inputs, num_outputs, tracker, rng, config.initial_weight_scale)
         for _ in range(population_size)
     ]
     fitness = SimulationFitnessEvaluator(
@@ -129,11 +125,7 @@ def main(
                     run.run_id,
                     held_out=(interface, held_out_every, generations - 1),
                 ),
-                *(
-                    [make_resample_callback(fitness, seeds, interface)]
-                    if seeds.resamples
-                    else []
-                ),
+                *([make_resample_callback(fitness, seeds, interface)] if seeds.resamples else []),
                 cost.on_generation,
                 run.control_callback(cost),
             ],
@@ -141,13 +133,9 @@ def main(
         )
         history = run.set_training_summary(cost)
 
-    final = network_from_json(
-        run.artifacts.get_program(history[-1].champion_ref).decode("utf-8")
-    )
+    final = network_from_json(run.artifacts.get_program(history[-1].champion_ref).decode("utf-8"))
     hidden, connections = final.complexity()
-    print(
-        f"status={run.registry.get_run(run.run_id).status}, recorded {len(history)} generations"
-    )
+    print(f"status={run.registry.get_run(run.run_id).status}, recorded {len(history)} generations")
     print(f"gen 0   best_fitness={history[0].best_fitness:.4f}")
     print(
         f"gen {history[-1].generation:<3} best_fitness={history[-1].best_fitness:.4f}  held_out={history[-1].held_out_score}"
@@ -159,15 +147,9 @@ def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="NEAT vs. Snake, recorded to telemetry."
-    )
-    parser.add_argument(
-        "interface", nargs="?", default=DEFAULT_INTERFACE, help="games.interfaces id"
-    )
-    parser.add_argument(
-        "--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)"
-    )
+    parser = argparse.ArgumentParser(description="NEAT vs. Snake, recorded to telemetry.")
+    parser.add_argument("interface", nargs="?", default=DEFAULT_INTERFACE, help="games.interfaces id")
+    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)")
     parser.add_argument("--held-out-every", type=int, default=10)
     parser.add_argument("--generations", type=int, default=GENERATIONS)
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)
@@ -178,12 +160,8 @@ if __name__ == "__main__":
         default=MAX_STEPS,
         help="training episode cap (the leaderboard scores 1000-step games)",
     )
-    parser.add_argument(
-        "--experiment", default=None, help="tag recorded in the run config"
-    )
-    parser.add_argument(
-        "--no-speciation", action="store_true", help="ablation: one big species"
-    )
+    parser.add_argument("--experiment", default=None, help="tag recorded in the run config")
+    parser.add_argument("--no-speciation", action="store_true", help="ablation: one big species")
     args = parser.parse_args()
     main(
         args.interface,

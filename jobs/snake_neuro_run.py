@@ -120,9 +120,7 @@ def make_telemetry_callback(
             interface, every, last = held_out
             if summary.generation % every == 0 or summary.generation == last:
                 champion = native_policy(compiled(summary.champion))
-                held_out_score = monitor_score(
-                    interface, lambda o: interface.action.decode(champion.forward(o))
-                )
+                held_out_score = monitor_score(interface, lambda o: interface.action.decode(champion.forward(o)))
         metrics.record_generation(
             GenerationStats(
                 run_id=run_id,
@@ -186,11 +184,10 @@ def main(
     }
 
     rng = random.Random(rng_seed)
-    population = [
-        random_weight_vector(layer_sizes, rng, scale=0.5)
-        for _ in range(POPULATION_SIZE)
-    ]
-    fitness = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=MAX_STEPS, rollout=make_rollout(interface))
+    population = [random_weight_vector(layer_sizes, rng, scale=0.5) for _ in range(POPULATION_SIZE)]
+    fitness = SimulationFitnessEvaluator(
+        envs=envs, act=make_act(interface), max_steps=MAX_STEPS, rollout=make_rollout(interface)
+    )
     cost = TrainingCostMeter(population_size=POPULATION_SIZE, fitness=fitness)
 
     with recorded_run(config) as run:
@@ -202,7 +199,11 @@ def main(
             generations=generations,
             on_generation=[
                 make_telemetry_callback(
-                    run.registry, run.metrics, run.artifacts, run.run_id, held_out=(interface, held_out_every, generations - 1)
+                    run.registry,
+                    run.metrics,
+                    run.artifacts,
+                    run.run_id,
+                    held_out=(interface, held_out_every, generations - 1),
                 ),
                 *([make_resample_callback(fitness, seeds, interface)] if seeds.resamples else []),
                 cost.on_generation,
@@ -217,9 +218,7 @@ def main(
     print(f"status={run_info.status} summary={run_info.summary}")
     print(f"recorded {len(final_history)} generations")
     print(f"gen 0   best_fitness={final_history[0].best_fitness:.4f}")
-    print(
-        f"gen {final_history[-1].generation:<3} best_fitness={final_history[-1].best_fitness:.4f}"
-    )
+    print(f"gen {final_history[-1].generation:<3} best_fitness={final_history[-1].best_fitness:.4f}")
 
     champion_bytes = run.artifacts.get_program(final_history[-1].champion_ref)
     print(f"final champion ({len(champion_bytes)} bytes stored):")

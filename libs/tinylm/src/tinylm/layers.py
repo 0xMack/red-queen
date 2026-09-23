@@ -90,12 +90,7 @@ class CausalSelfAttention:
         return x.transpose(0, 2, 1, 3).reshape(batch, seq_len, self.d_model)
 
     def parameters(self) -> list[Tensor]:
-        return (
-            self.query.parameters()
-            + self.key.parameters()
-            + self.value.parameters()
-            + self.out_proj.parameters()
-        )
+        return self.query.parameters() + self.key.parameters() + self.value.parameters() + self.out_proj.parameters()
 
 
 class MLP:
@@ -123,6 +118,4 @@ class TransformerBlock:
         return x
 
     def parameters(self) -> list[Tensor]:
-        return (
-            self.ln1.parameters() + self.attn.parameters() + self.ln2.parameters() + self.mlp.parameters()
-        )
+        return self.ln1.parameters() + self.attn.parameters() + self.ln2.parameters() + self.mlp.parameters()

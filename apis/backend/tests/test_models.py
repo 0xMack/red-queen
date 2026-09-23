@@ -21,7 +21,11 @@ def published(tmp_path):
     package = build_package(export_network(random_weight_vector((11, 16, 3), random.Random(0))), label="mlp")
     store.put(package)
     catalog = Catalog(game="snake")
-    catalog.upsert(CatalogEntry(entrant_id="run:x", package_id=package.manifest.package_id, label="mlp", interface=None, variants=["fp32"]))
+    catalog.upsert(
+        CatalogEntry(
+            entrant_id="run:x", package_id=package.manifest.package_id, label="mlp", interface=None, variants=["fp32"]
+        )
+    )
     store.put_catalog(catalog)
     app.dependency_overrides[_model_store] = lambda: store
     yield TestClient(app), package
@@ -51,7 +55,9 @@ def test_manifest_and_blobs_are_served_immutable(published):
         assert "immutable" in response.headers["cache-control"]
 
 
-@pytest.mark.parametrize("path", ["/models/blobs/" + "0" * 64, "/models/blobs/..%2Fruns.db", "/models/manifests/nope.json"])
+@pytest.mark.parametrize(
+    "path", ["/models/blobs/" + "0" * 64, "/models/blobs/..%2Fruns.db", "/models/manifests/nope.json"]
+)
 def test_unknown_or_malformed_keys_are_404(published, path):
     client, _ = published
     assert client.get(path).status_code == 404

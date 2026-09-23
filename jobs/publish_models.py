@@ -77,7 +77,9 @@ def reference_games(interface: Interface, forward, seeds) -> list[tuple[list[lis
     return games
 
 
-def measure_agreement(interface: Interface, reference_forward, packaged: PackagedModel, seeds=HELD_OUT_SEEDS) -> tuple[Agreement, list[list[float]]]:
+def measure_agreement(
+    interface: Interface, reference_forward, packaged: PackagedModel, seeds=HELD_OUT_SEEDS
+) -> tuple[Agreement, list[list[float]]]:
     """Decision agreement on the reference's own trajectories (one batched call per game), plus whether
     every game scores the same when the packaged model plays it end to end. Also returns the observations
     seen, as realistic parity samples."""
@@ -105,7 +107,9 @@ def parity_samples(observations: list[list[float]], count: int = PARITY_SAMPLES)
 VARIANT_DTYPES = ("float64", "float32")  # most exact first
 
 
-def publish(entrant: dict[str, Any], raw: str, store: LocalModelStore) -> tuple[list[CatalogEntry], Package, dict[str, Agreement]]:
+def publish(
+    entrant: dict[str, Any], raw: str, store: LocalModelStore
+) -> tuple[list[CatalogEntry], Package, dict[str, Agreement]]:
     """Export, verify, measure agreement per variant, store. Returns the catalog entries: the entrant
     itself (served by every variant that plays its games identically) plus one `@<variant>` entrant per
     variant that doesn't."""

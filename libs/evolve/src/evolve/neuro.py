@@ -14,15 +14,10 @@ from dataclasses import dataclass, replace
 
 
 def _param_count(layer_sizes: tuple[int, ...]) -> int:
-    return sum(
-        layer_sizes[i] * layer_sizes[i + 1] + layer_sizes[i + 1]
-        for i in range(len(layer_sizes) - 1)
-    )
+    return sum(layer_sizes[i] * layer_sizes[i + 1] + layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
 
 
-def _forward(
-    weights: Sequence[float], layer_sizes: tuple[int, ...], observation: Sequence[float]
-) -> list[float]:
+def _forward(weights: Sequence[float], layer_sizes: tuple[int, ...], observation: Sequence[float]) -> list[float]:
     """A tanh-activated feedforward pass. Every layer (including the output) is tanh-squashed --
     convenient here since it keeps actions bounded to [-1, 1] with no separate output activation
     to choose."""
@@ -70,21 +65,15 @@ class WeightVector:
         read back), this one is read back: training jobs write champions to ArtifactStore, and
         evaluation, model publishing and the backend's on-demand export load them (a browser plays
         the `modelpack` export, docs/design/0009). JSON, not pickle/numpy."""
-        return json.dumps(
-            {"weights": list(self.weights), "layer_sizes": list(self.layer_sizes)}
-        )
+        return json.dumps({"weights": list(self.weights), "layer_sizes": list(self.layer_sizes)})
 
     @staticmethod
     def from_json(text: str) -> WeightVector:
         data = json.loads(text)
-        return WeightVector(
-            weights=tuple(data["weights"]), layer_sizes=tuple(data["layer_sizes"])
-        )
+        return WeightVector(weights=tuple(data["weights"]), layer_sizes=tuple(data["layer_sizes"]))
 
 
-def random_weight_vector(
-    layer_sizes: tuple[int, ...], rng: random.Random, scale: float = 1.0
-) -> WeightVector:
+def random_weight_vector(layer_sizes: tuple[int, ...], rng: random.Random, scale: float = 1.0) -> WeightVector:
     n = _param_count(layer_sizes)
     weights = tuple(rng.uniform(-scale, scale) for _ in range(n))
     return WeightVector(weights=weights, layer_sizes=layer_sizes)
@@ -109,5 +98,8 @@ class GaussianMutation:
 
     def vary(self, parents: list[WeightVector], rng: random.Random) -> WeightVector:
         parent = parents[0]
-        new_weights = tuple(w + rng.gauss(0.0, self._sigma) if self._rate >= 1.0 or rng.random() < self._rate else w for w in parent.weights)
+        new_weights = tuple(
+            w + rng.gauss(0.0, self._sigma) if self._rate >= 1.0 or rng.random() < self._rate else w
+            for w in parent.weights
+        )
         return replace(parent, weights=new_weights)
