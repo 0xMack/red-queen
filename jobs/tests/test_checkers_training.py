@@ -47,7 +47,7 @@ def test_the_game_core_plays_a_neat_genome_exactly_as_its_python_forward_pass():
     checked = 0
     for env in _positions():
         scores = strategy.scores(env._core)
-        for move, score in zip(env.legal_moves(), scores):
+        for move, score in zip(env.legal_moves(), scores, strict=True):
             # depth 1: a move is worth minus the network's value for the position it leaves behind
             assert score == -genome.forward(env.simulate(move))[0] or abs(score) > 500  # (a game-ending move scores WIN)
             checked += 1

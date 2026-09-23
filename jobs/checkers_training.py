@@ -26,9 +26,16 @@ import math
 import random
 import time
 from collections.abc import Callable, Sequence
+from itertools import pairwise
 from typing import Any
 
-from evolve import MatchFitnessEvaluator, NeatGenome, WeightVector, initial_genome, play_match
+from evolve import (
+    MatchFitnessEvaluator,
+    NeatGenome,
+    WeightVector,
+    initial_genome,
+    play_match,
+)
 from evolve.neat import InnovationTracker
 from games.checkers import Checkers
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
@@ -153,7 +160,7 @@ class OpponentPool:
 
     def evaluate(self, genome: Genome) -> list[float]:
         depth = self._depth
-        hall = [lambda env, g=g: strategy_factory(g, depth)(env, random.Random(1000 + i)) for i, g in enumerate(self.hall)]
+        hall = [lambda env, g=g, i=i: strategy_factory(g, depth)(env, random.Random(1000 + i)) for i, g in enumerate(self.hall)]
         inner = MatchFitnessEvaluator(
             env_factory=self._env_factory(),
             opponents=[*self._fixed(), *hall],
@@ -250,7 +257,7 @@ def material_seed_weights(layer_sizes: tuple[int, ...], rng: random.Random, nois
     output reads that unit. Everything else starts small and random for evolution to build on."""
     n_in, n_hidden = layer_sizes[0], layer_sizes[1]
     # Everything but the material unit starts small: a seed should play like material, not like noise.
-    weights = [rng.uniform(-noise / 3, noise / 3) for _ in range(sum(o * (i + 1) for i, o in zip(layer_sizes, layer_sizes[1:])))]
+    weights = [rng.uniform(-noise / 3, noise / 3) for _ in range(sum(o * (i + 1) for i, o in pairwise(layer_sizes)))]
     for k in range(n_in):
         weights[k] = 0.12 + rng.uniform(-noise / 4, noise / 4)  # hidden unit 0: tanh(0.12 * material)
     weights[n_hidden * n_in] = 0.0  # hidden unit 0's bias: an even position must read as even

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from tinylm import Adam, CharTokenizer, TinyLM, cross_entropy, generate
 
@@ -23,11 +24,8 @@ def test_model_rejects_a_sequence_longer_than_max_seq_len():
     rng = np.random.default_rng(1)
     model = _tiny_model(rng, max_seq_len=4)
 
-    try:
+    with pytest.raises(ValueError):
         model(rng.integers(0, 6, size=(1, 5)))
-        assert False, "expected a ValueError"
-    except ValueError:
-        pass
 
 
 def test_all_parameters_receive_a_gradient_after_backward():

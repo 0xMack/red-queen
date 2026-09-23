@@ -107,3 +107,10 @@ export function saveHumanGame(game: string, score: number): HumanHistory {
   }
   return next
 }
+
+/** The newest protocol among `records` ("snake.score.v10" is newer than "snake.score.v9"), or null.
+ * Records from different protocol versions aren't comparable, so only the newest is ranked. */
+export function latestProtocol(records: EvaluationRecord[]): string | null {
+  const protocols = [...new Set(records.map((r) => r.protocol))]
+  return protocols.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1) ?? null
+}

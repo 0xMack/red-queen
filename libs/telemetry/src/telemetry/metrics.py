@@ -39,25 +39,34 @@ class FileMetricsStore:
             f.write(stats.model_dump_json() + "\n")
             f.flush()
 
-    def _read_all(self, path: Path) -> list[GenerationStats]:
+    def _read_from(self, path: Path, offset: int = 0) -> tuple[list[GenerationStats], int]:
+        """Parses the complete lines after byte `offset`; returns them and the offset just past the last one.
+
+        A job appends one line per generation, so a reader can catch a line mid-write -- anything after
+        the last newline is left for the next read instead of failing to parse.
+        """
         if not path.exists():
-            return []
-        with path.open(encoding="utf-8") as f:
-            return [GenerationStats.model_validate_json(line) for line in f if line.strip()]
+            return [], offset
+        with path.open("rb") as f:
+            f.seek(offset)
+            chunk = f.read()
+        complete = chunk[: chunk.rfind(b"\n") + 1]
+        stats = [GenerationStats.model_validate_json(line) for line in complete.splitlines() if line.strip()]
+        return stats, offset + len(complete)
 
     def history(self, run_id: str, since_generation: int = 0) -> list[GenerationStats]:
-        return [
-            stats
-            for stats in self._read_all(self._path(run_id))
-            if stats.generation >= since_generation
-        ]
+        stats, _ = self._read_from(self._path(run_id))
+        return [s for s in stats if s.generation >= since_generation]
 
     def subscribe(self, run_id: str, since_generation: int = 0) -> Iterator[GenerationStats]:
+        # Tails by byte offset, so each poll parses only what was appended since the last one.
         path = self._path(run_id)
+        offset = 0
         last_generation = since_generation - 1
         while True:
-            for stats in self._read_all(path):
-                if stats.generation > last_generation:
-                    last_generation = stats.generation
-                    yield stats
+            stats, offset = self._read_from(path, offset)
+            for s in stats:
+                if s.generation > last_generation:
+                    last_generation = s.generation
+                    yield s
             time.sleep(self._poll_interval)

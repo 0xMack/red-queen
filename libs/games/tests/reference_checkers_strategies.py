@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import math
+from itertools import pairwise
 
 from games.checkers import Checkers
 
@@ -39,7 +40,7 @@ def forward(weights, layer_sizes, observation) -> float:
     """evolve.neuro.WeightVector's forward pass: per layer `out*in` weights then `out` biases, tanh."""
     activations = list(observation)
     offset = 0
-    for n_in, n_out in zip(layer_sizes, layer_sizes[1:]):
+    for n_in, n_out in pairwise(layer_sizes):
         nxt = []
         for o in range(n_out):
             total = weights[offset + n_in * n_out + o]

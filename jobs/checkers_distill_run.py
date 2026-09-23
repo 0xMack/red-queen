@@ -145,7 +145,7 @@ class DistillFitness:
         errors = []
         for g in range(GROUPS):
             total = 0.0
-            for x, y in zip(self._xs[g * group : (g + 1) * group], self._ys[g * group : (g + 1) * group]):
+            for x, y in zip(self._xs[g * group : (g + 1) * group], self._ys[g * group : (g + 1) * group], strict=True):
                 total += (genome.forward(x)[0] - y) ** 2
             errors.append(-total / group)
         return errors
