@@ -9,6 +9,10 @@ for the full contract and the incremental plan this implements.
 - `routers/runs.py` — run/metrics/artifact endpoints, reusing `telemetry.RunInfo` and
   `telemetry.GenerationStats` directly as response models (no duplicate API-layer schemas):
   - `GET /runs` — `list[RunInfo]`
+  - `GET /runs/summaries?trend_points=60` — `list[RunSummary]`: per run, generations recorded, best fitness,
+    the last `GenerationStats` and a downsampled best-fitness trend. What a runs list needs in one small request
+    (164 KB for 115 runs) instead of every run's full history (13 MB); `FileMetricsStore.history` parses each
+    appended line once and keeps it, so repeated calls cost milliseconds. Declared before `/{run_id}`.
   - `GET /runs/{run_id}` — `RunInfo` (404 if unknown)
   - `GET /runs/{run_id}/metrics/history?since_generation=N` — `list[GenerationStats]`
   - `GET /runs/{run_id}/metrics/stream?since_generation=N` — SSE of `GenerationStats`,

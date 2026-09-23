@@ -11,3 +11,5 @@ type Schemas = components["schemas"]
 export type RunInfo = Required<Schemas["RunInfo"]>
 export type RunStatus = RunInfo["status"]
 export type GenerationStats = Required<Schemas["GenerationStats"]>
+// One run as a runs list shows it (apis/backend's `GET /runs/summaries`): counts, best, last stats, a short trend.
+export type RunSummary = Required<Schemas["RunSummary"]>

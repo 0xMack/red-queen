@@ -23,6 +23,7 @@ export function useBaselineSession(baseline: string, interfaceId: string) {
     pinnedGeneration: ref<number | null>(null),
     targetStats: computed<GenerationStats | null>(() => null),
     unsupported: ref(null),
+    unexportable: ref<string | null>(null),
     awaitingConfirmation: ref<number | null>(null),
     source: ref<"published" | "on-demand" | null>(null),
     currentPackage: ref(null),

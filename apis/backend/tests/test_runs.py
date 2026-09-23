@@ -58,6 +58,33 @@ def test_list_and_get_run(backend):
     assert resp.json()["status"] == "running"
 
 
+def test_summaries_give_each_run_its_counts_best_last_and_a_short_trend(backend):
+    client, registry, metrics, _ = backend
+    long_run = registry.create_run(config={})
+    empty_run = registry.create_run(config={})
+    for gen in range(200):
+        stats = make_stats(long_run, gen)
+        stats.best_fitness = float(gen % 50)  # peaks at 49, ends at 49
+        metrics.record_generation(stats)
+
+    resp = client.get("/runs/summaries", params={"trend_points": 10})
+    assert resp.status_code == 200
+    by_id = {s["run_id"]: s for s in resp.json()}
+    assert list(by_id) == [r.run_id for r in registry.list_runs()]
+    summary = by_id[long_run]
+    assert summary["generations"] == 200 and summary["best_fitness"] == 49.0
+    assert summary["last"]["generation"] == 199
+    assert len(summary["trend"]) == 10 and summary["trend"][0] == 0.0 and summary["trend"][-1] == 49.0
+    assert by_id[empty_run] == {"run_id": empty_run, "generations": 0, "best_fitness": None, "last": None, "trend": []}
+
+    assert client.get("/runs/summaries", params={"trend_points": 0}).status_code == 422
+
+
+def test_summaries_is_not_mistaken_for_a_run_id(backend):
+    client, _, _, _ = backend
+    assert client.get("/runs/summaries").json() == []  # routed to the list, not to get_run("summaries")
+
+
 def test_get_run_404(backend):
     client, _, _, _ = backend
     resp = client.get("/runs/does-not-exist")

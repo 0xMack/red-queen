@@ -53,6 +53,10 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
   const pinnedGeneration = ref<number | null>(null)
   // Package mode: why this device can't run it (nothing plays), or a big download awaiting a click.
   const unsupported = ref<Extract<Match, { ok: false }> | null>(null)
+  // The backend can't package this champion at all (a 422 from the on-demand export: a kind of champion modelpack
+  // doesn't know, e.g. an RL agent before docs/design/0010 Phase 1). Its reason, shown instead of an error with a
+  // Retry that could never succeed.
+  const unexportable = ref<string | null>(null)
   const awaitingConfirmation = ref<number | null>(null) // bytes
   const downloadConfirmed = ref(false)
   // Where the package that's playing came from: the game's published catalog, or exported on demand.
@@ -106,6 +110,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     const packaged = options.packaged ? options.packaged() : null
     if (packaged === undefined) return // catalog still loading; the watch on `packaged` retries
     unsupported.value = null
+    unexportable.value = null
     awaitingConfirmation.value = null
 
     let available: Availability
@@ -117,8 +122,16 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
       try {
         available = await onDemand(target.champion_ref)
       } catch (e) {
-        session.error.value = e instanceof Error ? e.message : String(e)
         session.loading.value = false
+        const failure = e as { status?: number; data?: { detail?: unknown } }
+        if (failure.status === 422) {
+          // Permanent for this champion: say why, and don't ask again on every SSE tick.
+          const detail = typeof failure.data?.detail === "string" ? failure.data.detail : null
+          unexportable.value = detail ?? "The backend can't package this champion to play in a browser."
+          lastLoadedRef.value = target.champion_ref
+          return
+        }
+        session.error.value = e instanceof Error ? e.message : String(e)
         return // lastLoadedRef stays unset for this ref, so a retry (or the next SSE tick) tries again
       }
       source.value = "on-demand"
@@ -263,6 +276,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     pinnedGeneration,
     targetStats,
     unsupported,
+    unexportable,
     awaitingConfirmation,
     source,
     currentPackage,

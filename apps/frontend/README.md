@@ -260,7 +260,9 @@ Revisit if the chapter count grows enough that hand-authoring markup becomes the
   the hand-rolled version stops being enough.
 - `app/stores/runs.ts`, `app/stores/metricsStream.ts` — Pinia stores (auto-imported by
   `@pinia/nuxt` from `app/stores/`) holding the run list and the live-metrics subscription,
-  respectively. The watch page reuses `metricsStream` directly, not a separate store.
+  respectively. `runs` also holds every run's `RunSummary` (`GET /runs/summaries`) in a `shallowRef`, replaced in
+  one assignment; `ensureLoaded()` skips the request when the list is under a minute old, and `/runs` polls only
+  while a run is training. The watch page reuses `metricsStream` directly, not a separate store.
 - `app/types/api.gen.ts` — **generated** from `app/types/openapi.json`, the backend's OpenAPI schema
   (`uv run python apis/backend/scripts/export_openapi.py`, then `pnpm gen:api-types`;
   `apis/backend/tests/test_openapi_snapshot.py` fails while the snapshot is stale). `telemetry.ts`'s

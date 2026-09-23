@@ -63,6 +63,7 @@ const {
   targetStats,
   pinnedGeneration: sessionPinned,
   unsupported,
+  unexportable,
   awaitingConfirmation,
   source,
   currentPackage,
@@ -120,6 +121,14 @@ const runningVariant = computed(() =>
         <div v-if="error" class="card flex aspect-square flex-col items-center justify-center gap-3 p-6 text-center">
           <p class="text-sm text-queen-300">{{ error }}</p>
           <button class="btn-ghost btn-sm" @click="session.retry">Retry</button>
+        </div>
+        <div
+          v-else-if="unexportable"
+          data-unexportable
+          class="card flex aspect-square flex-col items-center justify-center gap-2 p-6 text-center"
+        >
+          <p class="text-sm font-medium text-fg">This champion can't play in the browser</p>
+          <p class="max-w-sm text-xs text-fg-subtle">{{ unexportable }}</p>
         </div>
         <div
           v-else-if="unsupported"
