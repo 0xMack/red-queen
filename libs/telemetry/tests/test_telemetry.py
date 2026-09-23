@@ -56,6 +56,35 @@ def test_metrics_history_and_subscribe_backfill(tmp_path):
     assert [s.generation for s in store.history(run_id, since_generation=2)] == [2]
 
 
+def test_subscribe_yields_generations_appended_after_it_started(tmp_path):
+    store = FileMetricsStore(tmp_path / "metrics", poll_interval=0.01)
+    store.record_generation(make_stats("run-1", 0))
+    stream = store.subscribe("run-1")
+    assert next(stream).generation == 0
+
+    store.record_generation(make_stats("run-1", 1))
+    store.record_generation(make_stats("run-1", 2))
+    assert [next(stream).generation for _ in range(2)] == [1, 2]
+
+
+def test_a_line_caught_mid_write_is_read_once_it_is_complete(tmp_path):
+    store = FileMetricsStore(tmp_path / "metrics", poll_interval=0.01)
+    store.record_generation(make_stats("run-1", 0))
+    path = tmp_path / "metrics" / "run-1.jsonl"
+    line = make_stats("run-1", 1).model_dump_json()
+    with path.open("a", encoding="utf-8") as f:
+        f.write(line[:20])  # a job's write, caught half done
+
+    assert [s.generation for s in store.history("run-1")] == [0]
+    stream = store.subscribe("run-1")
+    assert next(stream).generation == 0
+
+    with path.open("a", encoding="utf-8") as f:
+        f.write(line[20:] + "\n")
+    assert next(stream).generation == 1
+    assert [s.generation for s in store.history("run-1")] == [0, 1]
+
+
 def test_artifact_store_round_trip(tmp_path):
     store = FileArtifactStore(tmp_path / "artifacts")
     store.put_program("ref-1", b"program-bytes")

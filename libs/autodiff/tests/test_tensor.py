@@ -207,7 +207,7 @@ def test_getitem_gradient_accumulates_for_repeated_indices():
     (table[idx] * weights).sum().backward()
 
     expected = np.zeros_like(table_data)
-    for i, row in zip(idx, weights):
+    for i, row in zip(idx, weights, strict=True):
         expected[i] += row
     assert np.allclose(table.grad, expected)
 

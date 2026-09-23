@@ -202,6 +202,6 @@ def test_gaussian_mutation_rate_perturbs_only_a_fraction_of_the_weights():
     everything = GaussianMutation(sigma=0.1).vary([parent], random.Random(0))
     sparse = GaussianMutation(sigma=0.1, rate=0.05).vary([parent], random.Random(0))
 
-    changed = lambda child: sum(1 for a, b in zip(parent.weights, child.weights) if a != b)  # noqa: E731
+    changed = lambda child: sum(1 for a, b in zip(parent.weights, child.weights, strict=True) if a != b)  # noqa: E731
     assert changed(everything) == 400
     assert 5 <= changed(sparse) <= 40  # ~5% of 400

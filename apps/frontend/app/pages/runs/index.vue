@@ -17,7 +17,7 @@ const { data: leaderboard } = await useAsyncData("runs-leaderboard-snake", () =>
 )
 const standings = computed(() => {
   const records = leaderboard.value ?? []
-  const protocol = [...new Set(records.map((r) => r.protocol))].sort().at(-1)
+  const protocol = latestProtocol(records)
   const ranked = records.filter((r) => r.protocol === protocol)
   const byRun: Record<string, { mean: number; rank: number; of: number; entrantId: string }> = {}
   ranked.forEach((r, i) => {

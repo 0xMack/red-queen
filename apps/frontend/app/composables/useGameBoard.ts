@@ -18,7 +18,7 @@ export async function useGameBoard(slug: string) {
   )
   const [{ data: records, error }, { data: interfaceList }] = await Promise.all([leaderboard, representations])
 
-  const protocol = computed(() => [...new Set((records.value ?? []).map((r) => r.protocol))].sort().at(-1) ?? null)
+  const protocol = computed(() => latestProtocol(records.value ?? []))
   const entries = computed(() => (records.value ?? []).filter((r) => r.protocol === protocol.value))
   const interfaces = computed(() => interfaceList.value ?? [])
   const interfacesById = computed(() => Object.fromEntries(interfaces.value.map((i) => [i.id, i])))
