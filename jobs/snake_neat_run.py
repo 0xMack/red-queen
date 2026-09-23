@@ -25,22 +25,8 @@ import dataclasses
 import random
 from typing import Any
 
-from control import make_control_callback
 from costs import TrainingCostMeter
 from evaluate import MONITOR_SEEDS
-from seeding import SeedStrategy
-from snake_neuro_run import (
-    BOARD,
-    DEFAULT_INTERFACE,
-    GENERATIONS,
-    MAX_STEPS,
-    POPULATION_SIZE,
-    RNG_SEED,
-    RUN_DATA_DIR,
-    make_act,
-    make_resample_callback,
-    make_telemetry_callback,
-)
 from evolve import (
     InnovationTracker,
     NeatConfig,
@@ -50,7 +36,19 @@ from evolve import (
     network_from_json,
 )
 from games import interfaces
-from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
+from run_context import recorded_run
+from seeding import SeedStrategy
+from snake_neuro_run import (
+    BOARD,
+    DEFAULT_INTERFACE,
+    GENERATIONS,
+    MAX_STEPS,
+    POPULATION_SIZE,
+    RNG_SEED,
+    make_act,
+    make_resample_callback,
+    make_telemetry_callback,
+)
 
 # The paper's fixed threshold never splits Snake's 36-gene starting genomes (see NeatConfig), so aim for a
 # handful of species and let the threshold adapt.
@@ -77,34 +75,27 @@ def main(
     num_inputs = len(interface.observer.feature_names(envs[0]))
     num_outputs = interface.action.num_outputs
 
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
-
-    run_id = registry.create_run(
-        config={
-            "representation": "neat",
-            "game": "snake",
-            "interface": interface.id,
-            "num_inputs": num_inputs,
-            "num_outputs": num_outputs,
-            "population_size": population_size,
-            "generations": generations,
-            "max_steps": max_steps,
-            "selection": "speciation"
-            if config.speciation
-            else "single species (no speciation)",
-            "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
-            "neat": dataclasses.asdict(config),
-            "benchmark": "games.snake (10x10)",
-            **seeds.config(),
-            "held_out_every": held_out_every,
-            "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
-            "rng_seed": rng_seed,
-            **(tags or {}),
-        }
-    )
-    print(f"run_id={run_id}")
+    run_config = {
+        "representation": "neat",
+        "game": "snake",
+        "interface": interface.id,
+        "num_inputs": num_inputs,
+        "num_outputs": num_outputs,
+        "population_size": population_size,
+        "generations": generations,
+        "max_steps": max_steps,
+        "selection": "speciation"
+        if config.speciation
+        else "single species (no speciation)",
+        "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
+        "neat": dataclasses.asdict(config),
+        "benchmark": "games.snake (10x10)",
+        **seeds.config(),
+        "held_out_every": held_out_every,
+        "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
+        "rng_seed": rng_seed,
+        **(tags or {}),
+    }
 
     rng = random.Random(rng_seed)
     tracker = InnovationTracker(first_hidden_id=num_inputs + 1 + num_outputs)
@@ -119,48 +110,39 @@ def main(
     )
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 
-    evolve_neat(
-        population,
-        tracker,
-        fitness,
-        config,
-        generations,
-        on_generation=[
-            make_telemetry_callback(
-                registry,
-                metrics,
-                artifacts,
-                run_id,
-                held_out=(interface, held_out_every, generations - 1),
-            ),
-            *(
-                [make_resample_callback(fitness, seeds, interface)]
-                if seeds.resamples
-                else []
-            ),
-            cost.on_generation,
-            cost.excluding_pauses(make_control_callback(registry, run_id)),
-        ],
-        rng=rng,
-    )
-
-    history = metrics.history(run_id)
-    registry.set_summary(
-        run_id,
-        {
-            "best_fitness": history[-1].best_fitness,
-            "held_out_score": history[-1].held_out_score,
-            "cost": cost.summary(),
-        },
-    )
-    registry.update_status(run_id, "completed")
+    with recorded_run(run_config) as run:
+        evolve_neat(
+            population,
+            tracker,
+            fitness,
+            config,
+            generations,
+            on_generation=[
+                make_telemetry_callback(
+                    run.registry,
+                    run.metrics,
+                    run.artifacts,
+                    run.run_id,
+                    held_out=(interface, held_out_every, generations - 1),
+                ),
+                *(
+                    [make_resample_callback(fitness, seeds, interface)]
+                    if seeds.resamples
+                    else []
+                ),
+                cost.on_generation,
+                run.control_callback(cost),
+            ],
+            rng=rng,
+        )
+        history = run.set_training_summary(cost)
 
     final = network_from_json(
-        artifacts.get_program(history[-1].champion_ref).decode("utf-8")
+        run.artifacts.get_program(history[-1].champion_ref).decode("utf-8")
     )
     hidden, connections = final.complexity()
     print(
-        f"status={registry.get_run(run_id).status}, recorded {len(history)} generations"
+        f"status={run.registry.get_run(run.run_id).status}, recorded {len(history)} generations"
     )
     print(f"gen 0   best_fitness={history[0].best_fitness:.4f}")
     print(
@@ -169,7 +151,7 @@ def main(
     print(
         f"final champion: {hidden} hidden nodes, {connections} enabled connections, species={history[-1].extras['species']:.0f}"
     )
-    return run_id
+    return run.run_id
 
 
 if __name__ == "__main__":

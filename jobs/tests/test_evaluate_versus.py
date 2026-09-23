@@ -55,7 +55,12 @@ def test_champion_entrants_reads_neat_and_layered_runs_with_their_search_depth_a
     import time
 
     from evolve import InnovationTracker, initial_genome
-    from telemetry import FileArtifactStore, FileMetricsStore, GenerationStats, SqliteRunRegistry
+    from telemetry import (
+        FileArtifactStore,
+        FileMetricsStore,
+        GenerationStats,
+        SqliteRunRegistry,
+    )
 
     registry = SqliteRunRegistry(tmp_path / "runs.db")
     metrics = FileMetricsStore(tmp_path / "metrics")

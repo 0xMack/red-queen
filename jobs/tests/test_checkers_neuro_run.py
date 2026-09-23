@@ -1,10 +1,11 @@
 import checkers_neuro_run
+import run_context
 from evolve import WeightVector
 from telemetry import FileMetricsStore, SqliteRunRegistry
 
 
 def test_training_run_evolves_a_position_evaluator_through_match_fitness(tmp_path, monkeypatch):
-    monkeypatch.setattr(checkers_neuro_run, "RUN_DATA_DIR", tmp_path)
+    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_neuro_run, "MONITOR_GAMES", 2)
 
     run_id = checkers_neuro_run.main(generations=2, population_size=6, hidden=4, opponents=("random", "material-1"), held_out_every=1)

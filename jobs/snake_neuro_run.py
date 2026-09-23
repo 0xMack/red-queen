@@ -39,13 +39,10 @@ from __future__ import annotations
 import argparse
 import random
 import time
-from pathlib import Path
 from typing import Any
 
-from control import make_control_callback
 from costs import TrainingCostMeter
 from evaluate import MONITOR_SEEDS, monitor_score
-from seeding import SeedStrategy
 from evolve import (
     GaussianMutation,
     GenerationSummary,
@@ -56,14 +53,14 @@ from evolve import (
     random_weight_vector,
 )
 from games import interfaces
+from run_context import recorded_run
+from seeding import SeedStrategy
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
     GenerationStats,
     SqliteRunRegistry,
 )
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 # The input/output layer sizes come from the interface (11 for features.v1, 100 for grid-flat.v1 on
 # a 10x10 board; 3 outputs for relative3.v1). features.v1 is ~10x fewer weights than the old grid
@@ -155,30 +152,23 @@ def main(
     envs = [interface.make_game(seed=seed, **BOARD) for seed in seeds.initial()]
     layer_sizes = (len(interface.observer.feature_names(envs[0])), HIDDEN, interface.action.num_outputs)
 
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
-
-    run_id = registry.create_run(
-        config={
-            "representation": "neuroevolution",
-            "game": "snake",  # apps/frontend's watch page reads this to know what to render
-            "interface": interface.id,  # how the champion must be observed/decoded (doc 0007)
-            "layer_sizes": list(layer_sizes),
-            "population_size": POPULATION_SIZE,
-            "generations": generations,
-            "max_steps": MAX_STEPS,
-            "selection": TOURNAMENT_LABEL if selection_name == "tournament" else "lexicase",
-            "variation": "gaussian_mutation(sigma=0.2)",
-            "benchmark": "games.snake (10x10)",
-            **seeds.config(),  # seed_strategy + training_seeds (docs/design/0007: overfitting)
-            "held_out_every": held_out_every,
-            "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
-            "rng_seed": rng_seed,
-            **(tags or {}),
-        }
-    )
-    print(f"run_id={run_id}")
+    config = {
+        "representation": "neuroevolution",
+        "game": "snake",  # apps/frontend's watch page reads this to know what to render
+        "interface": interface.id,  # how the champion must be observed/decoded (doc 0007)
+        "layer_sizes": list(layer_sizes),
+        "population_size": POPULATION_SIZE,
+        "generations": generations,
+        "max_steps": MAX_STEPS,
+        "selection": TOURNAMENT_LABEL if selection_name == "tournament" else "lexicase",
+        "variation": "gaussian_mutation(sigma=0.2)",
+        "benchmark": "games.snake (10x10)",
+        **seeds.config(),  # seed_strategy + training_seeds (docs/design/0007: overfitting)
+        "held_out_every": held_out_every,
+        "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
+        "rng_seed": rng_seed,
+        **(tags or {}),
+    }
 
     rng = random.Random(rng_seed)
     population = [
@@ -188,36 +178,27 @@ def main(
     fitness = SimulationFitnessEvaluator(envs=envs, act=make_act(interface), max_steps=MAX_STEPS)
     cost = TrainingCostMeter(population_size=POPULATION_SIZE, fitness=fitness)
 
-    evolve(
-        population,
-        fitness=fitness,
-        selection=TournamentSelection(k=TOURNAMENT_K) if selection_name == "tournament" else LexicaseSelection(),
-        variation=GaussianMutation(sigma=0.2),
-        generations=generations,
-        on_generation=[
-            make_telemetry_callback(
-                registry, metrics, artifacts, run_id, held_out=(interface, held_out_every, generations - 1)
-            ),
-            *([make_resample_callback(fitness, seeds, interface)] if seeds.resamples else []),
-            cost.on_generation,
-            cost.excluding_pauses(make_control_callback(registry, run_id)),
-        ],
-        rng=rng,
-    )
-
-    final_history = metrics.history(run_id)
-    registry.set_summary(
-        run_id,
-        {
-            "best_fitness": final_history[-1].best_fitness,
-            "held_out_score": final_history[-1].held_out_score,
-            "cost": cost.summary(),
-        },
-    )
-    registry.update_status(run_id, "completed")
+    with recorded_run(config) as run:
+        evolve(
+            population,
+            fitness=fitness,
+            selection=TournamentSelection(k=TOURNAMENT_K) if selection_name == "tournament" else LexicaseSelection(),
+            variation=GaussianMutation(sigma=0.2),
+            generations=generations,
+            on_generation=[
+                make_telemetry_callback(
+                    run.registry, run.metrics, run.artifacts, run.run_id, held_out=(interface, held_out_every, generations - 1)
+                ),
+                *([make_resample_callback(fitness, seeds, interface)] if seeds.resamples else []),
+                cost.on_generation,
+                run.control_callback(cost),
+            ],
+            rng=rng,
+        )
+        final_history = run.set_training_summary(cost)
 
     # Prove replay works, not just that writing worked: read everything back from storage.
-    run_info = registry.get_run(run_id)
+    run_info = run.registry.get_run(run.run_id)
     print(f"status={run_info.status} summary={run_info.summary}")
     print(f"recorded {len(final_history)} generations")
     print(f"gen 0   best_fitness={final_history[0].best_fitness:.4f}")
@@ -225,10 +206,10 @@ def main(
         f"gen {final_history[-1].generation:<3} best_fitness={final_history[-1].best_fitness:.4f}"
     )
 
-    champion_bytes = artifacts.get_program(final_history[-1].champion_ref)
+    champion_bytes = run.artifacts.get_program(final_history[-1].champion_ref)
     print(f"final champion ({len(champion_bytes)} bytes stored):")
     print(champion_bytes.decode("utf-8")[:200] + "...")
-    return run_id
+    return run.run_id
 
 
 if __name__ == "__main__":

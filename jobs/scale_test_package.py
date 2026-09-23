@@ -17,7 +17,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 from modelpack import CatalogEntry, LocalModelStore
 from modelpack.lm import LMConfig, build_lm_package
 from tinylm.checkpoint import TinyLMConfig, build, named_parameters

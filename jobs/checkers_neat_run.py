@@ -26,7 +26,6 @@ import argparse
 import dataclasses
 import random
 from collections.abc import Sequence
-from pathlib import Path
 
 from checkers_training import (
     INPUTS,
@@ -36,13 +35,10 @@ from checkers_training import (
     make_telemetry_callback,
     material_seed_neat,
 )
-from control import make_control_callback
 from costs import TrainingCostMeter
 from evolve import InnovationTracker, NeatConfig, evolve_neat, initial_genome
 from games.checkers_strategies import STRATEGIES
-from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
+from run_context import recorded_run
 
 POPULATION_SIZE = 60
 GENERATIONS = 60
@@ -71,35 +67,28 @@ def main(
 ) -> str:
     """Trains one NEAT run, records it to telemetry, returns its run_id."""
     config = config or CHECKERS_NEAT_CONFIG
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
-
-    run_id = registry.create_run(
-        config={
-            "representation": "neat",
-            "game": "checkers",
-            "interface": "checkers/board32.v1+evaluate1ply.v1",
-            "search_depth": depth,
-            "num_inputs": INPUTS,
-            "num_outputs": 1,
-            "population_size": population_size,
-            "generations": generations,
-            "max_moves": MAX_MOVES,
-            "opponents": list(opponents),
-            "hall_of_fame": hall,
-            "seeded_fraction": seed_material,
-            "selection": "speciation" if config.speciation else "single species (no speciation)",
-            "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
-            "neat": dataclasses.asdict(config),
-            "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
-            "resampled_opponents": resample,
-            "games_per_opponent": games_per_opponent,
-            "held_out_every": held_out_every,
-            "rng_seed": rng_seed,
-        }
-    )
-    print(f"run_id={run_id}", flush=True)
+    run_config = {
+        "representation": "neat",
+        "game": "checkers",
+        "interface": "checkers/board32.v1+evaluate1ply.v1",
+        "search_depth": depth,
+        "num_inputs": INPUTS,
+        "num_outputs": 1,
+        "population_size": population_size,
+        "generations": generations,
+        "max_moves": MAX_MOVES,
+        "opponents": list(opponents),
+        "hall_of_fame": hall,
+        "seeded_fraction": seed_material,
+        "selection": "speciation" if config.speciation else "single species (no speciation)",
+        "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)",
+        "neat": dataclasses.asdict(config),
+        "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
+        "resampled_opponents": resample,
+        "games_per_opponent": games_per_opponent,
+        "held_out_every": held_out_every,
+        "rng_seed": rng_seed,
+    }
 
     rng = random.Random(rng_seed)
     tracker = InnovationTracker(first_hidden_id=INPUTS + 2)
@@ -113,7 +102,7 @@ def main(
     pool = OpponentPool(opponents, depth, hall_size=hall, margin=margin, resample=resample, games_per_opponent=games_per_opponent)
     cost = TrainingCostMeter(population_size=population_size, fitness=pool)
 
-    try:
+    with recorded_run(run_config) as run:
         evolve_neat(
             population,
             tracker,
@@ -121,25 +110,16 @@ def main(
             config,
             generations,
             on_generation=[
-                make_telemetry_callback(metrics, artifacts, run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
                 pool.on_generation,
                 cost.on_generation,
-                cost.excluding_pauses(make_control_callback(registry, run_id)),
+                run.control_callback(cost),
             ],
             rng=rng,
         )
-    except BaseException:
-        registry.update_status(run_id, "failed")
-        raise
-
-    history = metrics.history(run_id)
-    registry.set_summary(
-        run_id,
-        {"best_fitness": history[-1].best_fitness, "held_out_score": history[-1].held_out_score, "cost": cost.summary()},
-    )
-    registry.update_status(run_id, "completed")
+        history = run.set_training_summary(cost)
     print(f"status=completed  recorded {len(history)} generations", flush=True)
-    return run_id
+    return run.run_id
 
 
 if __name__ == "__main__":

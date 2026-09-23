@@ -40,9 +40,9 @@ from evaluate import PROTOCOL, measure_quality
 from evolve import NeatConfig, network_from_json
 from evolve.networks import parameter_count
 from games import interfaces
+from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
 
-RUN_DATA_DIR = snake_neuro_run.RUN_DATA_DIR
 EXPERIMENTS_DIR = RUN_DATA_DIR / "experiments"
 INTERFACE = snake_neuro_run.DEFAULT_INTERFACE
 SEED_STRATEGY = "resample:5"
@@ -144,7 +144,7 @@ def experiment_runs(registry: SqliteRunRegistry, name: str) -> list[RunInfo]:
 def run_experiment(
     name: str, arms: list[str], seeds: list[int], generations: int
 ) -> None:
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
+    registry = TelemetryStores.open().registry
     for seed in seeds:
         for arm in arms:
             done = [
@@ -214,9 +214,7 @@ def _stats(values: list[float]) -> dict[str, float]:
 
 
 def build_report(name: str) -> dict[str, Any]:
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
+    registry, metrics, artifacts = TelemetryStores.open()
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     rows = sorted(
         (summarize_run(r, metrics, artifacts) for r in runs),

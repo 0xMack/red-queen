@@ -96,8 +96,13 @@ themselves — see docs/design/0001) get wired to it for a real run.
   step 7). This is the only coordination needed between `apis/backend`'s `POST
   /runs/{id}/control` endpoint (a separate process) and a running job: both just read/write the
   same `RunRegistry` row, reusing `RunStatus`'s existing `"paused"` value rather than adding new
-  shared state. Both `baseline_gp_run.py` and `snake_neuro_run.py` wire it in alongside their
-  telemetry callback.
+  shared state. Every training job gets it through `run_context.py`.
+- `run_context.py` — the lifecycle every training job shares: `with recorded_run(config) as run:` creates
+  the run, and marks it `completed` when the block ends or `failed` if it raises (a crashed run used to stay
+  `running` — live-looking — forever). `run.control_callback(cost)` wires pause/resume without counting paused
+  time, and `run.set_training_summary(cost)` writes the standard summary. `RUN_DATA_DIR` lives here, honouring
+  `REDQUEEN_RUN_DATA_DIR` like the backend does — point both at a scratch directory for smoke runs, so they
+  don't land on the real runs list. Tests patch `run_context.RUN_DATA_DIR`.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on

@@ -23,9 +23,8 @@ from pathlib import Path
 from evolve.neuro import WeightVector
 from games import interfaces
 from games.snake import BENCHMARK_SEEDS
+from run_context import RUN_DATA_DIR
 from telemetry import FileArtifactStore, FileMetricsStore
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 
 def resolve_interface(run_id: str, game: str, metrics: FileMetricsStore, artifacts: FileArtifactStore) -> str | None:

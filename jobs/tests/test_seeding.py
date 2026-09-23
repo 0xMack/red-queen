@@ -1,6 +1,6 @@
-import pytest
-
 import evaluate
+import pytest
+import run_context
 import snake_neuro_run
 from seeding import TRAINING_POOL, SeedStrategy
 from telemetry import FileMetricsStore, SqliteRunRegistry
@@ -33,7 +33,7 @@ def test_bad_strategies_are_rejected(bad):
 
 
 def test_training_run_records_strategy_and_held_out_scores(tmp_path, monkeypatch):
-    monkeypatch.setattr(snake_neuro_run, "RUN_DATA_DIR", tmp_path)
+    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(snake_neuro_run, "POPULATION_SIZE", 6)
     monkeypatch.setattr(evaluate, "MONITOR_SEEDS", (20_000, 20_001))
     monkeypatch.setattr(snake_neuro_run, "monitor_score", lambda interface, policy: evaluate.monitor_score(interface, policy, (20_000, 20_001)))
