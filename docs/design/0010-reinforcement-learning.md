@@ -25,6 +25,24 @@ live, in-browser demo. Decided with the user (2026-09-23):
 | Where learning runs | **The Rust core**, bound to Python (jobs, telemetry, leaderboards) and compiled to WASM (live training in Learn). A pure-Python version on `libs/autodiff` is the gradient oracle. |
 | Games | **Reach1D** as a sanity check on every rung, **Snake** as the main benchmark, **Checkers self-play** late |
 | Learn | **A chapter per family**: Q-learning, DQN, policy gradients, self-play |
+| Browser training | **Demos only.** Live training in Learn shows *how* learning works, for models small enough to learn visibly; each demo shape is committed only after Phase 0's in-browser benchmark says it fits. Leaderboard models train in jobs. |
+| Browser inference | **Model packages** (doc 0009), with graceful, device-based restrictions and fallbacks to lighter models; some models may not run in a browser at all, and we'd like to find those limits rather than avoid them. |
+| Follow-ups | the `libm` dependency is fine; new champion formats load through `modelpack` |
+
+### What runs where
+
+| Layer | Runs | Why |
+|---|---|---|
+| **Rust core** (`libs/rl/rust/core`, plus the existing games core) | the inner loop: environments, network forward/backward, Adam, replay, every algorithm's update rule, exploration and sampling, seeded randomness | millions of steps per run (the Python forward pass was 87% of a Snake generation); one implementation for jobs and demos; one seed, one run, everywhere |
+| **Python** (`libs/rl/src/rl`, `jobs/rl_*.py`, `modelpack`) | orchestration: configs, jobs and experiments, telemetry and checkpoints, evaluation and leaderboards, ONNX export; the `libs/autodiff` oracles (tests only) | everything around a run is already Python; it calls Rust once per training *iteration*, not per step |
+| **WASM** (the Rust core, compiled) | Learn's live-training demos; game rules | a demo trains in front of the reader |
+| **ONNX Runtime Web** (model packages) | *inference* of every trained champion | one path for every model family, with doc 0009's device matching, variants, parity and explanations -- not the Rust nets |
+| **TypeScript** | UI, the workers driving WASM/ONNX, device probing and fallback choice | |
+
+**Every live demo has a recorded fallback:** when the device benchmark says live training is too slow (or the
+device is a phone), the page replays a *real recorded training run* -- its curve and policy snapshots from
+telemetry -- in the same visualization. Inference keeps 0009's behaviour: a model the device can't run says why
+and offers a lighter one.
 
 What there is to beat, on the `snake.score.v2` leaderboard (200 held-out games, 1,000-step cap, 10×10 board):
 
@@ -71,8 +89,8 @@ Evolution's parity story was "the Rust core is the only implementation". Trainin
 is chaotic, so a one-ulp difference in `exp`/`tanh` between native and WASM builds (platform libm vs.
 compiler-builtins) would make the "same" run diverge after a few thousand updates.
 
-- **The RL core does its own transcendental math** through the pure-Rust `libm` crate (the core's one
-  dependency, vendored if the "no dependencies" rule must hold): identical bits on every target, so a seed trains
+- **The RL core does its own transcendental math** through the pure-Rust `libm` crate (its one dependency,
+  accepted 2026-09-23): identical bits on every target, so a seed trains
   the same agent in a job and in a reader's browser. A test trains N updates in both the native and the WASM
   build (via `wasm-bindgen-test` or Node) and compares every weight exactly.
 - **Randomness is the games' PCG32** (ε-greedy draws, replay sampling, weight init, action sampling), one stream
@@ -123,8 +141,8 @@ The best untagged run of each algorithm is promoted to the leaderboard through t
 
 ## Decision 5: the wire format and model packages
 
-Two new champion kinds, both loadable by `evolve.network_from_json`'s dispatcher (moved or mirrored into `rl` if
-the dependency direction demands it) and exportable by `modelpack`:
+Two new champion kinds, loaded and exported by `modelpack` (decided 2026-09-23: it already depends on every
+network kind, so `evolve` never has to know about `rl`):
 
 - `{"type": "qtable", "observer": "features.v1", "bits": 11, "values": [[...3...] × 2048]}` — tabular. The ONNX
   graph is `index = obs · [1, 2, 4, …]` → `Gather` → the 3 action values; argmax is the interface's job, as now.
@@ -250,11 +268,6 @@ for PBT).
   cap; γ < 1 means the agent values food it can reach soon over survival later. Worth a Learn callout.
 - **Seed sensitivity.** RL results swing more across seeds than evolution's; ≥5 seeds per arm is a floor, and the
   chapters show the spread.
-- **Dependency direction for the wire format.** `evolve.network_from_json` loading an `rl` policy would make
-  `evolve` know about `rl`; the likelier answer is a small loader in `modelpack` (which already depends on both
-  network kinds) — settle it in Phase 1 when the first new kind exists.
-- **The core's "no dependencies" rule** vs. the `libm` crate — vendor it if the rule matters more than the
-  convenience (Decision 2).
 
 ## Implementation order
 
