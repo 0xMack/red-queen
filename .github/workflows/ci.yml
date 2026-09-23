@@ -21,7 +21,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: libs/games
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag for this action
         with:
           python-version: "3.11"
           enable-cache: true
