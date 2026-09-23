@@ -85,6 +85,24 @@ export function benchUpdates(layer_sizes, activations, batch, iterations) {
 }
 
 /**
+ * `learning_digest(seed)`: Q-learning and SARSA trained on Snake, hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function learningDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.learningDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * `rollout_digest(seed)`: a random agent trained and evaluated on Snake and Reach1D, hashed.
  * @param {number} seed
  * @returns {string}

@@ -32,6 +32,12 @@ pub fn rollout_digest(seed: u32) -> String {
     envs::rollout_digest(seed as u64)
 }
 
+/// `learning_digest(seed)`: Q-learning and SARSA trained on Snake, hashed.
+#[wasm_bindgen(js_name = learningDigest)]
+pub fn learning_digest(seed: u32) -> String {
+    envs::learning_digest(seed as u64)
+}
+
 /// `iterations` training updates (forward + backward + Adam) on a batch. `activations`: comma-separated, one per
 /// layer after the input (`"relu,relu,linear"`). Returns a checksum; time the call.
 #[wasm_bindgen(js_name = benchUpdates)]

@@ -29,5 +29,15 @@
       "seed": 42,
       "digest": "749a238a70a9725c"
     }
+  ],
+  "learning": [
+    {
+      "seed": 0,
+      "digest": "18e1c71412814c64"
+    },
+    {
+      "seed": 5,
+      "digest": "6cee6dd75d008e56"
+    }
   ]
 }

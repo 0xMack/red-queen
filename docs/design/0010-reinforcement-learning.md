@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phase 0 implemented** (see "Implementation notes"); Phases 1-4 planned. Each phase lands as its own PR,
+Status: **Phases 0 and 1a implemented** (see "Implementation notes"); 1b (the Learn chapter) and Phases 2-4 planned. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -316,4 +316,52 @@ holds the glue (plus the games' baselines as policies and the rollout digest).
     in ~7 s. Live is comfortable on a desktop.
   - *DQN on egocentric.v1 (27 inputs, 128-wide):* ~1,100 updates/s, 100 K steps in ~25 s — live only on fast devices.
   - *DQN on grid-flat.v1 (100 inputs, 256-wide):* ~240 updates/s — recorded-run replay, not live.
+
+### Phase 1a: tabular Q-learning (2026-09-23)
+
+Built: `tabular.rs` (`Discretizer`; `QTableAgent` = Q-learning or SARSA, n-step returns, decaying epsilon-greedy,
+optimistic initial values), Snake's `features.v1` as 11 bits (2,048 rows) and Reach1D as 25 x 13 bins, a `sparse`
+reward option (+1 food, -1 death, nothing else), the `qtable` champion in `modelpack` (`load_champion`, and
+`export_qtable`: `(observation != 0) . [1, 2, 4, ...]` then `Gather`), `jobs/rl_experiment.py`.
+
+- **Exact against the textbook.** The Rust update rule replays random transitions to *equal* Q-tables as a
+  plain-Python Sutton & Barto implementation (`reference_tabular.py`), for Q-learning and SARSA at n = 1, 2, 5.
+  SARSA picks its next action in `observe`, not `act`, which is what makes each update a pure function of a transition.
+- **Determinism covers learning now:** a `learning` digest (Q-learning and 3-step SARSA trained on Snake) is
+  identical natively and in WASM.
+- **Truncation is not termination.** A training episode cut by the 1,000-step cap still bootstraps from the next
+  state; only a game over doesn't.
+
+**`rl-tabular-v1`** (12 arms x seeds 0-4, `features.v1`, 1M env steps unless noted; final champion on the 200
+held-out games; paired permutation test against `q-learning`):
+
+| Arm | Held-out (mean ± sd) | vs `q-learning` | Notes |
+|---|---|---|---|
+| `q-learning` (alpha 0.1, gamma 0.95, eps 1 → 0.05 over 100k) | 17.63 ± 0.98 | -- | reference |
+| `q-optimistic` (initial Q 2, eps 0.02) | **19.38 ± 1.49** | +1.75 (p 0.19) | best, not significant |
+| `q-gamma-0.9` | 18.90 ± 1.06 | +1.26 (p 0.06) | |
+| `q-eps-fast` (decay over 20k) | 18.69 ± 0.73 | +1.05 (p 0.25) | |
+| `sarsa-n3` | 18.59 ± 0.94 | +0.95 (p 0.06) | |
+| `q-sparse` (no shaping) | 18.24 ± 0.41 | +0.60 (p 0.25) | shaping isn't needed |
+| `q-n3` | 17.96 ± 0.81 | +0.33 (p 0.31) | |
+| `q-long` (5M steps) | 17.90 ± 0.64 | +0.26 (p 0.69) | 1M is converged |
+| `q-alpha-0.3`, `q-eps-slow`, `sarsa`, `q-gamma-0.99` | 17.35-17.60 | within ±0.3 | |
+
+- **Every arm plateaus at about the greedy baseline (17.9); no variant is significantly better with 5 seeds.**
+  Every run visits exactly **256 of the 2,048 rows** -- the reachable ones (one heading bit is always set, food
+  bits come in pairs) -- by the end, and 5M steps is no better than 1M: these are converged answers, not unfinished ones.
+- **The plan's hypothesis was wrong, and why is the lesson.** It predicted a plateau because "a table can't generalize".
+  But any deterministic policy on `features.v1` *is* a 256-row table, and NEAT's 38-point champion reads the same
+  11 features -- so a 38-point table exists. What stops Q-learning is **aliasing**: different board situations
+  share one row (the features don't see the body beyond one cell), so the row's value is an average over
+  situations with different futures, and the Markov assumption that value-based learning rests on fails.
+  Evolution searches policies directly, judged by whole-game returns, and doesn't need values to be consistent.
+  Value methods need observations that are (close to) Markov -- the case for Phase 2's richer observers.
+- **Sample efficiency is where it shines:** 1M steps and **0.4 s** of training for ~18-19 points; neuroevolution
+  needed 48.8M steps (16 min) for 17.6 and NEAT 11.8M for 20.3.
+- **On the leaderboard:** `q-optimistic`'s settings, rng seed 0 (fixed in advance, not the best seed -- that would be
+  selecting on the test set), published as a package (fp64 and fp32 both play every game identically): **#4 at
+  19.51 ± 0.94**, behind only NEAT, trained in 0.42 s, 10 µs per decision.
+- Not done in 1a: the per-step allocation (0.4 s per million steps makes it moot for tabular; revisit for DQN).
+  The Learn chapter and its live demo are Phase 1b.
 

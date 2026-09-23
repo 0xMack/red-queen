@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+import rl
 from evolve.neat import (
     InnovationTracker,
     NeatConfig,
@@ -16,8 +17,12 @@ from evolve.neuro import random_weight_vector
 from modelpack import (
     LocalModelStore,
     PackagedModel,
+    QTable,
+    UnsupportedChampion,
     build_package,
     export_network,
+    export_network_json,
+    load_champion,
     with_parity,
 )
 from modelpack.exporters import neat_layers
@@ -184,3 +189,49 @@ def test_garbage_collection_keeps_only_what_catalogs_reference(tmp_path):
     assert not store.manifest_path(old.manifest.package_id).exists()
     assert all(store.has_blob(b.sha256) for b in new.manifest.blobs())
     assert store.collect_garbage() == (0, 0)
+
+
+# --- Tabular policies (docs/design/0010 Phase 1) ----------------------------------------------------------------------
+
+
+import pytest
+
+
+def _trained_table() -> tuple[str, QTable]:
+    trainer = rl.Trainer("q_learning", "snake/features.v1+relative3.v1", seed=2, params={"epsilon_decay_steps": 20_000})
+    trainer.train(50_000)
+    text = trainer.snapshot()
+    return text, load_champion(text)
+
+
+def test_a_trained_qtable_packages_exactly_and_picks_the_same_moves():
+    text, table = _trained_table()
+    assert isinstance(table, QTable) and table.states == 2048 and table.num_actions == 3
+    assert 50 < table.visited_states() <= 2048
+    package = build_package([export_network_json(text, "float64"), export_network_json(text, "float32")], label="q")
+    rng = np.random.default_rng(4)
+    binary = rng.integers(0, 2, size=(300, 11)).astype(np.float64)
+    expected = np.asarray([table.forward(o) for o in binary])
+    for variant in ("fp64", "fp32"):
+        outputs = PackagedModel(package.manifest, variant, package.blobs.__getitem__).run(binary)
+        assert np.max(np.abs(outputs - expected)) < (1e-12 if variant == "fp64" else 1e-5)
+        assert (outputs.argmax(axis=1) == expected.argmax(axis=1)).all()
+    # any nonzero value counts as a set bit, in the graph as in the reference
+    odd = [[0.0, 3.5, -1.0] + [0.0] * 8]
+    assert PackagedModel(package.manifest, "fp64", package.blobs.__getitem__).run(np.asarray(odd))[
+        0
+    ].tolist() == table.forward(odd[0])
+
+
+def test_the_loader_knows_every_champion_and_refuses_what_has_no_policy():
+    genome = random_weight_vector((11, 4, 3), random.Random(0))
+    assert load_champion(genome.to_json()).weights == genome.weights
+    with pytest.raises(UnsupportedChampion, match="random agent"):
+        load_champion(json.dumps({"type": "random", "num_actions": 3}))
+    with pytest.raises(UnsupportedChampion):
+        load_champion(json.dumps({"type": "hypernetwork"}))
+    binned = rl.Trainer("q_learning", "reach1d", seed=0, max_episode_steps=50)
+    binned.train(200)
+    with pytest.raises(ValueError, match="binary"):
+        export_network_json(binned.snapshot())
+    assert load_champion(binned.snapshot()).forward([0.1, -0.2]) is not None  # loads and plays, doesn't export

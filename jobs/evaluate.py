@@ -26,12 +26,19 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from costs import hardware_fingerprint
-from evolve import network_from_json
-from evolve.networks import describe, parameter_count
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
-from modelpack import LocalModelStore, ModelStore, PackagedModel
+from modelpack import (
+    LocalModelStore,
+    ModelStore,
+    PackagedModel,
+    QTable,
+    UnsupportedChampion,
+    champion_parameters,
+    describe_champion,
+    load_champion,
+)
 from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
     EvaluationRecord,
@@ -193,10 +200,28 @@ def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
     }
 
 
+# How a run's `representation` is named on a leaderboard (the frontend's runMeta REPRESENTATION_LABELS agree).
+ALGORITHM_LABELS = {
+    "neat": "NEAT",
+    "neuroevolution": "Neuroevolution",
+    "q_learning": "Q-learning",
+    "sarsa": "SARSA",
+}
+
+
 def model_shape(network, algorithm: str, selection: str | None) -> dict[str, Any]:
-    """algorithm + size facts: hidden nodes/connections for an evolved graph, layer sizes for a fixed MLP."""
+    """algorithm + size facts: hidden nodes/connections for an evolved graph, layer sizes for a fixed MLP, states
+    (visited of all) for a table."""
     from evolve.neat import NeatGenome
 
+    if isinstance(network, QTable):
+        return {
+            "algorithm": algorithm,
+            "selection": selection,
+            "table_states": network.states,
+            "visited_states": network.visited_states(),
+            "actions": network.num_actions,
+        }
     if isinstance(network, NeatGenome):
         hidden, connections = network.complexity()
         return {
@@ -226,25 +251,24 @@ def champion_entrants(
         # one by one: twenty seeds of four arms would bury every other entrant.
         if run.config.get("experiment"):
             continue
-        # RL champions (docs/design/0010) need modelpack's loaders for their formats, which arrive with the first
-        # learning algorithm (Phase 1); until then an RL run is never an entrant.
-        if run.config.get("paradigm") == "reinforcement_learning":
-            continue
         history = metrics.history(run.run_id)
         if not history:
             continue
         champion_ref = history[-1].champion_ref
         raw = artifacts.get_program(champion_ref)
-        champion = network_from_json(raw.decode("utf-8"))  # WeightVector or NeatGenome
+        try:
+            champion = load_champion(raw.decode("utf-8"))  # an evolved network or an RL table (modelpack.champions)
+        except UnsupportedChampion:
+            continue  # nothing to rank: the RL pipeline's random agent (the random baseline already is)
         interface = interfaces.get(interface_id)
 
         def factory(_seed: int, champion=champion, interface=interface) -> Policy:
             return lambda observation: interface.action.decode(champion.forward(observation))
 
         selection = run.config.get("selection")
-        network = describe(champion)
+        network = describe_champion(champion)
         representation = run.config.get("representation", "unknown")
-        kind = "NEAT" if representation == "neat" else "Neuroevolution"
+        kind = ALGORITHM_LABELS.get(representation, representation.replace("_", " ").capitalize())
         label = f"{kind} {network}" + (f" · {selection}" if selection else "")
         entrants.append(
             {
@@ -257,9 +281,11 @@ def champion_entrants(
                 "model": (
                     f"evolved graph {network}, tanh (neat)"
                     if representation == "neat"
+                    else f"{network} ({representation})"
+                    if isinstance(champion, QTable)
                     else f"MLP {network}, tanh ({representation})"
                 ),
-                "parameters": parameter_count(champion),
+                "parameters": champion_parameters(champion),
                 # Structured, so every UI names a model the same way (apps/frontend utils/modelLabel.ts)
                 # instead of parsing `label`.
                 "shape": model_shape(champion, kind, selection),

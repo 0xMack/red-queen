@@ -16,9 +16,11 @@ from dataclasses import dataclass
 import numpy as np
 import onnx
 from evolve.neat import NeatGenome
-from evolve.networks import Network, describe, network_from_json, parameter_count
+from evolve.networks import describe, parameter_count
 from evolve.neuro import WeightVector
 from onnx import TensorProto, helper, numpy_helper
+
+from modelpack.champions import Champion, QTable, load_champion
 
 # Opset 17 / IR 8: old enough that every ONNX Runtime from the last few years (Python and Web) runs it,
 # new enough for everything these exporters emit.
@@ -175,15 +177,57 @@ def export_neat(genome: NeatGenome, dtype: str = "float32") -> Exported:
     )
 
 
-def export_network(network: Network, dtype: str = "float32") -> Exported:
+def export_qtable(table: QTable, dtype: str = "float32") -> Exported:
+    """A tabular policy (docs/design/0010 Phase 1) as a lookup: `row = (observation != 0) . [1, 2, 4, ...]`, then
+    `Gather` that row of the table -- the action values an interface's argmax decodes, exactly as the agent's greedy
+    policy does. Only binary-discretized tables export: a binned one would need its bin edges in the graph, and no
+    game on a leaderboard uses one."""
+    if table.discretizer["kind"] != "binary":
+        raise ValueError(f"only a binary-discretized table exports, not {table.discretizer['kind']!r}")
+    np_dtype, elem = DTYPES[dtype]
+    bits, actions = table.num_inputs, table.num_actions
+    powers = np.asarray([[float(1 << i)] for i in range(bits)], dtype=np_dtype)
+    values = np.asarray(table.values, dtype=np.float64).reshape(table.states, actions).astype(np_dtype)
+    initializers = [
+        numpy_helper.from_array(np.zeros((), dtype=np_dtype), "zero"),
+        numpy_helper.from_array(powers, "powers"),
+        numpy_helper.from_array(np.asarray([-1], dtype=np.int64), "flat"),
+        numpy_helper.from_array(values, "table"),
+    ]
+    nodes = [
+        helper.make_node("Equal", [INPUT, "zero"], ["is_zero"]),
+        helper.make_node("Not", ["is_zero"], ["is_set"]),
+        helper.make_node("Cast", ["is_set"], ["bits"], to=elem),
+        helper.make_node("MatMul", ["bits", "powers"], ["row_2d"]),
+        helper.make_node("Reshape", ["row_2d", "flat"], ["row_float"]),
+        helper.make_node("Cast", ["row_float"], ["row"], to=TensorProto.INT64),
+        helper.make_node("Gather", ["table", "row"], [OUTPUT], axis=0),
+    ]
+    return Exported(
+        model=_finish(nodes, initializers, bits, actions, "qtable", dtype),
+        reference=table.forward,
+        reference_name=f"modelpack.champions.QTable.forward ({table.algorithm}, float64)",
+        trainer="rl.tabular",
+        source_format="qtable.json",
+        description=f"{table.algorithm} table, {table.states} states x {actions} actions",
+        parameters=len(table.values),
+        num_inputs=bits,
+        num_outputs=actions,
+        dtype=dtype,
+    )
+
+
+def export_network(network: Champion, dtype: str = "float32") -> Exported:
     if isinstance(network, NeatGenome):
         return export_neat(network, dtype)
     if isinstance(network, WeightVector):
         return export_weight_vector(network, dtype)
+    if isinstance(network, QTable):
+        return export_qtable(network, dtype)
     raise TypeError(f"no exporter for {type(network).__name__}")
 
 
 def export_network_json(text: str, dtype: str = "float32") -> Exported:
-    """Export a champion artifact as stored by the training jobs (`evolve.network_from_json` format)."""
+    """Export a champion artifact as stored by the training jobs (`modelpack.champions.load_champion`)."""
     json.loads(text)  # fail early, with a JSON error rather than an exporter one, on a corrupt artifact
-    return export_network(network_from_json(text), dtype)
+    return export_network(load_champion(text), dtype)
