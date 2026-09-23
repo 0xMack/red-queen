@@ -113,6 +113,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   was p=0.056 (suggestive) and +3.8 was p=0.008. Include a control that changes *one* thing at a time: NEAT vs.
   lexicase-selected neuroevolution confounds the algorithm with the selection rule until a tournament-selected
   arm is added (docs/design/0008).
+- **A value-based learner is only as good as the observation is Markov.** Tabular Q-learning on Snake's
+  `features.v1` converged (all 256 reachable rows, 5M steps no better than 1M) to ~18 points while NEAT, reading the
+  same 11 features, reaches 38: a 38-point policy exists in that table's own space. Different situations share a row
+  (the features alias them), so each row's value averages futures that differ and bootstrapping propagates the
+  blur; evolution scores whole policies and doesn't care. Before blaming the algorithm's hyperparameters (none of 11
+  variants mattered, docs/design/0010), check whether the observation can tell apart the states that need different
+  actions -- the same question as the Reach1D entry above, asked of values rather than policies.
 - An algorithm with a hidden internal mechanism must report it, or a misconfigured mechanism is
   invisible. NEAT's speciation sorts genomes by a distance normalized by gene count once a genome
   has >= 20 genes; Snake's 36-gene starting genomes therefore barely differ from each other, and the

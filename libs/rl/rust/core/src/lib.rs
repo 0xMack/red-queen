@@ -7,3 +7,4 @@ pub mod digest;
 pub mod env;
 pub mod nn;
 pub mod rng;
+pub mod tabular;

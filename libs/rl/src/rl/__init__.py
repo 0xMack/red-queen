@@ -5,9 +5,6 @@ with backprop, optimizers, agents and the training loop. This package is its Pyt
 `Trainer` advances one training iteration per call, so Python never sits in the inner loop.
 """
 
-from rl._native import Trainer, env_info, evaluate_baseline
+from rl._native import ALGORITHMS, Trainer, env_info, evaluate_baseline
 
 __all__ = ["ALGORITHMS", "Trainer", "env_info", "evaluate_baseline"]
-
-# Algorithms the core implements, by the name a run records as its `representation`.
-ALGORITHMS: tuple[str, ...] = ("random",)

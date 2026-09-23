@@ -44,6 +44,11 @@ pub trait Env {
     /// The game's own measure of how well the episode went -- what a leaderboard ranks (Snake: apples eaten),
     /// as opposed to the shaped return a learner optimizes.
     fn score(&self) -> f64;
+    /// How to turn an observation into a row of a table, if this observation is small and discrete enough for
+    /// tabular methods (Snake's 11 binary features: yes; its 100-cell grid: no). `None` by default.
+    fn discretizer(&self) -> Option<crate::tabular::Discretizer> {
+        None
+    }
 }
 
 /// Makes fresh environments of one configuration: training and evaluation each need their own.

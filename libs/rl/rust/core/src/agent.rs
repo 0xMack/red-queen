@@ -18,6 +18,8 @@ pub struct Transition<'a> {
     pub next_observation: &'a [f64],
     /// The game ended (not merely the step cap): nothing follows `next_observation`.
     pub done: bool,
+    /// The step cap cut the episode short: the game would have gone on, so its value still counts.
+    pub truncated: bool,
 }
 
 pub trait Agent {
@@ -27,12 +29,14 @@ pub trait Agent {
     fn act(&mut self, observation: &[f64], rng: &mut Rng) -> Action;
     /// The action the agent is judged by: no exploration. `rng` is for agents that are random by nature.
     fn act_greedy(&mut self, observation: &[f64], rng: &mut Rng) -> Action;
-    /// Learn from one transition. The default learns nothing.
-    fn observe(&mut self, _transition: &Transition) {}
+    /// Learn from one transition. The default learns nothing. `rng` is the exploration stream: an on-policy
+    /// learner (SARSA) chooses its next action here, where its update needs it, and returns it from the next `act`.
+    fn observe(&mut self, _transition: &Transition, _rng: &mut Rng) {}
     /// Mean entropy (nats) of the policy it currently acts by -- a run's `diversity`.
     fn entropy(&self) -> f64;
-    /// Algorithm-specific numbers for this iteration (`epsilon`, `td_loss`, ...), a run's `extras`.
-    fn extras(&self) -> Vec<(String, f64)> {
+    /// Algorithm-specific numbers for this iteration (`epsilon`, `td_loss`, ...), a run's `extras`. Called once
+    /// per iteration, so per-iteration accumulators reset here.
+    fn extras(&mut self) -> Vec<(String, f64)> {
         Vec::new()
     }
     /// The current policy in its wire format (JSON): a run's champion artifact.
@@ -112,20 +116,35 @@ impl Agent for RandomAgent {
     }
 }
 
-/// Builds an agent by algorithm name.
+/// Every algorithm `build_agent` knows, by the name a run records as its `representation`.
+pub const ALGORITHMS: [&str; 3] = ["random", "q_learning", "sarsa"];
+
+/// Builds an agent by algorithm name, for an environment with this action space and (if it has one) discretizer.
 pub fn build_agent(
     algorithm: &str,
-    _observation_size: usize,
     space: ActionSpace,
+    discretizer: Option<crate::tabular::Discretizer>,
     params: &Params,
-    _seed: u64,
 ) -> Result<Box<dyn Agent>, String> {
     match algorithm {
         "random" => {
             params.check("random", &[])?;
             Ok(Box::new(RandomAgent::new(space)))
         }
-        other => Err(format!("unknown algorithm {other:?} (known: random)")),
+        "q_learning" | "sarsa" => {
+            let discretizer = discretizer.ok_or_else(|| {
+                format!(
+                    "{algorithm} is tabular: it needs a small discrete observation (e.g. snake/features.v1, reach1d)"
+                )
+            })?;
+            Ok(Box::new(crate::tabular::QTableAgent::new(
+                algorithm == "sarsa",
+                discretizer,
+                space,
+                params,
+            )?))
+        }
+        other => Err(format!("unknown algorithm {other:?} (known: {ALGORITHMS:?})")),
     }
 }
 
@@ -195,13 +214,7 @@ impl Trainer {
         config: TrainerConfig,
     ) -> Result<Trainer, String> {
         let probe = factory.make();
-        let agent = build_agent(
-            algorithm,
-            probe.observation_size(),
-            probe.action_space(),
-            params,
-            config.seed,
-        )?;
+        let agent = build_agent(algorithm, probe.action_space(), probe.discretizer(), params)?;
         Ok(Trainer::new(factory, agent, config))
     }
 
@@ -227,17 +240,22 @@ impl Trainer {
         for _ in 0..steps {
             let action = self.agent.act(&self.observation, &mut self.explore);
             let step = self.env.step(action);
-            self.agent.observe(&Transition {
-                observation: &self.observation,
-                action,
-                reward: step.reward,
-                next_observation: &step.observation,
-                done: step.done,
-            });
             self.episode_reward += step.reward;
             self.episode_steps += 1;
             self.total_steps += 1;
-            if step.done || self.episode_steps >= self.config.max_episode_steps {
+            let truncated = !step.done && self.episode_steps >= self.config.max_episode_steps;
+            self.agent.observe(
+                &Transition {
+                    observation: &self.observation,
+                    action,
+                    reward: step.reward,
+                    next_observation: &step.observation,
+                    done: step.done,
+                    truncated,
+                },
+                &mut self.explore,
+            );
+            if step.done || truncated {
                 finished.push(Episode {
                     seed: self.episode_seed,
                     total_reward: self.episode_reward,

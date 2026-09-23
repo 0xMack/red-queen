@@ -12,7 +12,7 @@ export interface LoadedPolicy {
   ref: string
   interfaceId: string | null
   generation: number | null
-  kind: "weights" | "neat"
+  kind: "weights" | "neat" | "table" // "table": an RL Q-table (docs/design/0010) -- no network to draw
   weights: number[]
   layerSizes: number[]
   genome: Genome | null
@@ -171,7 +171,9 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
         policy.value =
           parsed.type === "neat"
             ? { ...base, kind: "neat", weights: [], layerSizes: [], genome: genomeFromJson(parsed as unknown as GenomeJson) }
-            : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
+            : parsed.type === "qtable"
+              ? { ...base, kind: "table", weights: [], layerSizes: [], genome: null }
+              : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
       })
       .catch(() => {
         policy.value = null // no diagram; the game plays regardless

@@ -8,11 +8,12 @@ use std::collections::HashMap;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig};
+use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig, ALGORITHMS};
 use redqueen_rl::digest;
 use redqueen_rl::env::{ActionSpace, Episode};
 use redqueen_rl::nn::{Activation, Adam, Mlp, Shape};
 use redqueen_rl::rng::{Rng, Stream};
+use redqueen_rl::tabular::{Discretizer, QTableAgent, Step};
 use redqueen_rl_envs as envs;
 
 fn value_error(message: String) -> PyErr {
@@ -48,8 +49,9 @@ struct Trainer {
 impl Trainer {
     /// `env_id`: an interface id (`snake/features.v1+relative3.v1`) or `reach1d`. `params`: the algorithm's
     /// hyperparameters by name (unknown names are an error). Training games come from `seed_pool` = `[lo, hi)`.
+    /// `reward`: Snake's `shaped` reward or `sparse` outcomes only (evaluation always reports the game's score).
     #[new]
-    #[pyo3(signature = (algorithm, env_id, seed, params=None, width=10, height=10, seed_pool=(100_000, 1_000_000), max_episode_steps=1000))]
+    #[pyo3(signature = (algorithm, env_id, seed, params=None, width=10, height=10, seed_pool=(100_000, 1_000_000), max_episode_steps=1000, reward="shaped"))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         algorithm: &str,
@@ -60,11 +62,13 @@ impl Trainer {
         height: i32,
         seed_pool: (u64, u64),
         max_episode_steps: u32,
+        reward: &str,
     ) -> PyResult<Self> {
         if seed_pool.1 <= seed_pool.0 {
             return Err(value_error(format!("empty seed pool {seed_pool:?}")));
         }
-        let factory = envs::factory(env_id, width, height).map_err(value_error)?;
+        let reward = envs::Reward::parse(reward).map_err(value_error)?;
+        let factory = envs::factory_with(env_id, width, height, reward).map_err(value_error)?;
         let config = TrainerConfig {
             seed,
             seed_pool,
@@ -174,6 +178,11 @@ fn rollout_digest(seed: u64) -> String {
     envs::rollout_digest(seed)
 }
 
+#[pyfunction]
+fn learning_digest(seed: u64) -> String {
+    envs::learning_digest(seed)
+}
+
 /// Initial parameters (He-uniform weights, zero biases) for a network, from the run's `Init` stream.
 #[pyfunction]
 fn mlp_init(layer_sizes: Vec<usize>, activations: Vec<String>, seed: u64) -> PyResult<Vec<f64>> {
@@ -249,13 +258,61 @@ fn bench_forwards(layer_sizes: Vec<usize>, activations: Vec<String>, iterations:
     ))
 }
 
+/// A recorded transition for `tabular_replay`: (state, action, reward, next_state, done, truncated, next_action).
+type ReplayStep = (usize, usize, f64, usize, bool, bool, Option<usize>);
+
+/// Run `steps` through a fresh `q_learning`/`sarsa` table's update rule (no exploration, no environment) and return
+/// the table, row-major -- what `tests/reference_tabular.py` recomputes independently.
+#[pyfunction]
+fn tabular_replay(
+    algorithm: &str,
+    bits: usize,
+    actions: usize,
+    params: HashMap<String, f64>,
+    steps: Vec<ReplayStep>,
+) -> PyResult<Vec<f64>> {
+    let sarsa = match algorithm {
+        "q_learning" => false,
+        "sarsa" => true,
+        other => return Err(value_error(format!("not a tabular algorithm: {other:?}"))),
+    };
+    let mut agent = QTableAgent::new(
+        sarsa,
+        Discretizer::Binary { bits },
+        ActionSpace::Discrete(actions),
+        &Params::new(params),
+    )
+    .map_err(value_error)?;
+    let states = 1usize << bits;
+    for (state, action, reward, next_state, done, truncated, next_action) in steps {
+        if state >= states || next_state >= states || action >= actions || next_action.is_some_and(|a| a >= actions) {
+            return Err(value_error(format!(
+                "step out of range for {states} states x {actions} actions"
+            )));
+        }
+        agent.learn(Step {
+            state,
+            action,
+            reward,
+            next_state,
+            done,
+            truncated,
+            next_action,
+        });
+    }
+    Ok(agent.table().to_vec())
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("ALGORITHMS", ALGORITHMS.to_vec())?;
+    m.add_function(wrap_pyfunction!(tabular_replay, m)?)?;
     m.add_class::<Trainer>()?;
     m.add_function(wrap_pyfunction!(evaluate_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(env_info, m)?)?;
     m.add_function(wrap_pyfunction!(training_digest, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(learning_digest, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_init, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_forward_backward, m)?)?;
     m.add_function(wrap_pyfunction!(adam_steps, m)?)?;

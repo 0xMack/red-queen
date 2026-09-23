@@ -59,6 +59,7 @@ const REPRESENTATION_LABELS: Record<string, string> = {
   // reinforcement learning (docs/design/0010)
   random: "Random agent",
   q_learning: "Q-learning",
+  sarsa: "SARSA",
   dqn: "DQN",
   reinforce: "REINFORCE",
   a2c: "A2C",
@@ -111,9 +112,9 @@ export function describeRun(run: RunInfo): RunMeta {
     seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),
     paradigm,
     terms: paradigm === "reinforcement_learning" ? RL_TERMS : EVOLUTION_TERMS,
-    // Has a champion viewer (WatchChampion / CheckersWatch). RL champions become watchable once modelpack exports
-    // them (docs/design/0010 Phase 1).
-    watchable: (game === "snake" || game === "checkers") && paradigm === "evolution",
+    // Has a champion viewer (WatchChampion / CheckersWatch): every trained champion, played through its model
+    // package -- not the RL pipeline's random agent, which has no policy to package.
+    watchable: (game === "snake" || game === "checkers") && representation !== "random",
   }
 }
 
@@ -150,7 +151,7 @@ export function unrankedReason(run: RunInfo): string | null {
   const c = run.config ?? {}
   if (c.game !== "snake") return null
   if (c.experiment) return `comparison run (${String(c.experiment)}): aggregated in its experiment, not ranked individually`
-  if (c.paradigm === "reinforcement_learning") return "an RL run: ranked once modelpack loads RL champions (docs/design/0010)"
+  if (c.representation === "random") return "the RL pipeline's random agent: the random baseline is already ranked"
   if (run.status === "running" || run.status === "paused") return "still training: evaluated once finished"
   return "not evaluated yet: run jobs/evaluate.py"
 }

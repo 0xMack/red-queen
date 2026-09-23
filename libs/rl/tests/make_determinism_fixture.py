@@ -13,12 +13,14 @@ from rl import _native
 FIXTURE = Path(__file__).with_name("determinism.json")
 TRAINING = [(0, 200), (1, 50), (7, 500)]  # (seed, updates)
 ROLLOUTS = [0, 1, 42]
+LEARNING = [0, 5]
 
 
 def digests() -> dict:
     return {
         "training": [{"seed": s, "updates": u, "digest": _native.training_digest(s, u)} for s, u in TRAINING],
         "rollouts": [{"seed": s, "digest": _native.rollout_digest(s)} for s in ROLLOUTS],
+        "learning": [{"seed": s, "digest": _native.learning_digest(s)} for s in LEARNING],
     }
 
 

@@ -10,11 +10,13 @@ environment steps -- and records each iteration the way every other run is recor
 - extras: env_steps, episodes, mean episode length, plus whatever the algorithm reports (epsilon, td_loss, ...).
 
 Training games are drawn from jobs/seeding.py's TRAINING_POOL, disjoint from the leaderboard's held-out games and
-the monitor's. Phase 0 has one algorithm, `random`: it learns nothing and exists to prove the pipeline.
+the monitor's. Algorithms: `random` (learns nothing: the pipeline's smoke test), `q_learning` and `sarsa` (tabular,
+Phase 1; `--param n_step=3`, `--param epsilon_decay_steps=200000`, ... -- libs/rl/rust/core/src/tabular.rs).
 
 Run with:
-  uv run python jobs/rl_run.py [--algo random] [--env snake/features.v1+relative3.v1 | reach1d]
+  uv run python jobs/rl_run.py [--algo q_learning] [--env snake/features.v1+relative3.v1 | reach1d]
                                [--iterations 20] [--steps-per-iteration 10000] [--held-out-every 5] [--rng-seed 0]
+                               [--param NAME=VALUE ...] [--reward shaped|sparse]
 """
 
 from __future__ import annotations
@@ -30,6 +32,17 @@ from evaluate import BOARD, MAX_STEPS, MONITOR_SEEDS
 from run_context import recorded_run
 from seeding import TRAINING_POOL
 from telemetry import GenerationStats
+
+
+def parse_params(pairs: list[str]) -> dict[str, float]:
+    """`["alpha=0.2", "n_step=3"]` -> `{"alpha": 0.2, "n_step": 3.0}`."""
+    params = {}
+    for pair in pairs:
+        name, sep, value = pair.partition("=")
+        if not sep:
+            raise SystemExit(f"--param wants NAME=VALUE, got {pair!r}")
+        params[name.strip()] = float(value)
+    return params
 
 
 class _Counters:
@@ -49,6 +62,8 @@ def main(
     rng_seed: int = 0,
     params: dict[str, float] | None = None,
     tags: dict[str, Any] | None = None,
+    reward: str = "shaped",
+    snapshot_every: int = 1,
 ) -> str:
     """Trains one run, records it to telemetry, and returns its run_id."""
     game = env_id.split("/")[0]
@@ -59,6 +74,7 @@ def main(
         params=params or {},
         seed_pool=(TRAINING_POOL.start, TRAINING_POOL.stop),
         max_episode_steps=MAX_STEPS,
+        reward=reward,
         **BOARD,
     )
     observation_size, actions, action_kind = rl.env_info(env_id, **BOARD)
@@ -68,6 +84,7 @@ def main(
         "interface": env_id if game == "snake" else None,
         "paradigm": "reinforcement_learning",
         "params": params or {},
+        "reward": reward,
         "observation_size": observation_size,
         "action_space": {"kind": action_kind, "values": actions},
         "iterations": iterations,
@@ -76,6 +93,7 @@ def main(
         "board": BOARD,
         "training_seed_pool": [TRAINING_POOL.start, TRAINING_POOL.stop - 1],
         "held_out_every": held_out_every,
+        "snapshot_every": snapshot_every,
         "monitor_seeds": [MONITOR_SEEDS[0], MONITOR_SEEDS[-1]],
         "rng_seed": rng_seed,
         **(tags or {}),
@@ -83,6 +101,7 @@ def main(
     counters = _Counters()
     cost = TrainingCostMeter(population_size=1, fitness=counters)
     last_returns = (0.0, 0.0, 0.0)
+    champion_ref = ""
 
     with recorded_run(config) as run:
         control = run.control_callback(cost)
@@ -94,8 +113,11 @@ def main(
                 returns = [e["total_reward"] for e in episodes]
                 last_returns = (max(returns), statistics.fmean(returns), min(returns))
 
-            champion_ref = f"{run.run_id}-gen{iteration}"
-            run.artifacts.put_program(champion_ref, trainer.snapshot().encode("utf-8"))
+            # A table snapshot is ~150 KB: `snapshot_every` > 1 stores one every N iterations (and the last), and the
+            # iterations between name the latest one stored -- the policy as of that iteration's start or earlier.
+            if iteration % snapshot_every == 0 or iteration == iterations - 1:
+                champion_ref = f"{run.run_id}-gen{iteration}"
+                run.artifacts.put_program(champion_ref, trainer.snapshot().encode("utf-8"))
             held_out_score = None
             if game == "snake" and (iteration % held_out_every == 0 or iteration == iterations - 1):
                 held_out = trainer.evaluate(list(MONITOR_SEEDS), MAX_STEPS)
@@ -143,6 +165,8 @@ if __name__ == "__main__":
     parser.add_argument("--steps-per-iteration", type=int, default=10_000)
     parser.add_argument("--held-out-every", type=int, default=5)
     parser.add_argument("--rng-seed", type=int, default=0)
+    parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE", help="an algorithm parameter")
+    parser.add_argument("--reward", default="shaped", choices=["shaped", "sparse"], help="Snake's reward signal")
     parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
     args = parser.parse_args()
     main(
@@ -152,5 +176,7 @@ if __name__ == "__main__":
         steps_per_iteration=args.steps_per_iteration,
         held_out_every=args.held_out_every,
         rng_seed=args.rng_seed,
+        params=parse_params(args.param),
         tags={"experiment": args.experiment} if args.experiment else None,
+        reward=args.reward,
     )

@@ -26,6 +26,11 @@ export function benchForwards(layer_sizes: Uint32Array, activations: string, ite
 export function benchUpdates(layer_sizes: Uint32Array, activations: string, batch: number, iterations: number): number;
 
 /**
+ * `learning_digest(seed)`: Q-learning and SARSA trained on Snake, hashed.
+ */
+export function learningDigest(seed: number): string;
+
+/**
  * `rollout_digest(seed)`: a random agent trained and evaluated on Snake and Reach1D, hashed.
  */
 export function rolloutDigest(seed: number): string;
@@ -42,6 +47,7 @@ export interface InitOutput {
     readonly __wbg_trainer_free: (a: number, b: number) => void;
     readonly benchForwards: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly benchUpdates: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly learningDigest: (a: number) => [number, number];
     readonly rolloutDigest: (a: number) => [number, number];
     readonly trainer_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly trainer_train: (a: number, b: number) => number;

@@ -4,6 +4,8 @@
 //!
 //! - **Snake**: any native observer in, `relative3.v1` out (`Discrete(3)`: 0/1/2 = turn left/straight/right, the
 //!   argmax order of a 3-output model), the game's own score. Game `seed` is exactly `games.snake.Snake(seed=...)`.
+//!   Reward is the game's shaped one (`Reward::Shaped`) or only its outcomes -- +1 food, -1 death, 0 otherwise
+//!   (`Reward::Sparse`) -- so an experiment can ask what the shaping buys a learner.
 //! - **Reach1D**: continuous acceleration in `[-1, 1]`; game `seed` draws the target in `[-5, 5)` (start at rest at
 //!   0). Never ends on its own -- episodes end at the step cap. Score: minus the final distance to the target.
 //!
@@ -17,10 +19,31 @@ use redqueen_games::snake::{Observer, Snake};
 use redqueen_rl::agent::{Params, Trainer, TrainerConfig};
 use redqueen_rl::digest::Fnv;
 use redqueen_rl::env::{play, Action, ActionSpace, Env, EnvFactory, Episode, Step};
+use redqueen_rl::tabular::Discretizer;
+
+/// Which reward a Snake learner sees.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reward {
+    /// The game's own: +1 food, -1 death or starvation, +0.01 closer to the food, -0.02 farther.
+    Shaped,
+    /// Outcomes only: +1 food, -1 death or starvation, 0 for every other step.
+    Sparse,
+}
+
+impl Reward {
+    pub fn parse(name: &str) -> Result<Reward, String> {
+        match name {
+            "shaped" => Ok(Reward::Shaped),
+            "sparse" => Ok(Reward::Sparse),
+            other => Err(format!("unknown reward {other:?} (shaped, sparse)")),
+        }
+    }
+}
 
 pub struct SnakeEnv {
     game: Snake,
     observer: Observer,
+    reward: Reward,
 }
 
 impl Env for SnakeEnv {
@@ -43,7 +66,12 @@ impl Env for SnakeEnv {
             Action::Discrete(i) if i < 3 => i as i64 - 1,
             other => panic!("Snake takes Discrete(0..3), got {other:?}"),
         };
-        let (reward, done) = self.game.step(turn);
+        let (shaped, done) = self.game.step(turn);
+        let reward = match self.reward {
+            Reward::Shaped => shaped,
+            Reward::Sparse if shaped >= 1.0 || shaped <= -1.0 => shaped,
+            Reward::Sparse => 0.0,
+        };
         Step {
             observation: self.game.encode(self.observer),
             reward,
@@ -54,6 +82,12 @@ impl Env for SnakeEnv {
     fn score(&self) -> f64 {
         self.game.score as f64
     }
+
+    /// `features.v1` is 11 binary features: 2,048 table rows. The egocentric rays and the full grid are far too
+    /// large (or continuous) for a table -- that's what a Q-*network* (Phase 2) is for.
+    fn discretizer(&self) -> Option<Discretizer> {
+        (self.observer == Observer::Features).then_some(Discretizer::Binary { bits: 11 })
+    }
 }
 
 pub struct SnakeFactory {
@@ -61,6 +95,7 @@ pub struct SnakeFactory {
     pub height: i32,
     pub observer: Observer,
     pub max_steps_without_food: Option<u32>,
+    pub reward: Reward,
 }
 
 impl EnvFactory for SnakeFactory {
@@ -68,6 +103,7 @@ impl EnvFactory for SnakeFactory {
         Box::new(SnakeEnv {
             game: Snake::new(self.width, self.height, 0, self.max_steps_without_food),
             observer: self.observer,
+            reward: self.reward,
         })
     }
 
@@ -113,6 +149,14 @@ impl Env for Reach1DEnv {
     fn score(&self) -> f64 {
         -(self.game.position - self.game.target).abs()
     }
+
+    /// Offset from the target in 25 bins over [-6, 6] (targets are within 5 of the start) and velocity in 13 over
+    /// [-3, 3] (damping caps speed near 4.9; the end bins take the rest): 325 rows.
+    fn discretizer(&self) -> Option<Discretizer> {
+        Some(Discretizer::Bins {
+            dims: vec![(-6.0, 6.0, 25), (-3.0, 3.0, 13)],
+        })
+    }
 }
 
 pub struct Reach1DFactory;
@@ -131,8 +175,13 @@ impl EnvFactory for Reach1DFactory {
 }
 
 /// An environment configuration by id: an interface id (`snake/<observer>+relative3.v1`, on a `width` x `height`
-/// board) or `reach1d`.
+/// board) or `reach1d`. Snake's reward is the game's shaped one.
 pub fn factory(env_id: &str, width: i32, height: i32) -> Result<Box<dyn EnvFactory>, String> {
+    factory_with(env_id, width, height, Reward::Shaped)
+}
+
+/// `factory` with a choice of Snake reward (Reach1D has only one).
+pub fn factory_with(env_id: &str, width: i32, height: i32, reward: Reward) -> Result<Box<dyn EnvFactory>, String> {
     if env_id == "reach1d" {
         return Ok(Box::new(Reach1DFactory));
     }
@@ -149,6 +198,7 @@ pub fn factory(env_id: &str, width: i32, height: i32) -> Result<Box<dyn EnvFacto
         height,
         observer,
         max_steps_without_food: None,
+        reward,
     }))
 }
 
@@ -202,6 +252,35 @@ pub fn rollout_digest(seed: u64) -> String {
     hash.hex()
 }
 
+/// The learning digest: Q-learning and 3-step SARSA trained on Snake from `seed` -- every finished episode, the
+/// final Q-tables and a greedy evaluation, hashed. Exercises exploration draws, the update rules and the adapter
+/// together, so the determinism fixture covers *learning*, not only arithmetic.
+pub fn learning_digest(seed: u64) -> String {
+    let mut hash = Fnv::default();
+    for (algorithm, n_step) in [("q_learning", 1.0), ("sarsa", 3.0)] {
+        let config = TrainerConfig {
+            seed,
+            seed_pool: (100_000, 1_000_000),
+            max_episode_steps: 300,
+        };
+        let params = Params::new([
+            ("epsilon_decay_steps".to_string(), 20_000.0),
+            ("n_step".to_string(), n_step),
+        ]);
+        let factory = factory("snake/features.v1+relative3.v1", 10, 10).unwrap();
+        let mut trainer = Trainer::build(factory, algorithm, &params, config).unwrap();
+        let stats = trainer.train(30_000);
+        for episode in stats.episodes.iter().chain(&trainer.evaluate(&[20_000, 20_001], 500)) {
+            hash.f64(episode.total_reward);
+            hash.f64(episode.score);
+        }
+        for byte in trainer.agent().snapshot().bytes() {
+            hash.f64(byte as f64);
+        }
+    }
+    hash.hex()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,6 +324,53 @@ mod tests {
             30,
             "never ends on its own"
         );
+    }
+
+    #[test]
+    fn sparse_reward_keeps_only_food_and_death() {
+        let seen = |reward| {
+            let mut env = factory_with("snake/features.v1+relative3.v1", 10, 10, reward)
+                .unwrap()
+                .make();
+            env.reset(7);
+            let mut rewards = vec![];
+            for _ in 0..200 {
+                let step = env.step(Action::Discrete(1));
+                rewards.push(step.reward);
+                if step.done {
+                    break;
+                }
+            }
+            rewards
+        };
+        let (shaped, sparse) = (seen(Reward::Shaped), seen(Reward::Sparse));
+        assert_eq!(shaped.len(), sparse.len(), "same game either way");
+        for (s, p) in shaped.iter().zip(&sparse) {
+            assert_eq!(*p, if s.abs() >= 1.0 { *s } else { 0.0 });
+        }
+        assert!(shaped.iter().any(|r| r.abs() < 1.0 && *r != 0.0));
+        assert!(Reward::parse("dense").is_err());
+    }
+
+    #[test]
+    fn tabular_learners_get_a_discretizer_only_where_a_table_fits() {
+        let rows = |id: &str| factory(id, 10, 10).unwrap().make().discretizer().map(|d| d.states());
+        assert_eq!(rows("snake/features.v1+relative3.v1"), Some(2048));
+        assert_eq!(rows("snake/egocentric.v1+relative3.v1"), None);
+        assert_eq!(rows("snake/grid-flat.v1+relative3.v1"), None);
+        assert_eq!(rows("reach1d"), Some(325));
+        let config = TrainerConfig {
+            seed: 0,
+            seed_pool: (0, 10),
+            max_episode_steps: 100,
+        };
+        let refuse = Trainer::build(
+            factory("snake/grid-flat.v1+relative3.v1", 10, 10).unwrap(),
+            "q_learning",
+            &Params::default(),
+            config,
+        );
+        assert!(refuse.err().unwrap().contains("tabular"));
     }
 
     #[test]

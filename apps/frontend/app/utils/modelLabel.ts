@@ -9,14 +9,24 @@ export interface ModelShape {
   hidden_nodes?: number
   connections?: number
   layer_sizes?: number[]
+  // a tabular policy (docs/design/0010): its rows, how many the agent ever learned about, its actions
+  table_states?: number
+  visited_states?: number
+  actions?: number
 }
 
-/** The size part alone: "11 hidden · 73 conns" for an evolved graph, "11 → 16 → 3" for an MLP. */
+/** The size part alone: "11 hidden · 73 conns" for an evolved graph, "11 → 16 → 3" for an MLP, "table · 256 of
+ * 2048 states" for a tabular policy. */
 export function modelSize(shape: ModelShape): string | null {
   if (shape.hidden_nodes !== undefined && shape.connections !== undefined) {
     return `${shape.hidden_nodes} hidden · ${shape.connections} conns`
   }
   if (shape.layer_sizes?.length) return shape.layer_sizes.join(" → ")
+  if (shape.table_states !== undefined) {
+    return shape.visited_states !== undefined
+      ? `table · ${shape.visited_states} of ${shape.table_states} states`
+      : `table · ${shape.table_states} states`
+  }
   return null
 }
 
