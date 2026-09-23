@@ -8,12 +8,12 @@ useHead({ title: "Runs" })
 
 const runsStore = useRunsStore()
 await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs))
-const config = useRuntimeConfig()
+const api = useApi()
 
 // Where each run's champion stands on its game's leaderboard (docs/design/0007) -- the held-out score,
 // which is what the leaderboard ranks by, next to the training fitness this table has always shown.
 const { data: leaderboard } = await useAsyncData("runs-leaderboard-snake", () =>
-  $fetch<EvaluationRecord[]>("/games/snake/leaderboard", { baseURL: config.public.apiBase }).catch(() => []),
+  api.fetch<EvaluationRecord[]>("/games/snake/leaderboard").catch(() => []),
 )
 const standings = computed(() => {
   const records = leaderboard.value ?? []

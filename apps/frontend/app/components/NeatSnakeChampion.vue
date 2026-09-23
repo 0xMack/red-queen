@@ -4,12 +4,12 @@
 // Prefers the untagged "flagship" run (the one on the leaderboard); falls back to any finished NEAT run.
 import type { RunInfo } from "~/types/telemetry"
 
-const config = useRuntimeConfig()
+const api = useApi()
 const run = ref<RunInfo | null>(null)
 
 onMounted(async () => {
   try {
-    const runs = await $fetch<RunInfo[]>("/runs", { baseURL: config.public.apiBase })
+    const runs = await api.fetch<RunInfo[]>("/runs")
     const neat = runs.filter((r) => r.config?.representation === "neat" && r.status === "completed").sort((a, b) => b.created_at - a.created_at)
     run.value = neat.find((r) => !r.config?.experiment) ?? neat[0] ?? null
   } catch {

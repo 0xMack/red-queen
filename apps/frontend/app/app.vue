@@ -6,6 +6,9 @@ const NAV_LINKS = [
   { to: "/runs", label: "Runs", exact: false },
 ]
 
+// Here, not in nuxt.config.ts: a function there can't be serialized into the build, so it was silently dropped.
+useHead({ titleTemplate: (title?: string) => (title ? `${title} · Red Queen` : "Red Queen") })
+
 const route = useRoute()
 const menuOpen = ref(false)
 watch(() => route.fullPath, () => (menuOpen.value = false))

@@ -37,12 +37,10 @@ const summaryCode = `class GenerationSummary:
     champion: Genome`
 
 const runId = ref<string | null>(null)
-const config = useRuntimeConfig()
+const api = useApi()
 onMounted(async () => {
   try {
-    const runs = await $fetch<{ run_id: string; config?: Record<string, unknown> }[]>("/runs", {
-      baseURL: config.public.apiBase,
-    })
+    const runs = await api.fetch<{ run_id: string; config?: Record<string, unknown> }[]>("/runs")
     runId.value = runs.find((r) => r.config?.representation === "linear_gp")?.run_id ?? null
   } catch {
     // No backend reachable -- the chapter reads fine without the live chart, it just won't show.

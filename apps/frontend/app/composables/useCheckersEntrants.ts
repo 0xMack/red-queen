@@ -11,13 +11,13 @@ import { brainFromApi, STATIC_STRATEGIES, wasmStrategy, type CheckersBrain, type
 // and an entrant appears in the list as soon as its brain lands. With no leaderboard (backend unreachable) it
 // falls back to the static players, so the page still plays.
 export function useCheckersEntrants(entries: MaybeRefOrGetter<EvaluationRecord[]>) {
-  const baseURL = useRuntimeConfig().public.apiBase
+  const api = useApi()
   const brains = shallowRef<Record<string, CheckersBrain>>({})
   const failed = ref<string[]>([])
 
   async function fetchBrain(record: EvaluationRecord) {
     try {
-      const payload = await $fetch(`/runs/${record.run_id}/artifacts/${record.champion_ref}/brain`, { baseURL })
+      const payload = await api.fetch(`/runs/${record.run_id}/artifacts/${record.champion_ref}/brain`)
       brains.value = { ...brains.value, [record.entrant_id]: brainFromApi(payload as Parameters<typeof brainFromApi>[0]) }
     } catch (e) {
       failed.value = [...failed.value, `${entrantLabel(record)}: ${e instanceof Error ? e.message : String(e)}`]

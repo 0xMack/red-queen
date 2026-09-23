@@ -9,7 +9,6 @@ export default defineNuxtConfig({
   app: {
     pageTransition: { name: 'page', mode: 'out-in' },
     head: {
-      titleTemplate: (title?: string) => (title ? `${title} · Red Queen` : 'Red Queen'),
       htmlAttrs: { lang: 'en' },
       meta: [{ name: 'theme-color', content: '#090b10' }],
       link: [

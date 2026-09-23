@@ -1,4 +1,5 @@
-// Mirrors apis/backend/src/backend/schemas.py -- keep in sync if those change.
+// A grid game's render state (games.rendering / render_state(), with `cells` flattened to records), as the
+// session worker builds it from the WASM core's cells.
 
 export interface GridCell {
   x: number
@@ -12,13 +13,4 @@ export interface RenderState {
   cells: GridCell[]
   score: number
   alive: boolean
-}
-
-export interface GameSessionState {
-  session_id: string
-  game: string
-  render_state: RenderState
-  reward: number
-  done: boolean
-  step: number
 }

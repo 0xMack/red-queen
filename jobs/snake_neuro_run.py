@@ -14,9 +14,8 @@ notebooks/0005-neuroevolution-snake.ipynb's setup in two ways, both principled, 
    (docs/design/0003). Worth using here, not just knowing about.
 
 Champions become real ArtifactStore entries (WeightVector.to_json(), the real -- round-trippable --
-wire format, unlike baseline_gp_run.py's prototype serialize_program()) a frontend can load
-(docs/design/0005 step 6, interaction modes 2/3): apps/frontend's Pyodide bridge loads one back
-with the exact same code, since libs/evolve is pure stdlib Python.
+wire format, unlike baseline_gp_run.py's prototype serialize_program()); apps/frontend's /watch page
+plays one through the backend's on-demand model-package export (docs/design/0009).
 
 Trains under a named interface (docs/design/0007: game + observer + action adapter), recorded in
 the run config so the champion is always run under the observation it was trained for, plus the

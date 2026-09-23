@@ -6,15 +6,14 @@ import type { EvaluationRecord, InterfaceInfo } from "~/types/leaderboard"
 // protocol versions aren't comparable, so only the newest protocol's are ranked. An unreachable backend
 // leaves `entries` empty and sets `error`; the page then still lets you play.
 export async function useGameBoard(slug: string) {
-  const config = useRuntimeConfig()
-  const baseURL = config.public.apiBase
+  const api = useApi()
 
   // Both requests start before either is awaited: after an `await`, a plain composable (unlike a
   // <script setup>, whose compiler preserves it) has lost Nuxt's context, so a second useAsyncData
   // after the first await would throw.
-  const leaderboard = useAsyncData(`leaderboard-${slug}`, () => $fetch<EvaluationRecord[]>(`/games/${slug}/leaderboard`, { baseURL }))
+  const leaderboard = useAsyncData(`leaderboard-${slug}`, () => api.fetch<EvaluationRecord[]>(`/games/${slug}/leaderboard`))
   const representations = useAsyncData(`interfaces-${slug}`, () =>
-    $fetch<InterfaceInfo[]>(`/games/${slug}/interfaces`, { baseURL }).catch(() => []),
+    api.fetch<InterfaceInfo[]>(`/games/${slug}/interfaces`).catch(() => []),
   )
   const [{ data: records, error }, { data: interfaceList }] = await Promise.all([leaderboard, representations])
 

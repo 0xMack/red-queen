@@ -43,8 +43,8 @@ architectural change that might conflict with a decision already made.
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by
     array index so a CSS transform can glide them). Pinia stores live in `app/stores/`;
-    `app/types/*.ts` mirror `apis/backend`'s models and `modelpack`'s manifest by hand — keep them in
-    sync. No automated frontend test suite yet — verified with a live backend + the in-app browser.
+    backend requests go through `useApi()`. `app/types/modelpack.ts` and the free-form parts of the
+    leaderboard types still mirror Python by hand. No automated frontend test suite yet — verified with a live backend + the in-app browser.
 
     Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored, foundations-first
     "interactive textbook" covering how the project's techniques actually work — code snippets,
@@ -52,7 +52,9 @@ architectural change that might conflict with a decision already made.
     list moved. Reusable components (`CodeBlock`, `Callout`, `ChapterCard`, `GameCard`, etc.) and
     layered session composables (`useSnakeSession` → `usePlaySession`/`useWatchSession`) are a
     deliberate design principle here, not incidental — see `apps/frontend/README.md` for the full
-    breakdown and why `@nuxt/content` was rejected (native-binding risk) in favor of this.
+    breakdown and why `@nuxt/content` was rejected (native-binding risk) in favor of this. The API's
+    typed models reach the frontend as `app/types/api.gen.ts`, generated from a checked-in OpenAPI
+    snapshot (`apis/backend/scripts/export_openapi.py` + `pnpm gen:api-types`); `pnpm typecheck` is clean.
 - `apis/` — backend APIs serving runs/simulations/model packages to `apps/`
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
@@ -61,10 +63,9 @@ architectural change that might conflict with a decision already made.
     never-returning polling generator — to async via `anyio.to_thread.run_sync(...,
     abandon_on_cancel=True)`; see `apis/backend/README.md` for why that route's happy path is
     tested at the generator level, not through a live `TestClient` request (Starlette's TestClient
-    doesn't reliably simulate a mid-stream disconnect, so a full request hangs). `routers/games.py`
-    runs a game session's `Environment` server-side in an in-memory `GameSessionStore`
-    (`game_sessions.py`) — no telemetry/persistence, a session doesn't survive a restart. Only
-    games implementing `games.rendering.Renderable` are registered (`snake` today). `POST
+    doesn't reliably simulate a mid-stream disconnect, so a full request hangs). No game runs
+    server-side: every game is played in the browser (docs/design/0009), so the old server-side session
+    API (`routers/games.py`) is gone. `POST
     /runs/{id}/control` (pause/resume/step) reuses `telemetry.RunStatus`'s existing `"paused"`
     value as the only coordination with a training job's `jobs/control.py` callback — see
     `docs/CODING_GUIDELINES.md`'s "before adding new shared state" entry for why, and why `step`

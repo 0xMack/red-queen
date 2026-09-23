@@ -27,7 +27,7 @@ function fetchManifest(baseUrl: string, packageId: string): Promise<ModelManifes
 }
 
 export function useModelCatalog(game: string) {
-  const config = useRuntimeConfig()
+  const api = useApi()
   const catalog = ref<Catalog | null>(null)
   const profile = ref<DeviceProfile | null>(null)
   const manifests = ref<Record<string, ModelManifest>>({})
@@ -58,7 +58,7 @@ export function useModelCatalog(game: string) {
     if (import.meta.server) return
     try {
       const [fetched, probed] = await Promise.all([
-        $fetch<Catalog>(`/games/${game}/models`, { baseURL: config.public.apiBase }),
+        api.fetch<Catalog>(`/games/${game}/models`),
         probeDevice(),
       ])
       catalog.value = fetched

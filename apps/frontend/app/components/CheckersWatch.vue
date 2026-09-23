@@ -23,7 +23,7 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ unpin: [] }>()
 
-const config = useRuntimeConfig()
+const api = useApi()
 const stream = useMetricsStreamStore()
 const run = ref<RunInfo | null>(null)
 const loadError = ref<string | null>(null)
@@ -42,7 +42,7 @@ const championError = ref<string | null>(null)
 async function ensureChampion(ref: string) {
   if (champions.value[ref]) return
   try {
-    const payload = await $fetch<BrainPayload>(`/runs/${props.runId}/artifacts/${ref}/brain`, { baseURL: config.public.apiBase })
+    const payload = await api.fetch<BrainPayload>(`/runs/${props.runId}/artifacts/${ref}/brain`)
     champions.value = { ...champions.value, [ref]: brainFromApi(payload) }
     championError.value = null
   } catch (e) {
@@ -85,7 +85,7 @@ const { board, trail, turn, banner, pieceCounts: scores } = useCheckersBoardView
 
 async function start() {
   try {
-    run.value = await $fetch<RunInfo>(`/runs/${props.runId}`, { baseURL: config.public.apiBase })
+    run.value = await api.fetch<RunInfo>(`/runs/${props.runId}`)
     if (run.value.config?.game !== "checkers") {
       loadError.value = `run ${props.runId} isn't a checkers run (config.game = ${String(run.value.config?.game ?? "unset")})`
       return

@@ -51,14 +51,14 @@ ParetoSelection(complexity=lambda p: p.effective_instruction_count(), k=3)
 ParetoSelection(complexity=lambda t: t.node_count(), k=3)`
 
 // A real linear-GP champion from this project's own runs, shown with its introns marked.
-const config = useRuntimeConfig()
+const api = useApi()
 const champion = ref<{ runId: string; ref: string } | null>(null)
 onMounted(async () => {
   try {
-    const runs = await $fetch<RunInfo[]>("/runs", { baseURL: config.public.apiBase })
+    const runs = await api.fetch<RunInfo[]>("/runs")
     const run = runs.find((r) => r.config?.representation === "linear_gp" && r.status === "completed")
     if (!run) return
-    const history = await $fetch<GenerationStats[]>(`/runs/${run.run_id}/metrics/history`, { baseURL: config.public.apiBase })
+    const history = await api.fetch<GenerationStats[]>(`/runs/${run.run_id}/metrics/history`)
     const last = history.at(-1)
     if (last) champion.value = { runId: run.run_id, ref: last.champion_ref }
   } catch {

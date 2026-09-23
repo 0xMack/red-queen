@@ -160,8 +160,7 @@ what belongs here and how to add to it). Read before writing code, not after.
 - A dict with non-string keys (e.g. `games.snake.Snake.render_state()`'s `cells: dict[(x, y): str]`)
   is not valid JSON and will fail to serialize once it reaches a pydantic `dict[str, Any]` response
   field — Python's tuple keys aren't coercible the way int/float/bool/None keys are. Convert at the
-  API boundary (`game_sessions.json_safe_render_state()` flattens it to a list of `{x, y, label}`
-  records), not in the game library itself — `render_state()`'s shape is also consumed by
+  API boundary (flatten it to a list of `{x, y, label}` records), not in the game library itself — `render_state()`'s shape is also consumed by
   `games.rendering.render_grid_ascii()`, which wants the dict form. (It bit the old Pyodide bridge
   too, as a `ConversionError` in `toJs()` -- any language boundary, same fix: flatten before crossing.)
 - **`app.dependency_overrides[dep] = lambda: SomeStore()` creates a *new* instance on every
@@ -170,7 +169,7 @@ what belongs here and how to add to it). Read before writing code, not after.
   one test (e.g. a game session created in one POST and read back in the next), the override must
   close over a single instance created once (`store = SomeStore(); app.dependency_overrides[dep] =
   lambda: store`), not construct one inside the lambda. Silent symptom: a resource created in one
-  request 404s in the next, as if it never existed. See `apis/backend/tests/test_games.py`.
+  request 404s in the next, as if it never existed.
 - **A Nitro server route resolving a filesystem path via `import.meta.url` isn't reliable once it's
   nested in a subdirectory** — Nitro's dev bundler doesn't preserve a nested route's source-tree depth
   (a since-removed route landed two segments off, not one). Resolve from `process.cwd()` (`nuxt dev`
@@ -230,14 +229,16 @@ what belongs here and how to add to it). Read before writing code, not after.
   height, single-line truncation with a `title` for long text, and its own slot per player rather than one
   panel that swaps between them -- otherwise each ply re-flows the page. Verify by sampling the board's
   top offset and `scrollHeight` across many plies (they should each take one value), not by eye.
-- **Nuxt/Vue gotchas that only show at runtime here** (no `vue-tsc`/TypeScript installed): (0) an *absent*
+- **Nuxt/Vue gotchas that only show at runtime** (`pnpm typecheck` passes on all of them): (0) an *absent*
   boolean prop is `false`, not `undefined` -- an on-by-default prop (`diagnostics`, `showPlayers`) needs
   `withDefaults`, or `x !== false` silently hides it; (1) an imported
   type can't be the *whole* props type (`defineProps<StageProps>()` fails to compile; spell members
   out inline, imported types inside members are fine); (2) in a plain composable, start every
   `useAsyncData` *before* the first `await` -- unlike `<script setup>`, it doesn't preserve Nuxt's context
   across awaits ("composable called outside of a plugin..."); (3) files outside `composables/`/`utils/`
-  aren't auto-imported (`app/games/*`): import them explicitly.
+  aren't auto-imported (`app/games/*`): import them explicitly; (4) `nuxt.config.ts` is serialized into the
+  build, so a *function* in `app.head` (a `titleTemplate` callback) is silently dropped -- every page's title
+  lost its " · Red Queen" suffix until `pnpm typecheck` flagged it. Put it in `app.vue`'s `useHead()`.
 
 ## Client-side inference (docs/design/0009)
 
