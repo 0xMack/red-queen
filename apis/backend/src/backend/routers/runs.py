@@ -17,7 +17,7 @@ from sse_starlette.sse import EventSourceResponse
 from telemetry import GenerationStats, MetricsSource, RunInfo, RunRegistry
 
 from backend.dependencies import ArtifactStoreDep, MetricsSourceDep, RunRegistryDep
-from backend.schemas import ControlAction, ControlRequest
+from backend.schemas import ControlAction, ControlRequest, RunSummary
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -25,6 +25,38 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 @router.get("")
 def list_runs(registry: RunRegistryDep) -> list[RunInfo]:
     return registry.list_runs()
+
+
+def _downsample(values: list[float], points: int) -> list[float]:
+    """At most `points` evenly spaced values, first and last included."""
+    if len(values) <= points:
+        return values
+    if points == 1:
+        return [values[-1]]
+    return [values[round(i * (len(values) - 1) / (points - 1))] for i in range(points)]
+
+
+@router.get("/summaries")
+def list_run_summaries(
+    registry: RunRegistryDep,
+    metrics: MetricsSourceDep,
+    trend_points: Annotated[int, Query(ge=1, le=500)] = 60,
+) -> list[RunSummary]:
+    """One summary per run, in `list_runs()` order: what a runs list needs, in one request."""
+    summaries = []
+    for run in registry.list_runs():
+        history = metrics.history(run.run_id)
+        best = [h.best_fitness for h in history]
+        summaries.append(
+            RunSummary(
+                run_id=run.run_id,
+                generations=len(history),
+                best_fitness=max(best) if best else None,
+                last=history[-1] if history else None,
+                trend=_downsample(best, trend_points),
+            )
+        )
+    return summaries
 
 
 @router.get("/{run_id}")

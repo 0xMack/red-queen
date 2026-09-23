@@ -134,6 +134,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runs/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Run Summaries
+         * @description One summary per run, in `list_runs()` order: what a runs list needs, in one request.
+         */
+        get: operations["list_run_summaries_runs_summaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/runs/{run_id}": {
         parameters: {
             query?: never;
@@ -433,6 +453,32 @@ export interface components {
              */
             updated_at: number;
         };
+        /**
+         * RunSummary
+         * @description What a list of runs shows for each one -- a few numbers and a short trend, not its whole history. The runs
+         *     page used to download every run's full history (13 MB for 115 runs) to draw 60-point sparklines.
+         */
+        RunSummary: {
+            /**
+             * Best Fitness
+             * @description Highest best_fitness over the whole run (training fitness / return); None if none recorded.
+             */
+            best_fitness: number | null;
+            /**
+             * Generations
+             * @description Generations (or RL iterations) recorded so far.
+             */
+            generations: number;
+            /** @description The latest generation's stats (its extras, its timestamp); None if none recorded. */
+            last: components["schemas"]["GenerationStats"] | null;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Trend
+             * @description best_fitness over the run, downsampled to at most `trend_points` evenly spaced generations (first and last always included).
+             */
+            trend: number[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -654,6 +700,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunInfo"][];
+                };
+            };
+        };
+    };
+    list_run_summaries_runs_summaries_get: {
+        parameters: {
+            query?: {
+                trend_points?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

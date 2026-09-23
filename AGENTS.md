@@ -49,7 +49,8 @@ architectural change that might conflict with a decision already made.
     Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored, foundations-first
     "interactive textbook" covering how the project's techniques actually work — code snippets,
     embedded live games, callouts citing real results) round out the site; `/runs` is where the run
-    list moved. Reusable components (`CodeBlock`, `Callout`, `ChapterCard`, `GameCard`, etc.) and
+    list moved: one `GET /runs/summaries` (never per-run histories), held raw in the `runs` store and reused for a
+    minute, with each experiment's runs collapsed into one expandable row (`RunsTableRow`/`RunsCard`). Reusable components (`CodeBlock`, `Callout`, `ChapterCard`, `GameCard`, etc.) and
     layered session composables (`useSnakeSession` → `usePlaySession`/`useWatchSession`) are a
     deliberate design principle here, not incidental — see `apps/frontend/README.md` for the full
     breakdown and why `@nuxt/content` was rejected (native-binding risk) in favor of this. The API's

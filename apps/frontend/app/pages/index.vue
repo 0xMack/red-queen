@@ -5,7 +5,7 @@ import { learnChapters } from "~/data/learnChapters"
 useHead({ title: "" })
 
 const runsStore = useRunsStore()
-await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs))
+await useAsyncData("runs", () => runsStore.ensureLoaded().then(() => true))
 
 // The featured champion: a Snake run that's training right now if there is one (you get to watch
 // it improve live), otherwise the best finished one.
@@ -25,7 +25,6 @@ const featuredHistory = computed(() =>
 )
 
 const recentRuns = computed(() => runsStore.runs.slice(0, 5))
-onMounted(() => runsStore.fetchHistories(recentRuns.value.map((r) => r.run_id)))
 
 const stats = computed(() => ({
   runs: runsStore.runs.length,
@@ -228,8 +227,8 @@ const now = computed(() => clock.value)
                 <p class="truncate text-sm font-medium">{{ describeRun(run).title }}</p>
                 <p class="font-mono text-[11px] text-fg-subtle">{{ shortId(run.run_id) }} · {{ formatRelative(run.created_at, now) }}</p>
               </div>
-              <Sparkline :values="(runsStore.histories[run.run_id] ?? []).map((h) => h.best_fitness)" class="hidden h-8 w-24 sm:block" />
-              <span class="num w-14 text-right text-sm">{{ formatFitness(bestFitnessOf(run, runsStore.histories[run.run_id]), 2) }}</span>
+              <Sparkline :values="runsStore.summaries[run.run_id]?.trend ?? []" class="hidden h-8 w-24 sm:block" />
+              <span class="num w-14 text-right text-sm">{{ formatFitness(bestFitnessOf(run) ?? runsStore.summaries[run.run_id]?.best_fitness ?? null, 2) }}</span>
               <StatusBadge :status="run.status" :stale="isStale(run, now)" />
             </NuxtLink>
             <p v-if="recentRuns.length === 0" class="px-4 py-8 text-center text-sm text-fg-subtle">

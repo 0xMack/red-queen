@@ -85,3 +85,30 @@ export function bestFitnessOf(run: RunInfo, history?: GenerationStats[]): number
 export function isStale(run: RunInfo, now = Date.now() / 1000): boolean {
   return run.status === "running" && now - run.updated_at > 15 * 60
 }
+
+/** A run as the runs table shows it (pages/runs/index.vue, components/RunsTableRow.vue). */
+export interface RunRow {
+  run: RunInfo
+  meta: RunMeta
+  label: string // same naming as the leaderboard: "Snake · NEAT · 11 hidden · 73 conns"
+  heldOut: { mean: number; rank: number; of: number; entrantId: string } | null
+  generations: number
+  best: number | null
+  trend: number[]
+  duration: number
+  stale: boolean
+  genome: string
+  experiment: string | null // config.experiment: the comparison this run is one arm x seed of
+  arm: string | null
+}
+
+/** Why a run has no leaderboard entry -- so its absence reads as a fact, not a bug. */
+export function unrankedReason(run: RunInfo): string | null {
+  const c = run.config ?? {}
+  if (c.game !== "snake") return null
+  if (c.experiment) return `comparison run (${String(c.experiment)}): aggregated in its experiment, not ranked individually`
+  if (c.paradigm === "reinforcement_learning") return "an RL run: ranked once modelpack loads RL champions (docs/design/0010)"
+  if (run.status === "running" || run.status === "paused") return "still training: evaluated once finished"
+  return "not evaluated yet: run jobs/evaluate.py"
+}
+

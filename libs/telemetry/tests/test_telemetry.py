@@ -90,6 +90,27 @@ def test_a_line_caught_mid_write_is_read_once_it_is_complete(tmp_path):
     assert [s.generation for s in store.history("run-1")] == [0, 1]
 
 
+def test_history_reads_only_what_was_appended_and_starts_over_if_the_file_shrinks(tmp_path, monkeypatch):
+    store = FileMetricsStore(tmp_path / "metrics")
+    store.record_generation(make_stats("run-1", 0))
+    assert [s.generation for s in store.history("run-1")] == [0]
+
+    reads = []
+    original = store._read_from
+    monkeypatch.setattr(store, "_read_from", lambda path, offset=0: reads.append(offset) or original(path, offset))
+    assert [s.generation for s in store.history("run-1")] == [0]
+    assert reads == []  # unchanged file: served from what was already parsed
+
+    store.record_generation(make_stats("run-1", 1))
+    assert [s.generation for s in store.history("run-1")] == [0, 1]
+    assert len(reads) == 1 and reads[0] > 0  # only the appended line was read
+
+    path = tmp_path / "metrics" / "run-1.jsonl"
+    path.write_text(make_stats("run-1", 7).model_dump_json() + "\n", encoding="utf-8")  # rewritten, shorter
+    assert [s.generation for s in store.history("run-1")] == [7]
+    assert store.history("missing") == []
+
+
 def test_artifact_store_round_trip(tmp_path):
     store = FileArtifactStore(tmp_path / "artifacts")
     store.put_program("ref-1", b"program-bytes")
