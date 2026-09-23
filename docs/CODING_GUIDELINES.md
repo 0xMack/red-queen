@@ -125,6 +125,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   adaptive threshold (`NeatConfig.target_species`), and `evolve_neat` now reports species count and
   champion size through `GenerationStats.extras` so the run page charts them (docs/design/0008).
 
+- A native port of a numeric kernel is only a drop-in if it accumulates in the *same order*: `bias + sum(w*a)`
+  and `((bias + w0*a0) + w1*a1)...` differ in the last bits, and an argmax policy or a tie-broken search can
+  flip on that. `rust/core/src/nets.rs` follows the Python forward passes' order exactly, so a native Snake
+  rollout scores a genome bit for bit like the Python loop (`jobs/tests/test_snake_rollout.py` compares with
+  `==`, not a tolerance). Profile before porting: the Snake game already ran in Rust, yet ~87% of a generation
+  was the Python forward pass.
+
 ## Web / API (`apis/backend`)
 
 - Reuse an existing pydantic model as a FastAPI `response_model`/return type directly (e.g.

@@ -46,6 +46,7 @@ from snake_neuro_run import (
     POPULATION_SIZE,
     RNG_SEED,
     make_act,
+    make_rollout,
     make_resample_callback,
     make_telemetry_callback,
 )
@@ -106,7 +107,10 @@ def main(
         for _ in range(population_size)
     ]
     fitness = SimulationFitnessEvaluator(
-        envs=envs, act=make_act(interface), max_steps=max_steps
+        envs=envs,
+        act=make_act(interface),
+        max_steps=max_steps,
+        rollout=make_rollout(interface),
     )
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 

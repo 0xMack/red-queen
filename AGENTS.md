@@ -113,7 +113,8 @@ architectural change that might conflict with a decision already made.
     docs/CODING_GUIDELINES.md).
   - The Checkers strategies (random, first-legal, `material-N` up to alpha-beta search) and the trained
     position `evaluator` -- a layered network *or* a NEAT genome (`GraphNet`, from
-    `NeatGenome.graph_encoding()`), one ply or searched `depth` plies -- are **Rust** (`rust/core/src/checkers_strategies.rs`), so training and the
+    `NeatGenome.graph_encoding()`), one ply or searched `depth` plies -- are **Rust** (`rust/core/src/checkers_strategies.rs`, networks in
+    `nets.rs`, shared with Snake's native training rollouts: `games.nets.native_policy` + `Snake.play`), so training and the
     browser play identical players — `checkers_strategies.py` and the WASM `CheckersStrategy` are thin
     faces of it (`tests/reference_checkers_strategies.py` holds the old Python scoring as oracles).
     They are env-bound `(env, rng) -> Strategy` factories — lookahead needs the environment, which a

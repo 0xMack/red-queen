@@ -90,6 +90,12 @@ so a seed is the same game in training, evaluation and a visitor's browser.
   browser's WASM `CheckersStrategy`): seeded PCG32 tie-breaks, so a seed is the same player in
   training and in the browser. `tests/reference_checkers_strategies.py` keeps the original Python
   scoring as oracles: the Rust pick must be a top-scoring move in thousands of real positions.
+- `nets.py` — `native_policy(compiled)`: a trained network (`evolve.networks.compiled()`'s plain numbers,
+  so no `evolve` import) as a `games._native.Policy` the core runs itself (`rust/core/src/nets.rs`: the layered
+  `Network` and NEAT's `GraphNet`, shared with the Checkers evaluators). They accumulate in the Python forward
+  passes' exact order, so outputs match bit for bit. `Snake.play(policy, max_steps)` plays a whole episode in one
+  native call; training jobs use it as `SimulationFitnessEvaluator`'s `rollout` (13-22x faster per generation
+  than a Python forward pass per step, identical fitness -- `jobs/tests/test_snake_rollout.py`).
 
 ## Usage
 
