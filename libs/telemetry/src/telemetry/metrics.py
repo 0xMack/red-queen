@@ -1,3 +1,4 @@
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -23,12 +24,18 @@ class FileMetricsStore:
     once-per-generation write frequency and keeps this dependency-free/cross-platform. It never
     returns on its own — it's a live tail, so the caller decides when to stop iterating (e.g. once
     the run's status, tracked separately in RunRegistry, is no longer "running").
+
+    `history` keeps what it has parsed per run and, since a job only ever appends, reads just the lines added since
+    the last call -- so a long-lived reader (the API) re-serving 100+ runs pays for parsing each line once, not on
+    every request. A file that shrank (rewritten by hand) is parsed again from the start.
     """
 
     def __init__(self, base_dir: str | Path, poll_interval: float = 0.5):
         self._base_dir = Path(base_dir)
         self._base_dir.mkdir(parents=True, exist_ok=True)
         self._poll_interval = poll_interval
+        self._parsed: dict[Path, tuple[int, list[GenerationStats]]] = {}  # path -> (bytes parsed, stats)
+        self._lock = threading.Lock()  # FastAPI serves sync routes from a thread pool
 
     def _path(self, run_id: str) -> Path:
         return self._base_dir / f"{run_id}.jsonl"
@@ -55,8 +62,17 @@ class FileMetricsStore:
         return stats, offset + len(complete)
 
     def history(self, run_id: str, since_generation: int = 0) -> list[GenerationStats]:
-        stats, _ = self._read_from(self._path(run_id))
-        return [s for s in stats if s.generation >= since_generation]
+        path = self._path(run_id)
+        with self._lock:
+            offset, parsed = self._parsed.get(path, (0, []))
+            size = path.stat().st_size if path.exists() else 0
+            if size < offset:  # rewritten, not appended to: start over
+                offset, parsed = 0, []
+            if size > offset:
+                new, offset = self._read_from(path, offset)
+                parsed = parsed + new
+                self._parsed[path] = (offset, parsed)
+        return [s for s in parsed if s.generation >= since_generation]
 
     def subscribe(self, run_id: str, since_generation: int = 0) -> Iterator[GenerationStats]:
         # Tails by byte offset, so each poll parses only what was appended since the last one.

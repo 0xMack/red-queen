@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { EvaluationRecord } from "~/types/leaderboard"
-import type { RunInfo } from "~/types/telemetry"
 import type { ModelShape } from "~/utils/modelLabel"
-import type { RunMeta } from "~/utils/runMeta"
+import type { RunRow } from "~/utils/runMeta"
 
 useHead({ title: "Runs" })
 
+// One request for every run's list-level numbers (`GET /runs/summaries`), reused for a minute: coming back to this
+// page doesn't refetch, and runs still training are polled below instead.
 const runsStore = useRunsStore()
-await useAsyncData("runs", () => runsStore.fetchRuns().then(() => runsStore.runs))
+await useAsyncData("runs", () => runsStore.ensureLoaded().then(() => true))
 const api = useApi()
 
 // Where each run's champion stands on its game's leaderboard (docs/design/0007) -- the held-out score,
@@ -27,50 +28,37 @@ const standings = computed(() => {
   return { byRun, protocol }
 })
 
-// Why a run has no leaderboard entry -- so its absence reads as a fact, not a bug.
-function unranked(run: RunInfo): string | null {
-  const c = run.config ?? {}
-  if (c.game !== "snake") return null
-  if (c.experiment) return `comparison run (${String(c.experiment)}): aggregated in its experiment, not ranked individually`
-  if (run.status === "running" || run.status === "paused") return "still training: evaluated once finished"
-  return "not evaluated yet: run jobs/evaluate.py"
-}
-onMounted(() => runsStore.fetchHistories())
-
 // useState, not ref: the server-rendered "3 min ago" and the first client render must agree
 // (hydration), so both use the server's clock until the interval below ticks.
 const now = useState("clock:now", () => Date.now() / 1000)
 let clock: ReturnType<typeof setInterval> | null = null
+let poll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   now.value = Date.now() / 1000 // after hydration; also refreshes a clock left over from an earlier page
   clock = setInterval(() => (now.value = Date.now() / 1000), 30_000)
+  // Only a run that's still training changes: poll (one small request) while one is, and not otherwise.
+  poll = setInterval(() => {
+    if (runsStore.runs.some((r) => (r.status === "running" || r.status === "paused") && !isStale(r, now.value))) {
+      runsStore.fetchRuns()
+    }
+  }, 15_000)
 })
-onUnmounted(() => clock && clearInterval(clock))
+onUnmounted(() => {
+  if (clock) clearInterval(clock)
+  if (poll) clearInterval(poll)
+})
 
-interface Row {
-  run: RunInfo
-  meta: RunMeta
-  label: string // same naming as the leaderboard: "Snake · NEAT · 11 hidden · 73 conns"
-  heldOut: { mean: number; rank: number; of: number; entrantId: string } | null
-  generations: number
-  best: number | null
-  trend: number[]
-  duration: number
-  stale: boolean
-  genome: string
-}
-
-const rows = computed<Row[]>(() =>
+const rows = computed<RunRow[]>(() =>
   runsStore.runs.map((run) => {
     const meta = describeRun(run)
-    const history = runsStore.histories[run.run_id]
+    const summary = runsStore.summaries[run.run_id]
     const c = run.config ?? {}
     const genome = meta.network
       ? `${meta.network}${meta.parameterCount ? ` · ${meta.parameterCount}w` : ""}`
       : typeof c.num_instructions === "number"
         ? `${c.num_instructions} instr · ${c.num_registers ?? "?"} regs`
         : "--"
-    const last = history?.at(-1)
+    const last = summary?.last ?? null
     const extras = last?.extras ?? {}
     const shape: ModelShape = {
       algorithm: meta.representationLabel,
@@ -84,21 +72,18 @@ const rows = computed<Row[]>(() =>
       meta,
       label: meta.game ? `${subject} · ${modelLabel(shape)}` : meta.title,
       heldOut: standings.value.byRun[run.run_id] ?? null,
-      generations: history ? history.length : 0,
-      best: bestFitnessOf(run, history),
-      trend: history ? downsample(history.map((h) => h.best_fitness), 60) : [],
+      generations: summary?.generations ?? 0,
+      best: bestFitnessOf(run) ?? summary?.best_fitness ?? null,
+      trend: summary?.trend ?? [],
       // For a live run the last recorded generation is fresher than the registry row.
       duration: Math.max(run.updated_at, last?.timestamp ?? 0) - run.created_at,
       stale: isStale(run, now.value),
       genome,
+      experiment: typeof c.experiment === "string" && c.experiment ? c.experiment : null,
+      arm: typeof c.arm === "string" && c.arm ? c.arm : null,
     }
   }),
 )
-
-function downsample(values: number[], n: number): number[] {
-  if (values.length <= n) return values
-  return Array.from({ length: n }, (_, i) => values[Math.round((i / (n - 1)) * (values.length - 1))]!)
-}
 
 // Filters / sorting --------------------------------------------------------------------------------
 const query = ref("")
@@ -110,28 +95,104 @@ const sortDesc = ref(true)
 
 const kinds = computed(() => [...new Set(rows.value.map((r) => r.meta.representationLabel))])
 
-const visible = computed(() => {
+function sortValue(r: RunRow): number {
+  switch (sortKey.value) {
+    case "created":
+      return r.run.created_at
+    case "best":
+      return r.best ?? -Infinity
+    case "heldOut":
+      return r.heldOut?.mean ?? -Infinity
+    case "generations":
+      return r.generations
+    default:
+      return r.duration
+  }
+}
+const bySort = (a: number, b: number) => (sortDesc.value ? b - a : a - b)
+
+const matching = computed(() => {
   const q = query.value.trim().toLowerCase()
-  const filtered = rows.value.filter((r) => {
-    if (statusFilter.value !== "all" && r.run.status !== statusFilter.value) return false
-    if (kindFilter.value !== "all" && r.meta.representationLabel !== kindFilter.value) return false
-    if (!q) return true
-    return [r.run.run_id, r.label, r.meta.title, r.meta.note, r.meta.selection, r.meta.benchmark]
-      .filter(Boolean)
-      .some((s) => s!.toLowerCase().includes(q))
-  })
-  const value = (r: Row): number =>
-    sortKey.value === "created"
-      ? r.run.created_at
-      : sortKey.value === "best"
-        ? (r.best ?? -Infinity)
-        : sortKey.value === "heldOut"
-          ? (r.heldOut?.mean ?? -Infinity)
-        : sortKey.value === "generations"
-          ? r.generations
-          : r.duration
-  return filtered.sort((a, b) => (sortDesc.value ? value(b) - value(a) : value(a) - value(b)))
+  return rows.value
+    .filter((r) => {
+      if (statusFilter.value !== "all" && r.run.status !== statusFilter.value) return false
+      if (kindFilter.value !== "all" && r.meta.representationLabel !== kindFilter.value) return false
+      if (!q) return true
+      return [r.run.run_id, r.label, r.meta.title, r.meta.note, r.meta.selection, r.meta.benchmark, r.experiment, r.arm]
+        .filter(Boolean)
+        .some((s) => s!.toLowerCase().includes(q))
+    })
+    .sort((a, b) => bySort(sortValue(a), sortValue(b)))
 })
+
+// Experiment groups -------------------------------------------------------------------------------------
+// The runs of one comparison (jobs/snake_experiment.py and friends: arms x seeds, tagged config.experiment) are one
+// collapsible row: they're read together, and there are already dozens of them per experiment.
+interface RunGroup {
+  experiment: string
+  rows: RunRow[] // the matching runs, sorted
+  total: number // every run of the experiment
+  best: number | null
+  generations: number
+  latest: number
+  status: RunRow["run"]["status"]
+  statusCounts: string
+  arms: string[]
+  algorithms: string[]
+}
+type Item = { kind: "run"; row: RunRow } | { kind: "group"; group: RunGroup }
+
+const totals = computed(() => {
+  const counts: Record<string, number> = {}
+  for (const r of rows.value) if (r.experiment) counts[r.experiment] = (counts[r.experiment] ?? 0) + 1
+  return counts
+})
+
+function group(experiment: string, members: RunRow[]): RunGroup {
+  const statuses = members.map((r) => r.run.status)
+  const count = (s: string) => statuses.filter((x) => x === s).length
+  const bests = members.map((r) => r.best).filter((b): b is number => b !== null)
+  return {
+    experiment,
+    rows: members,
+    total: totals.value[experiment] ?? members.length,
+    best: bests.length ? Math.max(...bests) : null,
+    generations: members.reduce((sum, r) => sum + r.generations, 0),
+    latest: Math.max(...members.map((r) => r.run.created_at)),
+    // the state that most needs attention wins
+    status: count("running") ? "running" : count("paused") ? "paused" : count("failed") ? "failed" : "completed",
+    statusCounts: (["running", "paused", "failed", "completed"] as const)
+      .filter((s) => count(s))
+      .map((s) => `${count(s)} ${s}`)
+      .join(" · "),
+    arms: [...new Set(members.map((r) => r.arm).filter((a): a is string => a !== null))],
+    algorithms: [...new Set(members.map((r) => r.meta.representationLabel))],
+  }
+}
+
+const items = computed<Item[]>(() => {
+  const groups = new Map<string, RunRow[]>()
+  const out: Item[] = []
+  for (const r of matching.value) {
+    if (!r.experiment) out.push({ kind: "run", row: r })
+    else if (groups.has(r.experiment)) groups.get(r.experiment)!.push(r)
+    else groups.set(r.experiment, [r])
+  }
+  for (const [experiment, members] of groups) out.push({ kind: "group", group: group(experiment, members) })
+  // A group sorts by its most extreme member in the current direction: its first (already sorted) row.
+  const key = (item: Item) => sortValue(item.kind === "run" ? item.row : item.group.rows[0]!)
+  return out.sort((a, b) => bySort(key(a), key(b)))
+})
+
+const expanded = ref(new Set<string>())
+function toggle(experiment: string) {
+  const next = new Set(expanded.value)
+  if (next.has(experiment)) next.delete(experiment)
+  else next.add(experiment)
+  expanded.value = next
+}
+// While searching, show the matching runs inside their groups rather than hiding them behind a click.
+const isOpen = (experiment: string) => expanded.value.has(experiment) || query.value.trim() !== ""
 
 function sortBy(key: SortKey) {
   if (sortKey.value === key) sortDesc.value = !sortDesc.value
@@ -149,6 +210,7 @@ const summary = computed(() => {
   return {
     total: rows.value.length,
     running: rows.value.filter((r) => r.run.status === "running" && !r.stale).length,
+    experiments: Object.keys(totals.value).length,
     totalGens,
     bestSnake,
     kinds: kinds.value.length,
@@ -170,7 +232,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
           playing in your browser.
         </p>
       </div>
-      <button class="btn-ghost btn-sm" @click="runsStore.fetchRuns().then(() => runsStore.fetchHistories())">
+      <button class="btn-ghost btn-sm" @click="runsStore.fetchRuns()">
         <svg viewBox="0 0 20 20" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5V6h-2.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -185,7 +247,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
 
     <template v-else>
       <div class="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatTile label="Runs" :value="summary.total" :hint="`${summary.kinds} algorithm families`" />
+        <StatTile label="Runs" :value="summary.total" :hint="`${summary.kinds} algorithm families · ${summary.experiments} experiments`" />
         <StatTile label="Running now" :value="summary.running" :tone="summary.running ? 'life' : 'default'" hint="live over SSE" />
         <StatTile label="Generations recorded" :value="summary.totalGens.toLocaleString()" hint="across every run" />
         <StatTile label="Best Snake fitness" :value="formatFitness(summary.bestSnake, 2)" tone="queen" hint="training fitness, not a game score" />
@@ -228,7 +290,7 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
           <option value="all">All algorithms</option>
           <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
         </select>
-        <span class="ml-auto text-xs text-fg-subtle">{{ visible.length }} of {{ rows.length }} runs</span>
+        <span class="ml-auto text-xs text-fg-subtle">{{ matching.length }} of {{ rows.length }} runs</span>
       </div>
 
       <!-- Table (lg+) -->
@@ -265,80 +327,60 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="r in visible"
-              :key="r.run.run_id"
-              class="group cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-raised/60"
-              @click="navigateTo(`/runs/${r.run.run_id}`)"
-            >
-              <td class="px-4 py-3">
-                <NuxtLink :to="`/runs/${r.run.run_id}`" class="font-medium text-fg group-hover:text-queen-300" @click.stop>
-                  {{ r.label }}
-                </NuxtLink>
-                <p class="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-fg-subtle">
-                  {{ shortId(r.run.run_id) }}
-                  <span v-if="r.meta.note" class="truncate font-sans italic">· {{ r.meta.note }}</span>
-                </p>
-              </td>
-              <td class="px-3 py-3"><StatusBadge :status="r.run.status" :stale="r.stale" /></td>
-              <td class="px-3 py-3">
-                <div class="flex flex-col gap-1">
-                  <span v-if="r.meta.selection" class="chip w-fit">{{ r.meta.selection }}</span>
-                  <span
-                    v-if="r.meta.seedStrategy"
-                    class="chip w-fit"
-                    :class="r.meta.seedStrategy.startsWith('resample') ? 'text-life-300' : ''"
-                    title="Training seeds: fixed = the same games every generation; resample = fresh games every generation"
-                  >
-                    seeds {{ r.meta.seedStrategy }}
-                  </span>
-                  <span v-if="r.meta.variation" class="w-fit max-w-40 truncate font-mono text-[11px] text-fg-subtle" :title="r.meta.variation">{{ r.meta.variation }}</span>
-                  <span v-if="!r.meta.selection && !r.meta.variation" class="text-fg-subtle">--</span>
-                </div>
-              </td>
-              <td class="num px-3 py-3 text-right text-fg-muted">{{ r.meta.populationSize ?? "--" }}</td>
-              <td class="px-3 py-3 font-mono text-xs whitespace-nowrap text-fg-muted">{{ r.genome }}</td>
-              <td class="px-3 py-3">
-                <div class="flex items-center gap-2">
-                  <span class="num w-16 text-xs text-fg-muted">
-                    {{ r.generations }}<span v-if="r.meta.targetGenerations" class="text-fg-subtle">/{{ r.meta.targetGenerations }}</span>
-                  </span>
-                  <div v-if="r.meta.targetGenerations" class="h-1.5 w-20 overflow-hidden rounded-full bg-raised">
-                    <div
-                      class="h-full rounded-full"
-                      :class="r.run.status === 'running' && !r.stale ? 'bg-life-400' : 'bg-fg-subtle'"
-                      :style="{ width: `${Math.min(100, (r.generations / r.meta.targetGenerations) * 100)}%` }"
-                    />
-                  </div>
-                </div>
-              </td>
-              <td class="num px-3 py-3 text-right text-fg-muted">{{ formatFitness(r.best, 3) }}</td>
-              <td class="px-3 py-3 text-right whitespace-nowrap" data-held-out>
-                <NuxtLink
-                  v-if="r.heldOut"
-                  :to="`/games/snake?watch=${encodeURIComponent(r.heldOut.entrantId)}`"
-                  class="group/lb inline-flex flex-col items-end"
-                  title="Open on the leaderboard"
-                  @click.stop
+            <template v-for="item in items" :key="item.kind === 'run' ? item.row.run.run_id : `exp:${item.group.experiment}`">
+              <RunsTableRow v-if="item.kind === 'run'" :r="item.row" :now="now" />
+              <template v-else>
+                <tr
+                  class="cursor-pointer border-b border-line/60 bg-surface/40 transition hover:bg-raised/60"
+                  :aria-expanded="isOpen(item.group.experiment)"
+                  data-experiment-group
+                  @click="toggle(item.group.experiment)"
                 >
-                  <span class="num font-semibold text-fg group-hover/lb:text-queen-300">{{ r.heldOut.mean.toFixed(2) }}</span>
-                  <span class="text-[10px] text-fg-subtle">🏆 #{{ r.heldOut.rank }} of {{ r.heldOut.of }}</span>
-                </NuxtLink>
-                <span v-else-if="unranked(r.run)" class="cursor-help text-fg-subtle" :title="unranked(r.run)!">--</span>
-                <span v-else class="text-fg-subtle">--</span>
-              </td>
-              <td class="px-3 py-3"><Sparkline :values="r.trend" class="h-8 w-24" /></td>
-              <td class="px-3 py-3 whitespace-nowrap text-fg-muted" :title="formatTimestamp(r.run.created_at)">
-                {{ formatRelative(r.run.created_at, now) }}
-              </td>
-              <td class="num px-3 py-3 text-right text-fg-muted">{{ formatDuration(r.duration) }}</td>
-              <td class="px-4 py-3 text-right">
-                <NuxtLink v-if="r.meta.watchable" :to="`/runs/${r.run.run_id}`" class="btn-ghost btn-sm whitespace-nowrap" @click.stop>
-                  ▶ Watch
-                </NuxtLink>
-              </td>
-            </tr>
-            <tr v-if="visible.length === 0">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-block w-3 text-fg-subtle transition" :class="isOpen(item.group.experiment) ? 'rotate-90' : ''">▶</span>
+                      <div>
+                        <p class="font-medium text-fg">{{ item.group.experiment }}</p>
+                        <p class="mt-0.5 text-[11px] text-fg-subtle">
+                          experiment · {{ item.group.rows.length }}<template v-if="item.group.rows.length !== item.group.total"> of {{ item.group.total }}</template> runs
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3">
+                    <StatusBadge :status="item.group.status" />
+                    <p class="mt-1 text-[10px] whitespace-nowrap text-fg-subtle">{{ item.group.statusCounts }}</p>
+                  </td>
+                  <td class="px-3 py-3">
+                    <div class="flex max-w-56 flex-wrap gap-1">
+                      <span v-for="arm in item.group.arms.slice(0, 4)" :key="arm" class="chip">{{ arm }}</span>
+                      <span v-if="item.group.arms.length > 4" class="text-[11px] text-fg-subtle">+{{ item.group.arms.length - 4 }} arms</span>
+                    </div>
+                  </td>
+                  <td class="num px-3 py-3 text-right text-fg-subtle">--</td>
+                  <td class="px-3 py-3 text-xs text-fg-muted">{{ item.group.algorithms.join(" · ") }}</td>
+                  <td class="num px-3 py-3 text-xs text-fg-muted">{{ item.group.generations.toLocaleString() }} in all</td>
+                  <td class="num px-3 py-3 text-right text-fg-muted">{{ formatFitness(item.group.best, 3) }}</td>
+                  <td class="px-3 py-3 text-right">
+                    <span class="cursor-help text-fg-subtle" title="Comparison runs are aggregated in their experiment, not ranked individually">--</span>
+                  </td>
+                  <td class="px-3 py-3" />
+                  <td class="px-3 py-3 whitespace-nowrap text-fg-muted" :title="`latest run ${formatTimestamp(item.group.latest)}`">
+                    {{ formatRelative(item.group.latest, now) }}
+                  </td>
+                  <td class="px-3 py-3" />
+                  <td class="px-4 py-3 text-right">
+                    <button class="btn-ghost btn-sm whitespace-nowrap" @click.stop="toggle(item.group.experiment)">
+                      {{ isOpen(item.group.experiment) ? "Hide" : "Show" }} {{ item.group.rows.length }}
+                    </button>
+                  </td>
+                </tr>
+                <template v-if="isOpen(item.group.experiment)">
+                  <RunsTableRow v-for="r in item.group.rows" :key="r.run.run_id" :r="r" :now="now" nested />
+                </template>
+              </template>
+            </template>
+            <tr v-if="matching.length === 0">
               <td colspan="12" class="px-4 py-12 text-center text-fg-subtle">
                 <template v-if="rows.length === 0">
                   No runs yet -- start one with <code class="chip">uv run python jobs/baseline_gp_run.py</code>.
@@ -352,28 +394,36 @@ const STATUSES = ["all", "running", "completed", "paused", "failed"] as const
 
       <!-- Cards (< lg) -->
       <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:hidden">
-        <NuxtLink v-for="r in visible" :key="r.run.run_id" :to="`/runs/${r.run.run_id}`" class="card card-hover block p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="truncate font-medium">{{ r.meta.title }}</p>
-              <p class="font-mono text-[11px] text-fg-subtle">{{ shortId(r.run.run_id) }} · {{ formatRelative(r.run.created_at, now) }}</p>
-            </div>
-            <StatusBadge :status="r.run.status" :stale="r.stale" />
-          </div>
-          <Sparkline :values="r.trend" class="mt-3 h-10 w-full" />
-          <dl class="mt-3 grid grid-cols-3 gap-2 text-xs">
-            <div><dt class="text-fg-subtle">best</dt><dd class="num text-fg">{{ formatFitness(r.best, 2) }}</dd></div>
-            <div>
-              <dt class="text-fg-subtle">gens</dt>
-              <dd class="num text-fg">{{ r.generations }}<span v-if="r.meta.targetGenerations" class="text-fg-subtle">/{{ r.meta.targetGenerations }}</span></dd>
-            </div>
-            <div><dt class="text-fg-subtle">duration</dt><dd class="num text-fg">{{ formatDuration(r.duration) }}</dd></div>
-          </dl>
-          <p v-if="r.meta.selection" class="mt-3 flex flex-wrap gap-1.5">
-            <span class="chip">{{ r.meta.selection }}</span>
-            <span v-if="r.meta.populationSize" class="chip">pop {{ r.meta.populationSize }}</span>
-          </p>
-        </NuxtLink>
+        <template v-for="item in items" :key="item.kind === 'run' ? item.row.run.run_id : `exp:${item.group.experiment}`">
+          <RunsCard v-if="item.kind === 'run'" :r="item.row" :now="now" />
+          <template v-else>
+            <button
+              class="card card-hover block p-4 text-left"
+              :aria-expanded="isOpen(item.group.experiment)"
+              data-experiment-group
+              @click="toggle(item.group.experiment)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate font-medium">
+                    <span class="inline-block w-3 text-fg-subtle transition" :class="isOpen(item.group.experiment) ? 'rotate-90' : ''">▶</span>
+                    {{ item.group.experiment }}
+                  </p>
+                  <p class="text-[11px] text-fg-subtle">experiment · {{ item.group.total }} runs · {{ item.group.algorithms.join(" · ") }}</p>
+                </div>
+                <StatusBadge :status="item.group.status" />
+              </div>
+              <dl class="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div><dt class="text-fg-subtle">best</dt><dd class="num text-fg">{{ formatFitness(item.group.best, 2) }}</dd></div>
+                <div><dt class="text-fg-subtle">gens</dt><dd class="num text-fg">{{ item.group.generations.toLocaleString() }}</dd></div>
+                <div><dt class="text-fg-subtle">latest</dt><dd class="num text-fg">{{ formatRelative(item.group.latest, now) }}</dd></div>
+              </dl>
+            </button>
+            <template v-if="isOpen(item.group.experiment)">
+              <RunsCard v-for="r in item.group.rows" :key="r.run.run_id" :r="r" :now="now" class="border-l-2 border-l-queen-400/40" />
+            </template>
+          </template>
+        </template>
       </div>
     </template>
   </main>

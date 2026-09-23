@@ -236,6 +236,13 @@ what belongs here and how to add to it). Read before writing code, not after.
   aren't auto-imported (`app/games/*`): import them explicitly; (4) `nuxt.config.ts` is serialized into the
   build, so a *function* in `app.head` (a `titleTemplate` callback) is silently dropped -- every page's title
   lost its " · Red Queen" suffix until `pnpm typecheck` flagged it. Put it in `app.vue`'s `useHead()`.
+- **Never fill a reactive collection one response at a time, and don't make bulk data deeply reactive.** The runs page
+  fetched 115 histories in parallel and did `histories.value = { ...histories.value, [id]: h }` per response into a
+  deep `ref`: every response re-ran the page's row computation and re-rendered the table (115 x 115), and Vue proxied
+  31K records -- 4.5 s of blocked main thread on load (36 s on a refresh), clicks ignored meanwhile, while the network
+  and JSON parsing took 0.37 s together. Collect with `Promise.all`, assign once, and hold data you only read in a
+  `shallowRef` + `markRaw`. Better still, don't ship a page data it only summarizes (`GET /runs/summaries`).
+  Measure with a `longtask` `PerformanceObserver` in a *fresh* tab before and after, not by feel.
 
 ## Client-side inference (docs/design/0009)
 

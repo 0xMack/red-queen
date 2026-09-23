@@ -287,6 +287,62 @@
         "title": "RunInfo",
         "type": "object"
       },
+      "RunSummary": {
+        "description": "What a list of runs shows for each one -- a few numbers and a short trend, not its whole history. The runs\npage used to download every run's full history (13 MB for 115 runs) to draw 60-point sparklines.",
+        "properties": {
+          "best_fitness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Highest best_fitness over the whole run (training fitness / return); None if none recorded.",
+            "title": "Best Fitness"
+          },
+          "generations": {
+            "description": "Generations (or RL iterations) recorded so far.",
+            "minimum": 0.0,
+            "title": "Generations",
+            "type": "integer"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationStats"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest generation's stats (its extras, its timestamp); None if none recorded."
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "trend": {
+            "description": "best_fitness over the run, downsampled to at most `trend_points` evenly spaced generations (first and last always included).",
+            "items": {
+              "type": "number"
+            },
+            "title": "Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_id",
+          "generations",
+          "best_fitness",
+          "last",
+          "trend"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -613,6 +669,56 @@
           }
         },
         "summary": "List Runs",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/summaries": {
+      "get": {
+        "description": "One summary per run, in `list_runs()` order: what a runs list needs, in one request.",
+        "operationId": "list_run_summaries_runs_summaries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trend_points",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Trend Points",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummary"
+                  },
+                  "title": "Response List Run Summaries Runs Summaries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Run Summaries",
         "tags": [
           "runs"
         ]
