@@ -1,4 +1,5 @@
 import numpy as np
+
 from tinylm import CharTokenizer, TinyLM, load, save
 
 

@@ -183,7 +183,7 @@ class NeatGenome:
             flat += [float(slot), float(len(incoming))]
             for source, weight in incoming:
                 flat += [float(source), weight]
-        return flat + [float(len(outputs)), *map(float, outputs)]
+        return [*flat, float(len(outputs)), *map(float, outputs)]
 
     def complexity(self) -> tuple[int, int]:
         """(hidden nodes, enabled connections) -- how big the evolved structure has become."""

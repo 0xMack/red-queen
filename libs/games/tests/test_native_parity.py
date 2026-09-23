@@ -5,10 +5,10 @@ many seeds, board sizes and action sequences (random and greedy, which reach lon
 import random
 
 import pytest
+from reference_snake import Pcg32, ReferenceSnake, reference_greedy
+
 from games import _native, baselines
 from games.snake import Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
-
-from reference_snake import Pcg32, ReferenceSnake, reference_greedy
 
 
 @pytest.mark.parametrize("seed", [0, 1, 42, 2**31 - 1, 2**40 + 7, 2**64 - 1])
@@ -93,8 +93,9 @@ def test_a_board_too_narrow_for_the_starting_snake_is_rejected():
 
 
 def _play_checkers(seed: int, max_moves_without_capture: int = 40) -> None:
-    from games.checkers import Checkers
     from reference_checkers import Checkers as ReferenceCheckers
+
+    from games.checkers import Checkers
 
     native, reference = Checkers(max_moves_without_capture), ReferenceCheckers(max_moves_without_capture)
     rng = random.Random(seed)
@@ -126,8 +127,9 @@ def test_checkers_draw_limit_is_identical(seed):
 
 
 def test_checkers_positions_set_from_python_play_identically():
-    from games.checkers import Checkers
     from reference_checkers import Checkers as ReferenceCheckers
+
+    from games.checkers import Checkers
 
     board = {(4, 4): (0, True), (5, 3): (1, False), (3, 5): (1, False), (1, 5): (1, True), (0, 2): (0, False)}
     native, reference = Checkers(), ReferenceCheckers()
@@ -144,8 +146,9 @@ def test_checkers_positions_set_from_python_play_identically():
 
 @pytest.mark.parametrize("seed", range(10))
 def test_reach1d_is_bit_identical(seed):
-    from games.reach1d import ReachTarget1D
     from reference_reach1d import ReachTarget1D as ReferenceReach
+
+    from games.reach1d import ReachTarget1D
 
     rng = random.Random(seed)
     kwargs = {"target": rng.uniform(-9, 9), "start_position": rng.uniform(-9, 9), "start_velocity": rng.uniform(-3, 3)}

@@ -219,7 +219,7 @@ def publish_tinylm(store: LocalModelStore) -> None:
             named_parameters(model),
             config,
             [tokenizer.decode([i]) for i in range(tokenizer.vocab_size)],
-            lambda w: model(w).data,
+            lambda w, model=model: model(w).data,
             windows,
             label=f"TinyLM {meta['name']} · {meta['parameters']:,} params",
             description=(

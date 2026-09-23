@@ -1,7 +1,12 @@
 import itertools
 import time
 
-from telemetry import FileArtifactStore, FileMetricsStore, GenerationStats, SqliteRunRegistry
+from telemetry import (
+    FileArtifactStore,
+    FileMetricsStore,
+    GenerationStats,
+    SqliteRunRegistry,
+)
 
 
 def make_stats(run_id: str, generation: int) -> GenerationStats:
@@ -96,7 +101,7 @@ def test_artifact_store_round_trip(tmp_path):
 
 # --- evaluations (docs/design/0007) -----------------------------------------------------------------
 
-from telemetry import EvaluationRecord, SqliteEvaluationStore  # noqa: E402
+from telemetry import EvaluationRecord, SqliteEvaluationStore
 
 
 def _record(entrant_id: str, protocol: str = "snake.score.v1", mean: float = 1.0, game: str = "snake"):
@@ -138,8 +143,15 @@ def test_held_out_score_is_optional_and_round_trips(tmp_path):
     from telemetry import FileMetricsStore, GenerationStats
 
     store = FileMetricsStore(tmp_path / "metrics")
-    base = dict(run_id="r", island_id=None, timestamp=1.0, best_fitness=1.0, mean_fitness=0.5,
-                worst_fitness=0.0, diversity=0.1)
+    base = {
+        "run_id": "r",
+        "island_id": None,
+        "timestamp": 1.0,
+        "best_fitness": 1.0,
+        "mean_fitness": 0.5,
+        "worst_fitness": 0.0,
+        "diversity": 0.1,
+    }
     store.record_generation(GenerationStats(generation=0, champion_ref="r-gen0", **base))
     store.record_generation(GenerationStats(generation=1, champion_ref="r-gen1", held_out_score=12.5, **base))
 

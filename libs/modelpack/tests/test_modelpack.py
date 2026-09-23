@@ -4,9 +4,22 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from evolve.neat import InnovationTracker, NeatConfig, NeatGenome, initial_genome, mutate
+from evolve.neat import (
+    InnovationTracker,
+    NeatConfig,
+    NeatGenome,
+    initial_genome,
+    mutate,
+)
 from evolve.neuro import random_weight_vector
-from modelpack import LocalModelStore, PackagedModel, build_package, export_network, with_parity
+
+from modelpack import (
+    LocalModelStore,
+    PackagedModel,
+    build_package,
+    export_network,
+    with_parity,
+)
 from modelpack.exporters import neat_layers
 from modelpack.packaging import sample_inputs, shard_initializers
 from modelpack.store import Catalog, CatalogEntry

@@ -46,8 +46,8 @@ from snake_neuro_run import (
     POPULATION_SIZE,
     RNG_SEED,
     make_act,
-    make_rollout,
     make_resample_callback,
+    make_rollout,
     make_telemetry_callback,
 )
 

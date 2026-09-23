@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from games.checkers import Checkers, CheckersBoard32, Evaluate1Ply
 from games.observation import Interface
-from games.snake import RelativeTurn3, Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
+from games.snake import (
+    RelativeTurn3,
+    Snake,
+    SnakeEgocentric,
+    SnakeFeatures,
+    SnakeGridFlat,
+)
 
 
 def _snake_interface(observer) -> Interface:

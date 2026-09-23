@@ -9,7 +9,6 @@ flat list of every learnable Tensor (used by the optimizer).
 from __future__ import annotations
 
 import numpy as np
-
 from autodiff import Tensor, softmax
 
 

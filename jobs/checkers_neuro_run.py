@@ -58,7 +58,7 @@ GENERATIONS = 60
 RNG_SEED = 0
 DEFAULT_OPPONENTS = ("random", "material-1", "material-2")
 
-__all__ = ["INPUTS", "MAX_MOVES", "MONITOR_GAMES", "MONITOR_SEED_BASE", "make_act", "monitor_score", "opponent_pool", "strategy_factory", "main"]
+__all__ = ["INPUTS", "MAX_MOVES", "MONITOR_GAMES", "MONITOR_SEED_BASE", "main", "make_act", "monitor_score", "opponent_pool", "strategy_factory"]
 
 
 def main(

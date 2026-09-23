@@ -183,8 +183,8 @@ def test_benchmark_environments_use_distinct_seeds():
 
 # --- observers / interfaces (docs/design/0007) ------------------------------------------------------
 
-from games import interfaces  # noqa: E402
-from games.snake import RelativeTurn3, SnakeFeatures, SnakeGridFlat  # noqa: E402
+from games import interfaces
+from games.snake import RelativeTurn3, SnakeFeatures, SnakeGridFlat
 
 
 def test_default_observer_is_features_and_matches_legacy_observation():

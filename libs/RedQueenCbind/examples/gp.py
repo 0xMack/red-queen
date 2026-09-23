@@ -1,11 +1,8 @@
-import redqueen
 # print(redqueen.__file__)
 # print(dir(redqueen))
 
 from redqueen import Population
-
 from sklearn.datasets import load_iris
-import numpy as np
 
 # Load dataset
 iris = load_iris()

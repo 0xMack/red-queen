@@ -1,11 +1,21 @@
 import random
 
 import pytest
-from reference_checkers_strategies import evaluator_scores, material_1_scores, material_2_scores
+from reference_checkers_strategies import (
+    evaluator_scores,
+    material_1_scores,
+    material_2_scores,
+)
 
 from games import _native
 from games.checkers import Checkers
-from games.checkers_strategies import STRATEGIES, evaluator, first_legal, material_2, random_strategy
+from games.checkers_strategies import (
+    STRATEGIES,
+    evaluator,
+    first_legal,
+    material_2,
+    random_strategy,
+)
 
 LAYERS = (32, 5, 1)
 
@@ -75,7 +85,7 @@ def test_evaluator_always_picks_a_top_scoring_move_under_the_reference_network()
 def test_random_is_seeded_and_covers_the_moves():
     env = Checkers()
     env.reset()
-    picks = lambda seed: [_pick(env, "random", seed + n) for n in range(60)]  # noqa: E731
+    picks = lambda seed: [_pick(env, "random", seed + n) for n in range(60)]
     assert picks(5) == picks(5)
     assert len(set(picks(5))) == len(env.legal_moves())  # 7 opening moves, all reachable
 

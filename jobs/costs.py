@@ -8,6 +8,7 @@ compared within a hardware class.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import platform
 import sys
@@ -17,7 +18,8 @@ from typing import Any
 
 
 def _cpu_name() -> str:
-    try:
+    # Best effort: whatever fails here, the fallback below is still informative.
+    with contextlib.suppress(Exception):
         if sys.platform == "win32":
             import winreg
 
@@ -31,8 +33,6 @@ def _cpu_name() -> str:
             for line in f:
                 if line.startswith("model name"):
                     return line.split(":", 1)[1].strip()
-    except Exception:  # noqa: BLE001 -- best effort; the fallback below is still informative
-        pass
     return platform.processor() or platform.machine() or "unknown"
 
 

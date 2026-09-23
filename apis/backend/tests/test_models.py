@@ -3,7 +3,13 @@ import random
 import pytest
 from evolve.neuro import random_weight_vector
 from fastapi.testclient import TestClient
-from modelpack import Catalog, CatalogEntry, LocalModelStore, build_package, export_network
+from modelpack import (
+    Catalog,
+    CatalogEntry,
+    LocalModelStore,
+    build_package,
+    export_network,
+)
 
 from backend.dependencies import _model_store
 from backend.main import app
@@ -52,8 +58,9 @@ def test_unknown_or_malformed_keys_are_404(published, path):
 
 
 def test_on_demand_export_packages_a_stored_champion(published, tmp_path):
-    from backend.dependencies import _artifact_store
     from telemetry import FileArtifactStore
+
+    from backend.dependencies import _artifact_store
 
     client, _ = published
     artifacts = FileArtifactStore(tmp_path / "artifacts")

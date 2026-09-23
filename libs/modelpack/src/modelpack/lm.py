@@ -41,8 +41,22 @@ import onnxruntime as ort
 from onnx import TensorProto, helper, numpy_helper
 
 from modelpack.exporters import IR_VERSION, OPSET
-from modelpack.manifest import Blob, ModelManifest, Parity, Provenance, TensorSpec, Variant
-from modelpack.packaging import Package, _versions, requirements_for, sha256, shard_initializers, with_parity
+from modelpack.manifest import (
+    Blob,
+    ModelManifest,
+    Parity,
+    Provenance,
+    TensorSpec,
+    Variant,
+)
+from modelpack.packaging import (
+    Package,
+    _versions,
+    requirements_for,
+    sha256,
+    shard_initializers,
+    with_parity,
+)
 from modelpack.runtime import inline_external_data, session_options
 
 MASKED = -1e9  # what tinylm adds above the diagonal; exp() of it underflows to exactly 0
@@ -141,7 +155,7 @@ def export_tinylm(weights: dict[str, np.ndarray], config: LMConfig) -> onnx.Mode
     logits = linear(layer_norm(x, "ln_final"), "head")
     nodes.append(helper.make_node("Identity", [logits], ["logits"], name="logits"))
 
-    cache_dims = lambda n: ["batch", c.n_heads, n, c.head_dim]  # noqa: E731
+    cache_dims = lambda n: ["batch", c.n_heads, n, c.head_dim]
     inputs = [
         helper.make_tensor_value_info("input_ids", TensorProto.INT64, ["batch", "seq"]),
         helper.make_tensor_value_info("position_ids", TensorProto.INT64, ["batch", "seq"]),
@@ -251,7 +265,7 @@ def build_lm_package(
         if variant_id == "int8":
             # MatMulInteger/DynamicQuantizeLinear: CPU kernels only (ORT's WebGPU EP has none).
             requirements = requirements.model_copy(update={"backends": ["wasm"]})
-        cache_spec = lambda kind, i, n: TensorSpec(name=f"{kind}_{i}", dtype="float32", shape=["batch", config.n_heads, n, config.head_dim])  # noqa: E731
+        cache_spec = lambda kind, i, n: TensorSpec(name=f"{kind}_{i}", dtype="float32", shape=["batch", config.n_heads, n, config.head_dim])
         built.append(
             Variant(
                 id=variant_id,

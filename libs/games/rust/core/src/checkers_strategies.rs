@@ -6,16 +6,16 @@
 //! game's current `legal_moves()` -- the list and order every caller already holds. Ties between equally
 //! scored moves are broken uniformly at random.
 //!
-//! - `random`       -- a uniformly random legal move.
-//! - `first-legal`  -- always the first (dumb but perfectly consistent).
-//! - `material-1`   -- the move leaving the best material balance (men 1, kings 2). Barely beats random:
-//!                     captures are mandatory, so whenever one exists every legal move is a capture.
-//! - `material-2`   -- assumes the opponent answers with their material-minimizing reply and plays the
-//!                     move that holds up: a tiny minimax.
-//! - `material-N`   -- (N >= 3) the same idea searched N plies deep with alpha-beta: the *fair* opponent for
-//!                     a trained evaluator that searches as deep.
-//! - `evaluator`    -- a trained position evaluator (`Brain`), one ply ahead, or `depth` plies with alpha-beta
-//!                     (depth 1 is the original one-ply strategy, kept exactly for parity with its oracle).
+//! - `random` -- a uniformly random legal move.
+//! - `first-legal` -- always the first (dumb but perfectly consistent).
+//! - `material-1` -- the move leaving the best material balance (men 1, kings 2). Barely beats random:
+//!   captures are mandatory, so whenever one exists every legal move is a capture.
+//! - `material-2` -- assumes the opponent answers with their material-minimizing reply and plays the
+//!   move that holds up: a tiny minimax.
+//! - `material-N` -- (N >= 3) the same idea searched N plies deep with alpha-beta: the *fair* opponent for
+//!   a trained evaluator that searches as deep.
+//! - `evaluator` -- a trained position evaluator (`Brain`), one ply ahead, or `depth` plies with alpha-beta
+//!   (depth 1 is the original one-ply strategy, kept exactly for parity with its oracle).
 //!
 //! A `Brain` is a trained network mapping the 32-square encoding (`checkers::encode`, from the mover's side)
 //! to one score: either a fixed-topology `Network` (`evolve.WeightVector`'s flat layout, tanh on every layer)

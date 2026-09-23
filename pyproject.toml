@@ -10,11 +10,15 @@ members = ["libs/*", "apis/*"]
 package = false
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.16"]
 notebooks = ["jupyter>=1", "matplotlib>=3"]
 
 [tool.ruff]
 target-version = "py311"
+# The width the code was always hand-written at; `ruff format --check` and `ruff check` run in CI.
+line-length = 120
+# Notebooks (executed write-ups with baked-in output) and Markdown snippets: formatting them is churn, not cleanup.
+extend-exclude = ["notebooks", "**/*.md", "**/.venv", "**/node_modules"]
 
 [tool.ruff.lint]
 extend-select = [
