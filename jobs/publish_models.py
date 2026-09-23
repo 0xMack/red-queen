@@ -26,11 +26,19 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from evaluate import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, RUN_DATA_DIR, champion_entrants
+from evaluate import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, champion_entrants
 from games import interfaces
 from games.observation import Interface
-from modelpack import CatalogEntry, LocalModelStore, Package, PackagedModel, build_package, export_network_json, with_parity
-from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
+from modelpack import (
+    CatalogEntry,
+    LocalModelStore,
+    Package,
+    PackagedModel,
+    build_package,
+    export_network_json,
+    with_parity,
+)
+from run_context import RUN_DATA_DIR, TelemetryStores
 
 MODELS_DIR = RUN_DATA_DIR / "models"
 PARITY_SAMPLES = 256
@@ -170,9 +178,7 @@ def publish(entrant: dict[str, Any], raw: str, store: LocalModelStore) -> tuple[
 
 
 def main(game: str = "snake") -> None:
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
+    registry, metrics, artifacts = TelemetryStores.open()
     store = LocalModelStore(MODELS_DIR)
     catalog = store.catalog(game)
     for entrant in champion_entrants(registry, metrics, artifacts, game):

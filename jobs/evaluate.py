@@ -23,7 +23,6 @@ from __future__ import annotations
 import statistics
 import time
 from collections.abc import Callable, Sequence
-from pathlib import Path
 from typing import Any
 
 from costs import hardware_fingerprint
@@ -33,6 +32,7 @@ from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
 from modelpack import LocalModelStore, ModelStore, PackagedModel
+from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
@@ -41,8 +41,6 @@ from telemetry import (
     SqliteEvaluationStore,
     SqliteRunRegistry,
 )
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 PROTOCOL = "snake.score.v2"
 HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
@@ -343,9 +341,7 @@ def evaluate_entrant(entrant: dict[str, Any], metrics: FileMetricsStore | None, 
 
 
 def main() -> None:
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
+    registry, metrics, artifacts = TelemetryStores.open()
     store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
     hardware = hardware_fingerprint()
 

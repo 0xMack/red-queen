@@ -31,7 +31,6 @@ from __future__ import annotations
 import argparse
 import random
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
 from checkers_training import (
@@ -47,14 +46,11 @@ from checkers_training import (
     opponent_pool,
     strategy_factory,
 )
-from control import make_control_callback
-from parallel import ProcessPoolEvaluator
 from costs import TrainingCostMeter
 from evolve import GaussianMutation, LexicaseSelection, evolve, random_weight_vector
 from games.checkers_strategies import STRATEGIES
-from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
+from parallel import ProcessPoolEvaluator
+from run_context import recorded_run
 
 HIDDEN = 8
 POPULATION_SIZE = 40
@@ -86,37 +82,30 @@ def main(
 ) -> str:
     """Trains one run, records it to telemetry, returns its run_id."""
     layer_sizes = (INPUTS, hidden, 1)
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
-
-    run_id = registry.create_run(
-        config={
-            "representation": "neuroevolution",
-            "game": "checkers",
-            # How the champion is used: a position evaluator (score = forward(observation)[0], from the
-            # perspective of the player to move), searched `search_depth` plies -- not a fixed action space.
-            "interface": "checkers/board32.v1+evaluate1ply.v1",
-            "search_depth": depth,
-            "layer_sizes": list(layer_sizes),
-            "population_size": population_size,
-            "generations": generations,
-            "max_moves": MAX_MOVES,
-            "opponents": list(opponents),
-            "hall_of_fame": hall,
-            "seeded_fraction": seed_material,
-            "selection": "lexicase",
-            "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
-            "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
-            "resampled_opponents": resample,
-            "games_per_opponent": games_per_opponent,
-            "opening_plies": opening_plies,
-            "held_out_every": held_out_every,
-            "rng_seed": rng_seed,
-            **(tags or {}),  # e.g. `experiment`/`arm`: kept off the leaderboard, aggregated by the experiment
-        }
-    )
-    print(f"run_id={run_id}", flush=True)
+    config = {
+        "representation": "neuroevolution",
+        "game": "checkers",
+        # How the champion is used: a position evaluator (score = forward(observation)[0], from the
+        # perspective of the player to move), searched `search_depth` plies -- not a fixed action space.
+        "interface": "checkers/board32.v1+evaluate1ply.v1",
+        "search_depth": depth,
+        "layer_sizes": list(layer_sizes),
+        "population_size": population_size,
+        "generations": generations,
+        "max_moves": MAX_MOVES,
+        "opponents": list(opponents),
+        "hall_of_fame": hall,
+        "seeded_fraction": seed_material,
+        "selection": "lexicase",
+        "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
+        "fitness": "match outcomes + material margin on draws, both seats per opponent" if margin else "match outcomes, both seats per opponent",
+        "resampled_opponents": resample,
+        "games_per_opponent": games_per_opponent,
+        "opening_plies": opening_plies,
+        "held_out_every": held_out_every,
+        "rng_seed": rng_seed,
+        **(tags or {}),  # e.g. `experiment`/`arm`: kept off the leaderboard, aggregated by the experiment
+    }
 
     rng = random.Random(rng_seed)
     seeded = round(population_size * seed_material)
@@ -128,9 +117,7 @@ def main(
     fitness = ProcessPoolEvaluator(pool, workers) if workers > 1 else pool
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
 
-    # A run that dies (an exception, Ctrl-C) must not stay "running" forever: the runs page would show
-    # it as live. A hard kill can't be caught -- that one still needs marking by hand.
-    try:
+    with recorded_run(config) as run:
         evolve(
             population,
             fitness=fitness,
@@ -138,29 +125,16 @@ def main(
             variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
             generations=generations,
             on_generation=[
-                make_telemetry_callback(metrics, artifacts, run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
                 pool.on_generation,
                 cost.on_generation,
-                cost.excluding_pauses(make_control_callback(registry, run_id)),
+                run.control_callback(cost),
             ],
             rng=rng,
         )
-    except BaseException:
-        registry.update_status(run_id, "failed")
-        raise
-
-    history = metrics.history(run_id)
-    registry.set_summary(
-        run_id,
-        {
-            "best_fitness": history[-1].best_fitness,
-            "held_out_score": history[-1].held_out_score,
-            "cost": cost.summary(),
-        },
-    )
-    registry.update_status(run_id, "completed")
+        history = run.set_training_summary(cost)
     print(f"status=completed  recorded {len(history)} generations", flush=True)
-    return run_id
+    return run.run_id
 
 
 if __name__ == "__main__":

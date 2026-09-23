@@ -18,9 +18,9 @@ import time
 from pathlib import Path
 
 import numpy as np
+from run_context import RUN_DATA_DIR
 from tinylm import Adam, CharTokenizer, TinyLM, cross_entropy, save
 
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 CORPUS = Path(__file__).parents[1] / "libs" / "tinylm" / "data" / "alice.txt"
 HELD_OUT_FRACTION = 0.05
 

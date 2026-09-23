@@ -23,19 +23,22 @@ import json
 import math
 import random
 from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 from typing import Any
 
 from checkers_training import INPUTS, MAX_MOVES, MONITOR_GAMES, make_telemetry_callback
-from control import make_control_callback
 from costs import TrainingCostMeter
-from evolve import GaussianMutation, TournamentSelection, WeightVector, evolve, random_weight_vector
+from evolve import (
+    GaussianMutation,
+    TournamentSelection,
+    WeightVector,
+    evolve,
+    random_weight_vector,
+)
 from games import _native
 from games.checkers import Checkers
 from parallel import ProcessPoolEvaluator
-from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
+from run_context import RUN_DATA_DIR, recorded_run
 
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 POOL_DIR = RUN_DATA_DIR / "distill"
 LABEL_SCALE = 4.0  # material units at which a label reaches ~76% of the network's range (tanh)
 GROUPS = 10  # fitness cases per genome: the sample split into this many groups (negative mean squared error each)
@@ -169,46 +172,40 @@ def main(
     label_kind: str = "search",
 ) -> str:
     layer_sizes = (INPUTS, hidden, 1)
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
     observations, labels = build_pool(label_depth, pool_games, max(workers, 1), kind=label_kind)
-
-    run_id = registry.create_run(
-        config={
-            "representation": "neuroevolution",
-            "game": "checkers",
-            "interface": "checkers/board32.v1+evaluate1ply.v1",
-            "search_depth": depth,
-            "layer_sizes": list(layer_sizes),
-            "population_size": population_size,
-            "generations": generations,
-            "max_moves": MAX_MOVES,
-            "opponents": list(opponents),  # what the held-out monitor plays; nothing here trains against them
-            "selection": "tournament(k=4)",
-            "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
-            "fitness": {
-                "search": f"distillation: predict a material-{label_depth} search's value of sampled positions",
-                "rollout": f"regression on playout outcomes ({ROLLOUTS} x {ROLLOUT_PLAYER} self-play from each sampled position)",
-                "blend": f"half material-{label_depth} search value, half {ROLLOUTS}-playout outcome",
-            }[label_kind],
-            "label_kind": label_kind,
-            "label_depth": label_depth,
-            "pool_positions": len(labels),
-            "sample_per_generation": sample,
-            "held_out_every": held_out_every,
-            "rng_seed": rng_seed,
-            **(tags or {}),
-        }
-    )
-    print(f"run_id={run_id}  pool={len(labels)} positions", flush=True)
+    config = {
+        "representation": "neuroevolution",
+        "game": "checkers",
+        "interface": "checkers/board32.v1+evaluate1ply.v1",
+        "search_depth": depth,
+        "layer_sizes": list(layer_sizes),
+        "population_size": population_size,
+        "generations": generations,
+        "max_moves": MAX_MOVES,
+        "opponents": list(opponents),  # what the held-out monitor plays; nothing here trains against them
+        "selection": "tournament(k=4)",
+        "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
+        "fitness": {
+            "search": f"distillation: predict a material-{label_depth} search's value of sampled positions",
+            "rollout": f"regression on playout outcomes ({ROLLOUTS} x {ROLLOUT_PLAYER} self-play from each sampled position)",
+            "blend": f"half material-{label_depth} search value, half {ROLLOUTS}-playout outcome",
+        }[label_kind],
+        "label_kind": label_kind,
+        "label_depth": label_depth,
+        "pool_positions": len(labels),
+        "sample_per_generation": sample,
+        "held_out_every": held_out_every,
+        "rng_seed": rng_seed,
+        **(tags or {}),
+    }
 
     rng = random.Random(rng_seed)
     population = [random_weight_vector(layer_sizes, rng, scale=0.5) for _ in range(population_size)]
     fitness_inner = DistillFitness(observations, labels, sample, rng_seed)
     fitness = ProcessPoolEvaluator(fitness_inner, workers) if workers > 1 else fitness_inner
     cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
-    try:
+    with recorded_run(config) as run:
+        print(f"pool={len(labels)} positions", flush=True)
         evolve(
             population,
             fitness=fitness,
@@ -216,25 +213,17 @@ def main(
             variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
             generations=generations,
             on_generation=[
-                make_telemetry_callback(metrics, artifacts, run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
+                make_telemetry_callback(run.metrics, run.artifacts, run.run_id, opponents, depth, held_out_every, generations - 1, MONITOR_GAMES),
                 fitness_inner.on_generation,
                 cost.on_generation,
-                cost.excluding_pauses(make_control_callback(registry, run_id)),
+                run.control_callback(cost),
             ],
             elitism=2,
             rng=rng,
         )
-    except BaseException:
-        registry.update_status(run_id, "failed")
-        raise
-    history = metrics.history(run_id)
-    registry.set_summary(
-        run_id,
-        {"best_fitness": history[-1].best_fitness, "held_out_score": history[-1].held_out_score, "cost": cost.summary()},
-    )
-    registry.update_status(run_id, "completed")
+        history = run.set_training_summary(cost)
     print(f"status=completed  recorded {len(history)} generations", flush=True)
-    return run_id
+    return run.run_id
 
 
 if __name__ == "__main__":

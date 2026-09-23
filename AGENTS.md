@@ -175,6 +175,8 @@ architectural change that might conflict with a decision already made.
   `snake_neat_run.py` is the NEAT counterpart of `snake_neuro_run.py`; `snake_experiment.py` runs a
   tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
+  `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
+  `failed`; `REDQUEEN_RUN_DATA_DIR` points jobs and the backend at a scratch directory for smoke runs).
   `control.py`'s `make_control_callback`
   (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
   `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here

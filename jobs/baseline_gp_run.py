@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import random
 import time
-from pathlib import Path
 
-from control import make_control_callback
 from evolve import (
     GenerationSummary,
     LinearCrossoverMutation,
@@ -25,14 +23,13 @@ from evolve import (
     evolve,
     random_program,
 )
+from run_context import recorded_run
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
     GenerationStats,
     SqliteRunRegistry,
 )
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 # The fixed benchmark problem (docs/design/0003 "fixed benchmark problems as an anchor") --
 # reused as-is by later algorithm-comparison experiments so results stay comparable. Degree 4 so a
@@ -80,23 +77,16 @@ def make_telemetry_callback(
 
 
 def main() -> None:
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
-
-    run_id = registry.create_run(
-        config={
-            "representation": "linear_gp",
-            "population_size": POPULATION_SIZE,
-            "num_instructions": NUM_INSTRUCTIONS,
-            "num_registers": NUM_REGISTERS,
-            "generations": GENERATIONS,
-            "selection": "tournament(k=3)",
-            "variation": "linear_crossover_mutation(rate=0.1)",
-            "benchmark": "x**2",
-        }
-    )
-    print(f"run_id={run_id}")
+    config = {
+        "representation": "linear_gp",
+        "population_size": POPULATION_SIZE,
+        "num_instructions": NUM_INSTRUCTIONS,
+        "num_registers": NUM_REGISTERS,
+        "generations": GENERATIONS,
+        "selection": "tournament(k=3)",
+        "variation": "linear_crossover_mutation(rate=0.1)",
+        "benchmark": "x**2",
+    }
 
     rng = random.Random(0)
     population = [
@@ -104,31 +94,30 @@ def main() -> None:
         for _ in range(POPULATION_SIZE)
     ]
 
-    evolve(
-        population,
-        fitness=SymbolicRegressionFitness(target=TARGET, inputs=INPUTS),
-        selection=TournamentSelection(k=3),
-        variation=LinearCrossoverMutation(mutation_rate=0.1),
-        generations=GENERATIONS,
-        on_generation=[
-            make_telemetry_callback(registry, metrics, artifacts, run_id),
-            make_control_callback(registry, run_id),
-        ],
-        rng=rng,
-    )
-
-    final_history = metrics.history(run_id)
-    registry.set_summary(run_id, {"best_fitness": final_history[-1].best_fitness})
-    registry.update_status(run_id, "completed")
+    with recorded_run(config) as run:
+        evolve(
+            population,
+            fitness=SymbolicRegressionFitness(target=TARGET, inputs=INPUTS),
+            selection=TournamentSelection(k=3),
+            variation=LinearCrossoverMutation(mutation_rate=0.1),
+            generations=GENERATIONS,
+            on_generation=[
+                make_telemetry_callback(run.registry, run.metrics, run.artifacts, run.run_id),
+                run.control_callback(),
+            ],
+            rng=rng,
+        )
+        final_history = run.history()
+        run.set_summary({"best_fitness": final_history[-1].best_fitness})
 
     # Prove replay works, not just that writing worked: read everything back from storage.
-    run_info = registry.get_run(run_id)
+    run_info = run.registry.get_run(run.run_id)
     print(f"status={run_info.status} summary={run_info.summary}")
     print(f"recorded {len(final_history)} generations")
     print(f"gen 0   best_fitness={final_history[0].best_fitness:.4f}")
     print(f"gen {final_history[-1].generation:<3} best_fitness={final_history[-1].best_fitness:.4f}")
 
-    champion_bytes = artifacts.get_program(final_history[-1].champion_ref)
+    champion_bytes = run.artifacts.get_program(final_history[-1].champion_ref)
     print(f"final champion ({len(champion_bytes)} bytes stored):")
     print(champion_bytes.decode("utf-8"))
 

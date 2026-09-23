@@ -31,7 +31,6 @@ import statistics
 import sys
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from costs import hardware_fingerprint
@@ -41,6 +40,7 @@ from evolve.networks import describe, parameter_count
 from games import interfaces
 from games.checkers import Checkers
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
+from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
@@ -48,8 +48,6 @@ from telemetry import (
     SqliteEvaluationStore,
     SqliteRunRegistry,
 )
-
-RUN_DATA_DIR = Path(__file__).parent / "run-data"
 
 GAME = "checkers"
 PROTOCOL = "checkers.versus.v1"
@@ -270,9 +268,7 @@ def evaluate_all(entrants: list[dict[str, Any]], metrics: FileMetricsStore | Non
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # labels contain arrows; the Windows console default can't print them
-    registry = SqliteRunRegistry(RUN_DATA_DIR / "runs.db")
-    metrics = FileMetricsStore(RUN_DATA_DIR / "metrics")
-    artifacts = FileArtifactStore(RUN_DATA_DIR / "artifacts")
+    registry, metrics, artifacts = TelemetryStores.open()
     store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
 
     entrants = [*baseline_entrants(), *champion_entrants(registry, metrics, artifacts)]
