@@ -37,6 +37,15 @@ const front = paretoPoints
   .filter((p) => !paretoPoints.some((q) => q !== p && q.x <= p.x && q.y >= p.y && (q.x < p.x || q.y > p.y)))
   .sort((a, b) => a.x - b.x)
 
+// A slice of a Q-table: rows of three action values, the chosen (largest) one highlighted.
+const qRows = (() => {
+  const r = rand(17)
+  return Array.from({ length: 7 }, () => {
+    const q = [r() * 2 - 0.5, r() * 2 - 0.5, r() * 2 - 0.5]
+    return { q, best: q.indexOf(Math.max(...q)) }
+  })
+})()
+
 const attention = (() => {
   const r = rand(3)
   const tokens = "the_queen".split("")
@@ -212,6 +221,26 @@ const attention = (() => {
       <text x="128" y="55" fill="#6b7489">#1 off</text>
       <rect x="28" y="214" width="344" height="24" rx="6" fill="#151924" stroke="#323a4d" />
       <text x="200" y="230" text-anchor="middle" fill="#a0a8ba">innovation numbers line up different structures</text>
+    </g>
+
+    <!-- A board state becomes a row of the Q-table; the update rule underneath -->
+    <g v-else-if="kind === 'q-table'" font-family="JetBrains Mono, monospace" font-size="10">
+      <g>
+        <rect v-for="i in 36" :key="`c${i}`" :x="30 + ((i - 1) % 6) * 18" :y="40 + Math.floor((i - 1) / 6) * 18" width="16" height="16" rx="2" fill="#151924" />
+        <rect v-for="s in [[2, 3], [3, 3], [4, 3]]" :key="`s${s[0]}`" :x="30 + s[0] * 18" :y="40 + s[1] * 18" width="16" height="16" rx="3" fill="#4ade80" :fill-opacity="s[0] === 4 ? 1 : 0.6" />
+        <circle :cx="30 + 4 * 18 + 8" :cy="40 + 1 * 18 + 8" r="5" fill="#ff5c7a" />
+        <text x="84" y="164" text-anchor="middle" fill="#6b7489">state s</text>
+      </g>
+      <path d="M150 95 L205 95" stroke="#6b7489" stroke-width="1.5" marker-end="url(#art-arrow)" />
+      <g>
+        <text v-for="(h, i) in ['↰', '↑', '↱']" :key="`h${i}`" :x="245 + i * 44" y="34" text-anchor="middle" fill="#a0a8ba" font-size="12">{{ h }}</text>
+        <g v-for="(row, ri) in qRows" :key="`r${ri}`">
+          <rect x="220" :y="42 + ri * 20" width="134" height="18" rx="3" :fill="ri === 2 ? '#2a1520' : '#151924'" :stroke="ri === 2 ? '#ff5c7a' : 'none'" />
+          <text v-for="(v, ci) in row.q" :key="`v${ci}`" :x="245 + ci * 44" :y="55 + ri * 20" text-anchor="middle" :fill="ci === row.best ? '#4ade80' : '#6b7489'">{{ v.toFixed(2) }}</text>
+        </g>
+      </g>
+      <rect x="28" y="196" width="344" height="36" rx="6" fill="#151924" stroke="#323a4d" />
+      <text x="200" y="218" text-anchor="middle" fill="#a0a8ba">Q(s,a) ← Q(s,a) + α [ r + γ·max Q(s′,·) − Q(s,a) ]</text>
     </g>
 
     <!-- Training job -> telemetry -> API/SSE -> browser -->

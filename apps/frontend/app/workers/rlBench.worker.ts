@@ -59,7 +59,7 @@ self.onmessage = async () => {
         ...fixture.learning.map((l) => ({ name: `learning (seed ${l.seed})`, expected: l.digest, actual: learningDigest(l.seed) })),
       ],
     })
-    const trainer = new Trainer("random", "snake/features.v1+relative3.v1", 0)
+    const trainer = new Trainer("random", "snake/features.v1+relative3.v1", 0, "", "shaped")
     post({ type: "bench", result: { name: "env steps/s (Snake, random agent)", perSecond: rate((n) => trainer.train(n * 1000), 1000) } })
     trainer.free()
     const act = new Uint32Array(NETWORKS[0]![1])

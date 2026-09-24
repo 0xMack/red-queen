@@ -8,6 +8,7 @@ export type ChapterArtKind =
   | "pipeline"
   | "neuroevolution"
   | "neat"
+  | "q-table"
 
 export interface LearnChapter {
   slug: string
@@ -121,6 +122,29 @@ export const learnChapters: LearnChapter[] = [
       "Putting it together, live",
       "NEAT against Snake",
       "What NEAT costs",
+    ],
+  },
+  {
+    slug: "q-learning",
+    title: "Reinforcement Learning: Q-learning",
+    summary:
+      "One agent learning from its own experience: rewards, returns and the Bellman update, a Q-table for Snake training live in your browser -- and why it stops at the greedy baseline while evolution goes on to 38.",
+    path: "/learn/q-learning",
+    status: "available",
+    part: "Reinforcement learning",
+    readMinutes: 12,
+    tags: ["reinforcement learning", "Q-learning", "SARSA", "Bellman equation", "exploration", "Markov", "snake"],
+    art: "q-table",
+    prerequisites: ["neuroevolution"],
+    sections: [
+      "Learning from experience",
+      "A value for every move in every situation",
+      "The update rule",
+      "Exploring on purpose",
+      "Watch it learn",
+      "What the knobs do",
+      "Why it stops at the greedy baseline",
+      "Where this goes next",
     ],
   },
   {

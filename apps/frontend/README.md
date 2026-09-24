@@ -74,7 +74,7 @@ for the full contract and incremental plan this implements (steps 3-6).
   page" outline built at runtime from the chapter's `<h2>`s (ids = `slugify(text)`, the same
   anchors the search's `sections` index links to). Chapter pages themselves are just the body --
   one root `<article class="prose-chapter">` (page transitions need a single root; a template
-  comment next to it counts as a second one in dev). All eight chapters are written, each citing
+  comment next to it counts as a second one in dev). Every listed chapter is written, each citing
   real code and real results (via `Callout`) rather than invented examples -- numbers come from the
   notebooks, the telemetry store, or a committed script (`jobs/checkers_round_robin.py` for the
   multi-agent chapter). Interactive pieces: `LiveSnakeDemo` (Snake case study), `ChampionProgram`
@@ -189,6 +189,13 @@ hand). Demo components: `WeightVectorExplorer`, `MutationMicroscope`, `NeuroEvoL
 genome as a graph (hidden nodes in columns by depth, disabled genes dashed) and is also what
 `WatchChampion.vue` shows for a NEAT run's champion — `useWatchSession`'s `LoadedPolicy` is either
 `{weights, layerSizes}` or `{genome}`; the worker loads either via `evolve.network_from_json`.
+
+The Q-learning chapter (`/learn/q-learning`) trains the real Rust RL core live: `workers/rlLab.worker.ts`
+(the WASM `Trainer`, paced to a chosen steps/s, posting progress, a held-out curve, the table and a greedy
+`DemoGame` board) → `useQLearningLab` → `QLearningLab`, with `QTableGrid` drawing the 256 reachable rows of Snake's
+table. Without WebAssembly (`?device=nowasm` forces it) it shows `data/recordings/q-learning-snake.json`
+(`jobs/export_rl_recording.py`). In dev, editing files while the lab's worker is alive logs
+`document is not defined` from Vite's HMR; a fresh load is clean.
 Numbers derived from `Math.tanh` and written into SVG/style attributes are rounded on purpose: Node
 and the browser can disagree in the last digit, which is a hydration mismatch on a server-rendered
 chapter.

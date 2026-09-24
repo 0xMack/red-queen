@@ -12,4 +12,6 @@ crate-type = ["cdylib"]
 [dependencies]
 redqueen-rl = { path = "../core" }
 redqueen-rl-envs = { path = "../envs" }
+# The demo game draws a real Snake board.
+redqueen-games = { path = "../../../games/rust/core" }
 wasm-bindgen = "=0.2.108"

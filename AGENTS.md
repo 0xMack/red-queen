@@ -41,6 +41,9 @@ architectural change that might conflict with a decision already made.
       fp32 vs int8); `/dev/inference` (unlinked) shows the device profile, the model cache, and a
       ~340 MB scale-test model; `/dev/rl` (unlinked) runs the RL core's WASM build in a worker
       (`workers/rlBench.worker.ts`): determinism digests against the native fixture, and speed vs. native.
+      `/learn/q-learning` trains the same WASM `Trainer` live (`workers/rlLab.worker.ts` → `useQLearningLab` →
+      `QLearningLab`, the table drawn by `QTableGrid`), with a recorded run (`jobs/export_rl_recording.py`) as the
+      no-WASM fallback.
 
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by

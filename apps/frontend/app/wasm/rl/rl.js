@@ -1,7 +1,214 @@
 /* @ts-self-types="./rl.d.ts" */
 
 /**
- * One agent learning in one environment (`snake/<observer>+relative3.v1` on 10x10, or `reach1d`).
+ * A Snake game for a demo to play the agent's greedy policy on, move by move, and draw.
+ */
+export class DemoGame {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        DemoGameFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_demogame_free(ptr, 0);
+    }
+    /**
+     * Cells as `[x, y, label, ...]`, label 0 body / 1 head / 2 food, in render order (like the games module).
+     * @returns {Int32Array}
+     */
+    cells() {
+        const ret = wasm.demogame_cells(this.__wbg_ptr);
+        var v1 = getArrayI32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get done() {
+        const ret = wasm.demogame_done(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} seed
+     * @param {string} observer_id
+     */
+    constructor(seed, observer_id) {
+        const ptr0 = passStringToWasm0(observer_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.demogame_new(seed, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        DemoGameFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    observation() {
+        const ret = wasm.demogame_observation(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get score() {
+        const ret = wasm.demogame_score(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Relative action index (0 left, 1 straight, 2 right); returns the reward.
+     * @param {number} action
+     * @returns {number}
+     */
+    step(action) {
+        const ret = wasm.demogame_step(this.__wbg_ptr, action);
+        return ret;
+    }
+}
+if (Symbol.dispose) DemoGame.prototype[Symbol.dispose] = DemoGame.prototype.free;
+
+/**
+ * What one call to `Trainer::train` did, as numbers JS can read without a serializer.
+ */
+export class Progress {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(Progress.prototype);
+        obj.__wbg_ptr = ptr;
+        ProgressFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ProgressFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_progress_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get entropy() {
+        const ret = wasm.__wbg_get_progress_entropy(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Episodes that ended during the call, and their mean return and game score (NaN if none ended).
+     * @returns {number}
+     */
+    get episodes() {
+        const ret = wasm.__wbg_get_progress_episodes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+     * @returns {number}
+     */
+    get epsilon() {
+        const ret = wasm.__wbg_get_progress_epsilon(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get mean_return() {
+        const ret = wasm.__wbg_get_progress_mean_return(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get mean_score() {
+        const ret = wasm.__wbg_get_progress_mean_score(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get states_visited() {
+        const ret = wasm.__wbg_get_progress_states_visited(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get total_episodes() {
+        const ret = wasm.__wbg_get_progress_total_episodes(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get total_steps() {
+        const ret = wasm.__wbg_get_progress_total_steps(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set entropy(arg0) {
+        wasm.__wbg_set_progress_entropy(this.__wbg_ptr, arg0);
+    }
+    /**
+     * Episodes that ended during the call, and their mean return and game score (NaN if none ended).
+     * @param {number} arg0
+     */
+    set episodes(arg0) {
+        wasm.__wbg_set_progress_episodes(this.__wbg_ptr, arg0);
+    }
+    /**
+     * Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+     * @param {number} arg0
+     */
+    set epsilon(arg0) {
+        wasm.__wbg_set_progress_epsilon(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set mean_return(arg0) {
+        wasm.__wbg_set_progress_mean_return(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set mean_score(arg0) {
+        wasm.__wbg_set_progress_mean_score(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set states_visited(arg0) {
+        wasm.__wbg_set_progress_states_visited(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set total_episodes(arg0) {
+        wasm.__wbg_set_progress_total_episodes(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set total_steps(arg0) {
+        wasm.__wbg_set_progress_total_steps(this.__wbg_ptr, arg0);
+    }
+}
+if (Symbol.dispose) Progress.prototype[Symbol.dispose] = Progress.prototype.free;
+
+/**
+ * One agent learning in one environment (`snake/<observer>+relative3.v1` on 10x10, or `reach1d`) -- the engine of
+ * Learn's live demos, the same `Trainer` the training jobs drive through PyO3.
  */
 export class Trainer {
     __destroy_into_raw() {
@@ -15,16 +222,49 @@ export class Trainer {
         wasm.__wbg_trainer_free(ptr, 0);
     }
     /**
+     * The greedy policy's game score on each of `seeds`, games capped at `max_steps`.
+     * @param {Uint32Array} seeds
+     * @param {number} max_steps
+     * @returns {Float64Array}
+     */
+    evaluate(seeds, max_steps) {
+        const ptr0 = passArray32ToWasm0(seeds, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_evaluate(this.__wbg_ptr, ptr0, len0, max_steps);
+        var v2 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v2;
+    }
+    /**
+     * The greedy action on `observation`, as an index (Snake: 0 left, 1 straight, 2 right).
+     * @param {Float64Array} observation
+     * @returns {number}
+     */
+    greedyAction(observation) {
+        const ptr0 = passArrayF64ToWasm0(observation, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_greedyAction(this.__wbg_ptr, ptr0, len0);
+        return ret >>> 0;
+    }
+    /**
+     * `params`: the algorithm's hyperparameters as `name=value` pairs separated by commas (`"alpha=0.1,n_step=3"`,
+     * empty for the defaults). `reward`: `shaped` or `sparse` (Snake).
      * @param {string} algorithm
      * @param {string} env_id
      * @param {number} seed
+     * @param {string} params
+     * @param {string} reward
      */
-    constructor(algorithm, env_id, seed) {
+    constructor(algorithm, env_id, seed, params, reward) {
         const ptr0 = passStringToWasm0(algorithm, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(env_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.trainer_new(ptr0, len0, ptr1, len1, seed);
+        const ptr2 = passStringToWasm0(params, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(reward, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_new(ptr0, len0, ptr1, len1, seed, ptr2, len2, ptr3, len3);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -33,13 +273,68 @@ export class Trainer {
         return this;
     }
     /**
-     * Advance by `steps` environment steps; returns how many episodes ended.
-     * @param {number} steps
+     * A tabular agent's values, `row * actions + action` (empty for other agents).
+     * @returns {Float64Array}
+     */
+    qValues() {
+        const ret = wasm.trainer_qValues(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * The table row `observation` falls in (-1 for a non-tabular agent).
+     * @param {Float64Array} observation
      * @returns {number}
+     */
+    row(observation) {
+        const ptr0 = passArrayF64ToWasm0(observation, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_row(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * The current policy as its champion JSON (`modelpack.champions`).
+     * @returns {string}
+     */
+    snapshot() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.trainer_snapshot(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Environment steps trained so far.
+     * @returns {number}
+     */
+    get totalSteps() {
+        const ret = wasm.trainer_totalSteps(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Advance by `steps` environment steps.
+     * @param {number} steps
+     * @returns {Progress}
      */
     train(steps) {
         const ret = wasm.trainer_train(this.__wbg_ptr, steps);
-        return ret >>> 0;
+        return Progress.__wrap(ret);
+    }
+    /**
+     * How many updates each row of the table has had (empty for other agents).
+     * @returns {Uint32Array}
+     */
+    visits() {
+        const ret = wasm.trainer_visits(this.__wbg_ptr);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
     }
 }
 if (Symbol.dispose) Trainer.prototype[Symbol.dispose] = Trainer.prototype.free;
@@ -165,9 +460,46 @@ function __wbg_get_imports() {
     };
 }
 
+const DemoGameFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_demogame_free(ptr >>> 0, 1));
+const ProgressFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_progress_free(ptr >>> 0, 1));
 const TrainerFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_trainer_free(ptr >>> 0, 1));
+
+function getArrayF64FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
+}
+
+function getArrayI32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getInt32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+let cachedFloat64ArrayMemory0 = null;
+function getFloat64ArrayMemory0() {
+    if (cachedFloat64ArrayMemory0 === null || cachedFloat64ArrayMemory0.byteLength === 0) {
+        cachedFloat64ArrayMemory0 = new Float64Array(wasm.memory.buffer);
+    }
+    return cachedFloat64ArrayMemory0;
+}
+
+let cachedInt32ArrayMemory0 = null;
+function getInt32ArrayMemory0() {
+    if (cachedInt32ArrayMemory0 === null || cachedInt32ArrayMemory0.byteLength === 0) {
+        cachedInt32ArrayMemory0 = new Int32Array(wasm.memory.buffer);
+    }
+    return cachedInt32ArrayMemory0;
+}
 
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
@@ -193,6 +525,13 @@ function getUint8ArrayMemory0() {
 function passArray32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
     getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArrayF64ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 8, 8) >>> 0;
+    getFloat64ArrayMemory0().set(arg, ptr / 8);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
@@ -273,6 +612,8 @@ let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedFloat64ArrayMemory0 = null;
+    cachedInt32ArrayMemory0 = null;
     cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
