@@ -1,7 +1,7 @@
 import { createHighlighterCore, type HighlighterCore } from "shiki/core"
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript"
 
-export type CodeLang = "python" | "typescript" | "bash" | "json"
+export type CodeLang = "python" | "typescript" | "bash" | "json" | "rust"
 
 // A fine-grained bundle (explicit langs/theme, the JS regex engine instead of the WASM oniguruma
 // one) instead of shiki's full bundle -- this Learn section only ever shows a handful of
@@ -18,6 +18,7 @@ export function useHighlighter(): Promise<HighlighterCore> {
       import("shiki/langs/typescript.mjs"),
       import("shiki/langs/bash.mjs"),
       import("shiki/langs/json.mjs"),
+      import("shiki/langs/rust.mjs"),
     ],
     engine: createJavaScriptRegexEngine(),
   })

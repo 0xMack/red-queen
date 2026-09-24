@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0 and 1a implemented** (see "Implementation notes"); 1b (the Learn chapter) and Phases 2-4 planned. Each phase lands as its own PR,
+Status: **Phases 0 and 1 implemented** (see "Implementation notes"); Phases 2-4 planned. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -364,4 +364,25 @@ held-out games; paired permutation test against `q-learning`):
   19.51 ± 0.94**, behind only NEAT, trained in 0.42 s, 10 µs per decision.
 - Not done in 1a: the per-step allocation (0.4 s per million steps makes it moot for tabular; revisit for DQN).
   The Learn chapter and its live demo are Phase 1b.
+
+### Phase 1b: the Learn chapter (2026-09-23)
+
+- **`/learn/q-learning`**, in a new "Reinforcement learning" part: return and discount, the Bellman update, the
+  n-step/terminal-vs-truncated handling and SARSA's one-line difference (quoting `tabular.rs`, so Rust joined the
+  highlighter), ε-greedy vs. optimism, the `rl-tabular-v1` results (`QLearningResults`, hard-coded like the other
+  chapters' cited results), and aliasing illustrated with two boards that share one `features.v1` row.
+- **The live demo (`QLearningLab`)** is the real `Trainer` in WASM in a worker (`workers/rlLab.worker.ts`): the WASM
+  `Trainer` now takes an algorithm, `name=value` params and a reward mode; `DemoGame` steps a Snake for the board
+  while the table plays greedily (`Trainer::act_greedy`), and the core's `Agent::table()` exposes values + visit
+  counts (`TableView`) for `QTableGrid` -- the 256 reachable rows as four 8×8 grids. Training is paced in the worker
+  (5k / 40k / 400k steps/s); every 25k steps the greedy table plays 30 held-out games for the curve. At the fast
+  speed a million steps takes ~2.5 s in the browser -- the pacing, not the WASM, is the limit.
+- **Fallback:** without WebAssembly, the leaderboard entrant's run (`jobs/export_rl_recording.py`: curve + final
+  table, 27 KB) stands in. A table carries no visit counts, so the recording carries `initial_q` and a row counts
+  as learned when it differs from it -- *not* when its three values differ: in a trapped row (danger on all three
+  sides) every move dies and all three converge to the same number.
+- **Found while building it: coverage follows competence.** ε = 1 random play reaches ~100 of the 256 rows in 5k
+  steps but only ~200 by 60k: a random snake stays short, and body-on-two-sides situations need a long one. The
+  last rows fill in only once the table plays well (~100k+). Exploration's reach is bounded by the agent's own
+  skill, which matters more when Phase 2's larger observations make coverage the question.
 

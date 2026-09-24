@@ -153,6 +153,7 @@ dependencies = [
 name = "rl-wasm"
 version = "0.1.0"
 dependencies = [
+ "redqueen-games",
  "redqueen-rl",
  "redqueen-rl-envs",
  "wasm-bindgen",

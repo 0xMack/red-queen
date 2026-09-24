@@ -18,7 +18,7 @@
 
 use std::collections::VecDeque;
 
-use crate::agent::{Agent, Params, Transition};
+use crate::agent::{Agent, Params, TableView, Transition};
 use crate::env::{Action, ActionSpace};
 use crate::rng::Rng;
 
@@ -347,6 +347,15 @@ impl Agent for QTableAgent {
     fn snapshot(&self) -> String {
         self.snapshot_json(self.name())
     }
+
+    fn table(&self) -> Option<TableView<'_>> {
+        Some(TableView {
+            values: &self.q,
+            visits: &self.visits,
+            actions: self.actions,
+            discretizer: &self.discretizer,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -457,6 +466,24 @@ mod tests {
             );
             assert_eq!(episode.total_reward, 1.0);
         }
+    }
+
+    #[test]
+    fn the_demo_sees_the_table_and_the_greedy_move() {
+        let mut trainer = train("q_learning", &[]);
+        assert_eq!(trainer.total_steps(), 6000);
+        let view = trainer.agent().table().expect("a tabular agent exposes its table");
+        assert_eq!((view.values.len(), view.visits.len(), view.actions), (16, 8, 2));
+        // cells 0..=4 are the walkable ones (5 ends the game before it's acted in); 6 and 7 are never reached
+        assert!(view.visits[..5].iter().all(|&v| v > 0) && view.visits[6..].iter().all(|&v| v == 0));
+        let start = [0.0, 0.0, 0.0];
+        let row = view.discretizer.index(&start);
+        assert!(
+            view.values[row * 2 + 1] > view.values[row * 2],
+            "right is worth more at the start"
+        );
+        assert_eq!(trainer.act_greedy(&start), Action::Discrete(1));
+        assert_eq!(trainer.total_steps(), 6000, "acting greedily isn't training");
     }
 
     #[test]

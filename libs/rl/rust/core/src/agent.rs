@@ -41,6 +41,19 @@ pub trait Agent {
     }
     /// The current policy in its wire format (JSON): a run's champion artifact.
     fn snapshot(&self) -> String;
+    /// A tabular agent's table, for visualizations (Learn's live demo); `None` for everything else.
+    fn table(&self) -> Option<TableView<'_>> {
+        None
+    }
+}
+
+/// A read-only look at a tabular agent: `values[row * actions + action]`, and how often each row was updated.
+pub struct TableView<'a> {
+    pub values: &'a [f64],
+    pub visits: &'a [u32],
+    pub actions: usize,
+    /// How an observation becomes a row (`discretizer.index(observation)`).
+    pub discretizer: &'a crate::tabular::Discretizer,
 }
 
 /// Hyperparameters by name: what a job passes in. Unknown names are an error, not silently ignored.
@@ -232,6 +245,17 @@ impl Trainer {
 
     pub fn env_id(&self) -> String {
         self.factory.id()
+    }
+
+    pub fn total_steps(&self) -> u64 {
+        self.total_steps
+    }
+
+    /// The action the greedy policy takes on `observation` (what an evaluation plays), for a demo stepping its own
+    /// game. Agents that are random by nature draw from a fixed stream.
+    pub fn act_greedy(&mut self, observation: &[f64]) -> Action {
+        let mut rng = Rng::new(0, Stream::Explore);
+        self.agent.act_greedy(observation, &mut rng)
     }
 
     /// Advance training by `steps` environment steps.
