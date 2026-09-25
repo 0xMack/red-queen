@@ -287,7 +287,9 @@ class SnakeGridOneHot:
         return game._core.encode(self.native_id)
 
     def feature_names(self, game: Snake) -> list[str]:
-        cells = [f"({x},{y}) {c}" for y in range(game.height) for x in range(game.width) for c in ("body", "head", "food")]
+        cells = [
+            f"({x},{y}) {c}" for y in range(game.height) for x in range(game.width) for c in ("body", "head", "food")
+        ]
         return [*cells, *(f"heading {h}" for h in _HEADING_NAMES)]
 
 
