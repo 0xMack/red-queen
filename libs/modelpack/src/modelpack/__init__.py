@@ -7,6 +7,7 @@ parity-checked, sealed) → a `ModelStore` → a browser (ONNX Runtime Web) or a
 
 from modelpack.champions import (
     Champion,
+    MlpPolicy,
     QTable,
     UnsupportedChampion,
     champion_parameters,
@@ -25,6 +26,7 @@ __all__ = [
     "Champion",
     "Exported",
     "LocalModelStore",
+    "MlpPolicy",
     "ModelManifest",
     "ModelStore",
     "Package",

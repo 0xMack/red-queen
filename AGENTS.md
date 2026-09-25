@@ -163,9 +163,10 @@ architectural change that might conflict with a decision already made.
     manifest with per-variant device requirements and *measured* parity (numeric error plus
     decision/next-token agreement on held-out data), and `ModelStore`/`LocalModelStore` (the host —
     R2 or the HF Hub — is still undecided; only the catalog is mutable). `champions.load_champion()` is the one
-    loader for every stored champion (evolved networks *and* RL tables, `QTable`) -- use it, not
-    `evolve.network_from_json`, anywhere a champion could come from an RL run; `export_qtable` makes a table a
-    `Gather` lookup graph.
+    loader for every stored champion (evolved networks *and* RL tables, `QTable`, and Q-networks, `MlpPolicy`) -- use
+    it, not `evolve.network_from_json`, anywhere a champion could come from an RL run; `export_qtable` makes a table a
+    `Gather` lookup graph, `export_mlp` a Q-network `Gemm`/`Relu` layers (per-layer activations: an `evolve`
+    `WeightVector` is tanh on every layer, a Q-network isn't).
   - `rl/` — reinforcement learning (docs/design/0010), **a mixed Rust/Python package with its own Cargo workspace**:
     `rust/core` (`redqueen-rl`: the `Env` trait, a batched MLP with explicit backprop, Adam, agents, the `Trainer`
     loop; never names a game; its one dependency is `libm`, so a seed trains bit-identically natively and in
@@ -176,7 +177,11 @@ architectural change that might conflict with a decision already made.
     `determinism.json` — digests the native build, Node (`apps/frontend/scripts/check-rl-determinism.mjs`, CI)
     and `/dev/rl` must all reproduce (including a *learning* digest). Phase 1: tabular Q-learning / SARSA with n-step
     returns (`tabular.rs`), checked *exactly* against a plain-Python oracle (`reference_tabular.py`) by replaying
-    transitions; environments offer a `Discretizer` when a table fits (Snake `features.v1`, Reach1D).
+    transitions; environments offer a `Discretizer` when a table fits (Snake `features.v1`, Reach1D). Phase 2: DQN
+    (`dqn.rs`) -- replay, target network, double, dueling, n-step and prioritized replay each a parameter (an
+    experiment arm); `td_gradients` is the update as a pure function, checked against `reference_dqn.py`
+    (`libs/autodiff`); a dueling net's heads fold into one linear layer at snapshot, so every DQN champion is a plain
+    MLP (`{"type": "mlp", ...}`), and a `dqn` digest joins the determinism fixture.
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
@@ -201,8 +206,9 @@ architectural change that might conflict with a decision already made.
   same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
   "reinforcement_learning"`; the frontend's `runMeta` relabels them); `rl_benchmark.py` is the native half of
   `/dev/rl`'s numbers. `rl_run.py` takes `--param NAME=VALUE`, `--reward shaped|sparse`, `snapshot_every` (a table
-  is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps, final champion on the
-  200 held-out games, an exact paired permutation test against the reference arm.
+  is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
+  interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
+  `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
   `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
   `failed`; `REDQUEEN_RUN_DATA_DIR` points jobs and the backend at a scratch directory for smoke runs).
   `control.py`'s `make_control_callback`

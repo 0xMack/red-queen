@@ -16,10 +16,13 @@ from evolve.neuro import random_weight_vector
 
 from modelpack import (
     LocalModelStore,
+    MlpPolicy,
     PackagedModel,
     QTable,
     UnsupportedChampion,
     build_package,
+    champion_parameters,
+    describe_champion,
     export_network,
     export_network_json,
     load_champion,
@@ -221,6 +224,28 @@ def test_a_trained_qtable_packages_exactly_and_picks_the_same_moves():
     assert PackagedModel(package.manifest, "fp64", package.blobs.__getitem__).run(np.asarray(odd))[
         0
     ].tolist() == table.forward(odd[0])
+
+
+def test_a_trained_dqn_packages_as_a_plain_mlp_and_picks_the_same_moves():
+    # dueling: the snapshot folds V + A - mean(A) into one output layer, so the package is an ordinary MLP
+    trainer = rl.Trainer(
+        "dqn", "snake/egocentric.v1+relative3.v1", seed=1, params={"hidden": 24, "dueling": 1, "learn_start": 200}
+    )
+    trainer.train(4_000)
+    text = trainer.snapshot()
+    policy = load_champion(text)
+    assert isinstance(policy, MlpPolicy) and policy.layer_sizes == (27, 24, 24, 3)
+    assert describe_champion(policy) == "27 → 24 → 24 → 3" and champion_parameters(policy) == len(policy.params)
+    package = build_package([export_network_json(text, "float64"), export_network_json(text, "float32")], label="dqn")
+    observations = np.random.default_rng(5).normal(size=(400, 27))
+    expected = np.asarray([policy.forward(o) for o in observations])
+    for variant, tolerance in (("fp64", 1e-12), ("fp32", 1e-4)):
+        outputs = PackagedModel(package.manifest, variant, package.blobs.__getitem__).run(observations)
+        assert np.max(np.abs(outputs - expected)) < tolerance
+    fp64 = PackagedModel(package.manifest, "fp64", package.blobs.__getitem__).run(observations)
+    assert (fp64.argmax(axis=1) == expected.argmax(axis=1)).all()
+    with pytest.raises(ValueError, match="parameters"):
+        load_champion(json.dumps({**json.loads(text), "params": [0.0]}))
 
 
 def test_the_loader_knows_every_champion_and_refuses_what_has_no_policy():

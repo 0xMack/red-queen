@@ -28,6 +28,7 @@ export const demogame_new: (a: number, b: number, c: number) => [number, number,
 export const demogame_observation: (a: number) => [number, number];
 export const demogame_score: (a: number) => number;
 export const demogame_step: (a: number, b: number) => number;
+export const dqnDigest: (a: number) => [number, number];
 export const learningDigest: (a: number) => [number, number];
 export const rolloutDigest: (a: number) => [number, number];
 export const trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];

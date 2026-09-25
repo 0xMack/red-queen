@@ -5,6 +5,8 @@ learning adds kinds `evolve` must never know about (it doesn't depend on `rl`), 
 lives here -- `modelpack` already depends on every network kind it exports.
 
 - `qtable` (tabular Q-learning / SARSA, `libs/rl`): one row of action values per discrete state.
+- `mlp` (DQN, `libs/rl`): a dense network with per-layer activations -- unlike `evolve`'s `WeightVector`, which is
+  tanh on every layer, Q-values need ReLU hidden layers and a linear output.
 
 `load_champion(text)` returns something with `forward(observation) -> outputs`, which is all evaluation and export
 need. A kind that has no policy to package (the RL pipeline's `random` agent) raises `UnsupportedChampion`.
@@ -15,8 +17,10 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
+import numpy as np
 from evolve.networks import Network, describe, network_from_json, parameter_count
 
 
@@ -82,15 +86,73 @@ class QTable:
         return table
 
 
-Champion = Network | QTable
+ACTIVATIONS = {"linear": lambda x: x, "relu": lambda x: np.maximum(x, 0.0), "tanh": np.tanh}
+
+
+@dataclass(frozen=True)
+class MlpPolicy:
+    """A dense network (`libs/rl/rust/core/src/nn.rs`): `layer_sizes` (inputs first), one activation per layer of
+    weights, and `params` in `evolve.WeightVector`'s flat layout -- per layer, `out * in` weights (row = output unit),
+    then `out` biases. Its outputs are action values an interface's argmax decodes."""
+
+    algorithm: str
+    layer_sizes: tuple[int, ...]
+    activations: tuple[str, ...]
+    params: tuple[float, ...]
+
+    def layers(self) -> list[tuple[np.ndarray, np.ndarray, str]]:
+        """(weights[out, in], biases[out], activation) per layer."""
+        flat = np.asarray(self.params, dtype=np.float64)
+        layers, at = [], 0
+        for (n_in, n_out), activation in zip(pairwise(self.layer_sizes), self.activations, strict=True):
+            w = flat[at : at + n_in * n_out].reshape(n_out, n_in)
+            b = flat[at + n_in * n_out : at + n_out * (n_in + 1)]
+            layers.append((w, b, activation))
+            at += n_out * (n_in + 1)
+        return layers
+
+    def forward(self, observation: Sequence[float]) -> list[float]:
+        x = np.asarray(observation, dtype=np.float64)
+        for w, b, activation in self._split():
+            x = ACTIVATIONS[activation](w @ x + b)
+        return x.tolist()
+
+    def _split(self) -> list[tuple[np.ndarray, np.ndarray, str]]:
+        # frozen, but splitting the flat vector is pure: do it once (evaluation calls forward ~10^5 times)
+        cached = self.__dict__.get("_layers")
+        if cached is None:
+            cached = self.layers()
+            object.__setattr__(self, "_layers", cached)
+        return cached
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> MlpPolicy:
+        policy = MlpPolicy(
+            algorithm=str(data.get("algorithm", "dqn")),
+            layer_sizes=tuple(int(n) for n in data["layer_sizes"]),
+            activations=tuple(str(a) for a in data["activations"]),
+            params=tuple(float(v) for v in data["params"]),
+        )
+        expected = sum(n_out * (n_in + 1) for n_in, n_out in pairwise(policy.layer_sizes))
+        if len(policy.activations) != len(policy.layer_sizes) - 1 or len(policy.params) != expected:
+            raise ValueError(f"layers {policy.layer_sizes} need {expected} parameters and one activation per layer")
+        unknown = set(policy.activations) - set(ACTIVATIONS)
+        if unknown:
+            raise ValueError(f"unknown activation(s) {sorted(unknown)}")
+        return policy
+
+
+Champion = Network | QTable | MlpPolicy
 
 
 def load_champion(text: str) -> Champion:
-    """The champion stored in a run's artifact: an evolved network or a tabular policy."""
+    """The champion stored in a run's artifact: an evolved network, a Q-table or a Q-network."""
     data = json.loads(text)
     kind = data.get("type") if isinstance(data, dict) else None
     if kind == "qtable":
         return QTable.from_dict(data)
+    if kind == "mlp":
+        return MlpPolicy.from_dict(data)
     if kind == "random":
         raise UnsupportedChampion("a random agent has no policy to load (it's the RL pipeline's smoke test)")
     try:
@@ -103,10 +165,14 @@ def describe_champion(champion: Champion) -> str:
     """Short label for the model's shape, like `evolve.networks.describe`."""
     if isinstance(champion, QTable):
         return f"table {champion.states} states x {champion.num_actions} actions"
+    if isinstance(champion, MlpPolicy):
+        return " → ".join(str(n) for n in champion.layer_sizes)
     return describe(champion)
 
 
 def champion_parameters(champion: Champion) -> int:
     if isinstance(champion, QTable):
         return len(champion.values)
+    if isinstance(champion, MlpPolicy):
+        return len(champion.params)
     return parameter_count(champion)

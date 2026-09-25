@@ -4,6 +4,7 @@
 
 pub mod agent;
 pub mod digest;
+pub mod dqn;
 pub mod env;
 pub mod nn;
 pub mod rng;

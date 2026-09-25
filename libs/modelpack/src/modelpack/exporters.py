@@ -20,7 +20,7 @@ from evolve.networks import describe, parameter_count
 from evolve.neuro import WeightVector
 from onnx import TensorProto, helper, numpy_helper
 
-from modelpack.champions import Champion, QTable, load_champion
+from modelpack.champions import Champion, MlpPolicy, QTable, load_champion
 
 # Opset 17 / IR 8: old enough that every ONNX Runtime from the last few years (Python and Web) runs it,
 # new enough for everything these exporters emit.
@@ -217,6 +217,40 @@ def export_qtable(table: QTable, dtype: str = "float32") -> Exported:
     )
 
 
+def export_mlp(policy: MlpPolicy, dtype: str = "float32") -> Exported:
+    """A trained Q-network (docs/design/0010 Phase 2): one `Gemm` per layer, then its activation (`Relu`, `Tanh`, or
+    none for a linear layer). A dueling network arrives already folded into a plain one by the trainer's snapshot."""
+    np_dtype = DTYPES[dtype][0]
+    nodes, initializers = [], []
+    current = INPUT
+    layers = policy.layers()
+    for i, (w, b, activation) in enumerate(layers):
+        initializers += [
+            numpy_helper.from_array(w.astype(np_dtype), f"layer{i}.weight"),
+            numpy_helper.from_array(b.astype(np_dtype), f"layer{i}.bias"),
+        ]
+        out = OUTPUT if i == len(layers) - 1 else f"layer{i}.out"
+        pre = out if activation == "linear" else f"layer{i}.pre"
+        nodes.append(helper.make_node("Gemm", [current, f"layer{i}.weight", f"layer{i}.bias"], [pre], transB=1))
+        if activation != "linear":
+            nodes.append(helper.make_node({"relu": "Relu", "tanh": "Tanh"}[activation], [pre], [out]))
+        current = out
+    sizes = policy.layer_sizes
+    hidden = "/".join(sorted(set(policy.activations[:-1]))) or "linear"
+    return Exported(
+        model=_finish(nodes, initializers, sizes[0], sizes[-1], "mlp", dtype),
+        reference=policy.forward,
+        reference_name=f"modelpack.champions.MlpPolicy.forward ({policy.algorithm}, float64)",
+        trainer=f"rl.{policy.algorithm}",
+        source_format="mlp.json",
+        description=f"MLP {' → '.join(map(str, sizes))}, {hidden} ({policy.algorithm})",
+        parameters=len(policy.params),
+        num_inputs=sizes[0],
+        num_outputs=sizes[-1],
+        dtype=dtype,
+    )
+
+
 def export_network(network: Champion, dtype: str = "float32") -> Exported:
     if isinstance(network, NeatGenome):
         return export_neat(network, dtype)
@@ -224,6 +258,8 @@ def export_network(network: Champion, dtype: str = "float32") -> Exported:
         return export_weight_vector(network, dtype)
     if isinstance(network, QTable):
         return export_qtable(network, dtype)
+    if isinstance(network, MlpPolicy):
+        return export_mlp(network, dtype)
     raise TypeError(f"no exporter for {type(network).__name__}")
 
 

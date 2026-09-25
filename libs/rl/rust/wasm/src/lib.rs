@@ -40,6 +40,12 @@ pub fn learning_digest(seed: u32) -> String {
     envs::learning_digest(seed as u64)
 }
 
+/// `dqn_digest(seed)`: a DQN with every stability piece trained on Snake's egocentric observer, hashed.
+#[wasm_bindgen(js_name = dqnDigest)]
+pub fn dqn_digest(seed: u32) -> String {
+    envs::dqn_digest(seed as u64)
+}
+
 /// `iterations` training updates (forward + backward + Adam) on a batch. `activations`: comma-separated, one per
 /// layer after the input (`"relu,relu,linear"`). Returns a checksum; time the call.
 #[wasm_bindgen(js_name = benchUpdates)]

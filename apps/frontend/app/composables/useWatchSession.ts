@@ -15,6 +15,7 @@ export interface LoadedPolicy {
   kind: "weights" | "neat" | "table" // "table": an RL Q-table (docs/design/0010) -- no network to draw
   weights: number[]
   layerSizes: number[]
+  activations: string[] | null // per layer; null = tanh throughout (an evolved network)
   genome: Genome | null
 }
 
@@ -166,14 +167,22 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     // The trained network itself, only to *draw* it (its live activations): the package is what plays.
     api.fetch<string>(`/runs/${runId}/artifacts/${target.champion_ref}`, { responseType: "text" })
       .then((text) => {
-        const parsed = JSON.parse(text) as { type?: string; weights?: number[]; layer_sizes?: number[] }
-        const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation }
+        const parsed = JSON.parse(text) as {
+          type?: string
+          weights?: number[]
+          params?: number[]
+          layer_sizes?: number[]
+          activations?: string[]
+        }
+        const base = { ref: target.champion_ref, interfaceId: interfaceId ?? null, generation: target.generation, activations: null }
         policy.value =
           parsed.type === "neat"
             ? { ...base, kind: "neat", weights: [], layerSizes: [], genome: genomeFromJson(parsed as unknown as GenomeJson) }
             : parsed.type === "qtable"
               ? { ...base, kind: "table", weights: [], layerSizes: [], genome: null }
-              : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
+              : parsed.type === "mlp" // a DQN's Q-network: same flat layout, its own activations
+                ? { ...base, kind: "weights", weights: parsed.params!, layerSizes: parsed.layer_sizes!, activations: parsed.activations!, genome: null }
+                : { ...base, kind: "weights", weights: parsed.weights!, layerSizes: parsed.layer_sizes!, genome: null }
       })
       .catch(() => {
         policy.value = null // no diagram; the game plays regardless

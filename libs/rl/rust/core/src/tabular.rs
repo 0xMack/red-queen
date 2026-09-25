@@ -18,7 +18,7 @@
 
 use std::collections::VecDeque;
 
-use crate::agent::{Agent, Params, TableView, Transition};
+use crate::agent::{Agent, EpsilonSchedule, Params, TableView, Transition};
 use crate::env::{Action, ActionSpace};
 use crate::rng::Rng;
 
@@ -100,9 +100,7 @@ pub struct QTableAgent {
     visits: Vec<u32>,
     alpha: f64,
     gamma: f64,
-    epsilon_start: f64,
-    epsilon_end: f64,
-    epsilon_decay_steps: f64,
+    epsilon: EpsilonSchedule,
     n_step: usize,
     acted: u64,
     pending: VecDeque<(usize, usize, f64)>,
@@ -160,9 +158,7 @@ impl QTableAgent {
             actions,
             alpha,
             gamma,
-            epsilon_start: params.get("epsilon_start", 1.0),
-            epsilon_end: params.get("epsilon_end", 0.05),
-            epsilon_decay_steps: params.get("epsilon_decay_steps", 100_000.0),
+            epsilon: EpsilonSchedule::from_params(params),
             n_step: n_step as usize,
             acted: 0,
             pending: VecDeque::new(),
@@ -173,11 +169,7 @@ impl QTableAgent {
     }
 
     pub fn epsilon(&self) -> f64 {
-        let t = self.acted as f64 / self.epsilon_decay_steps.max(1.0);
-        if t >= 1.0 {
-            return self.epsilon_end; // exactly: start + (end - start) * 1 isn't always `end` in floating point
-        }
-        self.epsilon_start + (self.epsilon_end - self.epsilon_start) * t
+        self.epsilon.at(self.acted)
     }
 
     pub fn table(&self) -> &[f64] {
@@ -319,12 +311,8 @@ impl Agent for QTableAgent {
         });
     }
 
-    /// The entropy of the epsilon-greedy policy: the greedy action has `1 - eps + eps/n`, each other `eps/n`.
     fn entropy(&self) -> f64 {
-        let (eps, n) = (self.epsilon(), self.actions as f64);
-        let (greedy, other) = (1.0 - eps + eps / n, eps / n);
-        let term = |p: f64| if p > 0.0 { -p * libm::log(p) } else { 0.0 };
-        term(greedy) + (n - 1.0) * term(other)
+        self.epsilon.entropy(self.acted, self.actions)
     }
 
     fn extras(&mut self) -> Vec<(String, f64)> {

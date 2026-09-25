@@ -112,16 +112,21 @@ what belongs here and how to add to it). Read before writing code, not after.
   held-out games) and report an exact permutation test, not just overlapping ranges -- with 5 seeds, +2.0 points
   was p=0.056 (suggestive) and +3.8 was p=0.008. Include a control that changes *one* thing at a time: NEAT vs.
   lexicase-selected neuroevolution confounds the algorithm with the selection rule until a tournament-selected
-  arm is added (docs/design/0008).
+  arm is added (docs/design/0008). Five seeds can't measure a *rare* failure: DQN without a target network diverged
+  once in five seeds per arm, which reads as either a fluke or a 20% rate; twenty seeds made it ~5% (0 of 45 with
+  one). When an arm's spread is one outlier, add seeds before drawing the conclusion.
 - **A value-based learner is only as good as the observation is Markov.** Tabular Q-learning on Snake's
   `features.v1` converged (all 256 reachable rows, 5M steps no better than 1M) to ~18 points while NEAT, reading the
   same 11 features, reaches 38: a 38-point policy exists in that table's own space. Different situations share a row
   (the features alias them), so each row's value averages futures that differ and bootstrapping propagates the
   blur; evolution scores whole policies and doesn't care. Before blaming the algorithm's hyperparameters (none of 11
   variants mattered, docs/design/0010), check whether the observation can tell apart the states that need different
-  actions -- the same question as the Reach1D entry above, asked of values rather than policies.
+  actions -- the same question as the Reach1D entry above, asked of values rather than policies. Confirmed from the
+  other side: a DQN (which generalizes, unlike the table) on the same features also stops at ~19, and on
+  `egocentric.v1`, which tells those situations apart, reaches 28-30.
 - An algorithm with a hidden internal mechanism must report it, or a misconfigured mechanism is
-  invisible. NEAT's speciation sorts genomes by a distance normalized by gene count once a genome
+  invisible. For a bootstrapped value learner that's the level of its estimates (`q_mean` in a DQN run's extras): a
+  run that diverged (Q = 1.3e10) and one that never learned both score ~0 held out -- only that curve tells them apart. NEAT's speciation sorts genomes by a distance normalized by gene count once a genome
   has >= 20 genes; Snake's 36-gene starting genomes therefore barely differ from each other, and the
   paper's fixed threshold (3.0) left the *species count at 1* in every generation of the first trial
   run -- NEAT quietly degenerating into fixed-topology neuroevolution with a growing network. No test

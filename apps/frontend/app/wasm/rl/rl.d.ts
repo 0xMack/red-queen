@@ -102,6 +102,11 @@ export function benchForwards(layer_sizes: Uint32Array, activations: string, ite
 export function benchUpdates(layer_sizes: Uint32Array, activations: string, batch: number, iterations: number): number;
 
 /**
+ * `dqn_digest(seed)`: a DQN with every stability piece trained on Snake's egocentric observer, hashed.
+ */
+export function dqnDigest(seed: number): string;
+
+/**
  * `learning_digest(seed)`: Q-learning and SARSA trained on Snake, hashed.
  */
 export function learningDigest(seed: number): string;
@@ -147,6 +152,7 @@ export interface InitOutput {
     readonly demogame_observation: (a: number) => [number, number];
     readonly demogame_score: (a: number) => number;
     readonly demogame_step: (a: number, b: number) => number;
+    readonly dqnDigest: (a: number) => [number, number];
     readonly learningDigest: (a: number) => [number, number];
     readonly rolloutDigest: (a: number) => [number, number];
     readonly trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];

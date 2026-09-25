@@ -1,7 +1,13 @@
-// JS mirror of evolve.neuro._forward (tanh on every layer, per-layer [out*in weights][out biases]
-// layout) -- used only to *visualize* a champion's activations next to the board. The worker's
-// Python copy is still what actually drives the snake; this never decides a move.
-export function forwardActivations(weights: number[], layerSizes: number[], observation: number[]): number[][] {
+// JS forward pass of a layered network (per layer, [out*in weights][out biases]; evolve.neuro's tanh
+// throughout unless per-layer activations say otherwise) -- used only to *visualize* a champion's
+// activations next to the board. The model package is what actually plays; this never decides a move.
+export function forwardActivations(
+  weights: number[],
+  layerSizes: number[],
+  observation: number[],
+  // one per layer of weights; evolved networks are tanh throughout, an RL Q-network (docs/design/0010) is ReLU then linear
+  layerActivations: readonly string[] | null = null,
+): number[][] {
   const layers: number[][] = [observation.slice()]
   let activations = observation
   let offset = 0
@@ -12,7 +18,8 @@ export function forwardActivations(weights: number[], layerSizes: number[], obse
     for (let o = 0; o < outSize; o++) {
       let total = weights[offset + inSize * outSize + o]!
       for (let k = 0; k < inSize; k++) total += weights[offset + o * inSize + k]! * activations[k]!
-      next.push(Math.tanh(total))
+      const activation = layerActivations?.[i] ?? "tanh"
+      next.push(activation === "relu" ? Math.max(total, 0) : activation === "linear" ? total : Math.tanh(total))
     }
     offset += inSize * outSize + outSize
     activations = next
