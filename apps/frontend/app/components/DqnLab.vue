@@ -7,7 +7,7 @@ import recording from "~/data/recordings/dqn-snake.json"
 // the same `DqnAgent` the training jobs run (docs/design/0010 Phase 2b). Choose what the snake sees and which
 // stabilizers are on; the curve is the greedy policy's score on 30 unseen games every 10k steps, drawn over the
 // previous run's so two settings can be compared; the second chart is the network's mean Q(s, a), which is where a
-// diverging run shows first. Without WebAssembly, recorded runs of the same setup (jobs/export_dqn_recording.py)
+// diverging run shows first. Without WebAssembly, recorded runs of the same setup (jobs/export_rl_curves.py)
 // stand in.
 
 const GREEDY = 17.89
@@ -51,7 +51,7 @@ function train() {
   if (config.dueling) params.push("dueling=1")
   if (config.nStep3) params.push("n_step=3")
   running.value = { label: describe() }
-  lab.start({ algorithm: "dqn", observer: config.observer, params: params.join(","), reward: "shaped", seed: config.seed, budget: BUDGET, evalEvery: EVAL_EVERY })
+  lab.start({ algorithm: "dqn", env: `snake/${config.observer}+relative3.v1`, params: params.join(","), reward: "shaped", seed: config.seed, budget: BUDGET, evalEvery: EVAL_EVERY })
 }
 
 const started = computed(() => lab.status.value !== "idle")

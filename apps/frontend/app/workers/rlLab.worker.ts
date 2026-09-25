@@ -1,15 +1,16 @@
-// Live reinforcement learning for the Learn chapters (docs/design/0010 Phases 1b and 2b): the RL core compiled to
-// WebAssembly -- the same Rust `Trainer` the training jobs run -- learning Snake in the reader's browser, for any
-// algorithm it knows (a Q-table, a DQN, ...). Training runs in ticks sized to the chosen speed; every `evalEvery` steps
-// the greedy policy is scored on a fixed set of unseen games (the learning curve); a tabular agent's table is
-// streamed to the page; and a demo game plays the *current* greedy policy at a watchable pace, reporting the values
-// it's choosing between. A worker, so none of this ever blocks the page.
-import init, { DemoGame, Trainer } from "~/wasm/rl/rl.js"
+// Live reinforcement learning for the Learn chapters (docs/design/0010 Phases 1b, 2b, 3b): the RL core compiled to
+// WebAssembly -- the same Rust `Trainer` the training jobs run -- learning in the reader's browser, for any algorithm
+// (a Q-table, a DQN, a policy gradient) and environment (Snake under any observer, Reach1D) it knows. Training runs in
+// ticks sized to the chosen speed; every `evalEvery` steps the greedy policy is scored on a fixed set of unseen games
+// (the learning curve); a tabular agent's table is streamed to the page; and a demo plays the *current* greedy policy
+// at a watchable pace -- a Snake board with the values or probabilities it's choosing between, or (any other
+// environment) the observation and action, step by step. A worker, so none of this ever blocks the page.
+import init, { DemoEnv, DemoGame, Trainer } from "~/wasm/rl/rl.js"
 import rlWasmUrl from "~/wasm/rl/rl_bg.wasm?url"
 
 export interface LabConfig {
-  algorithm: string // q_learning, sarsa, dqn (libs/rl/rust/core/src/agent.rs ALGORITHMS)
-  observer: string // features.v1, egocentric.v1, ...
+  algorithm: string // q_learning, sarsa, dqn, reinforce, a2c, ppo (libs/rl/rust/core/src/agent.rs ALGORITHMS)
+  env: string // a Snake interface id (snake/<observer>+relative3.v1), or reach1d
   params: string // the algorithm's parameters as "name=value,..." ("" for the defaults)
   reward: "shaped" | "sparse"
   seed: number
@@ -34,10 +35,13 @@ export type LabMessage =
       recentReturn: number | null
       running: boolean
     }
-  // one evaluation point: the held-out score, and (a DQN) its mean Q(s, a) and loss since the last point
-  | { type: "curve"; steps: number; score: number; qMean: number | null; tdLoss: number | null }
+  // one evaluation point: the held-out score, (a DQN) its mean Q(s, a) and loss since the last point, and the
+  // policy's entropy (nats) now
+  | { type: "curve"; steps: number; score: number; qMean: number | null; tdLoss: number | null; entropy: number | null }
   | { type: "table"; values: Float64Array; visits: Uint32Array }
   | { type: "frame"; cells: Int32Array; score: number; row: number; action: number; values: number[]; done: boolean }
+  // a non-Snake environment's demo step: what it observed, the action taken, the policy's values or distribution
+  | { type: "track"; step: number; observation: number[]; action: number; values: number[]; done: boolean }
   | { type: "done"; totalSteps: number }
   | { type: "error"; message: string }
 
@@ -45,6 +49,7 @@ export type LabMessage =
 // only when the policy does.
 const EVAL_SEEDS = new Uint32Array(Array.from({ length: 30 }, (_, i) => 20_000 + i))
 const EVAL_CAP = 1000
+const TRACK_STEPS = 200 // a non-Snake demo episode (Reach1D never ends by itself)
 const TICK_MS = 40
 const FRAME_MS = 90
 const TABLE_MS = 250
@@ -53,6 +58,8 @@ let ready: Promise<void> | null = null
 let trainer: Trainer | null = null
 let config: LabConfig | null = null
 let demo: DemoGame | null = null
+let track: DemoEnv | null = null
+let trackStep = 0
 let demoSeed = 20_100
 let running = false
 let stepsPerSecond = 40_000
@@ -62,6 +69,7 @@ let returns: number[] = []
 let qSum = 0
 let lossSum = 0
 let lastUpdates = 0
+let lastEntropy = Number.NaN
 let updatesSinceEval = 0
 let timers: ReturnType<typeof setInterval>[] = []
 
@@ -69,7 +77,7 @@ const post = (message: LabMessage, transfer: Transferable[] = []) => self.postMe
 const finite = (x: number) => (Number.isFinite(x) ? x : null)
 
 function evaluate(steps: number) {
-  const scores = trainer!.evaluate(EVAL_SEEDS, EVAL_CAP)
+  const scores = trainer!.evaluate(EVAL_SEEDS, snakeObserver(config!.env) ? EVAL_CAP : TRACK_STEPS)
   const n = updatesSinceEval
   post({
     type: "curve",
@@ -77,6 +85,7 @@ function evaluate(steps: number) {
     score: scores.reduce((a, b) => a + b, 0) / scores.length,
     qMean: n > 0 ? qSum / n : null,
     tdLoss: n > 0 ? lossSum / n : null,
+    entropy: finite(lastEntropy),
   })
   qSum = lossSum = updatesSinceEval = 0
 }
@@ -103,6 +112,7 @@ function tick() {
         }
       }
       last = { totalEpisodes: p.total_episodes, epsilon: p.epsilon, statesVisited: p.states_visited }
+      lastEntropy = p.entropy
       p.free()
       done += chunk
       if (trainer.totalSteps >= nextEval) {
@@ -138,11 +148,30 @@ function sendTable() {
   post({ type: "table", values, visits }, [values.buffer, visits.buffer])
 }
 
+const snakeObserver = (env: string) => (env.startsWith("snake/") ? env.slice("snake/".length).split("+")[0]! : null)
+
+function playTrack() {
+  if (!trainer || !config) return
+  if (!track || track.done || trackStep >= TRACK_STEPS) {
+    track?.free()
+    track = new DemoEnv(config.env, demoSeed++)
+    trackStep = 0
+  }
+  const observation = track.observation()
+  const values = Array.from(trainer.actionValues(observation))
+  const action = trainer.greedyValue(observation)
+  track.step(action)
+  trackStep += 1
+  post({ type: "track", step: trackStep, observation: Array.from(observation), action, values, done: track.done || trackStep >= TRACK_STEPS })
+}
+
 function playFrame() {
   if (!trainer || !config) return
+  const observer = snakeObserver(config.env)
+  if (!observer) return playTrack()
   if (!demo || demo.done) {
     demo?.free()
-    demo = new DemoGame(demoSeed++, config.observer)
+    demo = new DemoGame(demoSeed++, observer)
   }
   const observation = demo.observation()
   const row = trainer.row(observation)
@@ -168,8 +197,10 @@ self.onmessage = async (event: MessageEvent<LabCommand>) => {
       trainer?.free()
       demo?.free()
       demo = null
+      track?.free()
+      track = null
       config = command.config
-      trainer = new Trainer(config.algorithm, `snake/${config.observer}+relative3.v1`, config.seed, config.params, config.reward)
+      trainer = new Trainer(config.algorithm, config.env, config.seed, config.params, config.reward)
       qSum = lossSum = lastUpdates = updatesSinceEval = 0
       evaluate(0) // the untrained policy: where the curve starts
       nextEval = config.evalEvery

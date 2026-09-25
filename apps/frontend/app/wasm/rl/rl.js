@@ -1,6 +1,72 @@
 /* @ts-self-types="./rl.d.ts" */
 
 /**
+ * Any environment the trainers know (`reach1d`, or a Snake interface id), for a demo to step the greedy policy
+ * through and draw -- what `DemoGame` is for Snake, without Snake's board.
+ */
+export class DemoEnv {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        DemoEnvFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_demoenv_free(ptr, 0);
+    }
+    /**
+     * @returns {boolean}
+     */
+    get done() {
+        const ret = wasm.demoenv_done(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {string} env_id
+     * @param {number} seed
+     */
+    constructor(env_id, seed) {
+        const ptr0 = passStringToWasm0(env_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.demoenv_new(ptr0, len0, seed);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        DemoEnvFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    observation() {
+        const ret = wasm.demoenv_observation(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get score() {
+        const ret = wasm.demoenv_score(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Take `value` -- an action index for a discrete environment, the action itself for a continuous one. Returns
+     * the reward.
+     * @param {number} value
+     * @returns {number}
+     */
+    step(value) {
+        const ret = wasm.demoenv_step(this.__wbg_ptr, value);
+        return ret;
+    }
+}
+if (Symbol.dispose) DemoEnv.prototype[Symbol.dispose] = DemoEnv.prototype.free;
+
+/**
  * A Snake game for a demo to play the agent's greedy policy on, move by move, and draw.
  */
 export class DemoGame {
@@ -301,6 +367,17 @@ export class Trainer {
         return ret >>> 0;
     }
     /**
+     * The greedy action on `observation` as a number: an index (discrete) or the continuous value itself.
+     * @param {Float64Array} observation
+     * @returns {number}
+     */
+    greedyValue(observation) {
+        const ptr0 = passArrayF64ToWasm0(observation, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_greedyValue(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * `params`: the algorithm's hyperparameters as `name=value` pairs separated by commas (`"alpha=0.1,n_step=3"`,
      * empty for the defaults). `reward`: `shaped` or `sparse` (Snake).
      * @param {string} algorithm
@@ -470,6 +547,24 @@ export function learningDigest(seed) {
 }
 
 /**
+ * `pg_digest(seed)`: PPO (softmax and Gaussian) and REINFORCE with a baseline, trained and hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function pgDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.pgDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * `rollout_digest(seed)`: a random agent trained and evaluated on Snake and Reach1D, hashed.
  * @param {number} seed
  * @returns {string}
@@ -532,6 +627,9 @@ function __wbg_get_imports() {
     };
 }
 
+const DemoEnvFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_demoenv_free(ptr >>> 0, 1));
 const DemoGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_demogame_free(ptr >>> 0, 1));

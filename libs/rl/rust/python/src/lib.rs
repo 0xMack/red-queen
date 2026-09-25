@@ -13,6 +13,7 @@ use redqueen_rl::digest;
 use redqueen_rl::dqn::{td_gradients, Batch, QNet};
 use redqueen_rl::env::{ActionSpace, Episode};
 use redqueen_rl::nn::{Activation, Adam, Mlp, Shape};
+use redqueen_rl::pg::{gae, pg_gradients, PgBatch};
 use redqueen_rl::rng::{Rng, Stream};
 use redqueen_rl::tabular::{Discretizer, QTableAgent, Step};
 use redqueen_rl_envs as envs;
@@ -189,6 +190,11 @@ fn dqn_digest(seed: u64) -> String {
     envs::dqn_digest(seed)
 }
 
+#[pyfunction]
+fn pg_digest(seed: u64) -> String {
+    envs::pg_digest(seed)
+}
+
 /// Initial parameters (He-uniform weights, zero biases) for a network, from the run's `Init` stream.
 #[pyfunction]
 fn mlp_init(layer_sizes: Vec<usize>, activations: Vec<String>, seed: u64) -> PyResult<Vec<f64>> {
@@ -359,6 +365,55 @@ fn dqn_td_gradients(
     Ok((result.loss, result.grads, result.td, result.q_mean))
 }
 
+/// The policy-gradient update's (loss, gradients -- the network's, then a Gaussian's log std --, entropy, kl, clip
+/// fraction) -- `pg::pg_gradients`. `log_std` None: a softmax over the outputs; `clip` None: no PPO clipping.
+#[pyfunction]
+#[pyo3(signature = (layer_sizes, params, log_std, observations, actions, old_log_probs, advantages, clip, entropy_coef))]
+#[allow(clippy::too_many_arguments)]
+fn policy_gradients(
+    layer_sizes: Vec<usize>,
+    params: Vec<f64>,
+    log_std: Option<f64>,
+    observations: Vec<f64>,
+    actions: Vec<f64>,
+    old_log_probs: Vec<f64>,
+    advantages: Vec<f64>,
+    clip: Option<f64>,
+    entropy_coef: f64,
+) -> PyResult<(f64, Vec<f64>, f64, f64, f64)> {
+    let hidden = layer_sizes.len().saturating_sub(2);
+    let mut activations = vec!["tanh".to_string(); hidden];
+    activations.push("linear".into());
+    let policy = Mlp::new(shape(layer_sizes, activations)?, params).map_err(value_error)?;
+    let n = actions.len();
+    if observations.len() != n * policy.shape.inputs() || old_log_probs.len() != n || advantages.len() != n {
+        return Err(value_error("batch doesn't match the network's shape".into()));
+    }
+    let batch = PgBatch {
+        observations,
+        actions,
+        old_log_probs,
+        advantages,
+    };
+    let r = pg_gradients(&policy, log_std, &batch, clip, entropy_coef);
+    Ok((r.loss, r.grads, r.entropy, r.kl, r.clip_fraction))
+}
+
+/// GAE(λ): (advantages, return targets) -- `pg::gae`.
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn generalized_advantages(
+    rewards: Vec<f64>,
+    values: Vec<f64>,
+    next_values: Vec<f64>,
+    done: Vec<bool>,
+    cut: Vec<bool>,
+    gamma: f64,
+    lambda: f64,
+) -> (Vec<f64>, Vec<f64>) {
+    gae(&rewards, &values, &next_values, &done, &cut, gamma, lambda)
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ALGORITHMS", ALGORITHMS.to_vec())?;
@@ -370,11 +425,14 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rollout_digest, m)?)?;
     m.add_function(wrap_pyfunction!(learning_digest, m)?)?;
     m.add_function(wrap_pyfunction!(dqn_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(pg_digest, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_init, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_forward_backward, m)?)?;
     m.add_function(wrap_pyfunction!(adam_steps, m)?)?;
     m.add_function(wrap_pyfunction!(dqn_init, m)?)?;
     m.add_function(wrap_pyfunction!(dqn_td_gradients, m)?)?;
+    m.add_function(wrap_pyfunction!(policy_gradients, m)?)?;
+    m.add_function(wrap_pyfunction!(generalized_advantages, m)?)?;
     m.add_function(wrap_pyfunction!(bench_updates, m)?)?;
     m.add_function(wrap_pyfunction!(bench_forwards, m)?)?;
     Ok(())

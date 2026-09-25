@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import recording from "~/data/recordings/dqn-snake.json"
 
-// The two runs of `rl-dqn-v1` that diverged, next to a healthy one (jobs/export_dqn_recording.py): the network's mean
+// The two runs of `rl-dqn-v1` that diverged, next to a healthy one (jobs/export_rl_curves.py): the network's mean
 // Q(s, a) over each 50k steps of training, and its score on unseen games. Divergence is rare -- 1 run in 20 without a
 // target network -- so a reader's live demo would almost never show it; these are the real ones. Q is drawn on a
 // symmetric log scale, sign(q) * log10(1 + |q|), so -5,000, 2.6 and 8e9 fit on one axis.
@@ -84,7 +84,7 @@ const path = (points: number[][], y: (v: number) => number) =>
       Rewards are about ±1 a step and γ is 0.95, so no honest estimate can leave the green band by much. The run without replay spiked to 3.7 × 10⁷
       and then swung negative; the one with replay but no target network climbed steadily past 10⁹ -- each update chasing a target that its own
       last update had just raised. Neither ever learned to play. The healthy run has the same replay buffer plus a target network. From
-      <code>jobs/export_dqn_recording.py</code> (experiment <code>rl-dqn-v1</code>).
+      <code>jobs/export_rl_curves.py</code> (experiment <code>rl-dqn-v1</code>).
     </figcaption>
   </figure>
 </template>

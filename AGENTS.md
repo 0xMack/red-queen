@@ -41,9 +41,10 @@ architectural change that might conflict with a decision already made.
       fp32 vs int8); `/dev/inference` (unlinked) shows the device profile, the model cache, and a
       ~340 MB scale-test model; `/dev/rl` (unlinked) runs the RL core's WASM build in a worker
       (`workers/rlBench.worker.ts`): determinism digests against the native fixture, and speed vs. native.
-      `/learn/q-learning` and `/learn/dqn` train the same WASM `Trainer` live through one algorithm-generic worker
-      (`workers/rlLab.worker.ts` → `useRlLab` → `QLearningLab` / `DqnLab`; a table is drawn by `QTableGrid`), with
-      recorded runs (`jobs/export_rl_recording.py`, `jobs/export_dqn_recording.py`) as the no-WASM fallbacks and for
+      `/learn/q-learning`, `/learn/dqn` and `/learn/policy-gradients` train the same WASM `Trainer` live through one
+      algorithm- and environment-generic worker (`workers/rlLab.worker.ts` → `useRlLab` → `QLearningLab` / `DqnLab` /
+      `PolicyGradientLab`, and `ReachLab` for Reach1D through the WASM `DemoEnv`; a table is drawn by `QTableGrid`), with
+      recorded runs (`jobs/export_rl_recording.py`, `jobs/export_rl_curves.py`) as the no-WASM fallbacks and for
       what a live demo can't reliably show (a 1-in-20 divergence). Cited experiment results are `ArmResults` strip
       plots fed hard-coded report numbers.
 
@@ -185,7 +186,10 @@ architectural change that might conflict with a decision already made.
     (`dqn.rs`) -- replay, target network, double, dueling, n-step and prioritized replay each a parameter (an
     experiment arm); `td_gradients` is the update as a pure function, checked against `reference_dqn.py`
     (`libs/autodiff`); a dueling net's heads fold into one linear layer at snapshot, so every DQN champion is a plain
-    MLP (`{"type": "mlp", ...}`), and a `dqn` digest joins the determinism fixture.
+    MLP (`{"type": "mlp", ...}`), and a `dqn` digest joins the determinism fixture. Phase 3: policy gradients (`pg.rs`)
+    -- `reinforce` (`baseline=1` for a learned baseline), `a2c`, `ppo` share one agent and one GAE; a softmax head for
+    Snake, a Gaussian one (learned log std) for Reach1D; `pg_gradients`/`gae` checked against `reference_pg.py`; a `pg`
+    digest in the fixture. `Agent::action_values` is what demos draw (a table row, Q-values, or move probabilities).
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in

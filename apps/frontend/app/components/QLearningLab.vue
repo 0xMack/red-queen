@@ -41,7 +41,7 @@ function train() {
   if (config.optimistic) params.push(["initial_q", 2], ["epsilon_start", 0.02], ["epsilon_end", 0.02])
   lab.start({
     algorithm: config.algorithm,
-    observer: "features.v1",
+    env: "snake/features.v1+relative3.v1",
     params: params.map(([k, v]) => `${k}=${v}`).join(","),
     reward: config.reward,
     seed: 0,

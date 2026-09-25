@@ -12,7 +12,8 @@ environment steps -- and records each iteration the way every other run is recor
 Training games are drawn from jobs/seeding.py's TRAINING_POOL, disjoint from the leaderboard's held-out games and
 the monitor's. Algorithms: `random` (learns nothing: the pipeline's smoke test), `q_learning` and `sarsa` (tabular,
 Phase 1; `--param n_step=3`, `--param epsilon_decay_steps=200000`, ... -- libs/rl/rust/core/src/tabular.rs), `dqn`
-(Phase 2; `--param double=1 --param dueling=1`, ... -- dqn.rs).
+(Phase 2; `--param double=1 --param dueling=1`, ... -- dqn.rs), `reinforce` / `a2c` / `ppo` (Phase 3; `--param
+baseline=1`, `--param clip=0.1`, ... -- pg.rs).
 
 Run with:
   uv run python jobs/rl_run.py [--algo q_learning] [--env snake/features.v1+relative3.v1 | reach1d]

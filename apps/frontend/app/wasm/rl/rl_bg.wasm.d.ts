@@ -1,6 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_demoenv_free: (a: number, b: number) => void;
 export const __wbg_demogame_free: (a: number, b: number) => void;
 export const __wbg_get_progress_entropy: (a: number) => number;
 export const __wbg_get_progress_episodes: (a: number) => number;
@@ -28,6 +29,11 @@ export const __wbg_set_progress_updates: (a: number, b: number) => void;
 export const __wbg_trainer_free: (a: number, b: number) => void;
 export const benchForwards: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
 export const benchUpdates: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+export const demoenv_done: (a: number) => number;
+export const demoenv_new: (a: number, b: number, c: number) => [number, number, number];
+export const demoenv_observation: (a: number) => [number, number];
+export const demoenv_score: (a: number) => number;
+export const demoenv_step: (a: number, b: number) => number;
 export const demogame_cells: (a: number) => [number, number];
 export const demogame_done: (a: number) => number;
 export const demogame_new: (a: number, b: number, c: number) => [number, number, number];
@@ -36,10 +42,12 @@ export const demogame_score: (a: number) => number;
 export const demogame_step: (a: number, b: number) => number;
 export const dqnDigest: (a: number) => [number, number];
 export const learningDigest: (a: number) => [number, number];
+export const pgDigest: (a: number) => [number, number];
 export const rolloutDigest: (a: number) => [number, number];
 export const trainer_actionValues: (a: number, b: number, c: number) => [number, number];
 export const trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];
 export const trainer_greedyAction: (a: number, b: number, c: number) => number;
+export const trainer_greedyValue: (a: number, b: number, c: number) => number;
 export const trainer_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
 export const trainer_qValues: (a: number) => [number, number];
 export const trainer_row: (a: number, b: number, c: number) => number;

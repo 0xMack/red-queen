@@ -61,6 +61,12 @@ const qnet = (() => {
 })()
 const qnetNodes = qnet.nodes
 const qnetEdges = qnet.edges
+// A normal density across the art's bottom strip (mean at x = 232), for the policy cover.
+const policyBell = Array.from({ length: 65 }, (_, i) => {
+  const x = 40 + i * 5
+  const y = 226 - 48 * Math.exp(-0.5 * ((x - 232) / 38) ** 2)
+  return `${i ? "L" : "M"}${x},${y.toFixed(1)}`
+}).join("")
 
 // A slice of a Q-table: rows of three action values, the chosen (largest) one highlighted.
 const qRows = (() => {
@@ -246,6 +252,22 @@ const attention = (() => {
       <text x="128" y="55" fill="#6b7489">#1 off</text>
       <rect x="28" y="214" width="344" height="24" rx="6" fill="#151924" stroke="#323a4d" />
       <text x="200" y="230" text-anchor="middle" fill="#a0a8ba">innovation numbers line up different structures</text>
+    </g>
+
+    <!-- A policy: observation -> network -> move probabilities (sampled), and a Gaussian for a continuous action -->
+    <g v-else-if="kind === 'policy'" font-family="JetBrains Mono, monospace" font-size="10">
+      <line v-for="e in qnetEdges" :key="e.key" :x1="e.x1 - 30" :y1="e.y1" :x2="e.x2 - 30" :y2="e.y2" stroke="#323a4d" stroke-width="0.8" />
+      <circle v-for="n in qnetNodes" :key="n.key" :cx="n.x - 30" :cy="n.y" :r="n.layer === 3 ? 4 : n.r" :fill="n.layer === 0 ? '#60a5fa' : '#a0a8ba'" />
+      <g v-for="(p, i) in [0.18, 0.71, 0.11]" :key="`p${i}`">
+        <text x="232" :y="80 + i * 34" fill="#a0a8ba" font-size="12">{{ ['↰', '↑', '↱'][i] }}</text>
+        <rect x="250" :y="70 + i * 34" :width="p * 120" height="12" rx="2" :fill="i === 1 ? '#ff5c7a' : '#4b5367'" />
+        <text :x="256 + p * 120" :y="80 + i * 34" fill="#6b7489">{{ Math.round(p * 100) }}%</text>
+      </g>
+      <text x="250" y="52" fill="#6b7489">π(move | situation)</text>
+      <path :d="policyBell" fill="none" stroke="#60a5fa" stroke-width="2" />
+      <line x1="40" x2="360" y1="226" y2="226" stroke="#323a4d" />
+      <line x1="232" x2="232" y1="176" y2="226" stroke="#ff5c7a" stroke-width="1.5" />
+      <text x="40" y="244" fill="#6b7489" font-size="9">a continuous action: a Gaussian, mean and spread learned</text>
     </g>
 
     <!-- A Q-network: observation -> layers -> three action values, trained from a replay buffer against a frozen copy -->
