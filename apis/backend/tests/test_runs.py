@@ -108,8 +108,8 @@ def test_metrics_stream_route_is_registered():
     # Not exercised via a live TestClient request: the stream never terminates on its own (by
     # design -- it's a live tail), and Starlette's TestClient doesn't reliably simulate a mid-stream
     # client disconnect, so the generator's cancellation path never fires and a real request hangs.
-    # The tricky part -- adapting the sync, never-returning subscribe() to async -- is covered
-    # directly below instead; this just checks the route exists with the right path/method.
+    # The generator behind it is covered directly below instead; this just checks the route exists with the
+    # right path/method.
     assert "get" in app.openapi()["paths"]["/runs/{run_id}/metrics/stream"]
 
 
@@ -120,20 +120,41 @@ def test_stream_generation_stats_backfills_then_cancels_cleanly(tmp_path):
         for gen in range(3):
             metrics.record_generation(make_stats(run_id, gen))
 
-        gen_iter = _stream_generation_stats(metrics, run_id, since_generation=0)
+        gen_iter = _stream_generation_stats(metrics, run_id, since_generation=0, poll_seconds=0.01)
         seen = []
         async for event in gen_iter:
             seen.append(GenerationStats.model_validate_json(event["data"]))
             if len(seen) == 3:
                 break
-        # The generator is now blocked polling past the last recorded generation (there is no 4th).
+        metrics.record_generation(make_stats(run_id, 3))  # arrives while the stream is live
+        seen.append(GenerationStats.model_validate_json((await gen_iter.__anext__())["data"]))
+        # The generator is now polling past the last recorded generation (there is no 5th).
         # aclose() must interrupt that cleanly rather than hang the test.
         with anyio.fail_after(2):
             await gen_iter.aclose()
         return seen
 
     seen = anyio.run(scenario)
-    assert [s.generation for s in seen] == [0, 1, 2]
+    assert [s.generation for s in seen] == [0, 1, 2, 3]
+
+
+def test_stream_never_parks_a_thread_on_subscribe(tmp_path):
+    # A finished run's subscribe().__next__() never returns, and an abandoned call held a non-daemon worker
+    # thread forever -- which stopped a `--reload` from ever starting the new server. The stream polls instead.
+    class HistoryOnly(FileMetricsStore):
+        def subscribe(self, run_id, since_generation=0):
+            raise AssertionError("the stream must not use subscribe()")
+
+    async def scenario():
+        metrics = HistoryOnly(tmp_path / "metrics")
+        metrics.record_generation(make_stats("run-1", 0))
+        gen_iter = _stream_generation_stats(metrics, "run-1", since_generation=0, poll_seconds=0.01)
+        first = await gen_iter.__anext__()
+        with anyio.fail_after(2):
+            await gen_iter.aclose()
+        return first
+
+    assert GenerationStats.model_validate_json(anyio.run(scenario)["data"]).generation == 0
 
 
 def test_control_pause_and_resume(backend):

@@ -160,6 +160,21 @@ def test_evaluation_store_filters_by_game_and_protocol(tmp_path):
     assert [r.entrant_id for r in store.list("checkers")] == ["baseline:random"]
 
 
+def test_evaluation_store_prunes_only_its_game_and_protocol(tmp_path):
+    store = SqliteEvaluationStore(tmp_path / "evaluations.db")
+    for entrant in ("baseline:greedy", "run:a", "run:b"):
+        store.put(_record(entrant, protocol="snake.score.v2"))
+    store.put(_record("run:b", protocol="snake.score.v1"))  # another protocol: untouched
+    store.put(_record("run:b", game="checkers", protocol="checkers.versus.v1"))  # another game: untouched
+
+    removed = store.prune("snake", "snake.score.v2", keep={"baseline:greedy", "run:a"})
+
+    assert removed == ["run:b"]
+    assert sorted(r.entrant_id for r in store.list("snake", protocol="snake.score.v2")) == ["baseline:greedy", "run:a"]
+    assert [r.entrant_id for r in store.list("snake", protocol="snake.score.v1")] == ["run:b"]
+    assert [r.entrant_id for r in store.list("checkers")] == ["run:b"]
+
+
 def test_held_out_score_is_optional_and_round_trips(tmp_path):
     from telemetry import FileMetricsStore, GenerationStats
 

@@ -4,7 +4,7 @@
     {
       "name": "backend",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "backend.main:app", "--app-dir", "apis/backend/src", "--port", "8000", "--reload", "--reload-dir", "apis/backend/src", "--reload-dir", "libs"],
+      "runtimeArgs": ["run", "uvicorn", "backend.main:app", "--app-dir", "apis/backend/src", "--port", "8000", "--reload", "--reload-dir", "apis/backend/src", "--reload-dir", "libs", "--timeout-graceful-shutdown", "3"],
       "port": 8000
     },
     {

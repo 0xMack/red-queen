@@ -179,7 +179,9 @@ if self.target_update > 0 && self.observed.is_multiple_of(self.target_update) {
     <h2>Where this goes next</h2>
     <p>
       Two directions. The observation is the lever that has moved Snake scores for both evolution and value learning, and the analysis of NEAT's
-      deaths already names what's missing: rays can't tell whether the space ahead is enclosed. And every method so far learns <em>values</em> and
+      deaths already names what's missing: rays can't tell whether the space ahead is enclosed. (Tested since: <code>egocentric.v2</code>
+      adds, for each move, how much of the board stays reachable, and it lifts this same DQN from 28.5 to 41.5 -- see the
+      <NuxtLink to="/learn/policy-gradients">policy-gradients chapter</NuxtLink>.) And every method so far learns <em>values</em> and
       acts on them; <strong>policy gradients</strong> learn the policy directly -- the probabilities of each move -- which avoids the maximum at the
       heart of the deadly triad, and leads on to the actor-critic methods (A2C, PPO) behind most of modern reinforcement learning.
     </p>

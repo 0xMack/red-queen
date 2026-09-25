@@ -185,9 +185,16 @@ let weight = if unclipped <= capped { ratio * advantage } else { 0.0 };`
     </p>
     <PgResults view="observers" />
     <p>
-      <strong>63 points</strong>, every run between 59 and 66: two thirds more than the best evolved champion, from two million game steps and
-      about three and a half minutes of training. Five times the training added about three more (66), though not on every seed -- the spread
-      between runs grew as well.
+      <strong>63 points</strong>, every run between 59 and 66, from two million game steps and about three and a half minutes of training. Five
+      times the training added about three more (66), though not on every seed -- the spread between runs grew as well.
+    </p>
+    <p>
+      The observation lifts evolution just as much. NEAT on <code>egocentric.v2</code>, with the same budget as its earlier runs, reached
+      <strong>60</strong> (up from 36 on <code>egocentric.v1</code>, every seed better) -- so the enclosed-space information, not the learning
+      method, had been the ceiling for everyone. Where the paradigms differ is the cost: NEAT used about 717 million game steps and 54 minutes per
+      run for its 60; PPO about 2 million steps for its 63. Trained for ten million steps, PPO is now first on the
+      <NuxtLink to="/games/snake">Snake leaderboard</NuxtLink> at <strong>70.2</strong>, in fifteen minutes, ahead of NEAT's 59.9 on the same
+      observation -- both playing in your browser from their model packages.
     </p>
 
     <h2>Where this goes next</h2>
