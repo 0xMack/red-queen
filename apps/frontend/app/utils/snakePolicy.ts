@@ -62,11 +62,19 @@ export const SNAKE_EGOCENTRIC_LABELS = [
   "apples eaten",
   "hunger",
 ]
+// `egocentric.v2` (33): egocentric.v1, then per move the share of free cells still reachable and whether the tail is.
+// Mirrors `SnakeEgocentricV2.feature_names`.
+export const SNAKE_EGOCENTRIC_V2_LABELS = [
+  ...SNAKE_EGOCENTRIC_LABELS,
+  ...["left", "straight", "right"].map((m) => `space ${m}`),
+  ...["left", "straight", "right"].map((m) => `tail reachable ${m}`),
+]
 export const SNAKE_OUTPUT_LABELS = ["turn left", "straight", "turn right"]
 
 /** The input labels for a Snake network of `numInputs` inputs (the observers differ in size), or none if unknown. */
 export function snakeInputLabels(numInputs: number): string[] {
   if (numInputs === SNAKE_INPUT_LABELS.length) return SNAKE_INPUT_LABELS
   if (numInputs === SNAKE_EGOCENTRIC_LABELS.length) return SNAKE_EGOCENTRIC_LABELS
+  if (numInputs === SNAKE_EGOCENTRIC_V2_LABELS.length) return SNAKE_EGOCENTRIC_V2_LABELS
   return []
 }

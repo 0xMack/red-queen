@@ -10,6 +10,8 @@ anything to run.
 
 from __future__ import annotations
 
+from collections import deque
+
 _MASK64 = (1 << 64) - 1
 _MASK32 = (1 << 32) - 1
 STREAM = 54
@@ -173,6 +175,46 @@ class ReferenceSnake:
         out += offset(self.food) if self.food is not None else [0.0, 0.0]
         out += offset(self.body[-1])
         out += [self.score / (self.width * self.height), self._steps_without_food / self.max_steps_without_food]
+        return out
+
+    def egocentric_v2(self) -> list[float]:
+        """`egocentric.v2` from its spec: `egocentric.v1`, then per move (left, straight, right) the share of free
+        cells reachable after it and whether the tail is reachable. Breadth-first over sets -- not the Rust's
+        stack-and-arrays fill -- so the two can only agree by both being right."""
+        spaces, tails = [], []
+        for relative in (-1, 0, 1):
+            dx, dy = _DIRECTIONS[(self._direction_index + relative) % 4]
+            head = (self.body[0][0] + dx, self.body[0][1] + dy)
+            eats = head == self.food
+            body_after = [head, *(self.body if eats else self.body[:-1])]
+            inside = 0 <= head[0] < self.width and 0 <= head[1] < self.height
+            if not inside or head in body_after[1:]:
+                spaces.append(0.0)
+                tails.append(0.0)
+                continue
+            occupied = set(body_after)
+            tail = body_after[-1]
+            reached: set[tuple[int, int]] = set()
+            frontier = deque([head])
+            while frontier:
+                x, y = frontier.popleft()
+                for ddx, ddy in _DIRECTIONS:
+                    cell = (x + ddx, y + ddy)
+                    if 0 <= cell[0] < self.width and 0 <= cell[1] < self.height and cell not in occupied | reached:
+                        reached.add(cell)
+                        frontier.append(cell)
+            free = self.width * self.height - len(body_after)
+            spaces.append(len(reached) / free if free else 0.0)
+            touching = {(tail[0] + ddx, tail[1] + ddy) for ddx, ddy in _DIRECTIONS}
+            tails.append(1.0 if tail == head or touching & (reached | {head}) else 0.0)
+        return self.egocentric() + spaces + tails
+
+    def grid_onehot(self) -> list[float]:
+        out = [0.0] * (3 * self.width * self.height + 4)
+        channel = {"body": 0, "head": 1, "food": 2}
+        for x, y, label in self.cells():
+            out[3 * (y * self.width + x) + channel[label]] = 1.0
+        out[3 * self.width * self.height + self._direction_index] = 1.0
         return out
 
     def grid_flat(self) -> list[float]:

@@ -124,6 +124,16 @@ ARMS: dict[str, Trainer] = {
         seeds="resample:10",
         interface="snake/egocentric.v1+relative3.v1",
     ),
+    # egocentric.v2 = egocentric.v1 + reachable space per move (docs/design/0010): what the NEAT deaths analysis said
+    # the rays were missing. Same budget again, paired with `neat-max-ego` (snake-ego-v1, same rng seeds).
+    "neat-max-ego2": _train_neat(
+        snake_neat_run.SNAKE_NEAT_CONFIG,
+        generations=600,
+        population=300,
+        max_steps=1000,
+        seeds="resample:10",
+        interface="snake/egocentric.v2+relative3.v1",
+    ),
 }
 
 
