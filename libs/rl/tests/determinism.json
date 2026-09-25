@@ -49,5 +49,15 @@
       "seed": 3,
       "digest": "6681d94357aa14df"
     }
+  ],
+  "pg": [
+    {
+      "seed": 0,
+      "digest": "3f977a64fbdade93"
+    },
+    {
+      "seed": 2,
+      "digest": "471d3eb8eb51be61"
+    }
   ]
 }

@@ -33,6 +33,16 @@ Phase 2 arms (DQN, 1M steps, snake/egocentric.v1+relative3.v1 unless noted; each
 - `dqn-ego2-long`    `dqn-long` on egocentric.v2
 - `dqn-onehot`       `dqn` on grid-onehot.v1 (304 inputs): is grid-flat.v1's failure its encoding?
 
+Phase 3 arms (policy gradients, 2M steps, egocentric.v1 unless noted; each tested against the arm before it):
+- `pg-reinforce`            Monte-Carlo returns, whole episodes per update, no baseline
+- `pg-reinforce-baseline`   + a learned state-value baseline
+- `pg-a2c`                  + bootstrapping: a critic and GAE(0.95), an update every 128 steps
+- `pg-ppo`                  + PPO: 2048-step rollouts reused for 4 epochs of minibatches, ratio clipped to 1 +- 0.2
+- `pg-ppo-ego2`             `pg-ppo` on egocentric.v2
+- `pg-ppo-ego2-long`        `pg-ppo-ego2` for 10M steps: its curves were still rising at 2M
+- `pg-ppo-features16`       PPO on neuroevolution's own net and observation (features.v1, 11->16->3 tanh): gradient vs.
+                            evolution on the same architecture (compare with snake_experiment's neuro arms)
+
   uv run python jobs/rl_experiment.py run    --name NAME --arms q-learning,sarsa --seeds 0-4
   uv run python jobs/rl_experiment.py report --name NAME     # writes run-data/experiments/NAME.json
 """
@@ -111,6 +121,22 @@ DQN_ARMS["dqn-ego2"] = Arm("dqn", interface=EGOCENTRIC_V2, baseline="dqn")
 DQN_ARMS["dqn-ego2-long"] = Arm("dqn", _LADDER[-1][1], steps=5_000_000, interface=EGOCENTRIC_V2, baseline="dqn-long")
 DQN_ARMS["dqn-onehot"] = Arm("dqn", interface="snake/grid-onehot.v1+relative3.v1", baseline="dqn-grid")
 ARMS.update(DQN_ARMS)
+
+PG_STEPS = 2_000_000
+PG_ARMS: dict[str, Arm] = {
+    "pg-reinforce": Arm("reinforce", steps=PG_STEPS, interface=EGOCENTRIC, baseline=None),
+    "pg-reinforce-baseline": Arm(
+        "reinforce", {"baseline": 1}, steps=PG_STEPS, interface=EGOCENTRIC, baseline="pg-reinforce"
+    ),
+    "pg-a2c": Arm("a2c", steps=PG_STEPS, interface=EGOCENTRIC, baseline="pg-reinforce-baseline"),
+    "pg-ppo": Arm("ppo", steps=PG_STEPS, interface=EGOCENTRIC, baseline="pg-a2c"),
+    "pg-ppo-ego2": Arm("ppo", steps=PG_STEPS, interface=EGOCENTRIC_V2, baseline="pg-ppo"),
+    "pg-ppo-ego2-long": Arm("ppo", steps=10_000_000, interface=EGOCENTRIC_V2, baseline="pg-ppo-ego2"),
+    "pg-ppo-features16": Arm(
+        "ppo", {"hidden": 16, "hidden_layers": 1}, steps=PG_STEPS, interface=INTERFACE, baseline=None
+    ),
+}
+ARMS.update(PG_ARMS)
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:

@@ -15,6 +15,7 @@ TRAINING = [(0, 200), (1, 50), (7, 500)]  # (seed, updates)
 ROLLOUTS = [0, 1, 42]
 LEARNING = [0, 5]
 DQN = [0, 3]
+PG = [0, 2]
 
 
 def digests() -> dict:
@@ -23,6 +24,7 @@ def digests() -> dict:
         "rollouts": [{"seed": s, "digest": _native.rollout_digest(s)} for s in ROLLOUTS],
         "learning": [{"seed": s, "digest": _native.learning_digest(s)} for s in LEARNING],
         "dqn": [{"seed": s, "digest": _native.dqn_digest(s)} for s in DQN],
+        "pg": [{"seed": s, "digest": _native.pg_digest(s)} for s in PG],
     }
 
 

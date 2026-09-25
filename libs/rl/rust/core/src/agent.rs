@@ -172,7 +172,7 @@ impl Agent for RandomAgent {
 }
 
 /// Every algorithm `build_agent` knows, by the name a run records as its `representation`.
-pub const ALGORITHMS: [&str; 4] = ["random", "q_learning", "sarsa", "dqn"];
+pub const ALGORITHMS: [&str; 7] = ["random", "q_learning", "sarsa", "dqn", "reinforce", "a2c", "ppo"];
 
 /// Builds an agent by algorithm name for environments like `env` (its observation size, action space and
 /// discretizer, if it has one). `seed` is the run's: an agent with its own randomness (weight init, replay
@@ -198,6 +198,13 @@ pub fn build_agent(algorithm: &str, env: &dyn Env, seed: u64, params: &Params) -
             )?))
         }
         "dqn" => Ok(Box::new(crate::dqn::DqnAgent::new(
+            env.observation_size(),
+            space,
+            seed,
+            params,
+        )?)),
+        "reinforce" | "a2c" | "ppo" => Ok(Box::new(crate::pg::PgAgent::new(
+            algorithm,
             env.observation_size(),
             space,
             seed,

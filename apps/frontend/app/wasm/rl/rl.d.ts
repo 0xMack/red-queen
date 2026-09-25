@@ -122,6 +122,11 @@ export function dqnDigest(seed: number): string;
 export function learningDigest(seed: number): string;
 
 /**
+ * `pg_digest(seed)`: PPO (softmax and Gaussian) and REINFORCE with a baseline, trained and hashed.
+ */
+export function pgDigest(seed: number): string;
+
+/**
  * `rollout_digest(seed)`: a random agent trained and evaluated on Snake and Reach1D, hashed.
  */
 export function rolloutDigest(seed: number): string;
@@ -170,6 +175,7 @@ export interface InitOutput {
     readonly demogame_step: (a: number, b: number) => number;
     readonly dqnDigest: (a: number) => [number, number];
     readonly learningDigest: (a: number) => [number, number];
+    readonly pgDigest: (a: number) => [number, number];
     readonly rolloutDigest: (a: number) => [number, number];
     readonly trainer_actionValues: (a: number, b: number, c: number) => [number, number];
     readonly trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];

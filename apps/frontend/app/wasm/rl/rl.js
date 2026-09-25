@@ -470,6 +470,24 @@ export function learningDigest(seed) {
 }
 
 /**
+ * `pg_digest(seed)`: PPO (softmax and Gaussian) and REINFORCE with a baseline, trained and hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function pgDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.pgDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * `rollout_digest(seed)`: a random agent trained and evaluated on Snake and Reach1D, hashed.
  * @param {number} seed
  * @returns {string}

@@ -208,6 +208,9 @@ ALGORITHM_LABELS = {
     "q_learning": "Q-learning",
     "sarsa": "SARSA",
     "dqn": "DQN",
+    "reinforce": "REINFORCE",
+    "a2c": "A2C",
+    "ppo": "PPO",
 }
 
 
