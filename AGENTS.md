@@ -68,9 +68,9 @@ architectural change that might conflict with a decision already made.
   - `backend/` — the one FastAPI service (docs/design/0005: one module, not one per concern, until
     something forces a split). `routers/runs.py` wraps `telemetry` directly, reusing its pydantic
     models (`RunInfo`, `GenerationStats`) as response models rather than duplicating schemas. The
-    `/metrics/stream` SSE route adapts `telemetry.FileMetricsStore.subscribe()` — a synchronous,
-    never-returning polling generator — to async via `anyio.to_thread.run_sync(...,
-    abandon_on_cancel=True)`; see `apis/backend/README.md` for why that route's happy path is
+    `/metrics/stream` SSE route polls `history()` with an async sleep between polls -- never a thread blocked on
+    `subscribe()`, which for a finished run never returns and (non-daemon) once kept a `--reload` from ever
+    restarting the server; see `apis/backend/README.md` for that, and for why that route's happy path is
     tested at the generator level, not through a live `TestClient` request (Starlette's TestClient
     doesn't reliably simulate a mid-stream disconnect, so a full request hangs). No game runs
     server-side: every game is played in the browser (docs/design/0009), so the old server-side session
@@ -253,10 +253,12 @@ Each directory has its own README with specifics — this file is the map, not t
   **but only on `uv sync --all-packages`: plain `uv run` never rebuilds a workspace member** (it syncs the virtual
   root, which depends on nothing, and logs every member as "unnecessary"). After editing Rust, sync before
   `uv run`, or you'll import the stale extension (`AttributeError` on a method you just added). Likewise the
-  backend dev server's `--reload` does not reliably pick up changes under `libs/` (a new `modelpack` loader, a new
-  route's model): restart it before concluding the backend is wrong. Worse, a reload it *does* trigger (an edit under
-  `libs/`) can hang on shutdown while a page holds a live SSE stream open (a Watch or run page): the server stops and
-  never restarts -- the app looks "down". Restart the preview after editing `libs/` with the app open. On Windows the sync fails
+  backend dev server's `--reload` is unreliable on Windows: uvicorn restarts its worker by sending it `CTRL_C_EVENT`,
+  which often isn't delivered without a console of its own (the preview launcher) -- the log says "Reloading..." and
+  the old worker keeps serving stale code, and later reloads never happen. Restart the server after editing
+  `libs/` or the backend before concluding it's wrong. (A second failure, the old worker never *exiting* because an
+  SSE stream parked a non-daemon thread -- "Finished server process" and then nothing, app down -- is fixed; see
+  the `/metrics/stream` note above.) On Windows the sync fails
   with `os error 32` while any running process (a backend dev server, a notebook kernel) has
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
   allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;

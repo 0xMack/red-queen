@@ -67,6 +67,10 @@ def test_a_q_learning_run_is_a_leaderboard_entrant_with_a_table_label(tmp_path, 
     assert shape["algorithm"] == "Q-learning" and shape["table_states"] == 2048 and 0 < shape["visited_states"] <= 2048
     assert entrant["factory"](0)([0.0] * 11) in (-1, 0, 1)  # plays through the interface's action adapter
 
+    # a run that failed (or was stopped) isn't one: its champion is whatever it had when it stopped
+    registry.update_status(run_id, "failed")
+    assert evaluate.champion_entrants(registry, metrics, FileArtifactStore(tmp_path / "artifacts"), "snake") == []
+
 
 def test_snapshot_every_stores_fewer_tables_and_points_between_ones_at_the_latest(tmp_path, monkeypatch):
     monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)

@@ -236,8 +236,10 @@ every step of the parity games against independent Python in `tests/reference_sn
 - **`grid-onehot.v1`** (304 values on 10x10) = `grid-flat.v1`'s information as three 0/1 channels per cell (body,
   head, food) plus the heading one-hot: is `grid-flat.v1`'s failure (every learner ~0) its encoding?
 
-Results are in docs/design/0010 ("The observation follow-up"): a DQN on `egocentric.v2` scores 41.5 (vs. 28.5 on
-`egocentric.v1`), and one on `grid-onehot.v1` 8.7 (vs. 0.4 on `grid-flat.v1`).
+Results are in docs/design/0010 ("The observation follow-up"): on `egocentric.v2` NEAT scores **60.0** (vs. 35.8 on
+`egocentric.v1`, same budget, every seed better), a DQN 41.5 (vs. 28.5) and PPO 63.0 (vs. 43.3). The death analysis
+above was right about what was missing: the representation, not the learner, had been the ceiling for evolution too.
+A DQN on `grid-onehot.v1` scores 8.7 (vs. 0.4 on `grid-flat.v1`): the flat grid's encoding was most of its failure.
 
 ## Explicitly out of scope for now
 

@@ -16,11 +16,12 @@ for the full contract and the incremental plan this implements.
   - `GET /runs/{run_id}` — `RunInfo` (404 if unknown)
   - `GET /runs/{run_id}/metrics/history?since_generation=N` — `list[GenerationStats]`
   - `GET /runs/{run_id}/metrics/stream?since_generation=N` — SSE of `GenerationStats`,
-    backfill-then-live. Adapts `telemetry.FileMetricsStore.subscribe()` (a synchronous,
-    never-returning, polling generator) to async by offloading each `next()` call to a worker
-    thread (`anyio.to_thread.run_sync(..., abandon_on_cancel=True)`) so a blocking poll doesn't
-    stall the event loop, and so a client disconnect cancels promptly instead of waiting out a
-    full poll interval.
+    backfill-then-live. Polls `history(since_generation=next)` (incremental: it parses only what
+    was appended) in a worker thread, and waits between polls with `anyio.sleep` on the event loop,
+    where a client disconnect or a shutdown cancels it. It deliberately doesn't wrap the store's
+    `subscribe()`: that generator's `next()` blocks until a generation arrives -- for a finished
+    run, never -- so each abandoned call parked a non-daemon anyio worker thread forever, and a
+    `--reload` then waited on it and never started the new server.
   - `GET /runs/{run_id}/artifacts/{ref}?kind=program|trace` — raw bytes (404 if unknown). Note
     `ArtifactStore` itself isn't run-scoped (it's a flat `ref -> bytes` store); `run_id` stays in
     the URL for REST grouping, matching doc 0005's endpoint table.
@@ -45,7 +46,7 @@ for the full contract and the incremental plan this implements.
 From the repo root:
 
 ```
-uv run uvicorn backend.main:app --app-dir apis/backend/src --reload
+uv run uvicorn backend.main:app --app-dir apis/backend/src --reload --timeout-graceful-shutdown 3
 ```
 
 Then, having run `uv run python jobs/baseline_gp_run.py` at least once so there's real data to

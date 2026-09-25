@@ -7,6 +7,7 @@ that already has a canonical shape.
 
 import json
 import time
+from functools import partial
 from typing import Annotated, Literal
 
 import anyio
@@ -76,15 +77,25 @@ def get_metrics_history(
     return metrics.history(run_id, since_generation=since_generation)
 
 
-async def _stream_generation_stats(metrics: MetricsSource, run_id: str, since_generation: int):
-    # subscribe() is a synchronous, never-returning generator that blocks on time.sleep() between
-    # polls (see telemetry/metrics.py). Offload each next() call to a worker thread so the blocking
-    # sleep doesn't stall the event loop; abandon_on_cancel=True lets a client disconnect cut this
-    # short instead of waiting out a full poll interval.
-    iterator = metrics.subscribe(run_id, since_generation=since_generation)
+STREAM_POLL_SECONDS = 0.5
+
+
+async def _stream_generation_stats(
+    metrics: MetricsSource, run_id: str, since_generation: int, poll_seconds: float = STREAM_POLL_SECONDS
+):
+    # A live tail: poll history() -- incremental, it parses only what was appended -- in a worker thread (file I/O
+    # off the event loop), and wait between polls with anyio.sleep, where a client disconnect or a server shutdown
+    # cancels it. Not subscribe(): its next() blocks until a generation arrives, which for a finished run is never,
+    # so each abandoned call parked a (non-daemon) anyio worker thread forever -- and a `--reload` then waited on
+    # it and never restarted the server.
+    next_generation = since_generation
     while True:
-        stats = await anyio.to_thread.run_sync(next, iterator, abandon_on_cancel=True)
-        yield {"event": "generation", "data": stats.model_dump_json()}
+        stats = await anyio.to_thread.run_sync(partial(metrics.history, run_id, since_generation=next_generation))
+        for s in stats:
+            if s.generation >= next_generation:
+                next_generation = s.generation + 1
+                yield {"event": "generation", "data": s.model_dump_json()}
+        await anyio.sleep(poll_seconds)
 
 
 @router.get("/{run_id}/metrics/stream")

@@ -476,9 +476,26 @@ unless noted, 200 held-out games per run):
 - **With it, the extras stop paying**: every stabilizer plus 5x the steps scored 40.1, not above plain DQN at 1M.
 - **`grid-flat.v1`'s failure was largely its encoding** (+8.3 from one-hot channels and an explicit heading), but a
   full board in the board's frame is still far behind the head-frame summaries (8.7 vs. 41.5 at the same budget).
-- NEAT on egocentric.v2 (`snake-ego-v1`'s `neat-max-ego2`, the budget of its egocentric.v1 run) is running; its
-  monitor scores at generation ~300 of 600 are 47-60. Its result, and both new leaderboard entrants, follow in the
-  next PR.
+- **Evolution gains even more from it.** NEAT on egocentric.v2 (`snake-ego-v1`'s `neat-max-ego2`, the budget of its
+  egocentric.v1 run) scored **60.02** (56.2-62.6) against 35.79 on egocentric.v1: +24.2, better on every seed (p 0.062),
+  with ~717M env steps and ~54 min per run. So the observation, not the paradigm, was the ceiling for both -- doc
+  0007's death analysis named the missing information, and both learners used it once they could see it. (PPO on
+  egocentric.v2, Phase 3 below, reaches 63.0 with 2M steps: the same level from about 1/360 of the experience.)
+- **On the leaderboard** (seed 0 fixed in advance, each the best arm's settings, trained alone -- 2 at a time on a
+  16-core machine, active time within 1% of CPU time):
+
+  | # | Entrant (egocentric.v2) | Held-out | Env steps | Training |
+  |---|---|---|---|---|
+  | 1 | **PPO** 33->64->64->3 (`pg-ppo-ego2-long`, 10M steps) | **70.17 ± 2.01** | 10M | 15 min |
+  | 2 | NEAT 33 -> 27 hidden -> 3 (`neat-max-ego2`) | 59.93 ± 1.06 | 732M | 53 min |
+  | 3 | DQN 33->64->64->3 (`dqn-ego2`) | 41.95 ± 1.53 | 1M | 88 s |
+  | 4 | NEAT 11 -> 28 hidden -> 3, features.v1 (the previous #1) | 37.95 ± 1.21 | 409M | 41 min |
+
+  The NEAT champion's fp32 package plays differently from its fp64 one (57.03 as its own `@fp32` entrant; its graph
+  sums in a different order), the reason packages carry both. Also found on the way: `evaluate.py` and
+  `publish_models.py` admitted any run not still running, so two runs stopped mid-training (marked `failed`) appeared
+  on the leaderboard with their partial champions. Entrants are now completed runs only, and both jobs prune records
+  and catalog entries for runs that stop qualifying.
 
 ### Phase 3: policy gradients (2026-09-24)
 

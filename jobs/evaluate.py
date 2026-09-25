@@ -248,9 +248,9 @@ def champion_entrants(
         interface_id = run.config.get("interface")
         if run.config.get("game") != game or not interface_id:
             continue
-        # Only finished runs: a still-training run's champion isn't its final one (re-run this job
-        # once it completes).
-        if run.status in ("running", "paused"):
+        # Only runs that completed: a still-training run's champion isn't its final one (re-run this job once it
+        # completes), and a failed or stopped run's is whatever it had when it stopped.
+        if run.status != "completed":
             continue
         # Repeated runs of a comparison (jobs/snake_experiment.py) are aggregated there, not ranked
         # one by one: twenty seeds of four arms would bury every other entrant.
@@ -399,14 +399,19 @@ def main() -> None:
     models = LocalModelStore(RUN_DATA_DIR / "models")
     champions = packaged_entrants(champion_entrants(registry, metrics, artifacts, "snake"), models, "snake")
     entrants = [*baseline_entrants("snake"), *champions]
+    evaluated = set()
     for entrant in entrants:
         record = evaluate_entrant(entrant, metrics, hardware)
         store.put(record)
+        evaluated.add(record.entrant_id)
         q, inf = record.metrics["quality"], record.metrics["inference"]
         print(
             f"{record.label:<40} {record.interface:<34} mean {q['mean']:>6.2f} ±{q['ci95']:<5} "
             f"train {q['train_mean']!s:>6}  {inf['total_us']:>7.2f} µs/decision"
         )
+    # An entrant that no longer qualifies (its run failed, or was deleted) leaves the leaderboard, not a stale row.
+    for entrant_id in store.prune("snake", PROTOCOL, evaluated):
+        print(f"removed {entrant_id}: no longer an entrant")
 
 
 if __name__ == "__main__":

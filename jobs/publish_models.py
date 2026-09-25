@@ -185,7 +185,11 @@ def main(game: str = "snake") -> None:
     registry, metrics, artifacts = TelemetryStores.open()
     store = LocalModelStore(MODELS_DIR)
     catalog = store.catalog(game)
-    for entrant in champion_entrants(registry, metrics, artifacts, game):
+    entrants = champion_entrants(registry, metrics, artifacts, game)
+    # Only current entrants stay listed: a run that stopped qualifying (failed, deleted) drops out of the catalog too.
+    current = {e["run"].run_id for e in entrants}
+    catalog.entries = [e for e in catalog.entries if e.run_id is None or e.run_id in current]
+    for entrant in entrants:
         started = time.perf_counter()
         raw = artifacts.get_program(entrant["champion_ref"]).decode("utf-8")
         entries, package, agreements = publish(entrant, raw, store)

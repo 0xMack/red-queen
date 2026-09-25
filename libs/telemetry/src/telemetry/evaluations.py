@@ -43,6 +43,10 @@ class EvaluationStore(Protocol):
 
     def list(self, game: str, protocol: str | None = None) -> list[EvaluationRecord]: ...
 
+    def prune(self, game: str, protocol: str, keep: set[str]) -> list[str]:
+        """Delete this (game, protocol)'s records whose entrant isn't in `keep`; returns the entrant ids removed."""
+        ...
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS evaluations (
@@ -96,3 +100,22 @@ class SqliteEvaluationStore:
         finally:
             conn.close()
         return [EvaluationRecord.model_validate(json.loads(row[0])) for row in rows]
+
+    def prune(self, game: str, protocol: str, keep: set[str]) -> list[str]:
+        conn = self._connect()
+        try:
+            stale = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT entrant_id FROM evaluations WHERE game = ? AND protocol = ?", (game, protocol)
+                ).fetchall()
+                if row[0] not in keep
+            ]
+            conn.executemany(
+                "DELETE FROM evaluations WHERE game = ? AND protocol = ? AND entrant_id = ?",
+                [(game, protocol, entrant) for entrant in stale],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return stale
