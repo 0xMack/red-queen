@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ChartSeries } from "~/types/chart"
-import type { LabConfig } from "~/workers/rlLab.worker"
 import { probeDevice } from "~/inference/device"
 import recording from "~/data/recordings/q-learning-snake.json"
 
@@ -15,8 +14,17 @@ const GREEDY = 17.89 // greedy heuristic, snake.score.v2
 const NEAT = 37.95 // best evolved champion (NEAT, 409M env steps)
 const ACTIONS = ["turn left", "straight", "turn right"]
 
-const config = reactive<LabConfig>({ ...DEFAULT_LAB_CONFIG })
-const lab = useQLearningLab()
+// The knobs, as the reader sees them; `train()` turns them into the worker's `LabConfig`.
+const config = reactive({
+  algorithm: "q_learning" as "q_learning" | "sarsa",
+  alpha: 0.1,
+  gamma: 0.95,
+  epsilonDecaySteps: 100_000,
+  nStep: 1,
+  optimistic: false, // initial Q 2 and epsilon 0.02: optimism does the exploring
+  reward: "shaped" as "shaped" | "sparse",
+})
+const lab = useRlLab()
 const live = ref<boolean | null>(null) // null while probing
 onMounted(async () => {
   live.value = (await probeDevice()).wasm
@@ -24,7 +32,22 @@ onMounted(async () => {
 
 const started = computed(() => lab.status.value !== "idle")
 function train() {
-  lab.start({ ...config, seed: config.seed })
+  const params: [string, number][] = [
+    ["alpha", config.alpha],
+    ["gamma", config.gamma],
+    ["epsilon_decay_steps", config.epsilonDecaySteps],
+    ["n_step", config.nStep],
+  ]
+  if (config.optimistic) params.push(["initial_q", 2], ["epsilon_start", 0.02], ["epsilon_end", 0.02])
+  lab.start({
+    algorithm: config.algorithm,
+    observer: "features.v1",
+    params: params.map(([k, v]) => `${k}=${v}`).join(","),
+    reward: config.reward,
+    seed: 0,
+    budget: 1_000_000,
+    evalEvery: 25_000,
+  })
 }
 
 // The curve: live points, or the recording's

@@ -81,9 +81,13 @@ pub struct Progress {
     pub total_steps: f64,
     pub total_episodes: f64,
     pub entropy: f64,
-    /// Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+    /// Current epsilon (NaN for an agent that doesn't explore that way) and rows ever updated (tabular; NaN otherwise).
     pub epsilon: f64,
     pub states_visited: f64,
+    /// A DQN's mean Q(s, a) and loss over this call's updates, and its updates so far (NaN otherwise).
+    pub q_mean: f64,
+    pub td_loss: f64,
+    pub updates: f64,
 }
 
 #[wasm_bindgen]
@@ -142,6 +146,9 @@ impl Trainer {
             entropy: stats.entropy,
             epsilon: extra("epsilon"),
             states_visited: extra("states_visited"),
+            q_mean: extra("q_mean"),
+            td_loss: extra("td_loss"),
+            updates: extra("updates"),
         }
     }
 
@@ -155,6 +162,12 @@ impl Trainer {
     pub fn evaluate(&mut self, seeds: &[u32], max_steps: u32) -> Vec<f64> {
         let seeds: Vec<u64> = seeds.iter().map(|&s| s as u64).collect();
         self.inner.evaluate(&seeds, max_steps).iter().map(|e| e.score).collect()
+    }
+
+    /// The agent's value for each action on `observation` (a table's row, a Q-network's outputs; empty if it has none).
+    #[wasm_bindgen(js_name = actionValues)]
+    pub fn action_values(&self, observation: &[f64]) -> Vec<f64> {
+        self.inner.agent().action_values(observation).unwrap_or_default()
     }
 
     /// A tabular agent's values, `row * actions + action` (empty for other agents).

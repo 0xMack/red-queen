@@ -9,6 +9,7 @@ export type ChapterArtKind =
   | "neuroevolution"
   | "neat"
   | "q-table"
+  | "q-network"
 
 export interface LearnChapter {
   slug: string
@@ -144,6 +145,28 @@ export const learnChapters: LearnChapter[] = [
       "Watch it learn",
       "What the knobs do",
       "Why it stops at the greedy baseline",
+      "Where this goes next",
+    ],
+  },
+  {
+    slug: "dqn",
+    title: "Deep Q-Networks",
+    summary:
+      "Q-learning with a neural network in place of the table: what generalizing between situations buys, why it can blow up, the fixes that stop it (replay, a target network) and the ones that barely matter here -- and the observation that lifts Snake from 19 to 30.",
+    path: "/learn/dqn",
+    status: "available",
+    part: "Reinforcement learning",
+    readMinutes: 14,
+    tags: ["reinforcement learning", "DQN", "function approximation", "experience replay", "target network", "Double DQN", "snake"],
+    art: "q-network",
+    prerequisites: ["q-learning", "autodiff"],
+    sections: [
+      "From a table to a network",
+      "The update, as a loss",
+      "Watch it learn",
+      "Why it can blow up",
+      "What each fix buys",
+      "What the snake sees",
       "Where this goes next",
     ],
   },

@@ -111,7 +111,7 @@ export class Progress {
         return ret >>> 0;
     }
     /**
-     * Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+     * Current epsilon (NaN for an agent that doesn't explore that way) and rows ever updated (tabular; NaN otherwise).
      * @returns {number}
      */
     get epsilon() {
@@ -133,10 +133,25 @@ export class Progress {
         return ret;
     }
     /**
+     * A DQN's mean Q(s, a) and loss over this call's updates, and its updates so far (NaN otherwise).
+     * @returns {number}
+     */
+    get q_mean() {
+        const ret = wasm.__wbg_get_progress_q_mean(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @returns {number}
      */
     get states_visited() {
         const ret = wasm.__wbg_get_progress_states_visited(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get td_loss() {
+        const ret = wasm.__wbg_get_progress_td_loss(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -154,6 +169,13 @@ export class Progress {
         return ret;
     }
     /**
+     * @returns {number}
+     */
+    get updates() {
+        const ret = wasm.__wbg_get_progress_updates(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {number} arg0
      */
     set entropy(arg0) {
@@ -167,7 +189,7 @@ export class Progress {
         wasm.__wbg_set_progress_episodes(this.__wbg_ptr, arg0);
     }
     /**
-     * Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+     * Current epsilon (NaN for an agent that doesn't explore that way) and rows ever updated (tabular; NaN otherwise).
      * @param {number} arg0
      */
     set epsilon(arg0) {
@@ -186,10 +208,23 @@ export class Progress {
         wasm.__wbg_set_progress_mean_score(this.__wbg_ptr, arg0);
     }
     /**
+     * A DQN's mean Q(s, a) and loss over this call's updates, and its updates so far (NaN otherwise).
+     * @param {number} arg0
+     */
+    set q_mean(arg0) {
+        wasm.__wbg_set_progress_q_mean(this.__wbg_ptr, arg0);
+    }
+    /**
      * @param {number} arg0
      */
     set states_visited(arg0) {
         wasm.__wbg_set_progress_states_visited(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set td_loss(arg0) {
+        wasm.__wbg_set_progress_td_loss(this.__wbg_ptr, arg0);
     }
     /**
      * @param {number} arg0
@@ -202,6 +237,12 @@ export class Progress {
      */
     set total_steps(arg0) {
         wasm.__wbg_set_progress_total_steps(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set updates(arg0) {
+        wasm.__wbg_set_progress_updates(this.__wbg_ptr, arg0);
     }
 }
 if (Symbol.dispose) Progress.prototype[Symbol.dispose] = Progress.prototype.free;
@@ -220,6 +261,19 @@ export class Trainer {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_trainer_free(ptr, 0);
+    }
+    /**
+     * The agent's value for each action on `observation` (a table's row, a Q-network's outputs; empty if it has none).
+     * @param {Float64Array} observation
+     * @returns {Float64Array}
+     */
+    actionValues(observation) {
+        const ptr0 = passArrayF64ToWasm0(observation, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.trainer_actionValues(this.__wbg_ptr, ptr0, len0);
+        var v2 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v2;
     }
     /**
      * The greedy policy's game score on each of `seeds`, games capped at `max_steps`.

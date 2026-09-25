@@ -1,22 +1,13 @@
 import type { LabCommand, LabConfig, LabMessage } from "~/workers/rlLab.worker"
 import type { RenderState } from "~/types/games"
 
-// The Q-learning chapter's live lab (docs/design/0010 Phase 1b): owns the training worker (workers/rlLab.worker.ts)
-// and turns its messages into reactive state -- progress, the learning curve, the Q-table, the demo game's board.
-// The worker is created on first start and ended with the component, never at module load (SSR, and pages that
-// don't show the lab never pay for it).
+// A Learn chapter's live RL lab (docs/design/0010 Phases 1b, 2b): owns the training worker (workers/rlLab.worker.ts)
+// and turns its messages into reactive state -- progress, the learning curve (and a DQN's Q-value level), a tabular
+// agent's table, the demo game's board with the values the greedy policy chose between. Algorithm-agnostic: each
+// chapter's lab maps its own knobs to a `LabConfig`. The worker is created on first start and ended with the
+// component, never at module load (SSR, and pages that don't show a lab never pay for it).
 
-export const DEFAULT_LAB_CONFIG: LabConfig = {
-  algorithm: "q_learning",
-  alpha: 0.1,
-  gamma: 0.95,
-  epsilonDecaySteps: 100_000,
-  nStep: 1,
-  optimistic: false,
-  reward: "shaped",
-  seed: 0,
-  budget: 1_000_000,
-}
+export type { LabConfig }
 
 export const LAB_SPEEDS = [
   { label: "slow", stepsPerSecond: 5_000 },
@@ -24,9 +15,16 @@ export const LAB_SPEEDS = [
   { label: "fast", stepsPerSecond: 400_000 },
 ] as const
 
+export interface CurvePoint {
+  steps: number
+  score: number
+  qMean: number | null
+  tdLoss: number | null
+}
+
 const LABELS = ["body", "head", "food"] as const
 
-export function useQLearningLab() {
+export function useRlLab(options: { speed?: number } = {}) {
   const status = ref<"idle" | "running" | "paused" | "done" | "error">("idle")
   const error = ref<string | null>(null)
   const totalSteps = ref(0)
@@ -34,14 +32,16 @@ export function useQLearningLab() {
   const epsilon = ref<number | null>(null)
   const statesVisited = ref(0)
   const recentReturn = ref<number | null>(null)
-  // [env steps, mean held-out score] -- shallow: replaced, never mutated in place
-  const curve = shallowRef<[number, number][]>([])
+  // shallow: replaced, never mutated in place
+  const points = shallowRef<CurvePoint[]>([])
+  const curve = computed<[number, number][]>(() => points.value.map((p) => [p.steps, p.score]))
   const values = shallowRef<Float64Array | null>(null)
   const visits = shallowRef<Uint32Array | null>(null)
   const board = shallowRef<RenderState | null>(null)
   const row = ref<number | null>(null)
   const action = ref<number | null>(null)
-  const speed = ref<number>(LAB_SPEEDS[1].stepsPerSecond)
+  const actionValues = shallowRef<number[] | null>(null)
+  const speed = ref<number>(options.speed ?? LAB_SPEEDS[1].stepsPerSecond)
 
   let worker: Worker | null = null
   const send = (command: LabCommand) => worker?.postMessage(command)
@@ -55,7 +55,7 @@ export function useQLearningLab() {
       statesVisited.value = Number.isFinite(m.statesVisited) ? m.statesVisited : 0
       recentReturn.value = m.recentReturn
     } else if (m.type === "curve") {
-      curve.value = [...curve.value, [m.steps, m.score]]
+      points.value = [...points.value, { steps: m.steps, score: m.score, qMean: m.qMean, tdLoss: m.tdLoss }]
     } else if (m.type === "table") {
       values.value = m.values
       visits.value = m.visits
@@ -65,6 +65,7 @@ export function useQLearningLab() {
       board.value = { width: 10, height: 10, cells, score: m.score, alive: !m.done }
       row.value = m.row
       action.value = m.action
+      actionValues.value = m.values.length ? m.values : null
     } else if (m.type === "done") {
       totalSteps.value = m.totalSteps
       status.value = "done"
@@ -80,9 +81,11 @@ export function useQLearningLab() {
       worker.onmessage = onMessage
       send({ type: "speed", stepsPerSecond: speed.value })
     }
-    curve.value = []
+    points.value = []
     values.value = null
     visits.value = null
+    board.value = null
+    actionValues.value = null
     totalSteps.value = 0
     totalEpisodes.value = 0
     recentReturn.value = null
@@ -117,12 +120,14 @@ export function useQLearningLab() {
     epsilon,
     statesVisited,
     recentReturn,
+    points,
     curve,
     values,
     visits,
     board,
     row,
     action,
+    actionValues,
     speed,
     start,
     pause,

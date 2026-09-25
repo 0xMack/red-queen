@@ -34,14 +34,20 @@ export class Progress {
      */
     episodes: number;
     /**
-     * Current epsilon and rows ever updated, for a tabular agent (NaN otherwise).
+     * Current epsilon (NaN for an agent that doesn't explore that way) and rows ever updated (tabular; NaN otherwise).
      */
     epsilon: number;
     mean_return: number;
     mean_score: number;
+    /**
+     * A DQN's mean Q(s, a) and loss over this call's updates, and its updates so far (NaN otherwise).
+     */
+    q_mean: number;
     states_visited: number;
+    td_loss: number;
     total_episodes: number;
     total_steps: number;
+    updates: number;
 }
 
 /**
@@ -51,6 +57,10 @@ export class Progress {
 export class Trainer {
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * The agent's value for each action on `observation` (a table's row, a Q-network's outputs; empty if it has none).
+     */
+    actionValues(observation: Float64Array): Float64Array;
     /**
      * The greedy policy's game score on each of `seeds`, games capped at `max_steps`.
      */
@@ -131,18 +141,24 @@ export interface InitOutput {
     readonly __wbg_get_progress_epsilon: (a: number) => number;
     readonly __wbg_get_progress_mean_return: (a: number) => number;
     readonly __wbg_get_progress_mean_score: (a: number) => number;
+    readonly __wbg_get_progress_q_mean: (a: number) => number;
     readonly __wbg_get_progress_states_visited: (a: number) => number;
+    readonly __wbg_get_progress_td_loss: (a: number) => number;
     readonly __wbg_get_progress_total_episodes: (a: number) => number;
     readonly __wbg_get_progress_total_steps: (a: number) => number;
+    readonly __wbg_get_progress_updates: (a: number) => number;
     readonly __wbg_progress_free: (a: number, b: number) => void;
     readonly __wbg_set_progress_entropy: (a: number, b: number) => void;
     readonly __wbg_set_progress_episodes: (a: number, b: number) => void;
     readonly __wbg_set_progress_epsilon: (a: number, b: number) => void;
     readonly __wbg_set_progress_mean_return: (a: number, b: number) => void;
     readonly __wbg_set_progress_mean_score: (a: number, b: number) => void;
+    readonly __wbg_set_progress_q_mean: (a: number, b: number) => void;
     readonly __wbg_set_progress_states_visited: (a: number, b: number) => void;
+    readonly __wbg_set_progress_td_loss: (a: number, b: number) => void;
     readonly __wbg_set_progress_total_episodes: (a: number, b: number) => void;
     readonly __wbg_set_progress_total_steps: (a: number, b: number) => void;
+    readonly __wbg_set_progress_updates: (a: number, b: number) => void;
     readonly __wbg_trainer_free: (a: number, b: number) => void;
     readonly benchForwards: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly benchUpdates: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
@@ -155,6 +171,7 @@ export interface InitOutput {
     readonly dqnDigest: (a: number) => [number, number];
     readonly learningDigest: (a: number) => [number, number];
     readonly rolloutDigest: (a: number) => [number, number];
+    readonly trainer_actionValues: (a: number, b: number, c: number) => [number, number];
     readonly trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];
     readonly trainer_greedyAction: (a: number, b: number, c: number) => number;
     readonly trainer_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];

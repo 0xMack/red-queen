@@ -336,6 +336,10 @@ impl Agent for QTableAgent {
         self.snapshot_json(self.name())
     }
 
+    fn action_values(&self, observation: &[f64]) -> Option<Vec<f64>> {
+        Some(self.row(self.discretizer.index(observation)).to_vec())
+    }
+
     fn table(&self) -> Option<TableView<'_>> {
         Some(TableView {
             values: &self.q,
