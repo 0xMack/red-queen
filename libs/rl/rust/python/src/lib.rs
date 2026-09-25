@@ -1,7 +1,7 @@
 //! `rl._native`: the RL core as a Python extension (docs/design/0010). Training jobs drive a `Trainer` one iteration
 //! (thousands of environment steps) per call, so Python is never in the inner loop. Plain types across the boundary.
-//! The network and optimizer entry points exist for `tests/reference_nn.py` (the `libs/autodiff` oracle) and for
-//! benchmarks.
+//! The network, optimizer and DQN-update entry points exist for the `libs/autodiff` oracles (`tests/reference_nn.py`,
+//! `tests/reference_dqn.py`) and for benchmarks.
 
 use std::collections::HashMap;
 
@@ -10,6 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig, ALGORITHMS};
 use redqueen_rl::digest;
+use redqueen_rl::dqn::{td_gradients, Batch, QNet};
 use redqueen_rl::env::{ActionSpace, Episode};
 use redqueen_rl::nn::{Activation, Adam, Mlp, Shape};
 use redqueen_rl::rng::{Rng, Stream};
@@ -183,6 +184,11 @@ fn learning_digest(seed: u64) -> String {
     envs::learning_digest(seed)
 }
 
+#[pyfunction]
+fn dqn_digest(seed: u64) -> String {
+    envs::dqn_digest(seed)
+}
+
 /// Initial parameters (He-uniform weights, zero biases) for a network, from the run's `Init` stream.
 #[pyfunction]
 fn mlp_init(layer_sizes: Vec<usize>, activations: Vec<String>, seed: u64) -> PyResult<Vec<f64>> {
@@ -303,6 +309,56 @@ fn tabular_replay(
     Ok(agent.table().to_vec())
 }
 
+/// A Q-network's initial parameters, one vector per sub-network (plain: 1; dueling: trunk, value, advantage).
+#[pyfunction]
+fn dqn_init(inputs: usize, hidden: Vec<usize>, actions: usize, dueling: bool, seed: u64) -> Vec<Vec<f64>> {
+    let net = QNet::init(inputs, &hidden, actions, dueling, &mut Rng::new(seed, Stream::Init));
+    net.parts().into_iter().cloned().collect()
+}
+
+/// (observations, actions, returns, discounts, next observations, weights), flattened row by row.
+type BatchArgs = (Vec<f64>, Vec<usize>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+/// (loss, gradients per sub-network, td errors, mean Q(s, a)).
+type TdOutput = (f64, Vec<Vec<f64>>, Vec<f64>, f64);
+
+/// One DQN update's loss and gradients -- `dqn::td_gradients`.
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn dqn_td_gradients(
+    inputs: usize,
+    hidden: Vec<usize>,
+    actions: usize,
+    dueling: bool,
+    double: bool,
+    online: Vec<Vec<f64>>,
+    target: Vec<Vec<f64>>,
+    batch: BatchArgs,
+) -> PyResult<TdOutput> {
+    let like = QNet::init(inputs, &hidden, actions, dueling, &mut Rng::new(0, Stream::Init));
+    let online = QNet::with_params(&like, &online).map_err(value_error)?;
+    let target = QNet::with_params(&like, &target).map_err(value_error)?;
+    let (observations, taken, returns, discounts, next_observations, weights) = batch;
+    let n = taken.len();
+    if observations.len() != n * inputs || next_observations.len() != n * inputs || taken.iter().any(|&a| a >= actions)
+    {
+        return Err(value_error("batch doesn't match the network's shape".into()));
+    }
+    let result = td_gradients(
+        &online,
+        &target,
+        &Batch {
+            observations,
+            actions: taken,
+            returns,
+            discounts,
+            next_observations,
+            weights,
+        },
+        double,
+    );
+    Ok((result.loss, result.grads, result.td, result.q_mean))
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ALGORITHMS", ALGORITHMS.to_vec())?;
@@ -313,9 +369,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(training_digest, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_digest, m)?)?;
     m.add_function(wrap_pyfunction!(learning_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(dqn_digest, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_init, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_forward_backward, m)?)?;
     m.add_function(wrap_pyfunction!(adam_steps, m)?)?;
+    m.add_function(wrap_pyfunction!(dqn_init, m)?)?;
+    m.add_function(wrap_pyfunction!(dqn_td_gradients, m)?)?;
     m.add_function(wrap_pyfunction!(bench_updates, m)?)?;
     m.add_function(wrap_pyfunction!(bench_forwards, m)?)?;
     Ok(())

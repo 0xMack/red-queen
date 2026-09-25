@@ -3,9 +3,9 @@
 Like jobs/snake_experiment.py, but budgeted in *environment steps* rather than generations: every arm trains from
 the same rng seeds for the same number of steps, every run is recorded to telemetry tagged `config.experiment` /
 `config.arm`, and the report scores each run's *final* champion on the leaderboard's 200 held-out games
-(evaluate.HELD_OUT_SEEDS) -- never the best-looking iteration. Arms differ from `q-learning` in one thing each, so
-each comparison isolates one idea; the report tests every arm against `q-learning` with an exact paired permutation
-test over the seeds (runs with the same seed are paired).
+(evaluate.HELD_OUT_SEEDS) -- never the best-looking iteration. Every arm names the arm it differs from in exactly one
+thing (its `baseline`), so each comparison isolates one idea; the report tests every arm against its baseline with an
+exact paired permutation test over the seeds (runs with the same seed are paired).
 
 Phase 1 arms (tabular, snake/features.v1+relative3.v1, 1M steps unless noted):
 - `q-learning`       alpha 0.1, gamma 0.95, epsilon 1 -> 0.05 over 100k steps, 1-step: the reference arm
@@ -18,6 +18,17 @@ Phase 1 arms (tabular, snake/features.v1+relative3.v1, 1M steps unless noted):
 - `q-n3` / `sarsa-n3`   3-step returns
 - `q-sparse`         reward = outcomes only (+1 food, -1 death), none of the game's shaping
 - `q-long`           5M steps: is 1M enough?
+
+Phase 2 arms (DQN, 1M steps, snake/egocentric.v1+relative3.v1 unless noted; each tested against the arm before it):
+- `dqn-naive`        a Q-network trained online: every transition once, in order, no target network
+- `dqn-replay`       + experience replay (50k transitions, minibatches of 32)
+- `dqn`              + a target network (copied every 2,000 steps): the DQN of Mnih et al. (2015)
+- `dqn-double`       + Double DQN: the online net picks the next action, the target net values it
+- `dqn-dueling`      + dueling heads (V + A - mean A)
+- `dqn-n3`           + 3-step returns
+- `dqn-per`          + prioritized replay (alpha 0.6, beta 0.4 -> 1)
+- `dqn-features` / `dqn-grid`   `dqn` on features.v1 (11 inputs) / grid-flat.v1 (100): does the observation matter?
+- `dqn-long`         `dqn-per` for 5M steps: is 1M enough?
 
   uv run python jobs/rl_experiment.py run    --name NAME --arms q-learning,sarsa --seeds 0-4
   uv run python jobs/rl_experiment.py report --name NAME     # writes run-data/experiments/NAME.json
@@ -43,6 +54,7 @@ from telemetry import FileArtifactStore, FileMetricsStore, RunInfo
 
 EXPERIMENTS_DIR = RUN_DATA_DIR / "experiments"
 INTERFACE = "snake/features.v1+relative3.v1"
+EGOCENTRIC = "snake/egocentric.v1+relative3.v1"
 STEPS_PER_ITERATION = 50_000
 REFERENCE_ARM = "q-learning"
 
@@ -53,10 +65,13 @@ class Arm:
     params: dict[str, float] = field(default_factory=dict)
     steps: int = 1_000_000
     reward: str = "shaped"
+    interface: str = INTERFACE
+    # the arm this one differs from in one thing, tested against it (None: nothing to compare with)
+    baseline: str | None = REFERENCE_ARM
 
 
 ARMS: dict[str, Arm] = {
-    "q-learning": Arm("q_learning"),
+    "q-learning": Arm("q_learning", baseline=None),
     "sarsa": Arm("sarsa"),
     "q-eps-fast": Arm("q_learning", {"epsilon_decay_steps": 20_000}),
     "q-eps-slow": Arm("q_learning", {"epsilon_decay_steps": 500_000}),
@@ -69,6 +84,25 @@ ARMS: dict[str, Arm] = {
     "q-sparse": Arm("q_learning", reward="sparse"),
     "q-long": Arm("q_learning", steps=5_000_000),
 }
+
+# The stability ladder: each rung adds one idea to the one before (dqn.rs's defaults are the `dqn` rung).
+_LADDER = [
+    ("dqn-naive", {"replay_capacity": 0, "target_update": 0}),
+    ("dqn-replay", {"target_update": 0}),
+    ("dqn", {}),
+    ("dqn-double", {"double": 1}),
+    ("dqn-dueling", {"double": 1, "dueling": 1}),
+    ("dqn-n3", {"double": 1, "dueling": 1, "n_step": 3}),
+    ("dqn-per", {"double": 1, "dueling": 1, "n_step": 3, "prioritized": 1}),
+]
+DQN_ARMS: dict[str, Arm] = {
+    name: Arm("dqn", params, interface=EGOCENTRIC, baseline=_LADDER[i - 1][0] if i else None)
+    for i, (name, params) in enumerate(_LADDER)
+}
+DQN_ARMS["dqn-features"] = Arm("dqn", interface=INTERFACE, baseline="dqn")
+DQN_ARMS["dqn-grid"] = Arm("dqn", interface="snake/grid-flat.v1+relative3.v1", baseline="dqn")
+DQN_ARMS["dqn-long"] = Arm("dqn", _LADDER[-1][1], steps=5_000_000, interface=EGOCENTRIC, baseline="dqn-per")
+ARMS.update(DQN_ARMS)
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
@@ -88,7 +122,7 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.steps:,} steps)", flush=True)
             rl_run.main(
                 algorithm=arm.algorithm,
-                env_id=INTERFACE,
+                env_id=arm.interface,
                 iterations=iterations,
                 steps_per_iteration=STEPS_PER_ITERATION,
                 held_out_every=max(1, iterations // 10),
@@ -136,6 +170,9 @@ def summarize_run(run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifa
         "active_s": cost.get("active_s"),
         "parameters": champion_parameters(champion),
         "visited_states": champion.visited_states() if isinstance(champion, QTable) else None,
+        # how high the network's value estimates ended up (overestimation shows here), and its loss
+        "final_q_mean": (history[-1].extras or {}).get("q_mean"),
+        "final_td_loss": (history[-1].extras or {}).get("td_loss"),
         # the monitor curve: held-out score (100 other unseen games) against env steps
         "curve": [
             [int((h.extras or {}).get("env_steps", 0)), h.held_out_score]
@@ -150,7 +187,7 @@ def build_report(name: str) -> dict[str, Any]:
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     rows = sorted((summarize_run(r, metrics, artifacts) for r in runs), key=lambda row: (row["arm"], row["rng_seed"]))
     by_arm = {arm: [row for row in rows if row["arm"] == arm] for arm in sorted({row["arm"] for row in rows})}
-    reference = {row["rng_seed"]: row["held_out_mean"] for row in by_arm.get(REFERENCE_ARM, [])}
+    by_seed = {arm: {row["rng_seed"]: row["held_out_mean"] for row in mine} for arm, mine in by_arm.items()}
     arms: dict[str, Any] = {}
     for arm, mine in by_arm.items():
         scores = [row["held_out_mean"] for row in mine]
@@ -164,10 +201,15 @@ def build_report(name: str) -> dict[str, Any]:
         }
         if all(row["visited_states"] is not None for row in mine):
             entry["visited_states"] = _stats([float(row["visited_states"]) for row in mine])
+        if all(row["final_q_mean"] is not None for row in mine):
+            entry["final_q_mean"] = _stats([row["final_q_mean"] for row in mine])
+        baseline = ARMS[arm].baseline if arm in ARMS else None
+        reference = by_seed.get(baseline, {}) if baseline else {}
         paired = [(row["held_out_mean"], reference[row["rng_seed"]]) for row in mine if row["rng_seed"] in reference]
-        if arm != REFERENCE_ARM and len(paired) >= 2:
+        if len(paired) >= 2:
             a, b = zip(*paired, strict=True)
-            entry[f"vs_{REFERENCE_ARM}"] = {
+            entry["vs_baseline"] = {
+                "arm": baseline,
                 "mean_difference": round(statistics.fmean(x - y for x, y in paired), 3),
                 "paired_p": round(paired_permutation_p(list(a), list(b)), 4),
                 "pairs": len(paired),
@@ -176,7 +218,14 @@ def build_report(name: str) -> dict[str, Any]:
     return {
         "name": name,
         "protocol": f"{PROTOCOL} (200 held-out games per run, final champion)",
-        "setup": {"interface": INTERFACE, "steps_per_iteration": STEPS_PER_ITERATION, "reference_arm": REFERENCE_ARM},
+        "setup": {
+            "steps_per_iteration": STEPS_PER_ITERATION,
+            "arms": {
+                arm: {"interface": a.interface, "baseline": a.baseline, "steps": a.steps, "params": a.params}
+                for arm, a in ARMS.items()
+                if arm in arms
+            },
+        },
         "arms": arms,
         "runs": rows,
     }
@@ -184,14 +233,12 @@ def build_report(name: str) -> dict[str, Any]:
 
 def print_report(report: dict[str, Any]) -> None:
     print(f"\n## {report['name']} -- {report['protocol']}\n")
-    print(
-        f"| arm | n | held-out (mean ± sd) | min-max | vs {REFERENCE_ARM} (p) | env steps | states visited | time (s) |"
-    )
+    print("| arm | n | held-out (mean ± sd) | min-max | vs baseline (p) | env steps | states visited | time (s) |")
     print("|---|---|---|---|---|---|---|---|")
     for arm, a in report["arms"].items():
         h = a["held_out_mean"]
-        vs = a.get(f"vs_{REFERENCE_ARM}")
-        versus = f"{vs['mean_difference']:+.2f} (p={vs['paired_p']:.3f})" if vs else "--"
+        vs = a.get("vs_baseline")
+        versus = f"{vs['mean_difference']:+.2f} vs {vs['arm']} (p={vs['paired_p']:.3f})" if vs else "--"
         visited = f"{a['visited_states']['mean']:.0f}" if "visited_states" in a else "--"
         print(
             f"| {arm} | {a['n']} | {h['mean']:.2f} ± {h['sd']:.2f} | {h['min']:.1f}-{h['max']:.1f} | {versus} | "

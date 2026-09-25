@@ -39,5 +39,15 @@
       "seed": 5,
       "digest": "6cee6dd75d008e56"
     }
+  ],
+  "dqn": [
+    {
+      "seed": 0,
+      "digest": "5d91c208d8e37d26"
+    },
+    {
+      "seed": 3,
+      "digest": "6681d94357aa14df"
+    }
   ]
 }

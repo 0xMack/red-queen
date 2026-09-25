@@ -82,6 +82,43 @@ impl Params {
     }
 }
 
+/// Epsilon-greedy's schedule: epsilon falls linearly from `epsilon_start` to `epsilon_end` over the first
+/// `epsilon_decay_steps` actions, then stays at `epsilon_end`.
+#[derive(Clone, Copy, Debug)]
+pub struct EpsilonSchedule {
+    pub start: f64,
+    pub end: f64,
+    pub decay_steps: f64,
+}
+
+impl EpsilonSchedule {
+    pub fn from_params(params: &Params) -> EpsilonSchedule {
+        EpsilonSchedule {
+            start: params.get("epsilon_start", 1.0),
+            end: params.get("epsilon_end", 0.05),
+            decay_steps: params.get("epsilon_decay_steps", 100_000.0),
+        }
+    }
+
+    /// Epsilon after `acted` actions.
+    pub fn at(&self, acted: u64) -> f64 {
+        let t = acted as f64 / self.decay_steps.max(1.0);
+        if t >= 1.0 {
+            return self.end; // exactly: start + (end - start) * 1 isn't always `end` in floating point
+        }
+        self.start + (self.end - self.start) * t
+    }
+
+    /// The entropy of the epsilon-greedy policy over `n` actions: the greedy one has `1 - eps + eps/n`, each other
+    /// `eps/n`.
+    pub fn entropy(&self, acted: u64, n: usize) -> f64 {
+        let (eps, n) = (self.at(acted), n as f64);
+        let (greedy, other) = (1.0 - eps + eps / n, eps / n);
+        let term = |p: f64| if p > 0.0 { -p * libm::log(p) } else { 0.0 };
+        term(greedy) + (n - 1.0) * term(other)
+    }
+}
+
 /// Acts uniformly at random and learns nothing: the floor every learner must beat, and the pipeline's smoke test.
 pub struct RandomAgent {
     space: ActionSpace,
@@ -130,22 +167,20 @@ impl Agent for RandomAgent {
 }
 
 /// Every algorithm `build_agent` knows, by the name a run records as its `representation`.
-pub const ALGORITHMS: [&str; 3] = ["random", "q_learning", "sarsa"];
+pub const ALGORITHMS: [&str; 4] = ["random", "q_learning", "sarsa", "dqn"];
 
-/// Builds an agent by algorithm name, for an environment with this action space and (if it has one) discretizer.
-pub fn build_agent(
-    algorithm: &str,
-    space: ActionSpace,
-    discretizer: Option<crate::tabular::Discretizer>,
-    params: &Params,
-) -> Result<Box<dyn Agent>, String> {
+/// Builds an agent by algorithm name for environments like `env` (its observation size, action space and
+/// discretizer, if it has one). `seed` is the run's: an agent with its own randomness (weight init, replay
+/// sampling) derives its streams from it.
+pub fn build_agent(algorithm: &str, env: &dyn Env, seed: u64, params: &Params) -> Result<Box<dyn Agent>, String> {
+    let space = env.action_space();
     match algorithm {
         "random" => {
             params.check("random", &[])?;
             Ok(Box::new(RandomAgent::new(space)))
         }
         "q_learning" | "sarsa" => {
-            let discretizer = discretizer.ok_or_else(|| {
+            let discretizer = env.discretizer().ok_or_else(|| {
                 format!(
                     "{algorithm} is tabular: it needs a small discrete observation (e.g. snake/features.v1, reach1d)"
                 )
@@ -157,6 +192,12 @@ pub fn build_agent(
                 params,
             )?))
         }
+        "dqn" => Ok(Box::new(crate::dqn::DqnAgent::new(
+            env.observation_size(),
+            space,
+            seed,
+            params,
+        )?)),
         other => Err(format!("unknown algorithm {other:?} (known: {ALGORITHMS:?})")),
     }
 }
@@ -227,7 +268,7 @@ impl Trainer {
         config: TrainerConfig,
     ) -> Result<Trainer, String> {
         let probe = factory.make();
-        let agent = build_agent(algorithm, probe.action_space(), probe.discretizer(), params)?;
+        let agent = build_agent(algorithm, probe.as_ref(), config.seed, params)?;
         Ok(Trainer::new(factory, agent, config))
     }
 

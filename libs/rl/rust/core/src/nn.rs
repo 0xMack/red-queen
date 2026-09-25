@@ -208,6 +208,16 @@ impl Mlp {
     /// Gradient of a loss with respect to every parameter, given the loss's gradient with respect to the outputs
     /// (`output_grad`: `batch` rows of `shape.outputs()`), summed over the batch. Same layout as `params`.
     pub fn backward(&self, cache: &Cache, output_grad: &[f64]) -> Vec<f64> {
+        self.backward_inner(cache, output_grad, false).0
+    }
+
+    /// `backward`, plus the loss's gradient with respect to the *inputs* (`batch` rows of `shape.inputs()`): what a
+    /// network feeding this one (a dueling Q-network's shared trunk) backpropagates from.
+    pub fn backward_with_inputs(&self, cache: &Cache, output_grad: &[f64]) -> (Vec<f64>, Vec<f64>) {
+        self.backward_inner(cache, output_grad, true)
+    }
+
+    fn backward_inner(&self, cache: &Cache, output_grad: &[f64], input_grad: bool) -> (Vec<f64>, Vec<f64>) {
         let batch = cache.batch;
         assert_eq!(output_grad.len(), batch * self.shape.outputs(), "output gradient size");
         let mut grads = vec![0.0; self.params.len()];
@@ -247,7 +257,7 @@ impl Mlp {
                     }
                 }
             }
-            if layer > 0 {
+            if layer > 0 || input_grad {
                 let weights = &self.params[offset..offset + n_in * n_out];
                 let mut below = vec![0.0; batch * n_in];
                 for row in 0..batch {
@@ -263,7 +273,8 @@ impl Mlp {
                 upstream = below;
             }
         }
-        grads
+        let inputs = if input_grad { upstream } else { Vec::new() };
+        (grads, inputs)
     }
 }
 
@@ -383,6 +394,33 @@ mod tests {
             mlp.params[i] = original;
             let numeric = (up - down) / (2.0 * h);
             assert!((numeric - grad).abs() < 1e-6, "param {i}: {numeric} vs {}", grad);
+        }
+    }
+
+    #[test]
+    fn input_gradients_match_finite_differences() {
+        let mlp = net(4);
+        let mut x = vec![0.3, -0.7, 1.1, -0.2, 0.4, 0.9];
+        let g = [0.5, -1.5, 2.0, 0.25];
+        let loss = |x: &[f64]| {
+            mlp.forward_batch(x, 2)
+                .outputs()
+                .iter()
+                .zip(&g)
+                .map(|(o, g)| o * g)
+                .sum::<f64>()
+        };
+        let (params, inputs) = mlp.backward_with_inputs(&mlp.forward_batch(&x, 2), &g);
+        assert_eq!(params, mlp.backward(&mlp.forward_batch(&x, 2), &g));
+        let h = 1e-6;
+        for i in 0..x.len() {
+            let original = x[i];
+            x[i] = original + h;
+            let up = loss(&x);
+            x[i] = original - h;
+            let down = loss(&x);
+            x[i] = original;
+            assert!(((up - down) / (2.0 * h) - inputs[i]).abs() < 1e-6, "input {i}");
         }
     }
 

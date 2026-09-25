@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0 and 1 implemented** (see "Implementation notes"); Phases 2-4 planned. Each phase lands as its own PR,
+Status: **Phases 0, 1 and 2a implemented** (see "Implementation notes"); 2b (the DQN chapter) and Phases 3-4 planned. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -386,3 +386,55 @@ held-out games; paired permutation test against `q-learning`):
   last rows fill in only once the table plays well (~100k+). Exploration's reach is bounded by the agent's own
   skill, which matters more when Phase 2's larger observations make coverage the question.
 
+### Phase 2a: DQN (2026-09-24)
+
+Built: `dqn.rs` -- a Q-network (ReLU MLP, Huber loss, Adam) with every stabilizer a parameter: experience replay
+(`replay_capacity`, 0 = train on each transition once, in order), a target network (`target_update`, 0 = none),
+Double DQN, dueling heads, n-step returns (accumulated like the table's) and proportional prioritized replay (a sum tree
+whose parents are recomputed, never adjusted, so every target sums the same bits). `td_gradients` is the update as a
+pure function, checked against `reference_dqn.py` (`libs/autodiff`) for plain/dueling x single/double to ~1e-12. A
+dueling network's `V + A - mean(A)` is linear in the trunk's output, so the snapshot folds the heads into one output
+layer: every DQN champion is a plain `{"type": "mlp"}` network (`modelpack.MlpPolicy`, `export_mlp` -- `Gemm`/`Relu`),
+and the Watch page draws it with its own activations. A `dqn` digest (every stabilizer on, `egocentric.v1`) joins the
+determinism fixture; the WASM build reproduces it bit for bit.
+
+**Results (`rl-dqn-v1`: 1M env steps per run, final network on the 200 held-out games; each arm tested against the
+arm it adds one thing to):**
+
+| Arm | Seeds | Held-out (mean ± sd) | Notes |
+|---|---|---|---|
+| `dqn-naive` (no replay, no target net), egocentric.v1 | 20 | 25.79 ± 6.01 | 1 of 20 diverged (Q -> -98, never learned); the rest 26.2-28.0 |
+| + replay (`dqn-replay`) | 20 | 26.66 ± 6.30 | 1 of 20 diverged (Q -> 1.3e10); the rest 25.9-28.7 |
+| + target network (`dqn`) | 20 | **28.45 ± 0.90** | 0 of 20 diverged; +1.79 vs. replay (p 0.063) |
+| + Double DQN | 5 | 28.47 ± 0.80 | -0.47 (p 0.56) |
+| + dueling heads | 5 | 28.49 ± 0.65 | +0.02 (p 1.0) |
+| + 3-step returns | 5 | 29.36 ± 0.33 | +0.87, better in all 5 pairs (p 0.062, the floor for 5) |
+| + prioritized replay (`dqn-per`) | 5 | 29.54 ± 0.75 | +0.18 (p 0.69) |
+| `dqn-per` for 5M steps (`dqn-long`) | 5 | **30.45 ± 0.77** | +0.91, better in all 5 pairs (p 0.062) |
+| `dqn` on features.v1 | 5 | 18.83 ± 1.20 | -10.1 vs. egocentric: the table's ceiling (Phase 1) |
+| `dqn` on grid-flat.v1 | 5 | 0.38 ± 0.05 | never learns to eat |
+
+- **The observer question has an answer, and it's the headline.** On `egocentric.v1` a DQN reaches 28.5 in 1M
+  steps and 30.5 in 5M; on `features.v1` it stops at 18.8, where the table stopped. Evolution couldn't make
+  `egocentric.v1` pay (doc 0007: NEAT 35.8 vs. 38.0 on features.v1, not better); a gradient learner can -- the
+  observation that aliases situations caps value learning, and one that tells them apart lifts it by 10 points.
+- **Sample efficiency is the other half.** 5M steps for 30.5 against NEAT's 409M for 38 on features.v1 (and 11.8M
+  for 20.3): about 80x fewer environment steps for 80% of the best score. Not a like-for-like horse race --
+  different observers and budgets -- but the axis doc 0010 set out to measure.
+- **The target network prevents divergence -- which is rare here, but total.** Without one, 1 run in 20 blew up
+  (one to Q = 1.3e10 for rewards of about +-1 a step, one to a negative spiral that never learned); with one, 0 of the
+  45 runs that had it did. Five seeds per arm (the first report) showed one divergence per arm and couldn't tell a
+  rate from an anecdote; twenty make it a ~5% failure mode. Excluding divergences, replay and the target network are
+  each worth under a point.
+- **The later rungs are small.** Double DQN barely lowers the mean `Q(s, a)` (2.59 vs. 2.65) and doesn't change the
+  score: with rewards of +-1, gamma 0.95 and three actions there is little max-bias to remove. Dueling and prioritized
+  replay: nothing measurable at 5 seeds. 3-step returns: +0.9 and the tightest spread -- consistent, small.
+- **`grid-flat.v1` defeats every learner so far** (evolution 0.06-0.17, DQN 0.38). It is one number per cell (empty 0,
+  body 1, head 2, food 3) in the absolute frame, while the actions are relative turns: categories share one numeric
+  scale, and the heading is implicit in where the neck is. The learner isn't the bottleneck; a one-hot or egocentric
+  grid would be the test of that, not more steps.
+- **On the leaderboard:** `dqn-long`'s settings (every stabilizer on, 5M steps), rng seed 0 fixed in advance,
+  egocentric.v1: **#2 at 29.28 ± 1.00**, behind only the 38-point NEAT -- trained alone in 6.6 min (395 s active),
+  27→64→64→3 (6,147 parameters), 12 µs per decision. fp64 and fp32 packages both agree on all 50,262 decisions.
+- Timing: experiment runs ran 5-20 at once on one machine, so their `active_s` is inflated; the leaderboard entrant
+  was trained alone.

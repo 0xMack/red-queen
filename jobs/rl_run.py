@@ -11,12 +11,13 @@ environment steps -- and records each iteration the way every other run is recor
 
 Training games are drawn from jobs/seeding.py's TRAINING_POOL, disjoint from the leaderboard's held-out games and
 the monitor's. Algorithms: `random` (learns nothing: the pipeline's smoke test), `q_learning` and `sarsa` (tabular,
-Phase 1; `--param n_step=3`, `--param epsilon_decay_steps=200000`, ... -- libs/rl/rust/core/src/tabular.rs).
+Phase 1; `--param n_step=3`, `--param epsilon_decay_steps=200000`, ... -- libs/rl/rust/core/src/tabular.rs), `dqn`
+(Phase 2; `--param double=1 --param dueling=1`, ... -- dqn.rs).
 
 Run with:
   uv run python jobs/rl_run.py [--algo q_learning] [--env snake/features.v1+relative3.v1 | reach1d]
                                [--iterations 20] [--steps-per-iteration 10000] [--held-out-every 5] [--rng-seed 0]
-                               [--param NAME=VALUE ...] [--reward shaped|sparse]
+                               [--param NAME=VALUE ...] [--reward shaped|sparse] [--snapshot-every N]
 """
 
 from __future__ import annotations
@@ -168,6 +169,9 @@ if __name__ == "__main__":
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE", help="an algorithm parameter")
     parser.add_argument("--reward", default="shaped", choices=["shaped", "sparse"], help="Snake's reward signal")
     parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
+    parser.add_argument(
+        "--snapshot-every", type=int, default=1, help="store the policy every N iterations (and the last)"
+    )
     args = parser.parse_args()
     main(
         algorithm=args.algo,
@@ -179,4 +183,5 @@ if __name__ == "__main__":
         params=parse_params(args.param),
         tags={"experiment": args.experiment} if args.experiment else None,
         reward=args.reward,
+        snapshot_every=args.snapshot_every,
     )

@@ -31,6 +31,7 @@ from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
 from modelpack import (
     LocalModelStore,
+    MlpPolicy,
     ModelStore,
     PackagedModel,
     QTable,
@@ -206,6 +207,7 @@ ALGORITHM_LABELS = {
     "neuroevolution": "Neuroevolution",
     "q_learning": "Q-learning",
     "sarsa": "SARSA",
+    "dqn": "DQN",
 }
 
 
@@ -283,6 +285,8 @@ def champion_entrants(
                     if representation == "neat"
                     else f"{network} ({representation})"
                     if isinstance(champion, QTable)
+                    else f"MLP {network}, {'/'.join(sorted(set(champion.activations[:-1])))} ({representation})"
+                    if isinstance(champion, MlpPolicy)
                     else f"MLP {network}, tanh ({representation})"
                 ),
                 "parameters": champion_parameters(champion),

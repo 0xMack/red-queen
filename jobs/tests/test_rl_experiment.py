@@ -21,7 +21,7 @@ def test_an_experiment_runs_arms_by_seed_skips_what_is_done_and_reports_pairs(tm
     monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001))
     monkeypatch.setattr(evaluate, "HELD_OUT_SEEDS", tuple(range(10_000, 10_010)))
     small = {
-        "q-learning": rl_experiment.Arm("q_learning", {"epsilon_decay_steps": 5_000}, steps=10_000),
+        "q-learning": rl_experiment.Arm("q_learning", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline=None),
         "sarsa": rl_experiment.Arm("sarsa", {"epsilon_decay_steps": 5_000}, steps=10_000),
     }
     monkeypatch.setattr(rl_experiment, "ARMS", small)
@@ -35,8 +35,9 @@ def test_an_experiment_runs_arms_by_seed_skips_what_is_done_and_reports_pairs(tm
     report = rl_experiment.build_report("t")
     assert set(report["arms"]) == {"q-learning", "sarsa"}
     sarsa = report["arms"]["sarsa"]
-    assert sarsa["n"] == 2 and sarsa["vs_q-learning"]["pairs"] == 2 and 0 < sarsa["vs_q-learning"]["paired_p"] <= 1
-    assert "vs_q-learning" not in report["arms"]["q-learning"]
+    versus = sarsa["vs_baseline"]
+    assert sarsa["n"] == 2 and versus["arm"] == "q-learning" and versus["pairs"] == 2 and 0 < versus["paired_p"] <= 1
+    assert "vs_baseline" not in report["arms"]["q-learning"]
     run = report["runs"][0]
     assert run["env_steps"] == 10_000 and run["parameters"] == 2048 * 3 and run["visited_states"] > 0
     assert run["curve"] and run["curve"][-1][0] == 10_000

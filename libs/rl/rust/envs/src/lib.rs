@@ -281,6 +281,42 @@ pub fn learning_digest(seed: u64) -> String {
     hash.hex()
 }
 
+/// The DQN digest: a Q-network with every stability piece on (replay, target network, double, dueling, 3-step
+/// returns, prioritized replay) trained on Snake's `egocentric.v1` from `seed` -- episodes, a greedy evaluation and the
+/// final (folded) network, hashed. Covers backprop, Adam, the sum tree and the ray observer across targets.
+pub fn dqn_digest(seed: u64) -> String {
+    let mut hash = Fnv::default();
+    let config = TrainerConfig {
+        seed,
+        seed_pool: (100_000, 1_000_000),
+        max_episode_steps: 300,
+    };
+    let params = Params::new(
+        [
+            ("hidden", 32.0),
+            ("learn_start", 500.0),
+            ("target_update", 500.0),
+            ("epsilon_decay_steps", 4_000.0),
+            ("double", 1.0),
+            ("dueling", 1.0),
+            ("n_step", 3.0),
+            ("prioritized", 1.0),
+        ]
+        .map(|(k, v)| (k.to_string(), v)),
+    );
+    let factory = factory("snake/egocentric.v1+relative3.v1", 10, 10).unwrap();
+    let mut trainer = Trainer::build(factory, "dqn", &params, config).unwrap();
+    let stats = trainer.train(6_000);
+    for episode in stats.episodes.iter().chain(&trainer.evaluate(&[20_000, 20_001], 300)) {
+        hash.f64(episode.total_reward);
+        hash.f64(episode.score);
+    }
+    for byte in trainer.agent().snapshot().bytes() {
+        hash.f64(byte as f64);
+    }
+    hash.hex()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

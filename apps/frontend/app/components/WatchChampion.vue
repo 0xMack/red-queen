@@ -82,7 +82,7 @@ onMounted(session.start)
 const activations = computed(() => {
   if (!policy.value || !observation.value || policy.value.kind !== "weights") return null
   if (observation.value.length !== policy.value.layerSizes[0]) return null
-  return forwardActivations(policy.value.weights, policy.value.layerSizes, observation.value)
+  return forwardActivations(policy.value.weights, policy.value.layerSizes, observation.value, policy.value.activations)
 })
 
 // An evolved graph is drawn (and lit up) by NeatDiagram, with node activations keyed by node id.
