@@ -287,7 +287,7 @@ const pocketBoard = board([
       fit in a table: there are far too many possible boards to give each one its own row, and the agent would never visit most of them. So the next step replaces the table with a
       neural network that <em>estimates</em> Q from the observation, so that similar situations share what they learn: <strong>deep
       Q-networks</strong> (DQN), the method that learned to play Atari games from pixels. It needs its own tricks -- a replay buffer, a slowly
-      updated target network -- and its own chapter. After that comes learning the policy directly instead of values (<strong>policy
+      updated target network -- and its own chapter, <NuxtLink to="/learn/dqn">Deep Q-Networks</NuxtLink>. After that comes learning the policy directly instead of values (<strong>policy
       gradients</strong>), and then two-player games learned by playing against itself.
     </p>
   </article>

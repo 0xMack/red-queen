@@ -113,7 +113,7 @@ what belongs here and how to add to it). Read before writing code, not after.
   was p=0.056 (suggestive) and +3.8 was p=0.008. Include a control that changes *one* thing at a time: NEAT vs.
   lexicase-selected neuroevolution confounds the algorithm with the selection rule until a tournament-selected
   arm is added (docs/design/0008). Five seeds can't measure a *rare* failure: DQN without a target network diverged
-  once in five seeds per arm, which reads as either a fluke or a 20% rate; twenty seeds made it ~5% (0 of 45 with
+  once in five seeds per arm, which reads as either a fluke or a 20% rate; twenty seeds made it ~5% (0 of 55 with
   one). When an arm's spread is one outlier, add seeds before drawing the conclusion.
 - **A value-based learner is only as good as the observation is Markov.** Tabular Q-learning on Snake's
   `features.v1` converged (all 256 reachable rows, 5M steps no better than 1M) to ~18 points while NEAT, reading the

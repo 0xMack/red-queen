@@ -41,6 +41,11 @@ pub trait Agent {
     }
     /// The current policy in its wire format (JSON): a run's champion artifact.
     fn snapshot(&self) -> String;
+    /// The value of each action on `observation`, for agents that have them (a table's row, a Q-network's outputs) --
+    /// what a demo shows the greedy policy choosing between. `None` for agents without values.
+    fn action_values(&self, _observation: &[f64]) -> Option<Vec<f64>> {
+        None
+    }
     /// A tabular agent's table, for visualizations (Learn's live demo); `None` for everything else.
     fn table(&self) -> Option<TableView<'_>> {
         None

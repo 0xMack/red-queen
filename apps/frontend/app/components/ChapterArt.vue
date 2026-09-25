@@ -37,6 +37,31 @@ const front = paretoPoints
   .filter((p) => !paretoPoints.some((q) => q !== p && q.x <= p.x && q.y >= p.y && (q.x < p.x || q.y > p.y)))
   .sort((a, b) => a.x - b.x)
 
+// A small Q-network: 6 inputs, two hidden layers of 5, three outputs (the chosen action green).
+const qnet = (() => {
+  const layers = [6, 5, 5, 3]
+  const xs = [60, 120, 180, 240]
+  const nodes = layers.flatMap((n, l) =>
+    Array.from({ length: n }, (_, i) => ({
+      key: `${l}-${i}`,
+      x: xs[l]!,
+      y: 110 + (i - (n - 1) / 2) * (l === 3 ? 34 : 24),
+      r: l === 3 ? 7 : 5,
+      fill: l === 0 ? "#60a5fa" : l === 3 ? (i === 1 ? "#4ade80" : "#6b7489") : "#a0a8ba",
+      layer: l,
+    })),
+  )
+  const edges = []
+  for (let l = 0; l < layers.length - 1; l++) {
+    for (const a of nodes.filter((n) => n.layer === l)) {
+      for (const b of nodes.filter((n) => n.layer === l + 1)) edges.push({ key: `${a.key}>${b.key}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+    }
+  }
+  return { nodes, edges }
+})()
+const qnetNodes = qnet.nodes
+const qnetEdges = qnet.edges
+
 // A slice of a Q-table: rows of three action values, the chosen (largest) one highlighted.
 const qRows = (() => {
   const r = rand(17)
@@ -221,6 +246,26 @@ const attention = (() => {
       <text x="128" y="55" fill="#6b7489">#1 off</text>
       <rect x="28" y="214" width="344" height="24" rx="6" fill="#151924" stroke="#323a4d" />
       <text x="200" y="230" text-anchor="middle" fill="#a0a8ba">innovation numbers line up different structures</text>
+    </g>
+
+    <!-- A Q-network: observation -> layers -> three action values, trained from a replay buffer against a frozen copy -->
+    <g v-else-if="kind === 'q-network'" font-family="JetBrains Mono, monospace" font-size="10">
+      <g>
+        <line v-for="e in qnetEdges" :key="e.key" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" stroke="#323a4d" stroke-width="0.8" />
+        <circle v-for="n in qnetNodes" :key="n.key" :cx="n.x" :cy="n.y" :r="n.r" :fill="n.fill" />
+        <text v-for="(label, i) in ['↰', '↑', '↱']" :key="`a${i}`" x="262" :y="76 + i * 34" fill="#a0a8ba" font-size="12">{{ label }}</text>
+        <text v-for="(v, i) in ['1.84', '2.61', '0.37']" :key="`v${i}`" x="280" :y="76 + i * 34" :fill="i === 1 ? '#4ade80' : '#6b7489'">{{ v }}</text>
+        <text x="48" y="36" fill="#6b7489">observation</text>
+        <text x="236" y="36" fill="#6b7489">Q(s, ·)</text>
+      </g>
+      <rect x="28" y="190" width="150" height="40" rx="6" fill="#151924" stroke="#323a4d" />
+      <rect v-for="i in 12" :key="`r${i}`" :x="36 + (i - 1) * 11.5" y="200" width="8" height="20" rx="1.5" :fill="[2, 5, 9].includes(i) ? '#ff5c7a' : '#252c3d'" />
+      <text x="103" y="243" text-anchor="middle" fill="#6b7489" font-size="9">replay: random minibatches</text>
+      <path d="M150 188 C 160 170, 170 160, 180 150" fill="none" stroke="#ff5c7a" stroke-width="1.5" marker-end="url(#art-arrow)" />
+      <rect x="226" y="190" width="146" height="40" rx="6" fill="#151924" stroke="#323a4d" stroke-dasharray="4 3" />
+      <text x="299" y="208" text-anchor="middle" fill="#a0a8ba">target network</text>
+      <text x="299" y="222" text-anchor="middle" fill="#6b7489" font-size="9">a frozen copy, now and then</text>
+      <path d="M300 150 L300 186" fill="none" stroke="#6b7489" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#art-arrow)" />
     </g>
 
     <!-- A board state becomes a row of the Q-table; the update rule underneath -->

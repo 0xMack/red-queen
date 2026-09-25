@@ -678,6 +678,10 @@ impl Agent for DqnAgent {
         Action::Discrete(argmax(&self.online.q(observation)))
     }
 
+    fn action_values(&self, observation: &[f64]) -> Option<Vec<f64>> {
+        Some(self.online.q(observation))
+    }
+
     fn observe(&mut self, t: &Transition, _rng: &mut Rng) {
         let action = match t.action {
             Action::Discrete(a) => a,
@@ -910,6 +914,12 @@ mod tests {
     #[test]
     fn snapshots_are_plain_mlps_and_bad_params_are_rejected() {
         let trainer = train(&[("dueling", 1.0)]);
+        let start = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let values = trainer.agent().action_values(&start).unwrap();
+        assert!(
+            values.len() == 2 && values[1] > values[0],
+            "moving right is worth more: {values:?}"
+        );
         let json = trainer.agent().snapshot();
         assert!(json.starts_with(r#"{"type": "mlp", "algorithm": "dqn", "layer_sizes": [6, 16, 16, 2]"#));
         assert!(json.contains(r#""activations": ["relu", "relu", "linear"]"#));

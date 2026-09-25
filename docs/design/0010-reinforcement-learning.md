@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0, 1 and 2a implemented** (see "Implementation notes"); 2b (the DQN chapter) and Phases 3-4 planned. Each phase lands as its own PR,
+Status: **Phases 0, 1 and 2 implemented** (see "Implementation notes"); Phases 3-4 planned. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -405,7 +405,7 @@ arm it adds one thing to):**
 |---|---|---|---|
 | `dqn-naive` (no replay, no target net), egocentric.v1 | 20 | 25.79 ± 6.01 | 1 of 20 diverged (Q -> -98, never learned); the rest 26.2-28.0 |
 | + replay (`dqn-replay`) | 20 | 26.66 ± 6.30 | 1 of 20 diverged (Q -> 1.3e10); the rest 25.9-28.7 |
-| + target network (`dqn`) | 20 | **28.45 ± 0.90** | 0 of 20 diverged; +1.79 vs. replay (p 0.063) |
+| + target network (`dqn`) | 20 | **28.45 ± 0.90** | 0 of 20 diverged (0 of all 55 runs with a target network); +1.79 vs. replay (p 0.063) |
 | + Double DQN | 5 | 28.47 ± 0.80 | -0.47 (p 0.56) |
 | + dueling heads | 5 | 28.49 ± 0.65 | +0.02 (p 1.0) |
 | + 3-step returns | 5 | 29.36 ± 0.33 | +0.87, better in all 5 pairs (p 0.062, the floor for 5) |
@@ -423,7 +423,7 @@ arm it adds one thing to):**
   different observers and budgets -- but the axis doc 0010 set out to measure.
 - **The target network prevents divergence -- which is rare here, but total.** Without one, 1 run in 20 blew up
   (one to Q = 1.3e10 for rewards of about +-1 a step, one to a negative spiral that never learned); with one, 0 of the
-  45 runs that had it did. Five seeds per arm (the first report) showed one divergence per arm and couldn't tell a
+  55 runs that had it did (45 on egocentric.v1, 10 on the other observers). Five seeds per arm (the first report) showed one divergence per arm and couldn't tell a
   rate from an anecdote; twenty make it a ~5% failure mode. Excluding divergences, replay and the target network are
   each worth under a point.
 - **The later rungs are small.** Double DQN barely lowers the mean `Q(s, a)` (2.59 vs. 2.65) and doesn't change the
@@ -438,3 +438,21 @@ arm it adds one thing to):**
   27→64→64→3 (6,147 parameters), 12 µs per decision. fp64 and fp32 packages both agree on all 50,262 decisions.
 - Timing: experiment runs ran 5-20 at once on one machine, so their `active_s` is inflated; the leaderboard entrant
   was trained alone.
+
+### Phase 2b: the DQN chapter (2026-09-24)
+
+- **`/learn/dqn`**: from a table to a network, the update as a Huber loss (quoting `td_gradients`), the deadly
+  triad and the two data fixes (replay, target network), the stability ladder's results, and the observer comparison.
+  Results are drawn by `ArmResults` -- a generic strip plot + comparison table that `QLearningResults` now uses too.
+- **The live lab (`DqnLab`)** trains a DQN in the browser on the lab worker, now algorithm-generic
+  (`workers/rlLab.worker.ts` + `useRlLab`: algorithm, observer and a `name=value` params string; it reports a DQN's
+  mean Q and loss per evaluation, and every agent's action values through the core's new `Agent::action_values`). The
+  reader picks the observer, the stabilizers and a seed; each run is drawn over the previous one. Measured: ~9k env
+  steps/s in WASM on a desktop, so 200k steps take ~25 s -- enough for egocentric.v1 to reach the mid-20s while
+  features.v1 stays at ~18, live.
+- **The planned "switch the stabilizers off and watch it fall apart" toggle doesn't work as planned**: divergence is
+  a 1-in-20 event (Phase 2a), so a reader would almost always see training go fine. The chapter shows the experiment's
+  two real divergences instead (`DqnDivergence`, from `jobs/export_dqn_recording.py`, Q on a symmetric log scale),
+  and the lab offers ten seeds: with both stabilizers off, seed 0 diverges in the browser too (Q -> 2.4e7, score 0)
+  and seeds 1-9 learn (24.5-27.3). Seed 0 also diverged in the experiment, though the browser draws different games --
+  what the two share is the initial weights and the exploration draws.
