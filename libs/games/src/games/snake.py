@@ -228,6 +228,31 @@ class SnakeEgocentric:
         ]
 
 
+class SnakeEgocentricV2:
+    """Level 2, egocentric plus reachable space (docs/design/0010): `egocentric.v1`'s 27 values, then for each relative
+    move (left, straight, right) the fraction of the board's free cells reachable from the cell the move enters -- a
+    flood fill over the body as it will be after the move -- and whether the tail is reachable from there (1/0).
+    What a ray can't see: whether the space ahead is enclosed. 33 values; a fatal move reads 0 and 0."""
+
+    id = "egocentric.v2"
+    native_id = "egocentric.v2"
+    level = 2
+    description = (
+        "egocentric.v1, plus for each move the share of free cells still reachable after it and whether the tail "
+        "is reachable -- whether the space ahead is enclosed."
+    )
+
+    def encode(self, game: Snake) -> list[float]:
+        return game._core.encode(self.native_id)
+
+    def feature_names(self, game: Snake) -> list[str]:
+        return [
+            *SnakeEgocentric().feature_names(game),
+            *(f"space {m}" for m in ("left", "straight", "right")),
+            *(f"tail reachable {m}" for m in ("left", "straight", "right")),
+        ]
+
+
 class SnakeGridFlat:
     """Level 1, full state: every cell as one float (empty 0, body 1, head 2, food 3), row-major.
     width*height inputs, so board-size dependent. What notebooks/0005 trained against before the
@@ -246,6 +271,24 @@ class SnakeGridFlat:
 
     def feature_names(self, game: Snake) -> list[str]:
         return [f"cell ({x},{y})" for y in range(game.height) for x in range(game.width)]
+
+
+class SnakeGridOneHot:
+    """Level 1, full state, one-hot: every cell as three 0/1 channels (body, head, food), row-major, then the heading
+    one-hot (right/down/left/up). The same information as `grid-flat.v1` without putting the categories on one number
+    line, plus the heading the relative actions turn from. 3 * width * height + 4 values."""
+
+    id = "grid-onehot.v1"
+    native_id = "grid-onehot.v1"
+    level = 1
+    description = "The whole board as body/head/food channels per cell, plus the heading. 304 values on 10x10."
+
+    def encode(self, game: Snake) -> list[float]:
+        return game._core.encode(self.native_id)
+
+    def feature_names(self, game: Snake) -> list[str]:
+        cells = [f"({x},{y}) {c}" for y in range(game.height) for x in range(game.width) for c in ("body", "head", "food")]
+        return [*cells, *(f"heading {h}" for h in _HEADING_NAMES)]
 
 
 class RelativeTurn3:

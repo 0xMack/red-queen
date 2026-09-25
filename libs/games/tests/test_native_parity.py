@@ -8,7 +8,7 @@ import pytest
 from reference_snake import Pcg32, ReferenceSnake, reference_greedy
 
 from games import _native, baselines
-from games.snake import Snake, SnakeEgocentric, SnakeFeatures, SnakeGridFlat
+from games.snake import Snake, SnakeEgocentric, SnakeEgocentricV2, SnakeFeatures, SnakeGridFlat, SnakeGridOneHot
 
 
 @pytest.mark.parametrize("seed", [0, 1, 42, 2**31 - 1, 2**40 + 7, 2**64 - 1])
@@ -29,16 +29,22 @@ def _play_both(seed: int, width: int, height: int, choose) -> int:
     native = Snake(width=width, height=height, seed=seed, observer=SnakeFeatures())
     grid = Snake(width=width, height=height, seed=seed, observer=SnakeGridFlat())
     ego = Snake(width=width, height=height, seed=seed, observer=SnakeEgocentric())
+    ego2 = Snake(width=width, height=height, seed=seed, observer=SnakeEgocentricV2())
+    onehot = Snake(width=width, height=height, seed=seed, observer=SnakeGridOneHot())
     reference = ReferenceSnake(width=width, height=height, seed=seed)
     observation = native.reset()
     assert grid.reset() == reference.grid_flat()
     assert ego.reset() == reference.egocentric()
+    assert ego2.reset() == reference.egocentric_v2()
+    assert onehot.reset() == reference.grid_onehot()
     assert observation == reference.features()
     for step in range(2000):
         action = choose(observation, step)
         observation, reward, done = native.step(action)
         grid_observation, _, _ = grid.step(action)
         ego_observation, _, _ = ego.step(action)
+        ego2_observation, _, _ = ego2.step(action)
+        onehot_observation, _, _ = onehot.step(action)
         expected_reward, expected_done = reference.step(action)
         assert (reward, done) == (expected_reward, expected_done), f"seed {seed} step {step}"
         if not reference.alive:
@@ -47,6 +53,8 @@ def _play_both(seed: int, width: int, height: int, choose) -> int:
         assert observation == reference.features(), f"seed {seed} step {step}"
         assert grid_observation == reference.grid_flat(), f"seed {seed} step {step}"
         assert ego_observation == reference.egocentric(), f"seed {seed} step {step}"
+        assert ego2_observation == reference.egocentric_v2(), f"seed {seed} step {step}"
+        assert onehot_observation == reference.grid_onehot(), f"seed {seed} step {step}"
         assert native.body == reference.body and native.food == reference.food
         assert list(native.render_state()["cells"].items()) == [((x, y), label) for x, y, label in reference.cells()]
     assert native.score == reference.score

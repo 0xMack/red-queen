@@ -14,8 +14,10 @@ from games.snake import (
     RelativeTurn3,
     Snake,
     SnakeEgocentric,
+    SnakeEgocentricV2,
     SnakeFeatures,
     SnakeGridFlat,
+    SnakeGridOneHot,
 )
 
 
@@ -32,6 +34,8 @@ _ALL: list[Interface] = [
     _snake_interface(SnakeFeatures()),
     _snake_interface(SnakeGridFlat()),
     _snake_interface(SnakeEgocentric()),
+    _snake_interface(SnakeEgocentricV2()),
+    _snake_interface(SnakeGridOneHot()),
     Interface(
         game="checkers",
         observer=CheckersBoard32(),

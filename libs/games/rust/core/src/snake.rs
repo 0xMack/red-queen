@@ -53,6 +53,15 @@ pub enum Observer {
     /// food proximity (1 / distance, 0 = not seen), then the food and tail as (ahead, right) offsets, apples eaten
     /// and the hunger clock. 27 values; no absolute heading, because everything is relative to it.
     Egocentric,
+    /// `egocentric.v2`, level 2: `egocentric.v1`, then for each relative move (left, straight, right) what a ray
+    /// can't see -- whether the space it leads into is enclosed: the free cells reachable from the cell the move
+    /// enters (a flood fill over the body as it will be after the move), as a fraction of all free cells, then
+    /// whether the snake's tail is reachable from there (1/0). A fatal move gets 0 and 0. 33 values.
+    EgocentricV2,
+    /// `grid-onehot.v1`, level 1: every cell, row-major, as three 0/1 channels (body, head, food), then the heading
+    /// one-hot (RIGHT/DOWN/LEFT/UP). `grid-flat.v1`'s information without putting categories on one number line,
+    /// plus the heading the relative actions turn from. 3 * width * height + 4 values.
+    GridOneHot,
 }
 
 impl Observer {
@@ -61,6 +70,8 @@ impl Observer {
             "features.v1" => Some(Observer::Features),
             "grid-flat.v1" => Some(Observer::GridFlat),
             "egocentric.v1" => Some(Observer::Egocentric),
+            "egocentric.v2" => Some(Observer::EgocentricV2),
+            "grid-onehot.v1" => Some(Observer::GridOneHot),
             _ => None,
         }
     }
@@ -70,6 +81,8 @@ impl Observer {
             Observer::Features => "features.v1",
             Observer::GridFlat => "grid-flat.v1",
             Observer::Egocentric => "egocentric.v1",
+            Observer::EgocentricV2 => "egocentric.v2",
+            Observer::GridOneHot => "grid-onehot.v1",
         }
     }
 }
@@ -256,6 +269,50 @@ impl Snake {
         }
     }
 
+    /// After the relative move `relative`: `[free cells reachable from the new head / all free cells, tail
+    /// reachable]` -- a flood fill (4-neighbour) over the board with the body as it will be after the move (the tail
+    /// vacates unless the move eats). `[0, 0]` for a fatal move. The new tail counts as reachable when the fill (or
+    /// the new head itself) touches it: it moves on next step, so the snake can follow it.
+    fn reach(&self, relative: i64) -> [f64; 2] {
+        let direction = (self.direction as i64 + relative).rem_euclid(4) as usize;
+        let (dx, dy) = DIRECTIONS[direction];
+        let next = (self.body[0].0 + dx, self.body[0].1 + dy);
+        let will_eat = Some(next) == self.food;
+        if !self.in_bounds(next) || self.hits_body(next, if will_eat { 0 } else { 1 }) {
+            return [0.0, 0.0];
+        }
+        let keep = if will_eat { self.body.len() } else { self.body.len() - 1 };
+        let (w, h) = (self.width, self.height);
+        let index = |(x, y): Cell| (y * w + x) as usize;
+        let mut blocked = vec![false; (w * h) as usize];
+        blocked[index(next)] = true;
+        for &cell in self.body.iter().take(keep) {
+            blocked[index(cell)] = true;
+        }
+        let tail = if keep > 0 { self.body[keep - 1] } else { next };
+        let adjacent = |a: Cell, b: Cell| (a.0 - b.0).abs() + (a.1 - b.1).abs() == 1;
+        let mut tail_reachable = tail == next || adjacent(next, tail);
+        let mut stack = vec![next];
+        let mut seen = vec![false; (w * h) as usize];
+        seen[index(next)] = true;
+        let mut reached = 0usize;
+        while let Some((x, y)) = stack.pop() {
+            for (ddx, ddy) in DIRECTIONS {
+                let cell = (x + ddx, y + ddy);
+                if !self.in_bounds(cell) || seen[index(cell)] || blocked[index(cell)] {
+                    continue;
+                }
+                seen[index(cell)] = true;
+                reached += 1;
+                tail_reachable |= adjacent(cell, tail);
+                stack.push(cell);
+            }
+        }
+        let free = (w * h) as usize - (keep + 1);
+        let space = if free > 0 { reached as f64 / free as f64 } else { 0.0 };
+        [space, if tail_reachable { 1.0 } else { 0.0 }]
+    }
+
     /// `cell` relative to the head as (ahead, right), scaled by the board's longer side so it stays in [-1, 1].
     fn ego_offset(&self, cell: Cell) -> [f64; 2] {
         let (hx, hy) = self.body[0];
@@ -280,6 +337,27 @@ impl Snake {
                     Some((fx, fy)) => out.extend([flag(fx < hx), flag(fx > hx), flag(fy < hy), flag(fy > hy)]),
                     None => out.extend([0.0; 4]),
                 }
+                out
+            }
+            Observer::EgocentricV2 => {
+                let mut out = self.encode(Observer::Egocentric);
+                let reach = [-1, 0, 1].map(|m| self.reach(m));
+                out.extend(reach.iter().map(|r| r[0]));
+                out.extend(reach.iter().map(|r| r[1]));
+                out
+            }
+            Observer::GridOneHot => {
+                let mut out = vec![0.0; 3 * (self.width * self.height) as usize + 4];
+                for (x, y, label) in self.cells() {
+                    let channel = match label {
+                        Label::Body => 0,
+                        Label::Head => 1,
+                        Label::Food => 2,
+                    };
+                    out[3 * (y * self.width + x) as usize + channel] = 1.0;
+                }
+                let at = 3 * (self.width * self.height) as usize;
+                out[at + self.direction] = 1.0;
                 out
             }
             Observer::Egocentric => {
@@ -311,7 +389,9 @@ impl Snake {
         match observer {
             Observer::Features => 11,
             Observer::Egocentric => EGO_SIZE,
+            Observer::EgocentricV2 => EGO_SIZE + 6,
             Observer::GridFlat => (self.width * self.height) as usize,
+            Observer::GridOneHot => 3 * (self.width * self.height) as usize + 4,
         }
     }
 
@@ -437,6 +517,39 @@ mod tests {
         let obs = s.encode(Observer::Egocentric);
         assert_eq!(obs[2 * 3 + 1], 0.0); // front body proximity: the tail cell is free by the time we arrive
         assert_eq!(s.danger(0), 0.0); // and that is what features.v1 says too
+    }
+
+    #[test]
+    fn egocentric_v2_sees_an_enclosed_pocket_that_the_rays_cannot() {
+        // Heading right, head (5,5); turning left (up) enters (5,4), walled in by the body on three sides -- the
+        // chapter's aliasing example. Straight and right lead into open board.
+        let mut s = Snake::new(10, 10, 0, None);
+        let body = vec![(5, 5), (4, 5), (4, 4), (4, 3), (5, 3), (6, 3), (6, 4), (7, 4), (7, 5)];
+        s.set_state(body, 0, Some((8, 2)));
+        let obs = s.encode(Observer::EgocentricV2);
+        assert_eq!(obs.len(), EGO_SIZE + 6);
+        assert_eq!(obs[..EGO_SIZE], s.encode(Observer::Egocentric)[..]);
+        let (space, tail) = (&obs[EGO_SIZE..EGO_SIZE + 3], &obs[EGO_SIZE + 3..]);
+        assert_eq!(space[0], 0.0, "the pocket: nothing beyond its one cell");
+        assert!(space[1] > 0.9 && space[2] > 0.9, "{space:?}");
+        assert_eq!(tail, [0.0, 1.0, 1.0]);
+        // a fatal move: into the wall
+        s.set_state(vec![(9, 5), (8, 5), (7, 5)], 0, Some((0, 0)));
+        let obs = s.encode(Observer::EgocentricV2);
+        assert_eq!((obs[EGO_SIZE + 1], obs[EGO_SIZE + 4]), (0.0, 0.0));
+    }
+
+    #[test]
+    fn grid_onehot_has_one_channel_per_occupied_cell_and_the_heading() {
+        let mut s = Snake::new(10, 10, 0, None);
+        s.set_state(vec![(5, 5), (4, 5), (3, 5)], 3, Some((0, 9)));
+        let obs = s.encode(Observer::GridOneHot);
+        assert_eq!(obs.len(), 304);
+        assert_eq!(obs[..300].iter().sum::<f64>(), 4.0);
+        assert_eq!(obs[3 * 55 + 1], 1.0, "head channel at (5,5)");
+        assert_eq!(obs[3 * 54], 1.0, "body channel at (4,5)");
+        assert_eq!(obs[3 * 90 + 2], 1.0, "food channel at (0,9)");
+        assert_eq!(obs[300..], [0.0, 0.0, 0.0, 1.0], "heading up");
     }
 
     #[test]

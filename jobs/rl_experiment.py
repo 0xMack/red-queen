@@ -29,6 +29,9 @@ Phase 2 arms (DQN, 1M steps, snake/egocentric.v1+relative3.v1 unless noted; each
 - `dqn-per`          + prioritized replay (alpha 0.6, beta 0.4 -> 1)
 - `dqn-features` / `dqn-grid`   `dqn` on features.v1 (11 inputs) / grid-flat.v1 (100): does the observation matter?
 - `dqn-long`         `dqn-per` for 5M steps: is 1M enough?
+- `dqn-ego2`         `dqn` on egocentric.v2 (egocentric.v1 + reachable space per move, 33 inputs)
+- `dqn-ego2-long`    `dqn-long` on egocentric.v2
+- `dqn-onehot`       `dqn` on grid-onehot.v1 (304 inputs): is grid-flat.v1's failure its encoding?
 
   uv run python jobs/rl_experiment.py run    --name NAME --arms q-learning,sarsa --seeds 0-4
   uv run python jobs/rl_experiment.py report --name NAME     # writes run-data/experiments/NAME.json
@@ -102,6 +105,11 @@ DQN_ARMS: dict[str, Arm] = {
 DQN_ARMS["dqn-features"] = Arm("dqn", interface=INTERFACE, baseline="dqn")
 DQN_ARMS["dqn-grid"] = Arm("dqn", interface="snake/grid-flat.v1+relative3.v1", baseline="dqn")
 DQN_ARMS["dqn-long"] = Arm("dqn", _LADDER[-1][1], steps=5_000_000, interface=EGOCENTRIC, baseline="dqn-per")
+# the observer follow-up: each changes only the observation of the arm it's compared with
+EGOCENTRIC_V2 = "snake/egocentric.v2+relative3.v1"
+DQN_ARMS["dqn-ego2"] = Arm("dqn", interface=EGOCENTRIC_V2, baseline="dqn")
+DQN_ARMS["dqn-ego2-long"] = Arm("dqn", _LADDER[-1][1], steps=5_000_000, interface=EGOCENTRIC_V2, baseline="dqn-long")
+DQN_ARMS["dqn-onehot"] = Arm("dqn", interface="snake/grid-onehot.v1+relative3.v1", baseline="dqn-grid")
 ARMS.update(DQN_ARMS)
 
 
