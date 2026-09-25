@@ -224,6 +224,21 @@ heading into is enclosed. That points at *reachable space* as the missing inform
 seeds, and the difference is within noise; the interface is registered and published-package-ready but has no
 leaderboard entry (experiment-tagged runs stay off it).
 
+## Implementation note: `egocentric.v2` and `grid-onehot.v1` (2026-09-24)
+
+Two observers added to answer the two questions the results above left open (both in the Rust core, both checked on
+every step of the parity games against independent Python in `tests/reference_snake.py`):
+
+- **`egocentric.v2`** (33 values) = `egocentric.v1` + what the death analysis said a ray cannot see: for each move
+  (left, straight, right), the share of the board's free cells still reachable from the cell it enters -- a flood fill
+  over the body as it will be after the move -- and whether the tail is reachable from there. A fatal move reads 0, 0.
+  Cost is O(cells) per move, three moves per step.
+- **`grid-onehot.v1`** (304 values on 10x10) = `grid-flat.v1`'s information as three 0/1 channels per cell (body,
+  head, food) plus the heading one-hot: is `grid-flat.v1`'s failure (every learner ~0) its encoding?
+
+Results are in docs/design/0010 ("The observation follow-up"): a DQN on `egocentric.v2` scores 41.5 (vs. 28.5 on
+`egocentric.v1`), and one on `grid-onehot.v1` 8.7 (vs. 0.4 on `grid-flat.v1`).
+
 ## Explicitly out of scope for now
 
 - Energy/power measurement (not measurable reliably from inside a Python process on this machine;

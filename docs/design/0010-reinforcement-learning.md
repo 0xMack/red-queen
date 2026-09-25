@@ -456,3 +456,26 @@ arm it adds one thing to):**
   and the lab offers ten seeds: with both stabilizers off, seed 0 diverges in the browser too (Q -> 2.4e7, score 0)
   and seeds 1-9 learn (24.5-27.3). Seed 0 also diverged in the experiment, though the browser draws different games --
   what the two share is the initial weights and the exploration draws.
+
+### The observation follow-up (2026-09-24)
+
+The Phase 2 results said the observation, not the learner, was the lever; doc 0007's death analysis of the best NEAT
+snake said what was missing (whether the space ahead is enclosed). Two new observers (doc 0007's implementation note)
+test that, each paired seed-for-seed with the arm it differs from only in what the snake sees (`rl-dqn-v1`, 1M steps
+unless noted, 200 held-out games per run):
+
+| Arm | Held-out (mean ± sd) | vs. |
+|---|---|---|
+| `dqn-ego2`: `dqn` on egocentric.v2 | **41.48 ± 0.79** (40.1-41.9) | +12.5 vs. `dqn` on egocentric.v1; better in all 5 pairs (p 0.062) |
+| `dqn-ego2-long`: the full ladder, 5M steps | 40.05 ± 1.09 | +9.6 vs. `dqn-long` (p 0.062) -- but no better than `dqn-ego2` at 1M |
+| `dqn-onehot`: `dqn` on grid-onehot.v1 | 8.72 ± 0.47 | +8.3 vs. `dqn` on grid-flat.v1 (0.38; p 0.062) |
+
+- **Reachable space is worth 12.5 points to a DQN**, taking it past every entrant on the leaderboard (NEAT's 37.95 on
+  features.v1) after 1M steps and ~90 s of training. The rays were the right idea and the wrong horizon: they see along
+  lines, and the fatal mistakes were about areas.
+- **With it, the extras stop paying**: every stabilizer plus 5x the steps scored 40.1, not above plain DQN at 1M.
+- **`grid-flat.v1`'s failure was largely its encoding** (+8.3 from one-hot channels and an explicit heading), but a
+  full board in the board's frame is still far behind the head-frame summaries (8.7 vs. 41.5 at the same budget).
+- NEAT on egocentric.v2 (`snake-ego-v1`'s `neat-max-ego2`, the budget of its egocentric.v1 run) is running; its
+  monitor scores at generation ~300 of 600 are 47-60. Its result, and both new leaderboard entrants, follow in the
+  next PR.

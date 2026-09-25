@@ -111,7 +111,9 @@ architectural change that might conflict with a decision already made.
     grid — swapped after a real trained result confirmed the earlier representation, not compute,
     was the ceiling (docs/CODING_GUIDELINES.md's "Simulations / RL environments"). `egocentric.v1` (27 inputs,
     L2, docs/design/0007) is the head-frame alternative: line-of-sight rays + food/tail offsets, no absolute
-    heading. `checkers.py`
+    heading; `egocentric.v2` (33) adds, per move, the reachable free space (a flood fill) and whether the tail is
+    reachable -- the observer that took a DQN from 28.5 to 41.5 (docs/design/0010). `grid-onehot.v1` is `grid-flat.v1`
+    as body/head/food channels plus the heading. `checkers.py`
     (docs/design/0006 phase 1) — real rules (mandatory captures, mandatory multi-jump chains,
     kinging), a `Move` is a whole turn so `current_player()` alternates strictly every `step()`;
     `render_state()` reuses `snake.py`'s exact `{width, height, cells}` shape, just a wider label
@@ -248,7 +250,9 @@ Each directory has its own README with specifics — this file is the map, not t
   root, which depends on nothing, and logs every member as "unnecessary"). After editing Rust, sync before
   `uv run`, or you'll import the stale extension (`AttributeError` on a method you just added). Likewise the
   backend dev server's `--reload` does not reliably pick up changes under `libs/` (a new `modelpack` loader, a new
-  route's model): restart it before concluding the backend is wrong. On Windows the sync fails
+  route's model): restart it before concluding the backend is wrong. Worse, a reload it *does* trigger (an edit under
+  `libs/`) can hang on shutdown while a page holds a live SSE stream open (a Watch or run page): the server stops and
+  never restarts -- the app looks "down". Restart the preview after editing `libs/` with the app open. On Windows the sync fails
   with `os error 32` while any running process (a backend dev server, a notebook kernel) has
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
   allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;
