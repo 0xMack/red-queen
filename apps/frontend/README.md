@@ -190,12 +190,14 @@ genome as a graph (hidden nodes in columns by depth, disabled genes dashed) and 
 `WatchChampion.vue` shows for a NEAT run's champion — `useWatchSession`'s `LoadedPolicy` is either
 `{weights, layerSizes}` or `{genome}`; the worker loads either via `evolve.network_from_json`.
 
-The reinforcement-learning chapters (`/learn/q-learning`, `/learn/dqn`) train the real Rust RL core live through one
-worker: `workers/rlLab.worker.ts` (the WASM `Trainer` for any algorithm and observer, paced to a chosen steps/s,
-posting progress, a held-out curve with a DQN's mean Q, a tabular agent's table, and a greedy `DemoGame` board with
-the action values) → `useRlLab` → `QLearningLab` / `DqnLab`, with `QTableGrid` drawing the 256 reachable rows of
+The reinforcement-learning chapters (`/learn/q-learning`, `/learn/dqn`, `/learn/policy-gradients`) train the real Rust
+RL core live through one worker: `workers/rlLab.worker.ts` (the WASM `Trainer` for any algorithm and environment id,
+paced to a chosen steps/s, posting progress, a held-out curve with a DQN's mean Q or a policy's entropy, a tabular
+agent's table, and either a greedy `DemoGame` Snake board with the action values or probabilities, or -- any other
+environment -- a `DemoEnv` step with the observation, action and the Gaussian's mean/spread) → `useRlLab` →
+`QLearningLab` / `DqnLab` / `PolicyGradientLab` / `ReachLab`, with `QTableGrid` drawing the 256 reachable rows of
 Snake's table. Without WebAssembly (`?device=nowasm` forces it) they show `data/recordings/*.json`
-(`jobs/export_rl_recording.py`, `jobs/export_dqn_recording.py`); `DqnDivergence` draws recorded runs on purpose, since
+(`jobs/export_rl_recording.py`, `jobs/export_rl_curves.py`); `DqnDivergence` draws recorded runs on purpose, since
 divergence is too rare to show live. `ArmResults` is the shared strip plot for a cited experiment. In dev, editing files while the lab's worker is alive logs
 `document is not defined` from Vite's HMR; a fresh load is clean.
 Numbers derived from `Math.tanh` and written into SVG/style attributes are rounded on purpose: Node

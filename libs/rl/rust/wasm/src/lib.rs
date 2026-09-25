@@ -1,14 +1,15 @@
 //! The RL core for the browser (docs/design/0010): the same Rust the training jobs run through PyO3, compiled to
 //! WebAssembly for Learn's live-training demos: the determinism digests and benchmark kernels (`/dev/rl`, timed
 //! from JS with `performance.now()`, since `std::time` doesn't exist here), a `Trainer` a demo drives tick by tick
-//! and looks inside (a tabular agent's Q-table and visits), and a `DemoGame` to watch the greedy policy play.
+//! and looks inside (a tabular agent's Q-table and visits), a `DemoGame` to watch the greedy policy play Snake, and a
+//! `DemoEnv` for any other environment (Reach1D's continuous control).
 //!
 //! Built by `libs/rl/build-wasm.py` into `apps/frontend/app/wasm/rl/`.
 
 use redqueen_games::snake::{Label, Observer, Snake};
 use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig};
 use redqueen_rl::digest;
-use redqueen_rl::env::Action;
+use redqueen_rl::env::{Action, Env};
 use redqueen_rl::nn::{Activation, Shape};
 use redqueen_rl_envs as envs;
 use wasm_bindgen::prelude::*;
@@ -212,6 +213,15 @@ impl Trainer {
         }
     }
 
+    /// The greedy action on `observation` as a number: an index (discrete) or the continuous value itself.
+    #[wasm_bindgen(js_name = greedyValue)]
+    pub fn greedy_value(&mut self, observation: &[f64]) -> f64 {
+        match self.inner.act_greedy(observation) {
+            Action::Discrete(i) => i as f64,
+            Action::Continuous(v) => v,
+        }
+    }
+
     /// The current policy as its champion JSON (`modelpack.champions`).
     pub fn snapshot(&self) -> String {
         self.inner.agent().snapshot()
@@ -271,5 +281,55 @@ impl DemoGame {
             ]);
         }
         out
+    }
+}
+
+/// Any environment the trainers know (`reach1d`, or a Snake interface id), for a demo to step the greedy policy
+/// through and draw -- what `DemoGame` is for Snake, without Snake's board.
+#[wasm_bindgen]
+pub struct DemoEnv {
+    env: Box<dyn Env>,
+    observation: Vec<f64>,
+    done: bool,
+}
+
+#[wasm_bindgen]
+impl DemoEnv {
+    #[wasm_bindgen(constructor)]
+    pub fn new(env_id: &str, seed: u32) -> Result<DemoEnv, JsError> {
+        let mut env = envs::factory(env_id, 10, 10).map_err(|e| JsError::new(&e))?.make();
+        let observation = env.reset(seed as u64);
+        Ok(DemoEnv {
+            env,
+            observation,
+            done: false,
+        })
+    }
+
+    pub fn observation(&self) -> Vec<f64> {
+        self.observation.clone()
+    }
+
+    /// Take `value` -- an action index for a discrete environment, the action itself for a continuous one. Returns
+    /// the reward.
+    pub fn step(&mut self, value: f64) -> f64 {
+        let action = match self.env.action_space() {
+            redqueen_rl::env::ActionSpace::Discrete(_) => Action::Discrete(value as usize),
+            redqueen_rl::env::ActionSpace::Continuous { .. } => Action::Continuous(value),
+        };
+        let step = self.env.step(action);
+        self.observation = step.observation;
+        self.done = step.done;
+        step.reward
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn done(&self) -> bool {
+        self.done
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn score(&self) -> f64 {
+        self.env.score()
     }
 }

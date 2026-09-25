@@ -20,6 +20,17 @@ export interface CurvePoint {
   score: number
   qMean: number | null
   tdLoss: number | null
+  entropy: number | null
+}
+
+// A non-Snake demo's latest step (Reach1D: observation [offset from target, velocity], the acceleration chosen, and
+// the Gaussian policy's [mean, std]).
+export interface TrackPoint {
+  step: number
+  observation: number[]
+  action: number
+  values: number[]
+  done: boolean
 }
 
 const LABELS = ["body", "head", "food"] as const
@@ -41,6 +52,9 @@ export function useRlLab(options: { speed?: number } = {}) {
   const row = ref<number | null>(null)
   const action = ref<number | null>(null)
   const actionValues = shallowRef<number[] | null>(null)
+  const track = shallowRef<TrackPoint | null>(null)
+  // [env steps, mean return of recent training episodes], one per progress message
+  const returns = shallowRef<[number, number][]>([])
   const speed = ref<number>(options.speed ?? LAB_SPEEDS[1].stepsPerSecond)
 
   let worker: Worker | null = null
@@ -54,8 +68,11 @@ export function useRlLab(options: { speed?: number } = {}) {
       epsilon.value = Number.isFinite(m.epsilon) ? m.epsilon : null
       statesVisited.value = Number.isFinite(m.statesVisited) ? m.statesVisited : 0
       recentReturn.value = m.recentReturn
+      if (m.recentReturn !== null) returns.value = [...returns.value.slice(-400), [m.totalSteps, m.recentReturn]]
     } else if (m.type === "curve") {
-      points.value = [...points.value, { steps: m.steps, score: m.score, qMean: m.qMean, tdLoss: m.tdLoss }]
+      points.value = [...points.value, { steps: m.steps, score: m.score, qMean: m.qMean, tdLoss: m.tdLoss, entropy: m.entropy }]
+    } else if (m.type === "track") {
+      track.value = { step: m.step, observation: m.observation, action: m.action, values: m.values, done: m.done }
     } else if (m.type === "table") {
       values.value = m.values
       visits.value = m.visits
@@ -86,6 +103,8 @@ export function useRlLab(options: { speed?: number } = {}) {
     visits.value = null
     board.value = null
     actionValues.value = null
+    track.value = null
+    returns.value = []
     totalSteps.value = 0
     totalEpisodes.value = 0
     recentReturn.value = null
@@ -128,6 +147,8 @@ export function useRlLab(options: { speed?: number } = {}) {
     row,
     action,
     actionValues,
+    track,
+    returns,
     speed,
     start,
     pause,

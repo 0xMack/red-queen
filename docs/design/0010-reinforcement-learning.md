@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0, 1 and 2 implemented** (see "Implementation notes"); Phases 3-4 planned. Each phase lands as its own PR,
+Status: **Phases 0-3 implemented** (see "Implementation notes"); Phase 4 (Checkers self-play) planned. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -452,7 +452,7 @@ arm it adds one thing to):**
   features.v1 stays at ~18, live.
 - **The planned "switch the stabilizers off and watch it fall apart" toggle doesn't work as planned**: divergence is
   a 1-in-20 event (Phase 2a), so a reader would almost always see training go fine. The chapter shows the experiment's
-  two real divergences instead (`DqnDivergence`, from `jobs/export_dqn_recording.py`, Q on a symmetric log scale),
+  two real divergences instead (`DqnDivergence`, from `jobs/export_rl_curves.py`, Q on a symmetric log scale),
   and the lab offers ten seeds: with both stabilizers off, seed 0 diverges in the browser too (Q -> 2.4e7, score 0)
   and seeds 1-9 learn (24.5-27.3). Seed 0 also diverged in the experiment, though the browser draws different games --
   what the two share is the initial weights and the exploration draws.
@@ -479,3 +479,40 @@ unless noted, 200 held-out games per run):
 - NEAT on egocentric.v2 (`snake-ego-v1`'s `neat-max-ego2`, the budget of its egocentric.v1 run) is running; its
   monitor scores at generation ~300 of 600 are 47-60. Its result, and both new leaderboard entrants, follow in the
   next PR.
+
+### Phase 3: policy gradients (2026-09-24)
+
+Built: `pg.rs` -- one agent for `reinforce` (whole episodes; `baseline=1` adds a learned V), `a2c` (a critic, GAE(0.95),
+an update every 128 steps; one sequential environment, not A3C's parallel workers) and `ppo` (2048-step rollouts, 4
+epochs of 64-sample minibatches, ratio clipped to 1 ± 0.2, advantages normalized), sharing one GAE (REINFORCE is λ = 1
+with V = 0 or the baseline), an entropy bonus (0.01) and global gradient-norm clipping (0.5). Tanh MLPs; a softmax head
+for Snake, a Gaussian with a learned log std for Reach1D. `pg_gradients` and `gae` are checked against
+`reference_pg.py` (softmax and Gaussian, with and without clipping) to ~1e-12; a `pg` digest joins the determinism
+fixture. The Learn chapter (`/learn/policy-gradients`) trains PPO live on Snake (`PolicyGradientLab`, ~6.5k steps/s in
+WASM) and on Reach1D (`ReachLab`, through a WASM `DemoEnv`).
+
+**Results (`rl-pg-v1`: 2M env steps, final policy's most likely move on the 200 held-out games, 5 seeds; each arm
+against the one before it):**
+
+| Arm | Held-out (mean ± sd) | vs. |
+|---|---|---|
+| `pg-reinforce` (egocentric.v1) | 28.62 ± 3.17 | -- (DQN: 28.45 at 1M) |
+| + baseline | 34.85 ± 1.26 | +6.2, all 5 pairs (p 0.062) |
+| `pg-a2c` | 33.25 ± 2.50 | -1.6 (p 0.31) |
+| `pg-ppo` | **43.33 ± 3.64** | +10.1, all 5 pairs (p 0.062); every run above NEAT's 37.95 |
+| `pg-ppo-ego2` (egocentric.v2) | **63.03 ± 2.43** (59.2-65.5) | +19.7 vs. `pg-ppo` (p 0.062) |
+| `pg-ppo-ego2-long` (10M steps) | **66.16 ± 4.19** (60.9-70.2) | +3.1 vs. 2M (p 0.31): more, but not reliably, and noisier |
+| `pg-ppo-features16` (11->16->3, features.v1) | 21.32 ± 2.34 | vs. neuroevolution on the same net below |
+
+- **PPO is the strongest learner in the project by a wide margin**: 43 on egocentric.v1 (DQN 28.5, NEAT 35.8 on the
+  same observer with a far larger budget) and 63 on egocentric.v2 (DQN 41.5).
+- **The baseline and PPO's clipping are the rungs that matter**; A2C's bootstrapping was a wash here.
+- **Gradient vs. evolution on the same network** (doc 0010's Phase 3 question): PPO on neuroevolution's exact
+  architecture and observation (11 -> 16 -> 3 tanh, features.v1; PPO's output skips the final tanh, which doesn't change
+  the argmax) scored 21.3 against neuroevolution's 18.2 (tournament) and 16.5 (lexicase) from `neat-vs-neuro-v1`,
+  better on every seed (+3.2 and +5.0, p 0.062 each), with 2M env steps against 15-16.5M and 15 s against 6.1-6.4 min.
+  Both sit near the greedy heuristic: on these features the observation, not the learner, is the ceiling.
+- **Continuous control works unchanged**: a Gaussian policy (PPO) on Reach1D reaches any target within ~10k steps; the
+  spread widens while the mean is wrong, then narrows (0.74 -> 0.91 -> 0.26 over 200k steps, seed 0) -- but only with
+  the entropy bonus off; at 0.01 it stays at 0.6-0.75.
+- Not built: OpenAI-ES as an extra arm (the `evolve` machinery exists; left for Phase 5, where RL and evolution meet).

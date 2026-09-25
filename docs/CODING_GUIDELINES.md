@@ -124,6 +124,10 @@ what belongs here and how to add to it). Read before writing code, not after.
   actions -- the same question as the Reach1D entry above, asked of values rather than policies. Confirmed from the
   other side: a DQN (which generalizes, unlike the table) on the same features also stops at ~19, and on
   `egocentric.v1`, which tells those situations apart, reaches 28-30.
+- **A Learn chapter's claim about its live demo must be measured on the demo's exact configuration** (seed, budget,
+  parameters), not inferred from the experiment. Twice in docs/design/0010 the prose was wrong until checked: "switch
+  the stabilizers off and it will still learn" (the demo's seed 0 is the one that diverges) and "the Gaussian's spread
+  narrows" (not with the entropy bonus on). Run the demo's config headless (Node + the WASM build) before writing.
 - An algorithm with a hidden internal mechanism must report it, or a misconfigured mechanism is
   invisible. For a bootstrapped value learner that's the level of its estimates (`q_mean` in a DQN run's extras): a
   run that diverged (Q = 1.3e10) and one that never learned both score ~0 held out -- only that curve tells them apart. NEAT's speciation sorts genomes by a distance normalized by gene count once a genome

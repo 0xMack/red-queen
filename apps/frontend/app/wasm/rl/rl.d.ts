@@ -2,6 +2,24 @@
 /* eslint-disable */
 
 /**
+ * Any environment the trainers know (`reach1d`, or a Snake interface id), for a demo to step the greedy policy
+ * through and draw -- what `DemoGame` is for Snake, without Snake's board.
+ */
+export class DemoEnv {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor(env_id: string, seed: number);
+    observation(): Float64Array;
+    /**
+     * Take `value` -- an action index for a discrete environment, the action itself for a continuous one. Returns
+     * the reward.
+     */
+    step(value: number): number;
+    readonly done: boolean;
+    readonly score: number;
+}
+
+/**
  * A Snake game for a demo to play the agent's greedy policy on, move by move, and draw.
  */
 export class DemoGame {
@@ -69,6 +87,10 @@ export class Trainer {
      * The greedy action on `observation`, as an index (Snake: 0 left, 1 straight, 2 right).
      */
     greedyAction(observation: Float64Array): number;
+    /**
+     * The greedy action on `observation` as a number: an index (discrete) or the continuous value itself.
+     */
+    greedyValue(observation: Float64Array): number;
     /**
      * `params`: the algorithm's hyperparameters as `name=value` pairs separated by commas (`"alpha=0.1,n_step=3"`,
      * empty for the defaults). `reward`: `shaped` or `sparse` (Snake).
@@ -140,6 +162,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_demoenv_free: (a: number, b: number) => void;
     readonly __wbg_demogame_free: (a: number, b: number) => void;
     readonly __wbg_get_progress_entropy: (a: number) => number;
     readonly __wbg_get_progress_episodes: (a: number) => number;
@@ -167,6 +190,11 @@ export interface InitOutput {
     readonly __wbg_trainer_free: (a: number, b: number) => void;
     readonly benchForwards: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly benchUpdates: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly demoenv_done: (a: number) => number;
+    readonly demoenv_new: (a: number, b: number, c: number) => [number, number, number];
+    readonly demoenv_observation: (a: number) => [number, number];
+    readonly demoenv_score: (a: number) => number;
+    readonly demoenv_step: (a: number, b: number) => number;
     readonly demogame_cells: (a: number) => [number, number];
     readonly demogame_done: (a: number) => number;
     readonly demogame_new: (a: number, b: number, c: number) => [number, number, number];
@@ -180,6 +208,7 @@ export interface InitOutput {
     readonly trainer_actionValues: (a: number, b: number, c: number) => [number, number];
     readonly trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];
     readonly trainer_greedyAction: (a: number, b: number, c: number) => number;
+    readonly trainer_greedyValue: (a: number, b: number, c: number) => number;
     readonly trainer_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly trainer_qValues: (a: number) => [number, number];
     readonly trainer_row: (a: number, b: number, c: number) => number;

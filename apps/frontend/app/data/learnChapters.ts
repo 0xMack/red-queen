@@ -10,6 +10,7 @@ export type ChapterArtKind =
   | "neat"
   | "q-table"
   | "q-network"
+  | "policy"
 
 export interface LearnChapter {
   slug: string
@@ -167,6 +168,31 @@ export const learnChapters: LearnChapter[] = [
       "Why it can blow up",
       "What each fix buys",
       "What the snake sees",
+      "Where this goes next",
+    ],
+  },
+  {
+    slug: "policy-gradients",
+    title: "Policy Gradients",
+    summary:
+      "Learn the policy itself, not values: the policy-gradient theorem, why baselines matter, actor-critic, and why PPO clips -- the method that took Snake to 63, a Gaussian policy for continuous control, and gradients against evolution on the same network.",
+    path: "/learn/policy-gradients",
+    status: "available",
+    part: "Reinforcement learning",
+    readMinutes: 15,
+    tags: ["reinforcement learning", "policy gradients", "REINFORCE", "actor-critic", "A2C", "PPO", "continuous control", "snake"],
+    art: "policy",
+    prerequisites: ["dqn"],
+    sections: [
+      "Learning the policy itself",
+      "The policy-gradient theorem",
+      "Baselines: the same gradient, less noise",
+      "Actor-critic",
+      "Why PPO clips",
+      "Watch it learn",
+      "Continuous actions",
+      "Gradients against evolution, on the same network",
+      "What the snake sees, again",
       "Where this goes next",
     ],
   },
