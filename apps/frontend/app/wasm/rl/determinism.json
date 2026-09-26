@@ -59,5 +59,15 @@
       "seed": 2,
       "digest": "471d3eb8eb51be61"
     }
+  ],
+  "selfplay": [
+    {
+      "seed": 0,
+      "digest": "6455ea24928e8b4e"
+    },
+    {
+      "seed": 1,
+      "digest": "7e10324fe78dda06"
+    }
   ]
 }

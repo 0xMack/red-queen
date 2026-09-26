@@ -12,6 +12,8 @@
 //! Also here: the games' fixed baselines as policies, so `tests/test_envs.py` can check that an episode through an
 //! adapter scores exactly what `jobs/evaluate.py` records for the same seed.
 
+pub mod selfplay;
+
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::pcg::Pcg32;
 use redqueen_games::reach1d::Reach1D;
@@ -312,6 +314,33 @@ pub fn dqn_digest(seed: u64) -> String {
         hash.f64(episode.score);
     }
     for byte in trainer.agent().snapshot().bytes() {
+        hash.f64(byte as f64);
+    }
+    hash.hex()
+}
+
+/// The self-play digest: TD(λ) Checkers self-play with an opponent pool, trained from `seed` -- the per-call stats
+/// and the final network, hashed. Covers the games crate's Checkers rules and the TD update across targets.
+pub fn selfplay_digest(seed: u64) -> String {
+    let mut hash = Fnv::default();
+    let params = Params::new(
+        [("pool_every", 50.0), ("pool_size", 3.0), ("pool_fraction", 0.5)].map(|(k, v)| (k.to_string(), v)),
+    );
+    let mut trainer = selfplay::SelfPlay::new(seed, &params, 40, 200).unwrap();
+    for _ in 0..3 {
+        let s = trainer.train(100);
+        for v in [
+            s.first_wins as f64,
+            s.second_wins as f64,
+            s.draws as f64,
+            s.mean_plies,
+            s.loss,
+            s.pool_games as f64,
+        ] {
+            hash.f64(v);
+        }
+    }
+    for byte in trainer.snapshot().bytes() {
         hash.f64(byte as f64);
     }
     hash.hex()

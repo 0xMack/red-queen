@@ -314,6 +314,219 @@ export class Progress {
 if (Symbol.dispose) Progress.prototype[Symbol.dispose] = Progress.prototype.free;
 
 /**
+ * What one call to `SelfPlayTrainer::train` did.
+ */
+export class SelfPlayProgress {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(SelfPlayProgress.prototype);
+        obj.__wbg_ptr = ptr;
+        SelfPlayProgressFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        SelfPlayProgressFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_selfplayprogress_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get draws() {
+        const ret = wasm.__wbg_get_progress_total_episodes(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get epsilon() {
+        const ret = wasm.__wbg_get_progress_states_visited(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get first_wins() {
+        const ret = wasm.__wbg_get_progress_mean_score(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get games() {
+        const ret = wasm.__wbg_get_progress_mean_return(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get loss() {
+        const ret = wasm.__wbg_get_progress_epsilon(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get mean_plies() {
+        const ret = wasm.__wbg_get_progress_entropy(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get second_wins() {
+        const ret = wasm.__wbg_get_progress_total_steps(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get total_games() {
+        const ret = wasm.__wbg_get_progress_q_mean(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set draws(arg0) {
+        wasm.__wbg_set_progress_total_episodes(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set epsilon(arg0) {
+        wasm.__wbg_set_progress_states_visited(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set first_wins(arg0) {
+        wasm.__wbg_set_progress_mean_score(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set games(arg0) {
+        wasm.__wbg_set_progress_mean_return(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set loss(arg0) {
+        wasm.__wbg_set_progress_epsilon(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set mean_plies(arg0) {
+        wasm.__wbg_set_progress_entropy(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set second_wins(arg0) {
+        wasm.__wbg_set_progress_total_steps(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set total_games(arg0) {
+        wasm.__wbg_set_progress_q_mean(this.__wbg_ptr, arg0);
+    }
+}
+if (Symbol.dispose) SelfPlayProgress.prototype[Symbol.dispose] = SelfPlayProgress.prototype.free;
+
+/**
+ * Checkers by self-play (docs/design/0010 Phase 4): the same TD(λ) loop the training job runs, for Learn's demo.
+ */
+export class SelfPlayTrainer {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        SelfPlayTrainerFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_selfplaytrainer_free(ptr, 0);
+    }
+    /**
+     * `params` as `Trainer`'s (`"lambda=0.7,hidden=16"`); games are drawn after 40 moves without a capture and cut
+     * at 200 plies, as everywhere else.
+     * @param {number} seed
+     * @param {string} params
+     */
+    constructor(seed, params) {
+        const ptr0 = passStringToWasm0(params, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.selfplaytrainer_new(seed, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        SelfPlayTrainerFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Points per game against a fixed strategy (`random`, `material-2`, ...), the network searching `depth` plies.
+     * @param {string} opponent
+     * @param {number} depth
+     * @param {number} games
+     * @param {number} seed
+     * @returns {number}
+     */
+    pointsAgainst(opponent, depth, games, seed) {
+        const ptr0 = passStringToWasm0(opponent, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.selfplaytrainer_pointsAgainst(this.__wbg_ptr, ptr0, len0, depth, games, seed);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0];
+    }
+    /**
+     * [value of the start position, value of the start position a king up], for the side to move.
+     * @returns {Float64Array}
+     */
+    probe() {
+        const ret = wasm.selfplaytrainer_probe(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * The network as `evolve.WeightVector` JSON (`{"weights", "layer_sizes"}`): what the Checkers stage plays.
+     * @returns {string}
+     */
+    snapshot() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.selfplaytrainer_snapshot(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} games
+     * @returns {SelfPlayProgress}
+     */
+    train(games) {
+        const ret = wasm.selfplaytrainer_train(this.__wbg_ptr, games);
+        return SelfPlayProgress.__wrap(ret);
+    }
+}
+if (Symbol.dispose) SelfPlayTrainer.prototype[Symbol.dispose] = SelfPlayTrainer.prototype.free;
+
+/**
  * One agent learning in one environment (`snake/<observer>+relative3.v1` on 10x10, or `reach1d`) -- the engine of
  * Learn's live demos, the same `Trainer` the training jobs drive through PyO3.
  */
@@ -583,6 +796,24 @@ export function rolloutDigest(seed) {
 }
 
 /**
+ * `selfplay_digest(seed)`: TD(λ) Checkers self-play with an opponent pool, trained and hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function selfplayDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.selfplayDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * `training_digest(seed, updates)` of `redqueen_rl::digest`: must equal the native build's (determinism.json).
  * @param {number} seed
  * @param {number} updates
@@ -636,6 +867,12 @@ const DemoGameFinalization = (typeof FinalizationRegistry === 'undefined')
 const ProgressFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_progress_free(ptr >>> 0, 1));
+const SelfPlayProgressFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_selfplayprogress_free(ptr >>> 0, 1));
+const SelfPlayTrainerFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_selfplaytrainer_free(ptr >>> 0, 1));
 const TrainerFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_trainer_free(ptr >>> 0, 1));

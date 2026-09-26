@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0-3 implemented** (see "Implementation notes"); Phase 4 (Checkers self-play) planned. Each phase lands as its own PR,
+Status: **Phases 0-4 implemented** (see "Implementation notes"); Phase 5 is a stretch. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -533,3 +533,42 @@ against the one before it):**
   spread widens while the mean is wrong, then narrows (0.74 -> 0.91 -> 0.26 over 200k steps, seed 0) -- but only with
   the entropy bonus off; at 0.01 it stays at 0.6-0.75.
 - Not built: OpenAI-ES as an extra arm (the `evolve` machinery exists; left for Phase 5, where RL and evolution meet).
+
+### Phase 4: Checkers by self-play (2026-09-26)
+
+Built: `rust/envs/src/selfplay.rs` -- a two-player loop beside the single-agent `Trainer` (it needs the games crate).
+One 32 -> 16 -> 1 tanh value network scores positions from the side to move (`checkers::encode`), plays both sides
+(a move is worth `-V(position it leaves)`), and learns by **TD(λ), forward view, offline per game**: the last position
+before the end targets the outcome for its mover, every earlier one `-((1-λ) V(s_t+1) + λ G_t+1)` (sign flipping each
+ply; zero-sum, undiscounted), one Adam step per game. Exploration, since there are no dice: 4 random opening plies and ε
+0.1 -> 0.02. An **opponent pool** option plays a fraction of games against frozen past selves. The champion is
+`evolve.WeightVector` JSON, so it is the *same* evaluator the evolved runs produce: `jobs/checkers_selfplay_run.py`
+records it as an ordinary Checkers run (`representation: td_lambda`) and it joins the versus leaderboard, packaging
+and the Checkers page unchanged. A `selfplay` digest joins the determinism fixture (native = WASM); the WASM
+`SelfPlayTrainer` powers `/learn/self-play`, where a reader trains one (~700 games/s in a browser) and plays it.
+
+**Results (`rl-selfplay-v1`, jobs/checkers_selfplay_experiment.py: 200k self-play games per run, 5 seeds; each final
+network searching 3 plies against material search at 2/3/4 plies and the best evolved evaluator (3-ply), 20 games
+each, points per game):**
+
+| Arm | Points (mean ± sd) | material-2 | material-3 | material-4 | evolved 3-ply |
+|---|---|---|---|---|---|
+| `sp` (λ 0.7) | 0.601 ± 0.099 | 0.75 | **0.595** | 0.42 | **0.64** |
+| `sp-pool` (half the games vs the last 10 selves) | **0.605 ± 0.022** | 0.785 | 0.57 | 0.36 | **0.705** |
+| `sp-lambda0` (one-step TD) | 0.571 ± 0.035 | 0.775 | 0.56 | 0.395 | 0.555 |
+| `sp-lambda1` (Monte-Carlo) | 0.349 ± 0.033 | 0.49 | 0.35 | 0.26 | 0.295 |
+
+- **Self-play beats the best evolved evaluator and material search at equal depth**, in ~3 minutes of training and no
+  opponents; only material search a ply *deeper* still wins (0.36-0.42). The evolved evaluators were selected against
+  fixed opponents for far longer.
+- **λ = 1 fails** (-0.25, every seed): a 70-ply game's result alone is too noisy a target for any one position;
+  bootstrapping from the next position's estimate is what makes TD work here. λ 0 and 0.7 are within noise.
+- **The opponent pool buys reliability, not strength**: same mean, spread between seeds 4.5x smaller (the worst pure
+  self-play seed, 0.45, has no counterpart) -- the role the hall of fame played for evolution.
+- **On the leaderboard** (`sp-pool`'s settings, seed 0 fixed in advance, 200k games, trained alone in ~3 min; versus
+  round robin, 3-ply): **#2 at 0.812** points per game (201W 85D 14L), behind only material-4 (0.853) and ahead of
+  material-3 (0.777) and every evolved evaluator (best 0.748). `evaluate_versus.py` now prunes records of entrants
+  that stopped qualifying, like `evaluate.py` -- a versus score is relative to the field, so a stale one is wrong twice
+  (it removed a 30k-game pilot run of this job, since tagged `selfplay-pilot`, and a 3-generation smoke run).
+- Not done: PPO self-play with legal-move masking (the plan's stretch), and search-improved targets (TD-Leaf,
+  AlphaZero-style) -- the obvious next rung.

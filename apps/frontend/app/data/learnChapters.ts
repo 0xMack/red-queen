@@ -11,6 +11,7 @@ export type ChapterArtKind =
   | "q-table"
   | "q-network"
   | "policy"
+  | "self-play"
 
 export interface LearnChapter {
   slug: string
@@ -193,6 +194,28 @@ export const learnChapters: LearnChapter[] = [
       "Continuous actions",
       "Gradients against evolution, on the same network",
       "What the snake sees, again",
+      "Where this goes next",
+    ],
+  },
+  {
+    slug: "self-play",
+    title: "Learning by Self-Play",
+    summary:
+      "No teacher and no opponent but itself: a Checkers position evaluator that learns by TD(λ) from its own games, TD-Gammon style -- why the dice mattered for backgammon, what a deterministic game needs instead, and how it fares against evolution and search. Train one, then play it.",
+    path: "/learn/self-play",
+    status: "available",
+    part: "Reinforcement learning",
+    readMinutes: 13,
+    tags: ["reinforcement learning", "self-play", "TD(λ)", "TD-Gammon", "checkers", "two-player games", "search"],
+    art: "self-play",
+    prerequisites: ["policy-gradients", "multi-agent-games"],
+    sections: [
+      "Learning with nobody to learn from",
+      "A value for every position",
+      "TD(λ): learning from the game's own sequence",
+      "What the dice did for backgammon",
+      "Train one, then play it",
+      "Against the field",
       "Where this goes next",
     ],
   },

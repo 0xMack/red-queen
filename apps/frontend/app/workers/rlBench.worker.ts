@@ -1,7 +1,7 @@
 // Device check for reinforcement learning in the browser (docs/design/0010 Phase 0): does this browser's build of the
 // RL core train bit-for-bit like the native one (the determinism digests), and how fast does it run? The cases match
 // jobs/rl_benchmark.py, which measures the same things natively. Runs in a worker so timing never blocks the page.
-import init, { benchForwards, benchUpdates, dqnDigest, learningDigest, pgDigest, rolloutDigest, Trainer, trainingDigest } from "~/wasm/rl/rl.js"
+import init, { benchForwards, benchUpdates, dqnDigest, learningDigest, pgDigest, selfplayDigest, rolloutDigest, Trainer, trainingDigest } from "~/wasm/rl/rl.js"
 import rlWasmUrl from "~/wasm/rl/rl_bg.wasm?url"
 import fixture from "~/wasm/rl/determinism.json"
 
@@ -59,6 +59,7 @@ self.onmessage = async () => {
         ...fixture.learning.map((l) => ({ name: `learning (seed ${l.seed})`, expected: l.digest, actual: learningDigest(l.seed) })),
         ...fixture.dqn.map((d) => ({ name: `dqn (seed ${d.seed})`, expected: d.digest, actual: dqnDigest(d.seed) })),
         ...fixture.pg.map((d) => ({ name: `pg (seed ${d.seed})`, expected: d.digest, actual: pgDigest(d.seed) })),
+        ...fixture.selfplay.map((d) => ({ name: `selfplay (seed ${d.seed})`, expected: d.digest, actual: selfplayDigest(d.seed) })),
       ],
     })
     const trainer = new Trainer("random", "snake/features.v1+relative3.v1", 0, "", "shaped")

@@ -139,6 +139,57 @@ impl Trainer {
     }
 }
 
+/// Checkers by self-play (`envs::selfplay`, docs/design/0010 Phase 4): TD(λ) on a position-value network, trained
+/// `games` games per call. `snapshot()` is the network as `evolve.WeightVector` JSON -- an evaluator the Checkers
+/// strategies, the versus leaderboard and the page load as they are.
+#[pyclass(module = "rl._native", unsendable)]
+struct CheckersSelfPlay {
+    inner: envs::selfplay::SelfPlay,
+}
+
+#[pymethods]
+impl CheckersSelfPlay {
+    #[new]
+    #[pyo3(signature = (seed, params=None, max_moves_without_capture=40, max_plies=200))]
+    fn new(
+        seed: u64,
+        params: Option<HashMap<String, f64>>,
+        max_moves_without_capture: u32,
+        max_plies: u32,
+    ) -> PyResult<Self> {
+        let params = Params::new(params.unwrap_or_default());
+        let inner =
+            envs::selfplay::SelfPlay::new(seed, &params, max_moves_without_capture, max_plies).map_err(value_error)?;
+        Ok(CheckersSelfPlay { inner })
+    }
+
+    /// Play and learn from `games` games: {games, first_wins, second_wins, draws, mean_plies, loss, epsilon,
+    /// pool_games, total_games}.
+    fn train<'py>(&mut self, py: Python<'py>, games: u64) -> PyResult<Bound<'py, PyDict>> {
+        let s = self.inner.train(games);
+        let d = PyDict::new(py);
+        d.set_item("games", s.games)?;
+        d.set_item("first_wins", s.first_wins)?;
+        d.set_item("second_wins", s.second_wins)?;
+        d.set_item("draws", s.draws)?;
+        d.set_item("mean_plies", s.mean_plies)?;
+        d.set_item("loss", s.loss)?;
+        d.set_item("epsilon", s.epsilon)?;
+        d.set_item("pool_games", s.pool_games)?;
+        d.set_item("total_games", self.inner.games_played())?;
+        Ok(d)
+    }
+
+    fn snapshot(&self) -> String {
+        self.inner.snapshot()
+    }
+
+    /// The network's value of the starting position for the side to move, and of the same position a king up.
+    fn probe(&self) -> (f64, f64) {
+        self.inner.probe()
+    }
+}
+
 /// A `games.baselines` policy through the Snake adapter, one {seed, total_reward, steps, score} per game.
 #[pyfunction]
 #[pyo3(signature = (name, env_id, seeds, max_steps, width=10, height=10))]
@@ -193,6 +244,11 @@ fn dqn_digest(seed: u64) -> String {
 #[pyfunction]
 fn pg_digest(seed: u64) -> String {
     envs::pg_digest(seed)
+}
+
+#[pyfunction]
+fn selfplay_digest(seed: u64) -> String {
+    envs::selfplay_digest(seed)
 }
 
 /// Initial parameters (He-uniform weights, zero biases) for a network, from the run's `Init` stream.
@@ -419,6 +475,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ALGORITHMS", ALGORITHMS.to_vec())?;
     m.add_function(wrap_pyfunction!(tabular_replay, m)?)?;
     m.add_class::<Trainer>()?;
+    m.add_class::<CheckersSelfPlay>()?;
     m.add_function(wrap_pyfunction!(evaluate_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(env_info, m)?)?;
     m.add_function(wrap_pyfunction!(training_digest, m)?)?;
@@ -426,6 +483,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(learning_digest, m)?)?;
     m.add_function(wrap_pyfunction!(dqn_digest, m)?)?;
     m.add_function(wrap_pyfunction!(pg_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(selfplay_digest, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_init, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_forward_backward, m)?)?;
     m.add_function(wrap_pyfunction!(adam_steps, m)?)?;
