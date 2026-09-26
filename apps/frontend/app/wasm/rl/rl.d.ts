@@ -69,6 +69,49 @@ export class Progress {
 }
 
 /**
+ * What one call to `SelfPlayTrainer::train` did.
+ */
+export class SelfPlayProgress {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    draws: number;
+    epsilon: number;
+    first_wins: number;
+    games: number;
+    loss: number;
+    mean_plies: number;
+    second_wins: number;
+    total_games: number;
+}
+
+/**
+ * Checkers by self-play (docs/design/0010 Phase 4): the same TD(λ) loop the training job runs, for Learn's demo.
+ */
+export class SelfPlayTrainer {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * `params` as `Trainer`'s (`"lambda=0.7,hidden=16"`); games are drawn after 40 moves without a capture and cut
+     * at 200 plies, as everywhere else.
+     */
+    constructor(seed: number, params: string);
+    /**
+     * Points per game against a fixed strategy (`random`, `material-2`, ...), the network searching `depth` plies.
+     */
+    pointsAgainst(opponent: string, depth: number, games: number, seed: number): number;
+    /**
+     * [value of the start position, value of the start position a king up], for the side to move.
+     */
+    probe(): Float64Array;
+    /**
+     * The network as `evolve.WeightVector` JSON (`{"weights", "layer_sizes"}`): what the Checkers stage plays.
+     */
+    snapshot(): string;
+    train(games: number): SelfPlayProgress;
+}
+
+/**
  * One agent learning in one environment (`snake/<observer>+relative3.v1` on 10x10, or `reach1d`) -- the engine of
  * Learn's live demos, the same `Trainer` the training jobs drive through PyO3.
  */
@@ -154,6 +197,11 @@ export function pgDigest(seed: number): string;
 export function rolloutDigest(seed: number): string;
 
 /**
+ * `selfplay_digest(seed)`: TD(λ) Checkers self-play with an opponent pool, trained and hashed.
+ */
+export function selfplayDigest(seed: number): string;
+
+/**
  * `training_digest(seed, updates)` of `redqueen_rl::digest`: must equal the native build's (determinism.json).
  */
 export function trainingDigest(seed: number, updates: number): string;
@@ -176,6 +224,8 @@ export interface InitOutput {
     readonly __wbg_get_progress_total_steps: (a: number) => number;
     readonly __wbg_get_progress_updates: (a: number) => number;
     readonly __wbg_progress_free: (a: number, b: number) => void;
+    readonly __wbg_selfplayprogress_free: (a: number, b: number) => void;
+    readonly __wbg_selfplaytrainer_free: (a: number, b: number) => void;
     readonly __wbg_set_progress_entropy: (a: number, b: number) => void;
     readonly __wbg_set_progress_episodes: (a: number, b: number) => void;
     readonly __wbg_set_progress_epsilon: (a: number, b: number) => void;
@@ -205,6 +255,12 @@ export interface InitOutput {
     readonly learningDigest: (a: number) => [number, number];
     readonly pgDigest: (a: number) => [number, number];
     readonly rolloutDigest: (a: number) => [number, number];
+    readonly selfplayDigest: (a: number) => [number, number];
+    readonly selfplaytrainer_new: (a: number, b: number, c: number) => [number, number, number];
+    readonly selfplaytrainer_pointsAgainst: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly selfplaytrainer_probe: (a: number) => [number, number];
+    readonly selfplaytrainer_snapshot: (a: number) => [number, number];
+    readonly selfplaytrainer_train: (a: number, b: number) => number;
     readonly trainer_actionValues: (a: number, b: number, c: number) => [number, number];
     readonly trainer_evaluate: (a: number, b: number, c: number, d: number) => [number, number];
     readonly trainer_greedyAction: (a: number, b: number, c: number) => number;
@@ -217,6 +273,22 @@ export interface InitOutput {
     readonly trainer_train: (a: number, b: number) => number;
     readonly trainer_visits: (a: number) => [number, number];
     readonly trainingDigest: (a: number, b: number) => [number, number];
+    readonly __wbg_set_selfplayprogress_draws: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_epsilon: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_first_wins: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_games: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_loss: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_mean_plies: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_second_wins: (a: number, b: number) => void;
+    readonly __wbg_set_selfplayprogress_total_games: (a: number, b: number) => void;
+    readonly __wbg_get_selfplayprogress_draws: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_epsilon: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_first_wins: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_games: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_loss: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_mean_plies: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_second_wins: (a: number) => number;
+    readonly __wbg_get_selfplayprogress_total_games: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

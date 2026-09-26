@@ -46,7 +46,9 @@ architectural change that might conflict with a decision already made.
       `PolicyGradientLab`, and `ReachLab` for Reach1D through the WASM `DemoEnv`; a table is drawn by `QTableGrid`), with
       recorded runs (`jobs/export_rl_recording.py`, `jobs/export_rl_curves.py`) as the no-WASM fallbacks and for
       what a live demo can't reliably show (a 1-in-20 divergence). Cited experiment results are `ArmResults` strip
-      plots fed hard-coded report numbers.
+      plots fed hard-coded report numbers. `/learn/self-play` trains a Checkers evaluator by self-play in a worker
+      (`workers/selfPlayLab.worker.ts` → `useSelfPlayLab` → `SelfPlayLab`) and seats it on the same `VersusStage` the
+      game page uses, so a reader plays the network they just trained.
 
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by
@@ -190,6 +192,9 @@ architectural change that might conflict with a decision already made.
     -- `reinforce` (`baseline=1` for a learned baseline), `a2c`, `ppo` share one agent and one GAE; a softmax head for
     Snake, a Gaussian one (learned log std) for Reach1D; `pg_gradients`/`gae` checked against `reference_pg.py`; a `pg`
     digest in the fixture. `Agent::action_values` is what demos draw (a table row, Q-values, or move probabilities).
+    Phase 4: Checkers self-play (`rust/envs/src/selfplay.rs`, a two-player loop beside the single-agent `Trainer`) --
+    TD(λ) on a 32 -> 16 -> 1 position-value network, champions saved as `evolve.WeightVector` JSON so they *are*
+    Checkers evaluators (versus leaderboard, packaging, page: unchanged); `rl.CheckersSelfPlay`, WASM `SelfPlayTrainer`.
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
@@ -210,6 +215,9 @@ architectural change that might conflict with a decision already made.
   `snake_neat_run.py` is the NEAT counterpart of `snake_neuro_run.py`; `snake_experiment.py` runs a
   tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
+  `checkers_selfplay_run.py` trains a Checkers evaluator by TD(λ) self-play and records it as an ordinary Checkers run
+  (`representation: td_lambda`); `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
+  field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by.
   `rl_run.py` runs an `libs/rl` algorithm one *iteration* (a budget of env steps) per call and records it in the
   same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
   "reinforcement_learning"`; the frontend's `runMeta` relabels them); `rl_benchmark.py` is the native half of

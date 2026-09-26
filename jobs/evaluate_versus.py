@@ -109,7 +109,14 @@ def champion_entrants(
         selection = run.config.get("selection")
         depth = int(run.config.get("search_depth", 1))
         neat = isinstance(champion, NeatGenome)
-        kind = "NEAT" if neat else "Neuroevolution"
+        # how it was trained: evolved (NEAT or a fixed network), or learned by self-play (docs/design/0010 Phase 4)
+        kind = (
+            "NEAT"
+            if neat
+            else "TD(λ) self-play"
+            if run.config.get("representation") == "td_lambda"
+            else "Neuroevolution"
+        )
         searching = f"{depth}-ply search" if depth > 1 else "one ply"
         entrants.append(
             {
@@ -122,7 +129,8 @@ def champion_entrants(
                 else evaluator(champion.weights, champion.layer_sizes, depth),
                 "run": run,
                 "champion_ref": champion_ref,
-                "model": f"{'evolved graph' if neat else 'MLP'} {network}, tanh: a position evaluator, {searching}",
+                "model": f"{'evolved graph' if neat else 'MLP'} {network}, tanh: a position evaluator, {searching}"
+                + (", trained by TD(λ) self-play" if kind.startswith("TD") else ""),
                 "search_depth": depth,
                 "parameters": parameter_count(champion),
                 "artifact_bytes": len(raw),
@@ -298,6 +306,9 @@ def main() -> None:
             f"{v['wins']}W {v['draws']}D {v['losses']}L over {q['n']} games  "
             f"{record.metrics['inference']['total_us']:>8.1f} µs/decision"
         )
+    # A versus score is relative to the field, so a stale record (an entrant that no longer qualifies) is wrong twice.
+    for entrant_id in store.prune(GAME, PROTOCOL, {r.entrant_id for r in records}):
+        print(f"removed {entrant_id}: no longer an entrant")
 
 
 if __name__ == "__main__":

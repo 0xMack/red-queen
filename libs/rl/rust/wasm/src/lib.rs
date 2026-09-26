@@ -53,6 +53,12 @@ pub fn pg_digest(seed: u32) -> String {
     envs::pg_digest(seed as u64)
 }
 
+/// `selfplay_digest(seed)`: TD(λ) Checkers self-play with an opponent pool, trained and hashed.
+#[wasm_bindgen(js_name = selfplayDigest)]
+pub fn selfplay_digest(seed: u32) -> String {
+    envs::selfplay_digest(seed as u64)
+}
+
 /// `iterations` training updates (forward + backward + Adam) on a batch. `activations`: comma-separated, one per
 /// layer after the input (`"relu,relu,linear"`). Returns a checksum; time the call.
 #[wasm_bindgen(js_name = benchUpdates)]
@@ -69,6 +75,22 @@ pub fn bench_updates(layer_sizes: &[u32], activations: &str, batch: u32, iterati
 #[wasm_bindgen(js_name = benchForwards)]
 pub fn bench_forwards(layer_sizes: &[u32], activations: &str, iterations: u32) -> Result<f64, JsError> {
     Ok(digest::bench_forwards(&shape(layer_sizes, activations)?, iterations, 0))
+}
+
+/// `"name=value,name=value"` (empty for the defaults) -> `Params`.
+fn parse_params(params: &str) -> Result<Params, JsError> {
+    let mut pairs = Vec::new();
+    for pair in params.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+        let (name, value) = pair
+            .split_once('=')
+            .ok_or_else(|| JsError::new(&format!("want name=value, got {pair:?}")))?;
+        let value: f64 = value
+            .trim()
+            .parse()
+            .map_err(|_| JsError::new(&format!("not a number: {value:?}")))?;
+        pairs.push((name.trim().to_string(), value));
+    }
+    Ok(Params::new(pairs))
 }
 
 /// One agent learning in one environment (`snake/<observer>+relative3.v1` on 10x10, or `reach1d`) -- the engine of
@@ -110,19 +132,8 @@ impl Trainer {
             seed_pool: (100_000, 1_000_000),
             max_episode_steps: 1000,
         };
-        let mut pairs = Vec::new();
-        for pair in params.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-            let (name, value) = pair
-                .split_once('=')
-                .ok_or_else(|| JsError::new(&format!("want name=value, got {pair:?}")))?;
-            let value: f64 = value
-                .trim()
-                .parse()
-                .map_err(|_| JsError::new(&format!("not a number: {value:?}")))?;
-            pairs.push((name.trim().to_string(), value));
-        }
         let inner =
-            CoreTrainer::build(factory, algorithm, &Params::new(pairs), config).map_err(|e| JsError::new(&e))?;
+            CoreTrainer::build(factory, algorithm, &parse_params(params)?, config).map_err(|e| JsError::new(&e))?;
         Ok(Trainer { inner })
     }
 
@@ -331,5 +342,69 @@ impl DemoEnv {
     #[wasm_bindgen(getter)]
     pub fn score(&self) -> f64 {
         self.env.score()
+    }
+}
+
+/// Checkers by self-play (docs/design/0010 Phase 4): the same TD(λ) loop the training job runs, for Learn's demo.
+#[wasm_bindgen]
+pub struct SelfPlayTrainer {
+    inner: envs::selfplay::SelfPlay,
+}
+
+/// What one call to `SelfPlayTrainer::train` did.
+#[wasm_bindgen]
+pub struct SelfPlayProgress {
+    pub games: f64,
+    pub first_wins: f64,
+    pub second_wins: f64,
+    pub draws: f64,
+    pub mean_plies: f64,
+    pub loss: f64,
+    pub epsilon: f64,
+    pub total_games: f64,
+}
+
+#[wasm_bindgen]
+impl SelfPlayTrainer {
+    /// `params` as `Trainer`'s (`"lambda=0.7,hidden=16"`); games are drawn after 40 moves without a capture and cut
+    /// at 200 plies, as everywhere else.
+    #[wasm_bindgen(constructor)]
+    pub fn new(seed: u32, params: &str) -> Result<SelfPlayTrainer, JsError> {
+        let inner = envs::selfplay::SelfPlay::new(seed as u64, &parse_params(params)?, 40, 200)
+            .map_err(|e| JsError::new(&e))?;
+        Ok(SelfPlayTrainer { inner })
+    }
+
+    pub fn train(&mut self, games: u32) -> SelfPlayProgress {
+        let s = self.inner.train(games as u64);
+        SelfPlayProgress {
+            games: s.games as f64,
+            first_wins: s.first_wins as f64,
+            second_wins: s.second_wins as f64,
+            draws: s.draws as f64,
+            mean_plies: s.mean_plies,
+            loss: s.loss,
+            epsilon: s.epsilon,
+            total_games: self.inner.games_played() as f64,
+        }
+    }
+
+    /// Points per game against a fixed strategy (`random`, `material-2`, ...), the network searching `depth` plies.
+    #[wasm_bindgen(js_name = pointsAgainst)]
+    pub fn points_against(&self, opponent: &str, depth: u32, games: u32, seed: u32) -> Result<f64, JsError> {
+        self.inner
+            .points_against(opponent, depth, games, seed as u64)
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// The network as `evolve.WeightVector` JSON (`{"weights", "layer_sizes"}`): what the Checkers stage plays.
+    pub fn snapshot(&self) -> String {
+        self.inner.snapshot()
+    }
+
+    /// [value of the start position, value of the start position a king up], for the side to move.
+    pub fn probe(&self) -> Vec<f64> {
+        let (a, b) = self.inner.probe();
+        vec![a, b]
     }
 }

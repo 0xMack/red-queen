@@ -16,6 +16,7 @@ ROLLOUTS = [0, 1, 42]
 LEARNING = [0, 5]
 DQN = [0, 3]
 PG = [0, 2]
+SELFPLAY = [0, 1]
 
 
 def digests() -> dict:
@@ -25,6 +26,7 @@ def digests() -> dict:
         "learning": [{"seed": s, "digest": _native.learning_digest(s)} for s in LEARNING],
         "dqn": [{"seed": s, "digest": _native.dqn_digest(s)} for s in DQN],
         "pg": [{"seed": s, "digest": _native.pg_digest(s)} for s in PG],
+        "selfplay": [{"seed": s, "digest": _native.selfplay_digest(s)} for s in SELFPLAY],
     }
 
 

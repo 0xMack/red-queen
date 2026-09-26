@@ -61,6 +61,9 @@ const qnet = (() => {
 })()
 const qnetNodes = qnet.nodes
 const qnetEdges = qnet.edges
+// A mid-game position for the self-play cover: (column, row) per piece.
+const selfPlayPieces: [number, number][] = [[1, 0], [3, 0], [0, 1], [4, 1], [3, 2], [5, 2], [2, 3], [4, 5], [1, 6], [3, 6], [6, 5], [7, 6], [0, 7]]
+
 // A normal density across the art's bottom strip (mean at x = 232), for the policy cover.
 const policyBell = Array.from({ length: 65 }, (_, i) => {
   const x = 40 + i * 5
@@ -252,6 +255,18 @@ const attention = (() => {
       <text x="128" y="55" fill="#6b7489">#1 off</text>
       <rect x="28" y="214" width="344" height="24" rx="6" fill="#151924" stroke="#323a4d" />
       <text x="200" y="230" text-anchor="middle" fill="#a0a8ba">innovation numbers line up different structures</text>
+    </g>
+
+    <!-- Self-play: one network on both sides of a board, values alternating sign ply by ply -->
+    <g v-else-if="kind === 'self-play'" font-family="JetBrains Mono, monospace" font-size="10">
+      <rect v-for="i in 64" :key="`sq${i}`" :x="40 + ((i - 1) % 8) * 20" :y="45 + Math.floor((i - 1) / 8) * 20" width="20" height="20" :fill="((i - 1) % 8 + Math.floor((i - 1) / 8)) % 2 ? '#1b2130' : '#262d3f'" />
+      <circle v-for="p in selfPlayPieces" :key="`p${p[0]}-${p[1]}`" :cx="50 + p[0] * 20" :cy="55 + p[1] * 20" r="7" :fill="p[1] < 4 ? '#ef3b5d' : '#e9ebf1'" />
+      <path d="M210 90 C 250 60, 290 60, 320 90" fill="none" stroke="#ff5c7a" stroke-width="1.5" marker-end="url(#art-arrow)" />
+      <path d="M320 150 C 290 180, 250 180, 210 150" fill="none" stroke="#e9ebf1" stroke-width="1.5" marker-end="url(#art-arrow)" />
+      <rect x="300" y="100" width="70" height="40" rx="6" fill="#151924" stroke="#323a4d" />
+      <text x="335" y="118" text-anchor="middle" fill="#a0a8ba">V(s)</text>
+      <text x="335" y="132" text-anchor="middle" fill="#6b7489" font-size="8">one network</text>
+      <text v-for="(v, i) in ['+0.41', '−0.38', '+0.52', '−0.49', '+1']" :key="`v${i}`" :x="40 + i * 66" y="232" :fill="i % 2 ? '#e9ebf1' : '#ff5c7a'">{{ v }}</text>
     </g>
 
     <!-- A policy: observation -> network -> move probabilities (sampled), and a Gaussian for a continuous action -->

@@ -198,7 +198,11 @@ environment -- a `DemoEnv` step with the observation, action and the Gaussian's 
 `QLearningLab` / `DqnLab` / `PolicyGradientLab` / `ReachLab`, with `QTableGrid` drawing the 256 reachable rows of
 Snake's table. Without WebAssembly (`?device=nowasm` forces it) they show `data/recordings/*.json`
 (`jobs/export_rl_recording.py`, `jobs/export_rl_curves.py`); `DqnDivergence` draws recorded runs on purpose, since
-divergence is too rare to show live. `ArmResults` is the shared strip plot for a cited experiment. In dev, editing files while the lab's worker is alive logs
+divergence is too rare to show live. `ArmResults` is the shared strip plot for a cited experiment. `/learn/self-play`
+has its own worker (`workers/selfPlayLab.worker.ts`: the WASM `SelfPlayTrainer`, points against fixed strategies, the
+latest network as `WeightVector` JSON) → `useSelfPlayLab` → `SelfPlayLab`, which seats that network on the
+`VersusStage` via `wasmStrategy({ kind: "evaluator", brain, depth })` -- exactly how `CheckersWatch` seats a run's
+champion. In dev, editing files while the lab's worker is alive logs
 `document is not defined` from Vite's HMR; a fresh load is clean.
 Numbers derived from `Math.tanh` and written into SVG/style attributes are rounded on purpose: Node
 and the browser can disagree in the last digit, which is a hydration mismatch on a server-rendered
