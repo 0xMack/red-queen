@@ -19,6 +19,8 @@ export interface ScoreSpec {
   compact(value: number): string
   /** Bars are scaled to at least this: a score with a natural ceiling (points per game: 1) fills its bar. */
   scaleMin: number
+  /** The explainer for what the score means (`metric:held-out`), shown as an ⓘ beside its name. */
+  explain?: string
 }
 
 /** A leaderboard cell for a game-specific column; null leaves it empty. */
@@ -35,6 +37,8 @@ export interface LeaderboardColumn {
   header: string
   title?: string
   cell(record: EvaluationRecord): CellSpec | null
+  /** The explainer for this column's measure, shown as an ⓘ in its header. */
+  explain?: string
 }
 
 /** What *this device* can run of a game's entrants. Snake's champions are ONNX model packages that need a

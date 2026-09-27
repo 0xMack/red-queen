@@ -80,7 +80,10 @@ const scale = computed(() => Math.max(props.score.scaleMin, ...rows.value.map((r
       <span class="num w-5 text-right text-xs text-fg-subtle">{{ i + 1 }}</span>
       <span class="size-2 shrink-0 rounded-full" :style="{ background: row.color }" />
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm" :class="row.human ? 'font-semibold text-queen-200' : 'text-fg'">{{ row.label }}</p>
+        <p class="flex min-w-0 items-center gap-1.5 text-sm" :class="row.human ? 'font-semibold text-queen-200' : 'text-fg'">
+          <span class="truncate">{{ row.label }}</span>
+          <InfoTip v-if="!row.human" :subject="`entrant:${row.key}`" :label="row.label" size="xs" class="opacity-60 transition group-hover:opacity-100" />
+        </p>
         <p class="truncate font-mono text-[10px] text-fg-subtle">
           <template v-if="!row.human && selectedId === row.key"><span class="text-queen-300">on stage</span> · </template>{{ row.sub }}
         </p>

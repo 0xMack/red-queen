@@ -13,6 +13,7 @@ export const checkersModule: GameModule = {
     format: (v) => v.toFixed(2),
     compact: (v) => v.toFixed(2),
     scaleMin: 1,
+    explain: "metric:points",
   },
   columns: [
     {

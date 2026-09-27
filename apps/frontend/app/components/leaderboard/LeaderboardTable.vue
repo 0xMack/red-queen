@@ -35,10 +35,18 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
         <tr class="border-b border-line text-left label">
           <th class="px-4 py-3 font-medium">#</th>
           <th class="px-3 py-3 font-medium">Entrant</th>
-          <th class="px-3 py-3 font-medium">Representation</th>
-          <th class="px-3 py-3 font-medium">{{ score.label }}</th>
-          <th v-for="c in columns" :key="c.id" class="px-3 py-3 text-right font-medium" :title="c.title">{{ c.header }}</th>
-          <th class="px-3 py-3 text-right font-medium" title="per decision: encoding the board + running the model">Inference</th>
+          <th class="px-3 py-3 font-medium">
+            <span class="inline-flex items-center gap-1.5">Representation<InfoTip subject="metric:level" label="representation levels" size="xs" /></span>
+          </th>
+          <th class="px-3 py-3 font-medium">
+            <span class="inline-flex items-center gap-1.5">{{ score.label }}<InfoTip v-if="score.explain" :subject="score.explain" :label="score.label" size="xs" /></span>
+          </th>
+          <th v-for="c in columns" :key="c.id" class="px-3 py-3 text-right font-medium" :title="c.title">
+            <span class="inline-flex items-center gap-1.5">{{ c.header }}<InfoTip v-if="c.explain" :subject="c.explain" :label="c.header" size="xs" /></span>
+          </th>
+          <th class="px-3 py-3 text-right font-medium" title="per decision: encoding the board + running the model">
+            <span class="inline-flex items-center gap-1.5"><InfoTip subject="metric:cost" label="cost" size="xs" />Inference</span>
+          </th>
           <th class="px-3 py-3 text-right font-medium">Params</th>
           <th class="px-3 py-3 text-right font-medium">Training</th>
         </tr>
@@ -60,6 +68,7 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
             <div class="flex items-center gap-2">
               <span class="size-2 shrink-0 rounded-full" :style="{ background: entrantColor(r) }" />
               <span class="font-medium" :title="r.label">{{ entrantShortLabel(r) }}</span>
+              <InfoTip :subject="`entrant:${r.entrant_id}`" :label="entrantShortLabel(r)" size="xs" />
               <span v-if="selectedId === r.entrant_id" class="rounded-full bg-queen-500/20 px-2 py-0.5 text-[10px] font-medium text-queen-200">watching</span>
             </div>
             <p class="mt-0.5 pl-4 text-[11px] text-fg-subtle">
@@ -70,7 +79,10 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
             </p>
           </td>
           <td class="px-3 py-3">
-            <span class="chip" :style="{ color: LEVEL_COLORS[r.metrics.model.observer_level] }">L{{ r.metrics.model.observer_level }} {{ interfacesById[r.interface]?.observer.level_name ?? "" }}</span>
+            <span class="flex items-center gap-1.5">
+              <span class="chip" :style="{ color: LEVEL_COLORS[r.metrics.model.observer_level] }">L{{ r.metrics.model.observer_level }} {{ interfacesById[r.interface]?.observer.level_name ?? "" }}</span>
+              <InfoTip :subject="`representation:${r.interface}`" :label="r.interface" size="xs" />
+            </span>
             <p class="mt-1 font-mono text-[10px] text-fg-subtle">{{ r.interface }}</p>
           </td>
           <td class="min-w-48 px-3 py-3">

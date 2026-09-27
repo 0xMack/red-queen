@@ -151,8 +151,11 @@ def evaluate(strategy: str, params: dict[str, float]) -> tuple[dict[str, dict[st
     return scenarios, (time.perf_counter() - start) * 1e6 / pulls
 
 
-def record_for(entrant: tuple, hardware: dict[str, Any], run: tuple[str, str] | None = None) -> EvaluationRecord:
-    """`run`: (run id, champion ref) for an entrant that came out of a recorded run (an evolved strategy)."""
+def record_for(
+    entrant: tuple, hardware: dict[str, Any], run: tuple[str, str, dict | None] | None = None
+) -> EvaluationRecord:
+    """`run`: (run id, champion ref, the run's measured training cost) for an entrant that came out of a recorded run (an
+    evolved strategy). A hand-set strategy trains nothing: it learns within each game."""
     key, strategy, params, label, description, baseline = entrant
     scenarios, us_per_pull = evaluate(strategy, params)
     ranked = scenarios[RANKED]
@@ -189,7 +192,7 @@ def record_for(entrant: tuple, hardware: dict[str, Any], run: tuple[str, str] | 
                 "parameters": info.arms,  # one estimate per machine (a row of the table)
                 "artifact_bytes": 0,
             },
-            "training": {"measured": True, "none": True},
+            "training": dict(run[2]) if run and run[2] else {"measured": True, "none": True},
             "model": {
                 "description": description,
                 "observer_level": 1,
@@ -209,7 +212,7 @@ def record_for(entrant: tuple, hardware: dict[str, Any], run: tuple[str, str] | 
     )
 
 
-def evolved_entrants() -> list[tuple[tuple, tuple[str, str]]]:
+def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
     """Every completed bandit evolution run's final champion (jobs/bandit_evolve_run.py): its evolved settings, as an
     entrant linked to the run that produced it."""
     stores = TelemetryStores.open()
@@ -233,7 +236,7 @@ def evolved_entrants() -> list[tuple[tuple, tuple[str, str]]]:
             f"ε-greedy with settings evolved over {len(history)} generations on {', '.join(scenarios)}: {settings}.",
             False,
         )
-        out.append((entrant, (run.run_id, history[-1].champion_ref)))
+        out.append((entrant, (run.run_id, history[-1].champion_ref, (run.summary or {}).get("cost"))))
     return out
 
 
