@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0-4 implemented** (see "Implementation notes"); Phase 5 is a stretch. Each phase lands as its own PR,
+Status: **Phases 0-4 implemented** (4b: self-play scaled past material search) (see "Implementation notes"); Phase 5 is a stretch. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -572,3 +572,34 @@ each, points per game):**
   (it removed a 30k-game pilot run of this job, since tagged `selfplay-pilot`, and a 3-generation smoke run).
 - Not done: PPO self-play with legal-move masking (the plan's stretch), and search-improved targets (TD-Leaf,
   AlphaZero-style) -- the obvious next rung.
+
+### Phase 4b: scaling self-play past material search (2026-09-27)
+
+The leaderboard's self-play evaluator trailed `material-4` only because it searched a ply less: played at 4 plies
+(equal depth) the same 32 -> 16 -> 1 network already scored 0.68 against it, at 5 plies 0.71 (60 games each). The
+question was whether a better *evaluator* could win from a ply behind. `selfplay-v2` (jobs/checkers_selfplay_experiment.py,
+the `sp-pool` recipe scaled; 5 seeds per arm; each final network searching 3 plies against material-2/3/4 and the best
+evolved evaluator, **60** games each -- 20 could not separate these arms):
+
+| Arm | Hidden | Weights | Games | Points (mean ± sd) | material-4 | evolved 3-ply | Train (s) |
+|---|---|---|---|---|---|---|---|
+| `sp-pool` | 16 | 0.5k | 200k | 0.598 ± 0.036 | 0.39 | 0.69 | 198 |
+| `pool-1m` | 16 | 0.5k | 1M | 0.558 ± 0.087 | 0.38 | 0.62 | 849 |
+| `pool-h64` | 64 | 2.2k | 200k | 0.570 ± 0.027 | 0.45 | 0.50 | 368 |
+| `pool-h64-1m` | 64 | 2.2k | 1M | 0.590 ± 0.041 | 0.47 | 0.59 | 1689 |
+| `pool-2x32-1m` | 32, 32 | 2.1k | 1M | 0.609 ± 0.057 | 0.51 | 0.56 | 1500 |
+| `pool-h192-1m` | 192 | 6.5k | 1M | 0.603 ± 0.062 | 0.49 | 0.62 | 3474 |
+| **`pool-2x64-1m`** | **64, 64** | **6.3k** | **1M** | **0.752 ± 0.022** | **0.62** | **0.80** | 3443 |
+
+- **One hidden layer was the ceiling, not training.** Five times the games (`pool-1m`), four times the width
+  (`pool-h64`), both, and even a 192-wide layer with the 2 x 64 net's weight count *and* training time all land on the
+  same plateau, 0.56-0.61. A second layer at the small size (`pool-2x32-1m`) doesn't lift it either. Only depth and
+  capacity together do: 2 x 64 beats the matched-size 192-wide net on every seed (paired p = 0.062, the floor for 5
+  pairs; its worst seed, 0.719, beats every other arm's best, 0.673).
+- **The learned evaluator now beats deeper search.** At 3 plies the 2 x 64 net scores 0.62 against material *4*-ply.
+- **On the leaderboard** (the winning recipe, seed 0 fixed in advance, 1M games, ~40 min alone; entered at 3 and at 4
+  plies -- training is deterministic, so both entrants are the same network): **#1 at 0.916** (4-ply; 11W 7D 2L against
+  material-4) and **#2 at 0.854** (3-ply; 10W 9D 1L against material-4), ahead of material-4 (0.775; its score fell
+  because the field got stronger). The old 32 -> 16 -> 1 self-play entrant is #4 (0.757).
+- Still open: search-improved targets (TD-Leaf, AlphaZero-style). The network trains on the positions its 1-ply
+  greedy play passes through but plays through a 3-4 ply search; training through the search is the next rung.

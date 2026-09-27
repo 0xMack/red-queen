@@ -14,8 +14,13 @@ Arms (200k self-play games each; 32 -> 16 -> 1 tanh; lambda 0.7 unless noted):
 - `sp-lambda0`    one-step TD (lambda 0)
 - `sp-lambda1`    Monte-Carlo returns (lambda 1)
 
+`selfplay-v2` scales the pool recipe: `pool-1m` (5x the games), `pool-h64` (a 64-wide hidden layer),
+`pool-h64-1m` (both), `pool-2x64-1m` (two 64-wide hidden layers, 1M games), and two controls telling depth from
+size: `pool-2x32-1m` (two layers at `pool-h64`'s parameter count) and `pool-h192-1m` (one layer at `pool-2x64-1m`'s).
+Report it with `--games 60`: 20 per opponent is too noisy to separate these arms.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
-  uv run python jobs/checkers_selfplay_experiment.py report --name NAME
+  uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
 """
 
 from __future__ import annotations
@@ -50,11 +55,21 @@ class Arm:
     baseline: str | None = "sp"
 
 
+POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
 ARMS: dict[str, Arm] = {
     "sp": Arm(baseline=None),
-    "sp-pool": Arm({"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}),
+    "sp-pool": Arm(POOL),
     "sp-lambda0": Arm({"lambda": 0.0}),
     "sp-lambda1": Arm({"lambda": 1.0}),
+    # selfplay-v2: does more training, or a bigger network, buy strength? (each tested against the arm it extends)
+    "pool-1m": Arm(POOL, games=1_000_000, baseline="sp-pool"),
+    "pool-h64": Arm({**POOL, "hidden": 64}, baseline="sp-pool"),
+    "pool-h64-1m": Arm({**POOL, "hidden": 64}, games=1_000_000, baseline="pool-1m"),
+    "pool-2x64-1m": Arm({**POOL, "hidden": 64, "hidden_layers": 2}, games=1_000_000, baseline="pool-h64-1m"),
+    # depth, not size? 32 -> 32 -> 32 -> 1 has about as many weights (2.1k) as 32 -> 64 -> 1 (2.2k)
+    "pool-2x32-1m": Arm({**POOL, "hidden": 32, "hidden_layers": 2}, games=1_000_000, baseline="pool-h64-1m"),
+    # ...or size, not depth? 32 -> 192 -> 1 has about as many weights (6.5k) as 32 -> 64 -> 64 -> 1 (6.3k)
+    "pool-h192-1m": Arm({**POOL, "hidden": 192}, games=1_000_000, baseline="pool-2x64-1m"),
 }
 GAMES_PER_ITERATION = 1000
 
@@ -98,18 +113,18 @@ def field_factories() -> dict[str, Any]:
     return factories
 
 
-def score_run(snapshot: str, field_: dict[str, Any]) -> dict[str, float]:
+def score_run(snapshot: str, field_: dict[str, Any], games: int = GAMES_PER_OPPONENT) -> dict[str, float]:
     """Points per game against each field member, and overall."""
     network = WeightVector.from_json(snapshot)
     me = evaluator(network.weights, network.layer_sizes, DEPTH)
     by_opponent = {}
     for i, (name, opponent) in enumerate(field_.items()):
-        games = play_pairing(me, opponent, GAMES_PER_OPPONENT, SEED_BASE + 1000 * i)
-        by_opponent[name] = statistics.fmean(points for points, _ in games)
+        played = play_pairing(me, opponent, games, SEED_BASE + 1000 * i)
+        by_opponent[name] = statistics.fmean(points for points, _ in played)
     return {"overall": statistics.fmean(by_opponent.values()), **by_opponent}
 
 
-def build_report(name: str) -> dict[str, Any]:
+def build_report(name: str, games: int = GAMES_PER_OPPONENT) -> dict[str, Any]:
     registry, metrics, artifacts = TelemetryStores.open()
     field_ = field_factories()
     rows = []
@@ -124,7 +139,7 @@ def build_report(name: str) -> dict[str, Any]:
                 "run_id": run.run_id,
                 "arm": run.config["arm"],
                 "rng_seed": run.config["rng_seed"],
-                "points": score_run(snapshot, field_),
+                "points": score_run(snapshot, field_, games),
                 "games": cost.get("episodes"),
                 "active_s": cost.get("active_s"),
                 "curve": [[h.generation, h.held_out_score] for h in history if h.held_out_score is not None],
@@ -160,7 +175,7 @@ def build_report(name: str) -> dict[str, Any]:
         arms[arm] = entry
     return {
         "name": name,
-        "protocol": f"final network at {DEPTH}-ply vs {list(field_)}, {GAMES_PER_OPPONENT} games each",
+        "protocol": f"final network at {DEPTH}-ply vs {list(field_)}, {games} games each",
         "arms": arms,
         "runs": rows,
     }
@@ -175,6 +190,7 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--seeds", default="0-4")
     report = sub.add_parser("report")
     report.add_argument("--name", required=True)
+    report.add_argument("--games", type=int, default=GAMES_PER_OPPONENT, help="games per field opponent")
     args = parser.parse_args(argv)
     if args.command == "run":
         arms = args.arms.split(",")
@@ -183,7 +199,7 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(f"unknown arm(s) {unknown}; choose from {sorted(ARMS)}")
         run_experiment(args.name, arms, parse_seeds(args.seeds))
     else:
-        result = build_report(args.name)
+        result = build_report(args.name, args.games)
         EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
         (EXPERIMENTS_DIR / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(f"\n## {result['name']} -- {result['protocol']}\n")
