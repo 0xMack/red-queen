@@ -55,6 +55,11 @@ architectural change that might conflict with a decision already made.
       every pull (`BanditTape`), Thompson's `BeliefCurves`, a same-seed `BanditRace` and the `BanditReveal`;
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`.
+    - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
+      scenario, representation or measure opens a card, and "More" a side panel (`?explain=kind:id`, mounted once in
+      `app.vue`). Concepts are authored once in a typed registry; the instance layer (this entrant's settings,
+      provenance, results) is resolved from the page's leaderboard records. A new algorithm, observer, scenario or
+      metric needs a registry entry, or its ⓘ silently doesn't render -- see `apps/frontend/README.md`.
 
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by

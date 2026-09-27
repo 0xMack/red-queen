@@ -16,11 +16,13 @@ export const banditModule: GameModule = {
     format: (v) => (Math.round(v * 10) / 10 || 0).toFixed(1),
     compact: (v) => String(Math.round(v) || 0),
     scaleMin: 100,
+    explain: "metric:skill",
   },
   columns: [
     {
       id: "best-arm",
       header: "Best machine",
+      explain: "metric:best-rate",
       title: "share of pulls that went to the best machine",
       cell: (r) => {
         const s = r.metrics.bandit?.scenarios.classic
@@ -30,6 +32,7 @@ export const banditModule: GameModule = {
     {
       id: "regret",
       header: "Regret",
+      explain: "metric:regret",
       title: "expected payout given up against always pulling the best machine, per 100-pull game",
       cell: (r) => {
         const s = r.metrics.bandit?.scenarios.classic

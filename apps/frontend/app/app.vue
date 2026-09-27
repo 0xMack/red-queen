@@ -11,5 +11,6 @@ useHead({ titleTemplate: (title?: string) => (title ? `${title} · Red Queen` : 
       <NuxtPage />
     </div>
     <AppFooter />
+    <ClientOnly><ExplainerPanel /></ClientOnly>
   </div>
 </template>

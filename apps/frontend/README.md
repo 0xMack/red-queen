@@ -186,6 +186,20 @@ mark is a crown over its own reflection (the Looking-Glass queen; `components/ap
   `versus/` (the game-agnostic two-player stack), `leaderboard/`, `chart/` (`LineChart`, `ParetoChart`, `Sparkline`,
   `NetworkDiagram`, `NeatDiagram`, `ArmResults`), `learn/` (the textbook frame -- `ChapterNav`, `ChapterHeader`,
   `ChapterOutline`, `ChapterPager`, `LearnSearch`, cards -- and `learn/demos/`), `runs/`.
+- `explain/` -- **explainers**: what a name on the page *means*. An `InfoTip` (the ⓘ) beside an entrant, a scenario, a
+  representation or a measure opens `ExplainerCard` (two sentences, one picture, a few facts, links); "More" opens
+  `ExplainerPanel`, the side panel mounted once in `app.vue` and driven by `?explain=kind:id` (so it can be linked, and
+  Back closes it). The panel has the full view: a live demo (`ExplainLive`: `BanditPlayer` on the real core, or
+  `ObserverLive`), this entrant's own settings and provenance, how it works, the rule as code, where it shines and
+  fails, results, chapter sections and related explainers. The content is a typed registry, `data/explainers/`
+  (`algorithms`, `scenarios`, `representations`, `metrics`): a *concept* is authored once; `resolveExplainer` adds the
+  *instance* layer from the page's leaderboard, which `GamePage` registers with `useExplainContext` (the panel isn't
+  under the page in the tree, so it's module state, not provide/inject). Pages without records (Learn) fall back to
+  cited results. Pictures: `StrategyGlyph`, `ScenarioGlyph`, `ObserverGlyph` (a TypeScript Snake sketch,
+  `data/explainers/snakeSketch.ts` -- illustration only; features.v1 is exact, the rays and flood fills show what
+  egocentric measures), `MetricGlyph`, or a chapter's `ChapterArt`. Adding one: an entry in the registry (plus a
+  `ScoreSpec.explain`/`LeaderboardColumn.explain` for a measure), then `<InfoTip subject="kind:id" />` wherever the name
+  appears; `algorithmIdFor()` maps a leaderboard record to its algorithm.
 - Logic that isn't drawing lives in composables: `useRunsTable` (the runs table's filters, sorting, experiment groups),
   `useChapterOutline`/`useReadingProgress`, `useNow` (a hydration-safe shared clock), plus the session composables
   below.

@@ -58,7 +58,7 @@ function shade(v: number | undefined) {
           <tr>
             <th class="label pb-2 text-left font-normal">strategy</th>
             <th v-for="c in COLUMNS" :key="c.key" class="px-1 pb-2 text-center font-normal">
-              <span class="block text-fg-muted">{{ c.title }}</span>
+              <span class="flex items-center justify-center gap-1 text-fg-muted">{{ c.title }}<InfoTip :subject="`scenario:${c.key.split(':')[0]}`" :label="c.title" size="xs" /></span>
               <span class="block font-mono text-[10px] text-fg-subtle">{{ c.sub }}</span>
             </th>
           </tr>

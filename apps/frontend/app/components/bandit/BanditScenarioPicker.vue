@@ -18,6 +18,7 @@ function pick(id: string) {
       :options="BANDIT_SCENARIOS.map((s) => ({ value: s.id, label: `${s.title} · ${s.arms} × ${s.budget}` }))"
       @update:model-value="pick"
     />
+    <InfoTip class="mt-8" :subject="`scenario:${scenario.id}`" :label="scenario.title" />
     <p class="max-w-xl min-w-0 flex-1 pt-6 text-xs leading-relaxed text-fg-subtle">
       <span class="text-fg-muted">{{ scenario.lesson }}</span> {{ scenario.pitfall }}
     </p>

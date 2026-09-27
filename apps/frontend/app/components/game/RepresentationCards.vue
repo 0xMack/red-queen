@@ -20,10 +20,16 @@ const entrantsPerInterface = computed(() => {
   <div class="grid gap-5 md:grid-cols-2">
     <article v-for="i in interfaces" :key="i.id" class="card flex flex-col p-5">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="chip" :style="{ color: LEVEL_COLORS[i.observer.level] }">L{{ i.observer.level }} · {{ i.observer.level_name }}</span>
+        <span class="flex items-center gap-1.5">
+          <span class="chip" :style="{ color: LEVEL_COLORS[i.observer.level] }">L{{ i.observer.level }} · {{ i.observer.level_name }}</span>
+          <InfoTip subject="metric:level" label="representation levels" size="xs" />
+        </span>
         <span class="font-mono text-[11px] text-fg-subtle">{{ i.id }}</span>
       </div>
-      <h3 class="mt-3 font-display text-[1.7rem] leading-tight font-normal">{{ i.observer.id }} <span class="text-fg-subtle">+ {{ i.action.id }}</span></h3>
+      <h3 class="mt-3 flex flex-wrap items-center gap-x-2.5 font-display text-[1.7rem] leading-tight font-normal">
+        <span>{{ i.observer.id }} <span class="text-fg-subtle">+ {{ i.action.id }}</span></span>
+        <InfoTip :subject="`representation:${i.id}`" :label="i.observer.id" />
+      </h3>
       <p class="mt-2 text-sm text-fg-muted">{{ i.observer.description }}</p>
       <p class="mt-2 text-sm text-fg-muted">{{ i.action.description }}</p>
       <div class="mt-4 flex flex-wrap gap-1.5">

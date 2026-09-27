@@ -17,6 +17,8 @@ const props = defineProps<{ game: GameEntry; module: GameModule; board: GameBoar
 const route = useRoute()
 const router = useRouter()
 const { entries, protocol, protocolInfo, interfaces, interfacesById, error } = props.board
+// Every ⓘ on the page (and the explainer panel) reads this leaderboard: an entrant's own settings and results.
+useExplainContext(() => ({ game: props.game.slug, entries: entries.value, interfacesById: interfacesById.value }))
 
 // --- What this device can run (docs/design/0009) -------------------------------------------------------
 const device = (props.module.device ?? (() => noDevice()))(props.game.slug, entries)

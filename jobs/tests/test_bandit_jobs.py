@@ -36,3 +36,6 @@ def test_an_evolved_strategy_is_recorded_and_ranked(tmp_path, monkeypatch):
     assert evolved.metrics["bandit"]["strategy"] == "epsilon_greedy"
     assert set(evolved.metrics["bandit"]["scenarios"]) >= {"classic", "detour", "two-lamps:lamp.v1"}
     assert "baseline:random" in records and "strategy:thompson" in records
+    # Evolution's cost is the evolved entrant's training; a hand-set strategy trains nothing.
+    assert evolved.metrics["training"]["generations"] == 3 and not evolved.metrics["training"].get("none")
+    assert records["strategy:thompson"].metrics["training"]["none"]

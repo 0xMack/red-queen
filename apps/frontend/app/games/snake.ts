@@ -37,6 +37,7 @@ export const snakeModule: GameModule = {
     format: (v) => v.toFixed(2),
     compact: (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1)),
     scaleMin: 1,
+    explain: "metric:held-out",
   },
   columns: [
     {
@@ -48,6 +49,7 @@ export const snakeModule: GameModule = {
     {
       id: "gap",
       header: "Train gap",
+      explain: "metric:gap",
       title: "mean on its own training seeds minus held-out mean -- large = overfit",
       cell: (r) => {
         const gap = r.metrics.quality.generalization_gap
