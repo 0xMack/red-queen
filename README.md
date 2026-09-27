@@ -1,70 +1,186 @@
-# red-queen
+<div align="center">
 
-A monorepo for exploring reinforcement learning and genetic/evolutionary algorithms via custom,
-from-scratch implementations — tested against purpose-built games and simulations, with
-interactive visualizations to see what the algorithms are doing internally and make debugging
-easier.
+# Red Queen
 
-## Layout
+**Evolution and reinforcement learning, built from scratch and made visible.**
 
-- `notebooks/` — Jupyter notebooks for exploration, experiments, and write-ups
-- `apps/` — front-end applications (e.g. visualizations of games/simulations and algorithm internals)
-- `apis/` — backend APIs (e.g. serving simulations/training runs to front-ends)
-- `libs/` — shared libraries/packages (algorithm implementations, games/simulations, common utilities)
-- `jobs/` — short- or long-running jobs, tasks, and workers (e.g. training runs)
-- `docs/` — design documents and cross-cutting write-ups
+Genetic programming, neuroevolution, NEAT, Q-learning, DQN, PPO, self-play, bandits and a tiny transformer, each
+implemented by hand. They compete on purpose-built games under one leaderboard, and you can watch every one of them
+think, live in the browser.
 
-Each top-level directory has its own README describing its contents in more detail as they fill in.
-Contributing (human or agent)? Start with [AGENTS.md](AGENTS.md) — project map, working notes, and
-a pointer to [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md).
+</div>
 
-## Current contents
+![The Snake game page: PPO, the current leader, playing live in the browser with its network's activations drawn beside the board, and the ranked standings of every algorithm](docs/images/snake.jpg)
 
-- `libs/RedQueenCbind` — a C++/pybind11 linear genetic programming (LGP) implementation (the
-  original code this repo started from)
-- `libs/autodiff` — reverse-mode automatic differentiation, built from scratch (`Tensor`,
-  NumPy-array-valued, not scalar-valued) — the foundation for `libs/tinylm`'s transformer
-- `libs/evolve` — pure-Python evolution loop prototype (genome, fitness, selection, variation) —
-  the baseline being validated before anything is ported to C++. `match.py` is the two-player
-  sibling of the single-agent `simulation.py`: `MultiAgentEnvironment`, `play_match()` (pit any
-  strategy against any strategy — static heuristic, evolved genome, classifier, all the same
-  `(observation, legal_moves) -> move` shape), and `MatchFitnessEvaluator` (fitness from match
-  outcomes against reference opponents)
-- `libs/games` — toy games/simulations, one module per game (`reach1d`, a 1D continuous-control
-  environment; `snake`, a grid game — observation is 11 hand-engineered features, not a raw
-  flattened grid, after a retrained result confirmed representation was the ceiling, not compute;
-  `checkers`, the first two-player game — real rules including mandatory captures/multi-jump
-  chains, reuses `render_state()`'s exact shape with just a wider piece-label vocabulary), each
-  also exposing a `render_state()` decoupled from the fast training path — see
-  `libs/games/README.md`
-- `libs/telemetry` — run registry, metrics stream, and artifact store for observing
-  evolving/training populations
-- `libs/tinylm` — a small transformer LM, built on `libs/autodiff` — character-level, causal
-  self-attention, trained by gradients (not evolution) on *Alice's Adventures in Wonderland*
-- `jobs/baseline_gp_run.py` — runs `libs/evolve` against a fixed benchmark, wired to `telemetry`
-  end to end (`uv run python jobs/baseline_gp_run.py`); `jobs/snake_neuro_run.py` does the same for
-  neuroevolution against `games.snake`, writing champions as real, round-trippable
-  `WeightVector.to_json()` artifacts; `jobs/control.py` adds pause/resume support via a plain
-  `RunStatus` check, the job-side half of the control API below
-- `apis/backend` — a FastAPI service exposing `libs/telemetry` (runs, metrics history, a live SSE
-  metrics stream, artifacts, and pause/resume/step control) and `libs/games` (server-side game
-  sessions: create, step, trajectory) — see `apis/backend/README.md`.
-- `apps/frontend` — a Nuxt 4 app: a run list and a live run-detail view (SSE-backed chart) over
-  `apis/backend`, game pages where visitors watch trained champions and baselines play and then play
-  themselves, a Learn section, and TinyLM generating text -- all inference client-side
-  (docs/design/0009): the Rust game core as WebAssembly plus model packages in ONNX Runtime Web
-  (WebGPU or WASM, whichever the device supports, with a plain-language reason when neither fits), so
-  a visitor watching costs the server nothing per move. See `apps/frontend/README.md`.
-- `notebooks/` — algorithm comparisons: `0001` (tournament vs. lexicase selection), `0002`
-  (Pareto selection, accuracy vs. program size), `0003` (linear vs. tree genome representation),
-  `0004` (neuroevolution on reach1d), `0005` (neuroevolution on Snake, with the original flattened-
-  grid observation — an honest, modest result later revisited: `jobs/snake_neuro_run.py`'s
-  hand-engineered-feature observation trains a dramatically stronger policy on the same
-  generation-class budget), `0006` (a transformer LM trained entirely from scratch, first
-  gradient-trained thing in this repo)
-- `docs/design/` — numbered design docs: `0001` (GP engine), `0002` (real-time visualization
-  architecture), `0003` (algorithm landscape and roadmap), `0004` (small transformer/LM from
-  scratch), `0005` (frontend + API contracts/endpoint definitions), `0006` (multi-agent games and
-  the strategy/match framework, checkers as the first exercise of it — done: the framework, the game,
-  an evolved position-evaluator champion, and a playable page (human vs. bot, bot vs. bot, an arena
-  that measures strategies), all client-side)
+> *"Now, here, you see, it takes all the running you can do, to keep in the same place."*
+> The Red Queen, *Through the Looking-Glass*. The name is for the co-evolutionary arms race, where every
+> improvement in one player is a new problem for another.
+
+## What this is
+
+A research playground and an interactive textbook in one monorepo:
+
+- **Algorithms from first principles.** No PyTorch, no Gym, no NEAT-Python. Evolution loops, an autodiff engine, a
+  batched MLP with hand-written backprop, Adam, replay buffers, GAE and PPO's clipped objective all live in this repo,
+  with tests that check them against independent reference implementations.
+- **Games built to expose algorithms.** Snake, Checkers and a multi-armed bandit are each chosen to make a particular
+  idea visible. Examples: why representation matters more than compute, why lookahead beats evaluation, why exploring
+  costs something. Every game's rules live once, in a Rust core that is bound to Python for training and compiled to
+  WebAssembly for the browser, so a seed is the same game everywhere.
+- **One honest leaderboard per game.** Entrants are scored on held-out seeds under a versioned protocol, never on
+  training fitness. They sit beside fixed baselines, with confidence intervals and the measured cost to train and to
+  run.
+- **Everything runs in the browser.** Trained champions are exported as model packages and run in ONNX Runtime Web
+  (WebGPU or WASM), with the game in WebAssembly, so watching or playing costs the server nothing per move.
+- **A textbook that runs.** The `/learn` section has 15 chapters, from genetic algorithms to self-play. Each trains
+  its algorithm live in your browser and cites real results, including the ones that didn't work the first time.
+
+| | |
+|:---:|:---:|
+| ![The Bandit game: five slot machines, the table of values a strategy keeps, and every strategy ranked by skill](docs/images/bandit.jpg) | ![Checkers: a material-searching baseline plays a network trained by self-play, with the standings beside the board](docs/images/checkers.jpg) |
+| **Bandit.** Exploration vs. exploitation. Watch a strategy's beliefs update pull by pull, then race it. | **Checkers.** Strategy vs. strategy: alpha-beta search, evolved evaluators and TD(λ) self-play. |
+| ![An explainer panel for an evolved ε-greedy strategy: its settings and what they mean, how it works, and the rule as code](docs/images/explainer.jpg) | ![The Learn index: an interactive textbook from genetic algorithms to self-play](docs/images/learn.jpg) |
+| **Explainers.** Every ⓘ opens what an algorithm, scenario or representation *is*, with the entrant's own settings and results. | **Learn.** 15 chapters, foundations first, with live demos and cited results. |
+
+## Results so far
+
+Scores come from the leaderboards: held-out games, 95% intervals, never training fitness. The full tables, with
+training and inference costs, are on each game's page.
+
+**Snake** (mean food eaten over 200 held-out games on a 10 × 10 board):
+
+| Entrant | Sees | Score |
+|---|---|---:|
+| PPO, 33 → 64 → 64 → 3 | `egocentric.v2`: rays, plus the free space each move leaves | **70.2** |
+| NEAT, 27 hidden nodes, 187 connections | `egocentric.v2` | 59.9 |
+| DQN, 33 → 64 → 64 → 3 | `egocentric.v2` | 41.9 |
+| NEAT, 28 hidden nodes | `features.v1`: 11 hand-picked yes/no facts | 38.0 |
+| DQN | `egocentric.v1`: rays only | 29.3 |
+| Q-learning table, 2,048 states | `features.v1` | 19.5 |
+| *Greedy heuristic (baseline)* | | *17.9* |
+
+The biggest jumps came from changing what the snake *sees*, not from changing the algorithm. DQN went from 29 to 42
+when the observer added "how much room does this move leave?"
+
+**Checkers** is a round robin scored in points per game. A 4-ply material search still leads (0.85). A 32 → 16 → 1
+network trained only by playing itself (TD(λ), searched 3 plies) is second (0.81), ahead of every evolved evaluator.
+
+**Bandit** is scored as skill: 0 = pulling at random, 100 = the best machine every pull. ε-greedy with settings
+*evolved* on the scenario leads (80.4), ahead of optimistic initial values (77.9) and Thompson sampling (64.4). On
+the *Detour* scenario, which needs planning, Q-learning with a discount of γ 0.9 scores 54.8, and every strategy that
+only values the next payout scores ≤ 15.
+
+## What's implemented
+
+| Family | What | Code | Learn chapter · design doc |
+|---|---|---|---|
+| Genetic programming | Linear (register machine) and tree GP; tournament, lexicase and Pareto selection | [`libs/evolve`](libs/evolve), [`libs/RedQueenCbind`](libs/RedQueenCbind) (C++) | 1–3 · [0001](docs/design/0001-fast-cpp-gp-pybind11.md), [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) |
+| Neuroevolution | Fixed-shape networks as weight vectors, Gaussian mutation | [`libs/evolve`](libs/evolve) | 4 · [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) |
+| NEAT | Innovation numbers, structural mutation, speciation | [`libs/evolve/neat.py`](libs/evolve) | 5 · [0008](docs/design/0008-neat-and-tracked-comparisons.md) |
+| Bandits | Greedy, ε-greedy, optimistic, UCB, Thompson, gradient, a Q-table with γ | [`libs/rl`](libs/rl) (Rust) | 6 · [0011](docs/design/0011-multi-armed-bandits.md) |
+| Tabular RL | Q-learning and SARSA with n-step returns | [`libs/rl`](libs/rl) (Rust) | 7 · [0010](docs/design/0010-reinforcement-learning.md) |
+| Deep RL | DQN (replay, target network, double, dueling, prioritized), REINFORCE, A2C, PPO | [`libs/rl`](libs/rl) (Rust) | 8–9 · [0010](docs/design/0010-reinforcement-learning.md) |
+| Self-play | TD(λ) position evaluator for Checkers | [`libs/rl`](libs/rl) (Rust) | 10 · [0010](docs/design/0010-reinforcement-learning.md) |
+| Gradients | Reverse-mode autodiff; a character-level transformer LM | [`libs/autodiff`](libs/autodiff), [`libs/tinylm`](libs/tinylm) | 12–13 · [0004](docs/design/0004-small-transformer-from-scratch.md) |
+
+The RL core is dependency-free Rust. A given seed trains **bit-identically** natively and in WebAssembly, which CI
+checks with determinism digests.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    subgraph libs["libs/ (algorithms and games)"]
+        games["games<br/>Rust core: rules, observers, baselines"]
+        rl["rl<br/>Rust: bandits, Q, DQN, PPO, TD(λ)"]
+        evolve["evolve<br/>GP, neuroevolution, NEAT"]
+        modelpack["modelpack<br/>ONNX export + parity"]
+        telemetry["telemetry<br/>runs, metrics, artifacts, evaluations"]
+    end
+    jobs["jobs/<br/>training runs + leaderboard evaluation"]
+    backend["apis/backend<br/>FastAPI: runs, SSE metrics, model store"]
+    frontend["apps/frontend<br/>Nuxt: games, leaderboards, Learn"]
+    browser(["browser<br/>WASM game + ONNX Runtime Web"])
+
+    evolve --> jobs
+    rl --> jobs
+    games --> jobs
+    jobs --> telemetry --> backend --> frontend
+    jobs --> modelpack --> backend
+    games -. compiled to WASM .-> browser
+    rl -. compiled to WASM .-> browser
+    frontend --> browser
+```
+
+- **Training** is a job ([`jobs/`](jobs)) that wires an algorithm to [`telemetry`](libs/telemetry). The algorithm
+  libraries never import telemetry.
+- **Evaluation** is a separate job that ranks every finished run's champion on held-out seeds.
+- **Watching** is client-side: the backend serves run history (with a live SSE stream while training) and model
+  packages, and the browser does the rest.
+
+## Running it locally
+
+Needs [uv](https://docs.astral.sh/uv/), a Rust toolchain, and Node with [pnpm](https://pnpm.io/).
+
+```bash
+uv sync --all-packages                       # every Python package, building the Rust extensions
+uv run python jobs/evaluate_bandit.py        # the bandit leaderboard (seconds; no training needed)
+uv run uvicorn backend.main:app --app-dir apis/backend/src --port 8000
+```
+
+```bash
+cd apps/frontend && pnpm install && pnpm dev   # http://localhost:3000
+```
+
+The Learn chapters and every game's *Play* mode work with no trained runs. To fill the Snake and Checkers
+leaderboards, train something and evaluate it. For example:
+
+```bash
+uv run python jobs/rl_run.py --help          # Q-learning / DQN / PPO on Snake
+uv run python jobs/snake_neat_run.py         # NEAT on Snake
+uv run python jobs/evaluate.py               # rank every finished Snake run
+```
+
+Runs land in `jobs/run-data/`, which is gitignored. The same checks CI runs are listed in
+[AGENTS.md](AGENTS.md#working-in-this-repo).
+
+## Repository map
+
+| Path | What's there |
+|---|---|
+| [`apps/frontend`](apps/frontend) | The one Nuxt 4 app: game pages, leaderboards, run viewer, the Learn textbook, explainers |
+| [`apis/backend`](apis/backend) | The one FastAPI service: runs, metrics (REST + SSE), run control, the model store |
+| [`libs/games`](libs/games) | Snake, Checkers, the bandit and Reach1D. Rust core with PyO3 and WASM bindings; the original Python kept as test oracles |
+| [`libs/rl`](libs/rl) | Reinforcement learning in Rust: bandits, tabular, DQN, policy gradients, self-play |
+| [`libs/evolve`](libs/evolve) | Evolution loop, GP genomes, selection strategies, neuroevolution, NEAT, the match framework |
+| [`libs/autodiff`](libs/autodiff) · [`libs/tinylm`](libs/tinylm) | Autodiff from scratch, and a small transformer built on it |
+| [`libs/modelpack`](libs/modelpack) | Champions exported to ONNX with measured parity, as content-addressed model packages |
+| [`libs/telemetry`](libs/telemetry) | Run registry, metrics stream, artifact store, leaderboard evaluations |
+| [`libs/RedQueenCbind`](libs/RedQueenCbind) | The original C++/pybind11 linear GP engine this repo started from |
+| [`jobs`](jobs) | Training runs, experiments and leaderboard evaluations |
+| [`notebooks`](notebooks) | Algorithm comparisons with baked-in output (tournament vs. lexicase, Pareto, linear vs. tree, …) |
+| [`docs/design`](docs/design) | Numbered design docs: one per major decision, with the hypotheses and what the results said |
+
+Every directory has its own README with the specifics.
+
+### Design docs
+
+| # | Decision |
+|---|---|
+| [0001](docs/design/0001-fast-cpp-gp-pybind11.md) | A fast C++ GP engine, exposed to Python via pybind11 |
+| [0002](docs/design/0002-realtime-visualization-architecture.md) | Connecting evolving populations to real-time visualization |
+| [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) | The algorithm landscape, built toward incrementally |
+| [0004](docs/design/0004-small-transformer-from-scratch.md) | A small transformer LM, from scratch |
+| [0005](docs/design/0005-frontend-and-api-contracts.md) | Frontend, API contracts and endpoints |
+| [0006](docs/design/0006-multiagent-games-and-strategy-framework.md) | Multi-agent games and the strategy/match framework |
+| [0007](docs/design/0007-representations-leaderboards-and-tradeoffs.md) | Representations, leaderboards and measuring tradeoffs |
+| [0008](docs/design/0008-neat-and-tracked-comparisons.md) | NEAT, and tracked comparisons between algorithms |
+| [0009](docs/design/0009-client-side-inference-at-scale.md) | Client-side inference: Rust/WASM games, ONNX Runtime Web, model packages |
+| [0010](docs/design/0010-reinforcement-learning.md) | Reinforcement learning, from a Q-table to PPO and self-play |
+| [0011](docs/design/0011-multi-armed-bandits.md) | Multi-armed bandits: exploration, exploitation, and the step up to Q-tables |
+
+## Contributing (humans and agents)
+
+Start with **[AGENTS.md](AGENTS.md)**: the project map, how the pieces connect, and the workflow gotchas. Then read
+**[docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md)** before writing code. It holds the standards plus the lessons
+this project learned the hard way. Before an architectural change, read the design doc it touches.
