@@ -14,6 +14,7 @@ Two things make it a good teaching game, and both come from the core's streams:
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from games import _native
@@ -93,3 +94,44 @@ class Bandit:
     counts = property(lambda self: self._core.counts)
     best_pulls = property(lambda self: self._core.best_pulls)
     best_arm = property(lambda self: self._core.best_arm)
+
+
+class BanditNone:
+    """`none.v1` -- sees nothing: every pull is the same situation, so a strategy keeps one row of estimates. Right
+    for a plain bandit; blind to the lamp in `two-lamps`, where the arms pay differently under each colour."""
+
+    id = "none.v1"
+    level = 1
+    description = "Nothing: every pull looks the same, so a strategy keeps one value per machine -- a one-row table."
+
+    def encode(self, game: Bandit) -> list[float]:
+        return []
+
+    def feature_names(self, game: Bandit) -> list[str]:
+        return []
+
+
+class BanditLamp:
+    """`lamp.v1` -- the lamp's colour (0 red, 1 blue): two situations, so a strategy keeps a row per colour (the
+    contextual bandit, docs/design/0011 Level 2). The lamp is always red outside `two-lamps`."""
+
+    id = "lamp.v1"
+    level = 1
+    description = "The lamp's colour, red or blue: two situations, so a strategy keeps a row of values per colour."
+
+    def encode(self, game: Bandit) -> list[float]:
+        return [float(game.lamp)]
+
+    def feature_names(self, game: Bandit) -> list[str]:
+        return ["lamp is blue"]
+
+
+class PullArm:
+    """`arm.v1` -- one output per machine; the strategy pulls the machine it scores highest."""
+
+    id = "arm.v1"
+    description = "One score per machine; pull the machine that scores highest."
+    num_outputs = 5
+
+    def decode(self, outputs: Sequence[float]) -> int:
+        return max(range(len(outputs)), key=lambda i: outputs[i])

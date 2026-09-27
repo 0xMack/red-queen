@@ -36,7 +36,8 @@ what belongs here and how to add to it). Read before writing code, not after.
 - Pluggable interfaces: `typing.Protocol`, not ABCs — matches the structural style already used in
   `libs/telemetry`.
 - Tests: pytest, `tmp_path` fixture for anything touching the filesystem — no shared mutable state
-  between tests.
+  between tests. Test files need **unique basenames across `libs/*/tests`** (they're rootdir-imported without
+  `__init__.py`): a second `test_bandit.py` fails collection with "import file mismatch".
 
 ## C++
 

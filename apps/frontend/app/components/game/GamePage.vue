@@ -98,7 +98,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
 
     <!-- Stage + side leaderboard -->
     <div ref="stage" class="mt-8 grid scroll-mt-20 grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <UiPanel ticks pad="md" class="min-w-0">
+      <UiPanel ticks pad="md" class="min-w-0 xl:self-start">
         <template v-if="entrantOnStage && selected" #header>
           <EntrantHeader
             :entry="selected"
@@ -184,6 +184,9 @@ function onHumanScore(score: number, live: boolean, label?: string) {
         -- only compare them within the same hardware class.
       </p>
 
+      <div v-if="module.Insights" class="mt-8">
+        <component :is="module.Insights" :entries="entries" :selected-id="selected?.entrant_id" @select="selectEntrant" />
+      </div>
       <div v-if="module.sections.headToHead" class="mt-8">
         <LeaderboardMatrix :entries="entries" :selected-id="selected?.entrant_id" @select="selectEntrant" />
       </div>

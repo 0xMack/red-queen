@@ -1,6 +1,8 @@
 # 0011 — Multi-armed bandits: a game for exploration, exploitation, and the step up to Q-tables
 
-Status: **Proposed** (2026-09-27). Nothing implemented yet except the arm-count sweep below.
+Status: **Levels 1 and 2 implemented** (2026-09-27): the game core, the strategies, the leaderboard, the game page and
+the Learn chapter. See "Implementation notes" for what was measured and what changed from the plan below. Level 3 and
+the evolved strategy are still open.
 Relates to: [0006](0006-multiagent-games-and-strategy-framework.md) (a game in `libs/games`, one page layout),
 [0007](0007-representations-leaderboards-and-tradeoffs.md) (interfaces, held-out protocols, leaderboards),
 [0009](0009-client-side-inference-at-scale.md) (Rust core → PyO3 + WASM), [0010](0010-reinforcement-learning.md)
@@ -78,26 +80,26 @@ Two results in the sweep are lessons in themselves, and belong in the chapter:
   in 100 pulls it spends too much re-checking bad arms. "Theoretically optimal" and "good at this game" are different
   claims.
 - **Optimistic initial values look like the best strategy here** (0.21) -- because payouts are 0/1 and "assume every
-  untried arm pays 1" is a very good guess when means are uniform. The *Deceptive optimism* scenario is there to show
-  when that guess costs you.
+  untried arm pays 1" is a very good guess when means are uniform. (A *Deceptive optimism* scenario was planned to
+  show when that guess costs you; measured, it didn't -- see the notes. *Drifting* shows optimism's real weakness.)
 
 Scenarios override K and N where their lesson needs it (only *Too many arms* changes K).
 
 ## Scenarios
 
 Each game draws its arm values from the seed *within* a scenario's structure (not uniformly), so every seed shows the
-scenario's pitfall. The "who fails" column is a set of hypotheses to verify in Phase 1, not established results.
+scenario's pitfall. As built (the "who fails" column is now measured -- skill, 0 = random, 100 = the best arm every
+pull, on 500 held-out games; the full table is in "Implementation notes"):
 
-| Scenario | K × N | Payouts | Who should fail, and why |
+| Scenario | K × N | Payouts | Who fails, measured |
 |---|---|---|---|
-| **Classic** (default) | 5 × 100 | Bernoulli, means spread over 0.2–0.8 | Greedy (commits early); the baseline race |
-| **Close call** | 5 × 100 | Bernoulli, best 0.55, others 0.45–0.52 | Everyone -- small gaps need many samples. Thompson degrades most gracefully |
-| **Lucky start** | 5 × 100 | Gaussian, equal-ish means, high noise | Greedy locks onto whichever arm paid well first |
-| **Jackpot** | 5 × 100 | One arm pays 50 with p = 0.02 (mean 1.0); one pays 0.8 every time; the rest less | Anything trusting a small sample writes the jackpot arm off; the sample average hides a heavy tail |
-| **Drifting** | 5 × 200 | Means swap partway through (hidden switch) or random-walk | Sample averages (α = 1/n) and UCB stay loyal to the old best arm. A **constant α** tracks it -- *the* reason Q-learning uses a learning rate instead of an average |
-| **Too many arms** | 16 × 100 | Bernoulli | You can't try everything once and still exploit. UCB and optimistic starts burn the budget on trial pulls |
-| **Deceptive optimism** | 5 × 100 | All arms poor (means 0.05–0.25) | Optimistic initial values spend most of the budget being disappointed by every arm in turn |
-| **Two lamps** (Level 2) | 5 × 100 | A red/blue lamp each round; the best arm differs by colour | A plain bandit agent (1 row) averages the two situations and is wrong in both; the contextual agent (2 rows) isn't |
+| **Classic** (default) | 5 × 100 | Bernoulli, a jittered ladder 0.15-0.75, shuffled | Greedy (39) against optimism (78); UCB1's textbook c = √2 ties greedy (39) |
+| **Close call** | 5 × 100 | Bernoulli, best 0.55, others in [0.42, 0.50) | Everyone: the best is 22 |
+| **Lucky start** | 5 × 100 | Gaussian, means 4-7, sd 3 | Greedy: 0.5, no better than random |
+| **Jackpot** | 5 × 100 | 50 with p = 0.02 (mean 1.0); always 0.8; three Bernoulli 0.3-0.6 | Nearly everyone: pulling the steady arm alone scores 46; the best strategy 31; optimism / UCB / Thompson ~5, their exploration sized to the jackpot's spread |
+| **Drifting** | 5 × 200 | Classic arms; at a pull in 50-70 the best arm *breaks* (pays what the worst does) | Staying loyal scores -13; sample-average ε-greedy 43 vs constant step (0.2) 55; optimism 49 (explores once); tuned UCB 59 |
+| **Too many arms** | 16 × 100 | Bernoulli 0.05-0.80 | UCB1 (19) must try all 16 first; ε-greedy 51, optimism 62 |
+| **Two lamps** (Level 2) | 5 × 100 | Red lamp: the classic ladder; blue: `0.9 - p` for each arm | Every strategy that can't see the lamp: ~0 (every arm averages 0.45). Seeing it: Thompson 51, optimism 68 |
 
 ## Strategies, and where each leads
 
@@ -107,7 +109,7 @@ scenario's pitfall. The "who fails" column is a set of hypotheses to verify in P
 | ε-greedy (fixed, decaying) | the explore/exploit dial | the ε in the Q-learning lab |
 | Optimistic initial values | exploration from optimism, not randomness | the Q-learning lab's "optimistic start" |
 | UCB1 | exploration as an uncertainty bonus, drawn as an error bar per machine | -- |
-| Thompson sampling | each machine's belief as a curve; the pull is a draw from the curves | usually the winner, and the most visual |
+| Thompson sampling | each machine's belief as a curve; the pull is a draw from the curves | the most visual -- but *not* the winner at 100 pulls (see the notes) |
 | Gradient bandit (softmax preferences + a baseline) | preferences, not values | **REINFORCE with a baseline** in miniature -- sets up the policy-gradients chapter |
 | Tabular Q-learning (`libs/rl`'s, unchanged) | the Snake lab's agent on a 1-row table | literally the same `Trainer` as the Q-learning chapter |
 | Evolved strategy (stretch) | a GA tuning ε schedule / α / initial value across many games | the one evolution-vs-RL comparison that fits on a single page |
@@ -166,3 +168,68 @@ scenario's pitfall. The "who fails" column is a set of hypotheses to verify in P
   waits on doc 0007 step 4, like Snake's.
 - **Continuous-payout visuals.** A slot machine reads naturally as win/lose; Gaussian payouts need a payout readout
   that doesn't look like a bug. Prototype both in Phase 3.
+
+## Implementation notes
+
+### Levels 1 and 2 (2026-09-27)
+
+What was built:
+
+- **Game core** (`libs/games/rust/core/src/bandit.rs`, `games.bandit`, oracle `tests/reference_bandit.py`): 7 scenarios.
+  Each arm draws payouts from its own PCG32 stream (`stream_seed(seed, 100 + arm)`), the lamps from another, so the n-th
+  pull of an arm pays the same for every player whatever else they pulled -- the race is fair by construction, and the
+  oracle matches the Rust pull for pull. Only `+ - * /` (normals are Irwin-Hall), so WASM matches bit for bit.
+- **Score**: *skill* = (expected payout − random's) / (best's − random's), per game -- 0 = no better than random,
+  100 = the best arm every pull. Expected (the pulled arms' means), so it scores choices, not luck. Efficiency
+  (expected / best) was the first score and was dropped: on *Close call*, random already gets 87% of the best, so
+  every strategy looked alike.
+- **Strategies** (`libs/rl/rust/core/src/bandit.rs`): online learners over a `rows × arms` table -- random, greedy,
+  ε-greedy (constant or decaying ε, sample average or constant step), optimistic (one imaginary pull at the maximum
+  payout), UCB1, Thompson (Beta by order statistic -- integer shapes, no transcendental; Gaussian otherwise), gradient
+  bandit, and `q_table` -- `QTableAgent` itself with γ = 0. A bandit learns *within* a game (arms are redrawn every
+  game), so strategies don't use the `Trainer`: `envs::bandit::BanditRun` couples one to one game. Oracle:
+  `tests/reference_bandit_agents.py`, belief for belief after every pull, on four scenarios. A `bandit` digest joins
+  the determinism fixture.
+- **Interfaces**: `bandit/none.v1+arm.v1` (one row) and `bandit/lamp.v1+arm.v1` (a row per colour), registered in
+  `games.interfaces` so the game page's representation cards explain them.
+- **Leaderboard**: `jobs/evaluate_bandit.py`, protocol `bandit.skill.v1`, 500 held-out games per scenario (seeds
+  10,000-10,499), ranked on *Classic*; every scenario's result (and *Two lamps* seeing the lamp) in `metrics.bandit`.
+  The whole evaluation takes about a second.
+- **Frontend**: `app/games/bandit.ts` on the shared game page; `components/bandit/` (`SlotMachine`, `BanditFloor`,
+  `BanditTable` -- the table a strategy keeps, `BanditTape`, `BeliefCurves`, `BanditRace`, `BanditReveal`,
+  `BanditPlayer`, the stages, `BanditScenarioMatrix` via the new `GameModule.Insights` hook); the chapter
+  `/learn/multi-armed-bandits` with `lab/BanditLab`. Everything runs the rl WASM module on the main thread (a pull is
+  microseconds).
+
+Skill by strategy and scenario (500 held-out games each):
+
+| strategy | classic | close-call | lucky-start | jackpot | drifting | too-many-arms | two-lamps (blind) | two-lamps (sees lamp) |
+|---|---|---|---|---|---|---|---|---|
+| Optimistic start | 77.9 | 22.2 | 66.1 | 4.2 | 49.3 | 61.8 | 0.4 | 68.0 |
+| UCB, tuned (c 0.5) | 70.8 | 17.6 | 64.7 | 5.4 | 59.4 | 43.2 | 0.0 | 59.1 |
+| Thompson sampling | 64.4 | 13.0 | 53.5 | 4.0 | 47.3 | 39.5 | 0.3 | 50.5 |
+| ε-greedy, decaying | 64.1 | 20.8 | 54.2 | 31.2 | 43.5 | 55.9 | 0.3 | 52.7 |
+| ε-greedy (ε 0.1) | 57.1 | 15.0 | 43.9 | 21.9 | 42.8 | 51.0 | -0.1 | 46.1 |
+| Gradient bandit (α 0.5) | 53.1 | 11.8 | 50.0 | 24.0 | 40.6 | 24.8 | 0.2 | 33.2 |
+| ε-greedy, constant step 0.2 | 51.7 | 13.9 | 16.7 | 9.6 | 55.1 | 47.0 | 0.1 | 42.4 |
+| UCB1 (c √2) | 39.1 | 6.5 | 52.8 | 3.8 | 36.9 | 19.0 | -0.6 | 30.0 |
+| Greedy | 38.8 | 3.6 | 0.5 | -6.2 | 13.6 | 34.9 | 0.1 | 35.9 |
+| Q-table (Q-learning's agent) | 31.4 | 4.9 | 12.2 | -8.0 | 41.1 | 23.7 | -0.2 | 18.5 |
+| Random | -0.4 | -0.2 | -0.1 | 0.0 | -0.2 | 0.4 | -0.3 | -0.3 |
+
+What the measurements changed:
+
+- **Thompson sampling is not the winner at 100 pulls.** Optimism beats it on every scenario; with 0/1 payouts, "assume
+  every untried arm pays 1" costs one pull per arm and nothing more.
+- **"Deceptive optimism" (every arm poor) was dropped**: optimism stayed the *best* strategy there. Optimism's real
+  weakness is that it explores once -- *Drifting* shows it (49 vs tuned UCB's 59).
+- **Drifting was redesigned twice.** Swapping the best and worst arm late (pulls 80-120) rewarded neither tracking nor
+  averaging -- a tracker had to *rediscover* a formerly bad arm, which a constant step is slow at. Now the best arm
+  breaks early (50-70) and the runner-up takes over, and a constant step visibly wins (55 vs 43).
+- **Two lamps mirrors blue** (`0.9 - p`) instead of reshuffling: with a reshuffle a blind player could still find an
+  arm decent under both colours (15.7 vs 22.1 regret -- a weak lesson); mirrored, every arm averages the same and blind
+  play is exactly random.
+- **UCB1's textbook constant over-explores in a short game** (39, tied with greedy); c = 0.5 scores 71. Both are on the
+  leaderboard, because the gap is the lesson.
+- **The gradient bandit needs a large step here** (α 0.1, the textbook default, scores 15 on *Classic*; 0.5 scores 53):
+  100 pulls is not enough for small steps.

@@ -8,6 +8,7 @@ ids from a model package's manifest.
 
 from __future__ import annotations
 
+from games.bandit import Bandit, BanditLamp, BanditNone, PullArm
 from games.checkers import Checkers, CheckersBoard32, Evaluate1Ply
 from games.observation import Interface
 from games.snake import (
@@ -41,6 +42,10 @@ _ALL: list[Interface] = [
         observer=CheckersBoard32(),
         action=Evaluate1Ply(),
         make_game=lambda **kwargs: Checkers(**kwargs),
+    ),
+    *(
+        Interface(game="bandit", observer=observer, action=PullArm(), make_game=lambda **kwargs: Bandit(**kwargs))
+        for observer in (BanditNone(), BanditLamp())
     ),
 ]
 _BY_ID: dict[str, Interface] = {i.id: i for i in _ALL}

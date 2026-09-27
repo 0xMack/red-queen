@@ -10,7 +10,7 @@ export interface GameEntry {
   // A real screenshot (public/screenshots/, captured from the running app) -- or, for a game with no
   // UI yet, `art: "checkers"` renders a real position from that game's own render_state().
   image?: string
-  art?: "checkers"
+  art?: "checkers" | "bandit"
   facts: string[]
   techniques: string[]
 }
@@ -39,5 +39,17 @@ export const games: GameEntry[] = [
     art: "checkers",
     facts: ["8×8 board", "round-robin leaderboard", "2 players", "held-out games"],
     techniques: ["Alpha-beta search", "Neuroevolution", "Self-play TD(λ)"],
+  },
+  {
+    slug: "bandit",
+    title: "Bandit",
+    tagline: "Single-player · explore or exploit",
+    summary:
+      "Five slot machines, a hundred pulls, hidden payouts. Every pull spent learning about a machine is a pull not spent on the best one you know -- race the strategies that balance it, from greedy to Thompson sampling.",
+    status: "available",
+    href: "/games/bandit",
+    art: "bandit",
+    facts: ["5 machines", "100 pulls", "7 scenarios", "same luck for every player"],
+    techniques: ["ε-greedy", "UCB", "Thompson sampling", "Q-learning"],
   },
 ]

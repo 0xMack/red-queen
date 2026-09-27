@@ -46,11 +46,13 @@ export function entrantShortLabel(r: EvaluationRecord): string {
   return modelLabel(shape) + (variant ? ` (${variant} export)` : "")
 }
 
-/** Secondary line: what it sees, how it was selected, and its run id -- "features · speciation · 530b1769". */
-export function entrantDetail(r: EvaluationRecord): string {
+/** Secondary line: what it sees, how it was selected, and its run id -- "features · speciation · 530b1769". A bandit
+ * strategy's is its settings ("ε 0.1 · step 0.2"). `runId: false` leaves the run id off. */
+export function entrantDetail(r: EvaluationRecord, { runId = true } = {}): string {
+  if (r.metrics.bandit) return banditSettings(r.metrics.bandit.params)
   if (r.entrant_kind !== "champion") return r.entrant_kind
   const observer = r.interface.split("/")[1]?.split("+")[0]?.replace(/\.v\d+$/, "")
-  return [observer, entrantShape(r)?.selection, r.run_id ? shortId(r.run_id) : null].filter(Boolean).join(" · ")
+  return [observer, entrantShape(r)?.selection, runId && r.run_id ? shortId(r.run_id) : null].filter(Boolean).join(" · ")
 }
 
 /** A baseline's name from its entrant id ("baseline:greedy" -> "greedy"), or null. */

@@ -1,3 +1,4 @@
+import { banditModule } from "~/games/bandit"
 import { checkersModule } from "~/games/checkers"
 import { snakeModule } from "~/games/snake"
 import type { GameModule } from "~/games/types"
@@ -8,4 +9,5 @@ import type { GameModule } from "~/games/types"
 export const gameModules: Record<string, GameModule> = {
   [snakeModule.slug]: snakeModule,
   [checkersModule.slug]: checkersModule,
+  [banditModule.slug]: banditModule,
 }

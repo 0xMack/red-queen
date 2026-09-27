@@ -63,6 +63,15 @@ for the full contract and incremental plan this implements (steps 3-6).
     entrant you pick, and clicking another entrant swaps your opponent. **`CheckersWatch`** is the run
     viewer for a checkers run (on `/watch/{runId}` with a generation slider, and in the run page's
     champion column, pinned by its chart/table).
+- **Bandit** (docs/design/0011) is single-player, and its entrants are *strategies* that learn within one game, so
+  nothing is trained or packaged: the rl WASM module runs on the main thread (`composables/useBanditRun.ts`, one
+  `BanditRun` -- a game and the strategy playing it, or `"human"` -- in reactive state). `BanditWatch` (the entrant plays
+  game after game, `?scenario=` picks the game) and `BanditPlay` (you race the entrant plus greedy and Thompson on the
+  same seed, one of their pulls per pull of yours; skill hidden until the reveal) are built from `components/bandit/`:
+  `SlotMachine` (reel, lever, coin tray, belief bar), `BanditFloor`, `BanditTable` (the table a strategy keeps: one row,
+  or a row per lamp colour), `BanditTape`, `BeliefCurves`, `BanditRace`, `BanditReveal`; `BanditPlayer` is the shared
+  "a strategy plays" view (also `lab/BanditLab` in the chapter). The strategy x scenario `BanditScenarioMatrix` hangs
+  under the leaderboard via `GameModule.Insights`, the one optional section a game can add.
 - **Shared across games:** `PlaybackControls` (pause / speed / new game -- speed is a *multiplier*, `utils/
   playback.ts`, over each game's base timing: Snake's tick, a versus game's pause between moves) sits under every
   game's board, in Snake's watch panel and in `VersusStage`; `BoardResult` is the one game-over overlay (Checkers'
