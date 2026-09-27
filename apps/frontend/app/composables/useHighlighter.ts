@@ -1,5 +1,6 @@
 import { createHighlighterCore, type HighlighterCore } from "shiki/core"
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript"
+import { inkTheme } from "~/utils/codeTheme"
 
 export type CodeLang = "python" | "typescript" | "bash" | "json" | "rust"
 
@@ -12,7 +13,7 @@ let highlighterPromise: Promise<HighlighterCore> | null = null
 
 export function useHighlighter(): Promise<HighlighterCore> {
   highlighterPromise ??= createHighlighterCore({
-    themes: [import("shiki/themes/github-dark.mjs")],
+    themes: [inkTheme],
     langs: [
       import("shiki/langs/python.mjs"),
       import("shiki/langs/typescript.mjs"),

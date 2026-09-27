@@ -296,6 +296,9 @@ relevant section instead of leaving it here.
   sibling HTML comment counts as a second root in dev and silently blanks the page on client-side
   navigation (Nuxt warns `NUXT_E4004` in the console; direct loads look fine). Found by clicking
   through, not by loading each page directly.
+- `apps/frontend`: spawn workers with `new URL("~/workers/x.worker.ts", import.meta.url)`, never a relative
+  `../workers/...` -- components move between domain folders, and a relative worker URL survives `pnpm dev`
+  (the break only shows when the worker starts) but fails `pnpm build` (`UNRESOLVED_ENTRY`).
 - **A server-rendered `apps/frontend` page must not write unrounded `Math.tanh` (or other libm) results
   into an attribute or style.** Node and the browser can disagree in the last digit
   (`width:10.368710750128162%` on the server vs `...157%` on the client) and Vue reports a hydration

@@ -54,7 +54,7 @@ reward = 0.01 if new_distance < old_distance else -0.02`
     <figure class="card my-8 grid items-center gap-6 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
       <LiveSnakeDemo class="mx-auto" />
       <figcaption class="text-sm text-fg-muted">
-        <p class="font-display font-semibold text-fg">Your turn first</p>
+        <p class="font-display text-fg">Your turn first</p>
         <p class="mt-2">
           Click the board and steer with the arrow keys. This is the real Snake game core, compiled to
           WebAssembly -- the same code every policy below is evaluated on.

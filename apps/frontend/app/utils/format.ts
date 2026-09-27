@@ -49,3 +49,8 @@ export function formatTimestamp(unixSeconds: number): string {
 export function shortId(id: string): string {
   return id.slice(0, 8)
 }
+
+/** An env-step or game count, compactly: 950 -> "950", 25_000 -> "25k", 1_200_000 -> "1.20M". */
+export function formatSteps(n: number): string {
+  return n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n)
+}

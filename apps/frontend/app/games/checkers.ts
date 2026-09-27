@@ -1,4 +1,4 @@
-import CheckersStage from "~/components/CheckersStage.vue"
+import CheckersStage from "~/components/checkers/CheckersStage.vue"
 import type { GameModule } from "~/games/types"
 
 // Checkers (docs/design/0006, 0007): two-player, ranked by a round robin (jobs/evaluate_versus.py). Its

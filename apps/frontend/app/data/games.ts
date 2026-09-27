@@ -19,25 +19,25 @@ export const games: GameEntry[] = [
   {
     slug: "snake",
     title: "Snake",
-    tagline: "Single-agent · neuroevolution",
+    tagline: "Single-agent · learned policies",
     summary:
-      "A 10×10 grid with a relative action space (left / straight / right). Play it yourself, or watch an evolved neural network play -- live as it trains, or any finished champion.",
+      "A 10×10 grid, three moves: turn left, go straight, turn right. Watch evolved networks, Q-tables, DQNs and PPO policies play games they've never seen -- then try to beat them.",
     status: "available",
     href: "/games/snake",
     image: "/screenshots/snake.png",
-    facts: ["10×10 grid", "3 actions", "2 representations", "held-out leaderboard"],
-    techniques: ["Neuroevolution", "Lexicase selection", "Reward shaping"],
+    facts: ["10×10 grid", "3 actions", "5 representations", "200 held-out games"],
+    techniques: ["Neuroevolution", "NEAT", "Q-learning", "DQN", "PPO"],
   },
   {
     slug: "checkers",
     title: "Checkers",
     tagline: "Two-player · strategy vs. strategy",
     summary:
-      "The first two-player game (docs/design/0006): real rules -- mandatory captures, multi-jump chains, kinging. Ranked by a round robin between fixed strategies and evolved champions; watch the top two play with their reasoning on screen, or play the one you pick.",
+      "Real rules -- mandatory captures, multi-jump chains, kinging. Search, evolved evaluators and a self-play network meet in a round robin; watch the top two play with their reasoning on screen, or take one on.",
     status: "available",
     href: "/games/checkers",
     art: "checkers",
     facts: ["8×8 board", "round-robin leaderboard", "2 players", "held-out games"],
-    techniques: ["Match fitness", "Neuroevolution", "Lexicase selection"],
+    techniques: ["Alpha-beta search", "Neuroevolution", "Self-play TD(λ)"],
   },
 ]

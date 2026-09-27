@@ -116,7 +116,7 @@ const results = [
     <div class="card my-6 overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
-          <tr class="border-b border-line text-left text-[11px] tracking-wide text-fg-subtle uppercase">
+          <tr class="border-b border-line text-left label">
             <th class="px-4 py-2 font-medium">Pairing</th>
             <th class="px-3 py-2 text-right font-medium">Wins</th>
             <th class="px-3 py-2 text-right font-medium">Draws</th>

@@ -1,5 +1,5 @@
-import SnakePlayStage from "~/components/SnakePlayStage.vue"
-import SnakeWatchStage from "~/components/SnakeWatchStage.vue"
+import SnakePlayStage from "~/components/game/SnakePlayStage.vue"
+import SnakeWatchStage from "~/components/game/SnakeWatchStage.vue"
 import type { GameDevice, GameModule } from "~/games/types"
 import type { EvaluationRecord } from "~/types/leaderboard"
 import type { DeviceFit } from "~/types/modelpack"

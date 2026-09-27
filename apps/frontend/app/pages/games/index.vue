@@ -2,39 +2,37 @@
 import { games } from "~/data/games"
 
 useHead({ title: "Games" })
+const playable = games.filter((g) => g.status === "available").length
 </script>
 
 <template>
-  <main class="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8">
-    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end">
-      <div>
-        <p class="eyebrow">Arena</p>
-        <h1 class="mt-2 text-3xl font-semibold sm:text-4xl">Games</h1>
-        <p class="mt-3 max-w-2xl text-fg-muted">
-          Purpose-built environments to test every algorithm against. Each one runs entirely in your
-          browser as WebAssembly -- the same <code class="chip">libs/games</code> Rust core the
-          <NuxtLink to="/runs" class="link">training runs</NuxtLink> play through Python, not a
-          JavaScript re-implementation.
-        </p>
-      </div>
-      <div class="grid grid-cols-3 gap-3">
-        <StatTile label="Playable" :value="games.filter((g) => g.status === 'available').length" tone="life" />
-        <StatTile label="In progress" :value="games.filter((g) => g.status === 'coming-soon').length" />
-        <StatTile label="Server calls / move" value="0" tone="queen" />
-      </div>
-    </div>
+  <main class="mx-auto max-w-[1600px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
+    <UiSectionHeader :level="1" eyebrow="The arena" title="Games">
+      Purpose-built environments to test every algorithm against. Each runs entirely in your browser as WebAssembly -- the
+      same <code class="chip">libs/games</code> Rust core the <NuxtLink to="/runs" class="link">training runs</NuxtLink> play
+      through Python, not a JavaScript re-implementation.
+      <template #actions>
+        <UiStats
+          class="w-full sm:w-auto"
+          :items="[
+            { label: 'playable', value: playable, tone: 'life' },
+            { label: 'server calls / move', value: 0, tone: 'queen' },
+          ]"
+        />
+      </template>
+    </UiSectionHeader>
 
     <div class="mt-10 grid gap-6 md:grid-cols-2 2xl:grid-cols-3">
       <GameCard v-for="game in games" :key="game.slug" :game="game" />
 
-      <div class="card flex flex-col items-center justify-center gap-3 border-dashed p-8 text-center">
-        <p class="font-display text-lg font-semibold text-fg-muted">Your game here</p>
-        <p class="max-w-xs text-sm text-fg-subtle">
-          Implement <code class="chip">evolve.Environment</code> (or <code class="chip">MultiAgentEnvironment</code>)
-          plus <code class="chip">render_state()</code> in <code class="chip">libs/games</code> and it plugs into
-          training, telemetry, and this UI.
+      <UiEmpty class="min-h-72">
+        <p class="font-display text-2xl text-fg-muted">Your game here</p>
+        <p class="max-w-xs text-sm">
+          Implement <code class="chip">Environment</code> (or <code class="chip">MultiAgentEnvironment</code>) in the
+          <code class="chip">libs/games</code> Rust core, add a <code class="chip">GameModule</code> and a stage, and it plugs into
+          training, the leaderboard and this page.
         </p>
-      </div>
+      </UiEmpty>
     </div>
   </main>
 </template>

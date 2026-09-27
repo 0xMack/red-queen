@@ -3,13 +3,14 @@ import type { ModelShape } from "~/utils/modelLabel"
 
 // Shared by the game page's leaderboard pieces (docs/design/0007). Auto-imported (app/utils/).
 
-export const LEVEL_COLORS: Record<number, string> = { 0: "#a78bfa", 1: "#60a5fa", 2: "#2dd4bf", 3: "#4ade80" }
-export const HUMAN_COLOR = "#ff8fa3"
+export const LEVEL_COLORS: Record<number, string> = { 0: palette.violet400, 1: palette.signal400, 2: palette.teal400, 3: palette.life400 }
+export const LEVEL_NAMES: Record<number, string> = { 0: "raw", 1: "full state", 2: "local", 3: "engineered" }
+export const HUMAN_COLOR = palette.queen300
 
 export function entrantColor(r: EvaluationRecord): string {
-  if (r.entrant_kind === "baseline") return "#fbbf24"
+  if (r.entrant_kind === "baseline") return palette.gold400
   if (r.entrant_kind === "human") return HUMAN_COLOR
-  return LEVEL_COLORS[r.metrics.model.observer_level] ?? "#a0a8ba"
+  return LEVEL_COLORS[r.metrics.model.observer_level] ?? palette.fgMuted
 }
 
 /** Short, distinct label: champions get their run's short id (two runs can share a label). */
