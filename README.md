@@ -62,8 +62,10 @@ training and inference costs, are on each game's page.
 The biggest jumps came from changing what the snake *sees*, not from changing the algorithm. DQN went from 29 to 42
 when the observer added "how much room does this move leave?"
 
-**Checkers** is a round robin scored in points per game. A 4-ply material search still leads (0.85). A 32 → 16 → 1
-network trained only by playing itself (TD(λ), searched 3 plies) is second (0.81), ahead of every evolved evaluator.
+**Checkers** is a round robin scored in points per game. A 32 → 64 → 64 → 1 network trained only by playing itself
+(TD(λ), 1M games) leads at 0.92 searching 4 plies. Searching only 3, one ply fewer than the baseline, it is second
+(0.85) and still beats 4-ply material search head to head (10 wins, 9 draws, 1 loss). With a single hidden
+layer, however long or wide, it had stayed a step behind material search.
 
 **Bandit** is scored as skill: 0 = pulling at random, 100 = the best machine every pull. ε-greedy with settings
 *evolved* on the scenario leads (80.4), ahead of optimistic initial values (77.9) and Thompson sampling (64.4). On

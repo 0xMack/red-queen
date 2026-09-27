@@ -120,10 +120,18 @@ pub fn lambda_returns(values: &[f64], outcome: f64, lambda: f64) -> Vec<f64> {
       </li>
     </ul>
     <p>
-      One network trained with the pool, 200,000 games against itself, is on the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>:
-      <strong>second, at 0.81 points per game</strong> in a round robin against every entrant, behind only material search a ply deeper (0.85) and
-      ahead of every evolved evaluator. You can play it there too.
+      Material search a ply deeper still won, so the project scaled the recipe up. More games (a million), a wider layer (64 or even 192 hidden
+      units), or a second small layer: every one of those landed on the same plateau, about 0.6. What broke through was
+      <strong>two hidden layers of 64</strong>, trained on a million games (about 40 minutes). It scored 0.75 against the field on all five seeds,
+      and <strong>0.62 against material search a ply deeper than itself</strong>. A single 192-wide layer with the same number of weights and the same
+      training stayed at 0.60, so it's the depth together with the capacity, not either alone. One layer was the ceiling, not the training.
     </p>
+    <Callout variant="finding" title="Learned knowledge beats deeper search">
+      On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the 32 → 64 → 64 → 1 network is
+      <strong>first at 0.92 points per game</strong> searching 4 plies (against material-4: 11 wins, 7 draws, 2 losses), and
+      <strong>second at 0.85</strong> searching only 3 (10 wins, 9 draws, 1 loss against material-4). Material search, the baseline nothing trained
+      had beaten, is now third. You can play both there.
+    </Callout>
 
     <h2>Where this goes next</h2>
     <p>
