@@ -13,6 +13,8 @@ export interface BanditScenario {
   contexts: number
   /** Every payout is a win (1) or a loss (0). */
   binary: boolean
+  /** A pull decides the next situation: the lamp is a room you walk into (Level 3). */
+  sequential?: boolean
   lesson: string
   /** What goes wrong, and for whom -- the page's caption. */
   pitfall: string
@@ -89,7 +91,28 @@ export const BANDIT_SCENARIOS: BanditScenario[] = [
     lesson: "A lamp lights red or blue before each pull; the best machine under one is the worst under the other.",
     pitfall: "A strategy that can't see the lamp keeps one row of values -- and every machine averages the same.",
   },
+  {
+    id: "detour",
+    title: "Detour",
+    arms: 5,
+    budget: 100,
+    contexts: 2,
+    binary: false,
+    sequential: true,
+    lesson: "One machine in the red room pays nothing -- but opens the gold room, where every machine pays up to 3.",
+    pitfall: "A strategy that only values the next payout never takes the detour: only a future (γ > 0) makes it worth it.",
+  },
 ]
+
+/** The situations' names: a lamp's colours, or (sequential) the rooms. */
+export function rowNames(scenario: BanditScenario, observer: string): string[] {
+  if (observer !== "lamp.v1") return ["every pull"]
+  return scenario.sequential ? ["red room", "gold room"] : ["red lamp", "blue lamp"]
+}
+
+/** What a strategy must be allowed to observe: a sequential game is only playable knowing which room you're in. */
+export const observerFor = (scenario: BanditScenario, seesLamp: boolean) =>
+  scenario.sequential || (scenario.contexts > 1 && seesLamp) ? "lamp.v1" : "none.v1"
 
 export const scenarioById = (id: string | undefined | null) => BANDIT_SCENARIOS.find((s) => s.id === id) ?? BANDIT_SCENARIOS[0]!
 
@@ -105,6 +128,7 @@ export const BANDIT_STRATEGIES: { id: string; strategy: string; params: string; 
   { id: "thompson", strategy: "thompson", params: "", label: "Thompson sampling" },
   { id: "gradient", strategy: "gradient", params: "alpha=0.5", label: "Gradient bandit" },
   { id: "q-table", strategy: "q_table", params: "", label: "Q-table (Q-learning's agent)" },
+  { id: "q-lookahead", strategy: "q_table", params: "gamma=0.9,initial_q=10,alpha=0.5,epsilon=0", label: "Q-learning, looking ahead" },
   { id: "random", strategy: "random", params: "", label: "Random" },
 ]
 
@@ -174,6 +198,6 @@ export function describeArm(arm: RevealArm): string {
     case "jackpot":
       return `pays ${arm.prize} with ${Math.round((arm.p ?? 0) * 100)}% chance`
     case "fixed":
-      return `always pays ${arm.value}`
+      return arm.value === 0 ? "pays nothing" : `always pays ${arm.value}`
   }
 }

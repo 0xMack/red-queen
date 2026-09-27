@@ -13,6 +13,7 @@ from rl import _native
 HINTS = {  # (binary, scale, max payout), as the game hands them to a strategy
     "lucky-start": (False, 3.0, 13.0),
     "jackpot": (False, 7.0, 50.0),
+    "detour": (False, 1.2, 3.0),
 }
 PARAMS = {
     "greedy": {},
@@ -33,10 +34,18 @@ def _close(a, b):
 @pytest.mark.parametrize("strategy", _native.BANDIT_STRATEGIES)
 @pytest.mark.parametrize(
     "scenario,observer",
-    [("classic", "none.v1"), ("lucky-start", "none.v1"), ("jackpot", "none.v1"), ("two-lamps", "lamp.v1")],
+    [
+        ("classic", "none.v1"),
+        ("lucky-start", "none.v1"),
+        ("jackpot", "none.v1"),
+        ("two-lamps", "lamp.v1"),
+        ("detour", "lamp.v1"),
+    ],
 )
 def test_the_rust_beliefs_equal_the_textbook_updates(strategy, scenario, observer):
-    params = PARAMS[strategy]
+    params = dict(PARAMS[strategy])
+    if strategy == "q_table" and scenario == "detour":
+        params["gamma"] = 0.9  # a future to bootstrap from: the Bellman update, with the next room in it
     for seed in (0, 3, 11):
         trace = _native.bandit_trace(strategy, scenario, observer, seed, params)
         game = Bandit(scenario, seed)
@@ -48,8 +57,9 @@ def test_the_rust_beliefs_equal_the_textbook_updates(strategy, scenario, observe
             scores = oracle.scores(row)
             if scores is not None:  # a deterministic chooser picked one of its own top-ranked arms
                 assert scores[arm] == max(scores), (strategy, t)
-            assert game.pull(arm)[0] == reward
-            oracle.update(row, arm, reward)
+            payout, over = game.pull(arm)
+            assert payout == reward
+            oracle.update(row, arm, reward, None if over else (game.lamp if observer == "lamp.v1" else 0))
             want_values, want_spread, want_counts, want_probabilities = oracle.expected(row)
             assert list(counts) == want_counts, (strategy, t)
             assert _close(values, want_values), (strategy, t, values, want_values)
@@ -76,6 +86,11 @@ def test_each_scenario_trips_the_strategy_it_was_built_for():
     assert _mean_regret("ucb1", "drifting", params={"c": 0.5}) < _mean_regret("optimistic", "drifting")
     # Too many arms: UCB insists on trying every arm first and spends the budget doing it.
     assert _mean_regret("ucb1", "too-many-arms") > _mean_regret("epsilon_greedy", "too-many-arms")
+    # Detour: only a strategy that values the next room takes the machine that pays nothing but opens it.
+    looking_ahead = {"gamma": 0.9, "initial_q": 10.0, "alpha": 0.5, "epsilon": 0.0}
+    assert _mean_regret("q_table", "detour", "lamp.v1", looking_ahead) < 0.7 * _mean_regret(
+        "thompson", "detour", "lamp.v1"
+    )
 
 
 def test_results_are_reproducible_and_bad_input_is_refused():

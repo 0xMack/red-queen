@@ -110,6 +110,14 @@ ENTRANTS: list[tuple[str, str, dict[str, float], str, str, bool]] = [
         "The Q-learning chapter's agent itself: gamma 0, ε 0.1, step 0.1.",
         False,
     ),
+    (
+        "q-lookahead",
+        "q_table",
+        {"gamma": 0.9, "initial_q": 10.0, "alpha": 0.5, "epsilon": 0.0},
+        "Q-learning, looking ahead",
+        "The Q-learning update with a future: each value is the payout plus 0.9 of the best value of where it leads.",
+        False,
+    ),
 ]
 
 
@@ -132,9 +140,11 @@ def evaluate(strategy: str, params: dict[str, float]) -> tuple[dict[str, dict[st
     scenarios: dict[str, dict[str, Any]] = {}
     pulls, start = 0, time.perf_counter()
     for scenario, info in SCENARIOS.items():
-        observers = ["none.v1", "lamp.v1"] if info.contexts > 1 else ["none.v1"]
+        # A sequential game is played seeing the room (a strategy that can't tell the rooms apart has nothing to plan);
+        # a contextual one both ways (the lesson); a plain one has nothing to see.
+        observers = ["lamp.v1"] if info.sequential else ["none.v1", "lamp.v1"] if info.contexts > 1 else ["none.v1"]
         for observer in observers:
-            key = scenario if observer == "none.v1" else f"{scenario}:{observer}"
+            key = scenario if observer == "none.v1" or info.sequential else f"{scenario}:{observer}"
             scenarios[key] = _summary(_native.bandit_evaluate(strategy, scenario, observer, seeds, params))
             pulls += HELD_OUT * info.budget
     return scenarios, (time.perf_counter() - start) * 1e6 / pulls

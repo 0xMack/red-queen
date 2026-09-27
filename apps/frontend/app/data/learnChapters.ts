@@ -132,12 +132,12 @@ export const learnChapters: LearnChapter[] = [
     slug: "multi-armed-bandits",
     title: "Multi-Armed Bandits: Explore or Exploit",
     summary:
-      "Five slot machines, a hundred pulls: reinforcement learning with one situation and no future. Estimates, exploring on purpose -- ε-greedy, optimism, UCB, Thompson sampling -- which one wins depends on the game, and the lamp that turns one row of values into a table.",
+      "Five slot machines, a hundred pulls: reinforcement learning with one situation and no future. Estimates, exploring on purpose -- ε-greedy, optimism, UCB, Thompson sampling -- which one wins depends on the game, the lamp that turns one row of values into a table, and the detour that needs a future (γ) -- Q-learning in miniature.",
     path: "/learn/multi-armed-bandits",
     status: "available",
     part: "Reinforcement learning",
-    readMinutes: 11,
-    tags: ["reinforcement learning", "bandits", "exploration", "UCB", "Thompson sampling", "contextual bandit"],
+    readMinutes: 13,
+    tags: ["reinforcement learning", "bandits", "exploration", "UCB", "Thompson sampling", "contextual bandit", "discount"],
     art: "bandit",
     prerequisites: ["genetic-algorithms"],
     sections: [
@@ -148,6 +148,7 @@ export const learnChapters: LearnChapter[] = [
       "Which strategy wins depends on the game",
       "When the world changes",
       "Two lamps: when the situation matters",
+      "The detour: when a pull changes what comes next",
       "From here to Q-learning",
     ],
   },

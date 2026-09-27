@@ -76,11 +76,11 @@ const best = computed(() => (props.revealed ? props.run.bestArm() : -1))
         </p>
       </div>
       <div v-if="scenario.contexts > 1" class="flex items-center gap-2" aria-live="polite">
-        <span class="label">lamp</span>
+        <span class="label">{{ scenario.sequential ? "room" : "lamp" }}</span>
         <span
           class="lamp size-6 rounded-full transition-colors duration-150"
-          :class="run.lamp.value === 0 ? 'lamp-red' : 'lamp-blue'"
-          :title="run.lamp.value === 0 ? 'the lamp is red' : 'the lamp is blue'"
+          :class="run.lamp.value === 0 ? 'lamp-red' : scenario.sequential ? 'lamp-gold' : 'lamp-blue'"
+          :title="scenario.sequential ? (run.lamp.value === 0 ? 'in the red room' : 'in the gold room') : run.lamp.value === 0 ? 'the lamp is red' : 'the lamp is blue'"
         />
       </div>
     </div>
@@ -119,6 +119,10 @@ const best = computed(() => (props.revealed ? props.run.bestArm() : -1))
 .lamp-red {
   background: radial-gradient(circle at 35% 35%, #ffb3a6, var(--color-queen-500));
   box-shadow: 0 0 16px 2px rgb(239 70 48 / 0.55);
+}
+.lamp-gold {
+  background: radial-gradient(circle at 35% 35%, #fff1c9, var(--color-gold-400));
+  box-shadow: 0 0 16px 2px rgb(234 181 81 / 0.6);
 }
 .lamp-blue {
   background: radial-gradient(circle at 35% 35%, #d4e2ff, var(--color-signal-400));

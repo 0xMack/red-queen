@@ -29,6 +29,7 @@ class ScenarioInfo:
     contexts: int
     binary: bool
     lesson: str
+    sequential: bool = False
 
 
 SCENARIOS: dict[str, ScenarioInfo] = {
@@ -41,6 +42,9 @@ SCENARIOS: dict[str, ScenarioInfo] = {
         ScenarioInfo("drifting", "Drifting", 5, 200, 1, True, "Early on, the best machine breaks."),
         ScenarioInfo("too-many-arms", "Too many arms", 16, 100, 1, True, "Too many machines to try them all."),
         ScenarioInfo("two-lamps", "Two lamps", 5, 100, 2, True, "The best machine depends on the lamp's colour."),
+        ScenarioInfo(
+            "detour", "Detour", 5, 100, 2, False, "A machine that pays nothing opens a better room.", sequential=True
+        ),
     ]
 }
 
@@ -68,7 +72,8 @@ class Bandit:
 
     @property
     def lamp(self) -> int:
-        """The lamp lit for the next pull: 0 (red) or 1 (blue); always 0 in a scenario without lamps."""
+        """The lamp lit for the next pull: 0 (red) or 1 (blue); always 0 in a scenario without lamps. In `detour` it's
+        the room you're in (0 red, 1 gold), and your pull decides the next one."""
         return self._core.lamp
 
     def means(self) -> list[float]:
@@ -94,6 +99,7 @@ class Bandit:
     counts = property(lambda self: self._core.counts)
     best_pulls = property(lambda self: self._core.best_pulls)
     best_arm = property(lambda self: self._core.best_arm)
+    detour = property(lambda self: self._core.detour)
 
 
 class BanditNone:

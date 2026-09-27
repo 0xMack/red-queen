@@ -36,12 +36,14 @@ class Beliefs:
         total = sum(exps)
         return [e / total for e in exps]
 
-    def update(self, row: int, arm: int, reward: float) -> None:
+    def update(self, row: int, arm: int, reward: float, next_row: int | None = None) -> None:
         self.counts[row][arm] += 1
         self.sums[row][arm] += reward
         if self.strategy == "q_table":
-            alpha = self.params.get("alpha", 0.1)
-            self.values[row][arm] += alpha * (reward - self.values[row][arm])  # gamma 0: no bootstrap
+            # Q-learning: toward the payout plus gamma times the best value of the room the pull led to (none at the end)
+            alpha, gamma = self.params.get("alpha", 0.1), self.params.get("gamma", 0.0)
+            target = reward + (gamma * max(self.values[next_row]) if next_row is not None else 0.0)
+            self.values[row][arm] += alpha * (target - self.values[row][arm])
         else:
             step = self.alpha if self.alpha else 1.0 / self.counts[row][arm]
             self.values[row][arm] += step * (reward - self.values[row][arm])

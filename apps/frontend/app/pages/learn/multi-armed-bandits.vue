@@ -203,15 +203,42 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       amount of learning can make that row right for both.
     </p>
 
-    <h2>From here to Q-learning</h2>
+    <h2>The detour: when a pull changes what comes next</h2>
     <p>
-      Two things separate this game from Snake. The table has more rows -- that's the lamp, scaled up. And a move changes
-      the situation that comes next: turning left now decides which situations you'll face later, so a move's value has to
-      include the value of what follows. That's the one term the bandit update doesn't have, and the one Q-learning adds.
+      One more change turns the lamp into something bigger. In <em>Detour</em> the lamp isn't a coin toss any more: it's
+      the <strong>room</strong> you're in, and your pull decides the next one. In the red room, one machine -- the detour --
+      pays nothing at all, but lights the gold room, where every machine pays up to 3 (1.2 to 2.4 on average) and leads
+      back to red. Detour, then the best gold machine, earns about 1.2 a pull; the best red machine, 0.75.
     </p>
     <p>
-      The Q-learning agent itself is on the leaderboard above, unchanged, with nothing to look ahead to (its γ is 0): it is
-      ε-greedy with a constant step, and scores 31 on the classic game. It was built for games with a future, where
+      Every strategy so far judges a machine by what it pays. By that measure the detour is the worst machine in the
+      room, and none of them ever takes it on purpose: all score <strong>10 or less</strong>. Even pulling the best red
+      machine perfectly, from the first pull to the last, would score only 21. What's missing is a way to value a pull
+      for <em>where it leads</em>:
+    </p>
+    <p class="text-center font-mono text-sm text-fg">Q(room, machine) ← Q + α · [ payout + γ · max Q(next room, ·) − Q ]</p>
+    <p>
+      That is the Q-learning update, and the table is the same two-row table as <em>Two lamps</em>: a row per room. γ
+      (gamma) says how much the next room's value counts. At γ = 0 it's the bandit update and the detour looks worthless;
+      raise it and the detour's value fills in from the gold room behind it, although the detour itself never pays. The
+      lab puts γ on a dial -- watch the red room's row:
+    </p>
+    <BanditLab title="Detour: valuing where a pull leads" :scenarios="['detour']" gamma />
+    <p>
+      Measured on 500 games: γ 0 scores <strong>6</strong>, like every other strategy; γ 0.5 scores 28; γ 0.9 scores
+      <strong>55</strong>, and takes the best move 52% of the time. And γ 0.99 scores <strong>-1</strong>: this agent starts
+      optimistic (every value 10), and with the future counting almost fully those optimistic values echo back and forth
+      between the rooms faster than 100 pulls can wear them down. Looking ahead is only useful at the right distance.
+    </p>
+
+    <h2>From here to Q-learning</h2>
+    <p>
+      That update <em>is</em> Q-learning. What separates this game from Snake is only size: two rooms here, 2,048
+      situations there, each a row of the same table and each move a step from one row to the next.
+    </p>
+    <p>
+      The Q-learning agent from the next chapter plays every scenario above, unchanged. With γ 0 it is ε-greedy with a
+      constant step, and scores 31 on the classic game; looking ahead, it wins the detour and is ordinary everywhere else. It was built for games with a future, where
       steady exploration over hundreds of thousands of moves pays off; in a 100-pull game it's one strategy among many,
       and not a good one. The gradient bandit, which learns <em>preferences</em> and nudges them by how much a payout beat
       the average so far, is the other thread to follow: that is exactly REINFORCE with a baseline, in one row, and it

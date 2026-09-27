@@ -112,8 +112,9 @@ impl BanditRun {
     pub fn pull(&mut self, arm: usize) -> (f64, bool) {
         let row = self.row();
         let (reward, done) = self.game.pull(arm);
+        let next_row = (!done).then(|| self.row());
         if let Some(s) = self.strategy.as_mut() {
-            s.update(row, arm, reward);
+            s.update_to(row, arm, reward, next_row);
         }
         (reward, done)
     }
@@ -241,6 +242,27 @@ mod tests {
         let blind = mean_regret("thompson", Scenario::TwoLamps, Observer::None);
         let sighted = mean_regret("thompson", Scenario::TwoLamps, Observer::Lamp);
         assert!(sighted < blind * 0.7, "{sighted} vs {blind}");
+    }
+
+    #[test]
+    fn only_a_strategy_that_looks_ahead_takes_the_detour() {
+        let seeds: Vec<u64> = (0..300).collect();
+        let skill = |strategy: &str, params: &[(&str, f64)]| {
+            let params = Params::new(params.iter().map(|(k, v)| (k.to_string(), *v)));
+            let r = evaluate(strategy, &params, Scenario::Detour, Observer::Lamp, &seeds).unwrap();
+            r.iter().map(|g| g.skill).sum::<f64>() / r.len() as f64
+        };
+        let lookahead = [("gamma", 0.9), ("initial_q", 10.0), ("alpha", 0.5), ("epsilon", 0.0)];
+        let myopic = [("gamma", 0.0), ("initial_q", 10.0), ("alpha", 0.5), ("epsilon", 0.0)];
+        let (ahead, now, thompson) = (
+            skill("q_table", &lookahead),
+            skill("q_table", &myopic),
+            skill("thompson", &[]),
+        );
+        assert!(
+            ahead > 0.4 && ahead > now + 0.25 && ahead > thompson + 0.25,
+            "{ahead} {now} {thompson}"
+        );
     }
 
     #[test]

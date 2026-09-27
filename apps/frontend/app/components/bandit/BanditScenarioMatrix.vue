@@ -20,10 +20,18 @@ const props = withDefaults(defineProps<{ entries?: EvaluationRecord[]; rows?: Ma
 })
 const emit = defineEmits<{ select: [entrantId: string] }>()
 
-const COLUMNS = [
-  ...BANDIT_SCENARIOS.map((s) => ({ key: s.id, title: s.title, sub: s.contexts > 1 ? "blind" : `${s.arms} × ${s.budget}` })),
-  { key: "two-lamps:lamp.v1", title: "Two lamps", sub: "sees the lamp" },
-]
+// One column per scenario -- and a contextual one twice: blind, and seeing the lamp. A sequential game is only played
+// seeing the room.
+const COLUMNS = BANDIT_SCENARIOS.flatMap((s) =>
+  s.sequential
+    ? [{ key: s.id, title: s.title, sub: "sees the room" }]
+    : s.contexts > 1
+      ? [
+          { key: s.id, title: s.title, sub: "blind" },
+          { key: `${s.id}:lamp.v1`, title: s.title, sub: "sees the lamp" },
+        ]
+      : [{ key: s.id, title: s.title, sub: `${s.arms} × ${s.budget}` }],
+)
 
 const table = computed<MatrixRow[]>(
   () =>

@@ -25,9 +25,10 @@ def test_the_rust_game_equals_the_specification_exactly(scenario, seed):
         arm = choices.randrange(game.arms)
         assert game.pull(arm) == reference.pull(arm)
     assert (game.total, game.counts, game.best_pulls) == (reference.total, reference.counts, reference.best_pulls)
-    assert game.regret == reference.best_expected - reference.expected
-    room = reference.best_expected - reference.random_expected
-    assert game.skill == ((reference.expected - reference.random_expected) / room if room > 0 else 1.0)
+    best, random_ = reference.yardsticks()
+    assert game.regret == best - reference.expected
+    assert game.skill == ((reference.expected - random_) / (best - random_) if best > random_ else 1.0)
+    assert game.detour == reference.door
 
 
 def test_the_nth_pull_of_an_arm_pays_the_same_whatever_else_was_pulled():

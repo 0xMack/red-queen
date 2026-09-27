@@ -49,7 +49,7 @@ export const games: GameEntry[] = [
     status: "available",
     href: "/games/bandit",
     art: "bandit",
-    facts: ["5 machines", "100 pulls", "7 scenarios", "same luck for every player"],
+    facts: ["5 machines", "100 pulls", "8 scenarios", "same luck for every player"],
     techniques: ["ε-greedy", "UCB", "Thompson sampling", "Q-learning"],
   },
 ]

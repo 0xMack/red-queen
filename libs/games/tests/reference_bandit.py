@@ -76,6 +76,30 @@ def worst_index(arms: list) -> int:
     return worst
 
 
+def detour_next(room: int, arm: int, door: int) -> int:
+    return 1 if room == 0 and arm == door else 0
+
+
+def plan(arms: list, door: int, budget: int) -> tuple[float, float, list]:
+    """Backward induction from the red room: (best possible total, random play's total, best arm per (pull, room))."""
+    v, r = [0.0, 0.0], [0.0, 0.0]
+    best = [[0, 0] for _ in range(budget)]
+    for t in range(budget - 1, -1, -1):
+        nv, nr = [0.0, 0.0], [0.0, 0.0]
+        for room in range(2):
+            total = 0.0
+            for arm, payout in enumerate(arms[room]):
+                nxt = detour_next(room, arm, door)
+                q = mean(payout) + v[nxt]
+                if arm == 0 or q > nv[room]:
+                    nv[room] = q
+                    best[t][room] = arm
+                total += mean(payout) + r[nxt]
+            nr[room] = total / len(arms[room])
+        v, r = nv, nr
+    return v[0], r[0], best
+
+
 ARMS = {"too-many-arms": 16}
 BUDGET = {"drifting": 200}
 
@@ -87,6 +111,7 @@ class ReferenceBandit:
         self.k = ARMS.get(scenario, 5)
         self.budget = BUDGET.get(scenario, 100)
         self.drift = None
+        self.door = None
         if scenario == "classic":
             self.arms = [ladder(setup)]
         elif scenario == "close-call":
@@ -114,6 +139,13 @@ class ReferenceBandit:
         elif scenario == "two-lamps":
             red = ladder(setup)
             self.arms = [red, [("bernoulli", 0.9 - mean(arm), 0.0) for arm in red]]
+        elif scenario == "detour":
+            red = ladder(setup)
+            self.door = setup.bounded(self.k)
+            red[self.door] = ("fixed", 0.0, 0.0)
+            gold = [("jackpot", 0.8 * f, 3.0) for f in (0.5, 0.6, 0.7, 0.85, 1.0)]
+            shuffle(gold, setup)
+            self.arms = [red, gold]
         else:
             raise ValueError(scenario)
         self.arm_rngs = [Pcg32(stream_seed(seed, 100 + a)) for a in range(self.k)]
@@ -122,10 +154,11 @@ class ReferenceBandit:
         self.total = self.expected = self.best_expected = self.random_expected = 0.0
         self.counts = [0] * self.k
         self.best_pulls = 0
+        self.plan = plan(self.arms, self.door, self.budget) if self.door is not None else None
         self.lamp = self._next_lamp()
 
     def _next_lamp(self) -> int:
-        if len(self.arms) == 1:
+        if len(self.arms) == 1 or self.door is not None:
             return 0
         return 0 if uniform(self.lamp_rng) < 0.5 else 1
 
@@ -137,9 +170,20 @@ class ReferenceBandit:
     def means(self) -> list[float]:
         return [mean(a) for a in self.current()]
 
+    def best_arm(self) -> int:
+        if self.plan is not None:
+            return self.plan[2][min(self.pulls, self.budget - 1)][self.lamp]
+        return best_index(self.current())
+
+    def yardsticks(self) -> tuple[float, float]:
+        if self.plan is not None:
+            used = self.pulls / self.budget
+            return self.plan[0] * used, self.plan[1] * used
+        return self.best_expected, self.random_expected
+
     def pull(self, arm: int) -> tuple[float, bool]:
+        best = self.best_arm()
         current = self.current()
-        best = best_index(current)
         reward = draw(current[arm], self.arm_rngs[arm])
         self.counts[arm] += 1
         self.total += reward
@@ -152,5 +196,5 @@ class ReferenceBandit:
         if arm == best:
             self.best_pulls += 1
         self.pulls += 1
-        self.lamp = self._next_lamp()
+        self.lamp = detour_next(self.lamp, arm, self.door) if self.door is not None else self._next_lamp()
         return reward, self.pulls >= self.budget

@@ -24,7 +24,8 @@ const rivals = computed(() => {
     if (s && !picked.some((p) => p.strategy === s.strategy && p.params === s.params)) picked.push({ id, label, ...s })
   }
   if (props.entry) add(props.entry.entrant_id, props.entry.label, entrantStrategy(props.entry))
-  for (const id of ["greedy", "thompson", "optimistic"]) {
+  // In the detour game the rival that matters is the one that looks ahead.
+  for (const id of scenario.value.sequential ? ["q-lookahead", "greedy", "thompson"] : ["greedy", "thompson", "optimistic"]) {
     const s = BANDIT_STRATEGIES.find((x) => x.id === id)!
     const record = props.entries.find((r) => entrantStrategy(r)?.strategy === s.strategy && entrantStrategy(r)?.params === s.params)
     add(id, record?.label ?? s.label, s)
@@ -121,7 +122,7 @@ const verdict = computed(() => {
       </div>
       <div v-if="you.done.value && you.reveal.value" class="min-w-0">
         <p class="label mb-2">The reveal</p>
-        <BanditReveal :reveal="you.reveal.value" :players="racers.map((r) => ({ label: r.label, counts: r.run.counts.value, you: r.you }))" />
+        <BanditReveal :reveal="you.reveal.value" :scenario="scenario" :players="racers.map((r) => ({ label: r.label, counts: r.run.counts.value, you: r.you }))" />
       </div>
     </div>
   </div>

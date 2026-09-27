@@ -41,8 +41,8 @@ so a seed is the same game in training, evaluation and a visitor's browser.
 
 - `reach1d.py` — `ReachTarget1D`: a toy 1D continuous-control task. See
   `notebooks/0004-neuroevolution-reach1d.ipynb`.
-- `bandit.py` — `Bandit`: a multi-armed bandit (docs/design/0011), K slot machines, a budget of pulls, 7 `SCENARIOS`
-  each built to trip a strategy up. Every arm has its own payout stream, so the n-th pull of an arm pays the same for
+- `bandit.py` — `Bandit`: a multi-armed bandit (docs/design/0011), K slot machines, a budget of pulls, 8 `SCENARIOS`
+  each built to trip a strategy up (`detour` is sequential: a pull decides the next room). Every arm has its own payout stream, so the n-th pull of an arm pays the same for
   every player; `skill` scores expected payout between random (0) and the best arm every pull (1). The
   `none.v1`/`lamp.v1` observers and `arm.v1` adapter are its interfaces. Oracle: `tests/reference_bandit.py`.
 - `observation.py` / `interfaces.py` — docs/design/0007's split of *what a model sees* from the

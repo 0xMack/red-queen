@@ -12,14 +12,14 @@ const route = useRoute()
 const scenario = computed(() => scenarioById(route.query.scenario as string | undefined))
 const strategy = computed(() => (props.entry ? entrantStrategy(props.entry) : null) ?? { strategy: "thompson", params: "" })
 const seesLamp = ref(true)
-const observer = computed(() => (scenario.value.contexts > 1 && seesLamp.value ? "lamp.v1" : "none.v1"))
+const observer = computed(() => observerFor(scenario.value, seesLamp.value))
 </script>
 
 <template>
   <div class="space-y-5">
     <div class="flex flex-wrap items-end justify-between gap-4">
       <BanditScenarioPicker class="flex-1" />
-      <UiCheck v-if="scenario.contexts > 1" v-model="seesLamp">It can see the lamp</UiCheck>
+      <UiCheck v-if="scenario.contexts > 1 && !scenario.sequential" v-model="seesLamp">It can see the lamp</UiCheck>
     </div>
     <BanditPlayer :scenario="scenario.id" :strategy="strategy.strategy" :params="strategy.params" :observer="observer" :label="entry?.label" />
   </div>

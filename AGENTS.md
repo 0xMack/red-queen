@@ -149,7 +149,8 @@ architectural change that might conflict with a decision already made.
     `jobs/checkers_neuro_run.py` / `jobs/checkers_neat_run.py` (shared parts in `jobs/checkers_training.py`),
     and the browser gets a champion as plain numbers from `GET /runs/{id}/artifacts/{ref}/brain`
     (`evolve.networks.compiled`), so there is no hand-exported champion file and no client-side NEAT. `games.interfaces` registers `checkers/board32.v1+evaluate1ply.v1`.
-  - `games.bandit` (`rust/core/src/bandit.rs`, docs/design/0011): a multi-armed bandit, 7 scenarios. Every arm draws
+  - `games.bandit` (`rust/core/src/bandit.rs`, docs/design/0011): a multi-armed bandit, 8 scenarios (`detour` is sequential:
+    a pull decides the next room, and skill's yardsticks come from dynamic programming over the budget). Every arm draws
     payouts from its own PCG32 stream (so the n-th pull of an arm pays the same for every player: races are fair), and
     the score is *expected* skill -- choices, not luck. Oracle `tests/reference_bandit.py`, pull for pull.
   - `evolve/neat.py` (docs/design/0008) — NEAT: a graph genome of innovation-numbered connection genes
@@ -207,7 +208,8 @@ architectural change that might conflict with a decision already made.
     Bandits (docs/design/0011): `rust/core/src/bandit.rs` is *online* strategies (greedy, ε-greedy, optimistic, UCB1,
     Thompson, gradient, and `QTableAgent` itself with γ 0) over a `rows x arms` table -- they learn within one game, so
     they don't use the `Trainer`; `rust/envs/src/bandit.rs`'s `BanditRun` couples one to one game through the
-    `bandit/none.v1` (one row) or `lamp.v1` (a row per lamp colour) interface. Oracle `reference_bandit_agents.py`, belief
+    `bandit/none.v1` (one row) or `lamp.v1` (a row per lamp colour, or room) interface; `update_to` passes where a pull
+    led, so `q_table` with `gamma` > 0 is the Bellman update (Level 3). Oracle `reference_bandit_agents.py`, belief
     for belief; a `bandit` digest in the fixture.
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);

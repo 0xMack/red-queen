@@ -20,8 +20,9 @@
 //! - `gradient` -- preferences, not values: a softmax over preferences `H`, and after each payout
 //!   `H_b += alpha (r - baseline) (1[b = a] - pi_b)`, the baseline the average payout so far -- REINFORCE with a
 //!   baseline, in one row.
-//! - `q_table` -- `tabular::QTableAgent` itself, unchanged, with `gamma = 0` and a constant epsilon: the Q-learning
-//!   chapter's agent, playing a bandit.
+//! - `q_table` -- `tabular::QTableAgent` itself, unchanged, with a constant epsilon: the Q-learning chapter's agent,
+//!   playing a bandit. `gamma` 0 by default (a bandit has no future); > 0 in a sequential game, where it bootstraps from
+//!   the room the pull led to (`update_to`) -- the Bellman update, with the next state in it.
 
 use crate::agent::{Agent, Params, Transition};
 use crate::env::{Action, ActionSpace};
@@ -61,6 +62,13 @@ pub trait BanditStrategy {
     fn choose(&mut self, row: usize, rng: &mut Rng) -> usize;
     /// Learn from arm `arm` paying `reward` in situation `row`.
     fn update(&mut self, row: usize, arm: usize, reward: f64);
+    /// The same, knowing where the pull led: `next_row` is the situation after it (None: the game is over). Only a
+    /// strategy that values what comes next uses it (`q_table` with `gamma` > 0, Level 3's detour); for every other
+    /// strategy a bandit has no future, and this is `update`.
+    fn update_to(&mut self, row: usize, arm: usize, reward: f64, next_row: Option<usize>) {
+        let _ = next_row;
+        self.update(row, arm, reward);
+    }
     fn beliefs(&self, row: usize) -> Beliefs;
 }
 
@@ -459,17 +467,21 @@ impl BanditStrategy for QTable {
         }
     }
     fn update(&mut self, row: usize, arm: usize, reward: f64) {
+        self.update_to(row, arm, reward, None);
+    }
+    fn update_to(&mut self, row: usize, arm: usize, reward: f64, next_row: Option<usize>) {
         let observation = self.observation(row);
+        let next = self.observation(next_row.unwrap_or(row));
         self.counts[row * self.arms + arm] += 1;
-        // A different rng than `choose`'s: a done transition makes the agent draw nothing, so this one is never used.
+        // A different rng than `choose`'s: Q-learning (not SARSA) draws nothing in `observe`, so this is never used.
         let mut unused = Rng::new(0, crate::rng::Stream::Data);
         self.agent.observe(
             &Transition {
                 observation: &observation,
                 action: Action::Discrete(arm),
                 reward,
-                next_observation: &observation,
-                done: true,
+                next_observation: &next,
+                done: next_row.is_none(),
                 truncated: false,
             },
             &mut unused,
@@ -554,12 +566,12 @@ pub fn build_strategy(name: &str, hints: &Hints, params: &Params) -> Result<Box<
             })
         }
         "q_table" => {
-            params.check(name, &["alpha", "epsilon", "initial_q"])?;
+            params.check(name, &["alpha", "epsilon", "initial_q", "gamma"])?;
             let epsilon = params.get("epsilon", 0.1);
             let bits = if hints.rows == 2 { 1 } else { 0 };
             let table_params = Params::new([
                 ("alpha".to_string(), params.get("alpha", 0.1).max(1e-9)),
-                ("gamma".to_string(), 0.0),
+                ("gamma".to_string(), params.get("gamma", 0.0)),
                 ("epsilon_start".to_string(), epsilon),
                 ("epsilon_end".to_string(), epsilon),
                 ("initial_q".to_string(), params.get("initial_q", 0.0)),

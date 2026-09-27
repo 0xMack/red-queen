@@ -12,6 +12,10 @@
 //!   `shuffle` is Fisher-Yates from the last index down, `j = bounded(i + 1)`.
 //! - **Regret** is *expected* (pseudo-)regret: each pull adds the best arm's mean minus the pulled arm's mean, in the
 //!   situation (lamp, and before/after a drift) the pull was made in. It measures the choices, not the luck.
+//! - **A sequential game** (`Detour`, Level 3 of doc 0011) is the exception: a pull also decides the next room, so
+//!   "the best arm of this situation" is no longer the best thing to do. Its yardsticks come from dynamic programming
+//!   over the whole budget instead -- the expected total of the best possible play and of random play, both starting in
+//!   the red room (`plan`) -- and a pull counts as "best" when it's what the best possible play would do then.
 
 use crate::pcg::Pcg32;
 
@@ -119,9 +123,14 @@ pub enum Scenario {
     /// A red or blue lamp lights before every pull; under blue each arm pays `0.9 - p` of its red `p` (a contextual
     /// bandit: the best arm under one lamp is the worst under the other).
     TwoLamps,
+    /// Two rooms, and a pull decides which one you're in next (Level 3, a tiny MDP). The red room has the classic
+    /// ladder except that one machine -- the detour -- pays nothing and lights the gold room; in the gold room every
+    /// machine pays 3 with probability 0.4-0.8 (means 1.2-2.4) and leads back to red. Detour-then-gold earns more per
+    /// pull than the best red machine, but only a player who values what comes next ever takes the detour.
+    Detour,
 }
 
-pub const SCENARIOS: [Scenario; 7] = [
+pub const SCENARIOS: [Scenario; 8] = [
     Scenario::Classic,
     Scenario::CloseCall,
     Scenario::LuckyStart,
@@ -129,6 +138,7 @@ pub const SCENARIOS: [Scenario; 7] = [
     Scenario::Drifting,
     Scenario::TooManyArms,
     Scenario::TwoLamps,
+    Scenario::Detour,
 ];
 
 impl Scenario {
@@ -141,6 +151,7 @@ impl Scenario {
             Scenario::Drifting => "drifting",
             Scenario::TooManyArms => "too-many-arms",
             Scenario::TwoLamps => "two-lamps",
+            Scenario::Detour => "detour",
         }
     }
 
@@ -164,9 +175,9 @@ impl Scenario {
         }
     }
 
-    /// Lamps (situations) the arms depend on: 2 for `TwoLamps`, 1 otherwise.
+    /// Lamps (situations) the arms depend on: 2 for `TwoLamps` and `Detour` (its rooms), 1 otherwise.
     pub fn contexts(&self) -> usize {
-        if *self == Scenario::TwoLamps {
+        if matches!(self, Scenario::TwoLamps | Scenario::Detour) {
             2
         } else {
             1
@@ -175,7 +186,12 @@ impl Scenario {
 
     /// Every payout is 0 or 1 (a win or a loss) -- what a Beta-Bernoulli belief needs.
     pub fn binary(&self) -> bool {
-        !matches!(self, Scenario::LuckyStart | Scenario::Jackpot)
+        !matches!(self, Scenario::LuckyStart | Scenario::Jackpot | Scenario::Detour)
+    }
+
+    /// A pull decides the next situation (the lamp is a room you walk into, not a coin toss).
+    pub fn sequential(&self) -> bool {
+        *self == Scenario::Detour
     }
 }
 
@@ -201,6 +217,53 @@ fn best_index(arms: &[Payout]) -> usize {
     best
 }
 
+/// The yardsticks of a sequential game, by backward induction over the budget from the red room: the expected total of
+/// the best possible play and of uniformly random play, and the best arm at every (pull, room).
+#[derive(Clone, Debug)]
+struct Plan {
+    optimal: f64,
+    random: f64,
+    /// `best[t][room]`: the arm the best possible play pulls at pull `t` in `room` (ties to the lowest index).
+    best: Vec<[usize; 2]>,
+}
+
+/// Where arm `arm` in `room` leads in the detour game.
+fn detour_next(room: usize, arm: usize, detour: usize) -> usize {
+    if room == 0 && arm == detour {
+        1
+    } else {
+        0
+    }
+}
+
+fn plan(arms: &[Vec<Payout>], detour: usize, budget: u32) -> Plan {
+    let k = arms[0].len();
+    let (mut v, mut r) = ([0.0f64; 2], [0.0f64; 2]);
+    let mut best = vec![[0usize; 2]; budget as usize];
+    for t in (0..budget as usize).rev() {
+        let (mut nv, mut nr) = ([0.0f64; 2], [0.0f64; 2]);
+        for room in 0..2 {
+            let mut total = 0.0;
+            for (arm, payout) in arms[room].iter().enumerate() {
+                let next = detour_next(room, arm, detour);
+                let q = payout.mean() + v[next];
+                if arm == 0 || q > nv[room] {
+                    nv[room] = q;
+                    best[t][room] = arm;
+                }
+                total += payout.mean() + r[next];
+            }
+            nr[room] = total / k as f64;
+        }
+        (v, r) = (nv, nr);
+    }
+    Plan {
+        optimal: v[0],
+        random: r[0],
+        best,
+    }
+}
+
 fn worst_index(arms: &[Payout]) -> usize {
     let mut worst = 0;
     for (i, arm) in arms.iter().enumerate() {
@@ -219,6 +282,9 @@ pub struct Bandit {
     arms: Vec<Vec<Payout>>,
     /// A drifting game's arms after the switch, and the pull it happens at (0-based: pull `at` is the first after).
     drift: Option<(u32, Vec<Payout>)>,
+    /// A sequential game's detour machine (in the red room), and its yardsticks.
+    detour: Option<usize>,
+    plan: Option<Plan>,
     arm_rngs: Vec<Pcg32>,
     lamp_rng: Pcg32,
     pub budget: u32,
@@ -242,6 +308,7 @@ impl Bandit {
         let mut setup = Pcg32::new(stream_seed(seed, 0));
         let k = scenario.arms();
         let mut drift = None;
+        let mut detour = None;
         let arms: Vec<Vec<Payout>> = match scenario {
             Scenario::Classic => vec![ladder(&mut setup)],
             Scenario::CloseCall => {
@@ -295,12 +362,27 @@ impl Bandit {
                     .collect();
                 vec![red, blue]
             }
+            Scenario::Detour => {
+                let mut red = ladder(&mut setup);
+                let door = setup.bounded(k as u32) as usize;
+                red[door] = Payout::Fixed { value: 0.0 };
+                let mut gold: Vec<Payout> = [0.5, 0.6, 0.7, 0.85, 1.0]
+                    .iter()
+                    .map(|f| Payout::Jackpot { p: 0.8 * f, prize: 3.0 })
+                    .collect();
+                shuffle(&mut gold, &mut setup);
+                detour = Some(door);
+                vec![red, gold]
+            }
         };
+        let plan = detour.map(|door| plan(&arms, door, scenario.budget()));
         let mut game = Bandit {
             scenario,
             seed,
             arms,
             drift,
+            detour,
+            plan,
             arm_rngs: Vec::new(),
             lamp_rng: Pcg32::new(0),
             budget: scenario.budget(),
@@ -335,8 +417,9 @@ impl Bandit {
     }
 
     fn next_lamp(&mut self) -> usize {
-        // One draw per pull, and only in a contextual scenario (a plain game's lamp stream is never touched).
-        if self.scenario.contexts() == 1 || uniform(&mut self.lamp_rng) < 0.5 {
+        // One draw per pull, and only in a contextual scenario (a plain game's lamp stream is never touched). A
+        // sequential game starts in the red room and moves by its own rule (`pull`).
+        if self.scenario.contexts() == 1 || self.scenario.sequential() || uniform(&mut self.lamp_rng) < 0.5 {
             0
         } else {
             1
@@ -374,16 +457,26 @@ impl Bandit {
         self.drift.as_ref().map(|(at, after)| (*at, after.as_slice()))
     }
 
+    /// The best arm now: of this situation -- or, in a sequential game, what the best possible play pulls now.
     pub fn best_arm(&self) -> usize {
-        best_index(self.current())
+        match &self.plan {
+            Some(plan) => plan.best[(self.pulls as usize).min(plan.best.len() - 1)][self.lamp],
+            None => best_index(self.current()),
+        }
+    }
+
+    /// A sequential game's detour machine, if this is one.
+    pub fn detour(&self) -> Option<usize> {
+        self.detour
     }
 
     /// Pull arm `arm`: its payout, and whether that was the last pull. Pulling after the game is over is a bug.
     pub fn pull(&mut self, arm: usize) -> (f64, bool) {
         assert!(!self.done(), "the game is over");
         assert!(arm < self.arms(), "no arm {arm}");
+        let best = self.best_arm();
         let current = self.current();
-        let (payout, best) = (current[arm], best_index(current));
+        let payout = current[arm];
         let (mean, best_mean) = (payout.mean(), current[best].mean());
         let mut average = 0.0;
         for arm in current {
@@ -400,19 +493,35 @@ impl Bandit {
             self.best_pulls += 1;
         }
         self.pulls += 1;
-        self.lamp = self.next_lamp();
+        self.lamp = match self.detour {
+            Some(door) => detour_next(self.lamp, arm, door),
+            None => self.next_lamp(),
+        };
         (reward, self.done())
     }
 
-    /// Expected payout given up so far against always pulling the best arm.
-    pub fn regret(&self) -> f64 {
-        self.best_expected - self.expected
+    /// The yardsticks so far: (best possible, random) expected payout over the pulls made. A sequential game's are its
+    /// plan's totals, pro-rated by the share of the budget used (exact once the game is over).
+    fn yardsticks(&self) -> (f64, f64) {
+        match &self.plan {
+            Some(plan) => {
+                let used = self.pulls as f64 / self.budget as f64;
+                (plan.optimal * used, plan.random * used)
+            }
+            None => (self.best_expected, self.random_expected),
+        }
     }
 
-    /// Expected payout as a share of the best possible: 1.0 = pulled the best arm every time.
+    /// Expected payout given up so far against the best possible play.
+    pub fn regret(&self) -> f64 {
+        self.yardsticks().0 - self.expected
+    }
+
+    /// Expected payout as a share of the best possible: 1.0 = played perfectly.
     pub fn efficiency(&self) -> f64 {
-        if self.best_expected > 0.0 {
-            self.expected / self.best_expected
+        let best = self.yardsticks().0;
+        if best > 0.0 {
+            self.expected / best
         } else {
             1.0
         }
@@ -421,9 +530,10 @@ impl Bandit {
     /// How much better than pulling at random: 0 = no better, 1 = the best arm every pull (negative is worse than
     /// random). The leaderboard's score -- comparable across scenarios, where raw payouts and efficiency are not.
     pub fn skill(&self) -> f64 {
-        let room = self.best_expected - self.random_expected;
+        let (best, random) = self.yardsticks();
+        let room = best - random;
         if room > 0.0 {
-            (self.expected - self.random_expected) / room
+            (self.expected - random) / room
         } else {
             1.0
         }
@@ -434,6 +544,7 @@ impl Bandit {
         match self.scenario {
             Scenario::LuckyStart => 13.0, // the best mean plus two sd
             Scenario::Jackpot => 50.0,
+            Scenario::Detour => 3.0,
             _ => 1.0,
         }
     }
@@ -443,6 +554,7 @@ impl Bandit {
         match self.scenario {
             Scenario::LuckyStart => 3.0,
             Scenario::Jackpot => 7.0, // the jackpot arm's sd: 50 * sqrt(0.02 * 0.98)
+            Scenario::Detour => 1.2,  // a gold machine's sd: 3 * sqrt(p (1 - p)), p 0.4-0.8
             _ => 1.0,
         }
     }
@@ -482,7 +594,7 @@ mod tests {
             );
             let n = xa.len().min(xb.len());
             assert!(n >= 5, "{scenario:?}: {n}");
-            if scenario != Scenario::TwoLamps && scenario != Scenario::Drifting {
+            if scenario.contexts() == 1 && scenario != Scenario::Drifting {
                 assert_eq!(xa[..n], xb[..n], "{scenario:?}");
             }
             a.reset();
@@ -516,6 +628,34 @@ mod tests {
             assert_ne!(best_index(lamps.payouts(0)), best_index(lamps.payouts(1)));
 
             assert_eq!(Bandit::new(Scenario::TooManyArms, seed).arms(), 16);
+        }
+    }
+
+    #[test]
+    fn the_detour_pays_only_for_a_player_who_looks_ahead() {
+        for seed in 0..200 {
+            let game = Bandit::new(Scenario::Detour, seed);
+            let door = game.detour().unwrap();
+            assert_eq!(game.payouts(0)[door], Payout::Fixed { value: 0.0 });
+            assert!(game.payouts(1).iter().all(|p| p.kind() == "jackpot" && p.mean() >= 1.2));
+            // The best possible play takes the detour; staying on the best red machine is worse.
+            let plan = game.plan.as_ref().unwrap();
+            assert_eq!(plan.best[0][0], door);
+            let mut stay = game.clone();
+            let red_best = best_index(stay.payouts(0));
+            play_out(&mut stay, |_| red_best);
+            assert!(stay.skill() < 0.9 && stay.skill() > 0.0, "{}", stay.skill());
+            // Following the plan is skill 1, and walks between the rooms.
+            let mut perfect = game.clone();
+            let mut rooms = vec![];
+            while !perfect.done() {
+                rooms.push(perfect.lamp);
+                let arm = perfect.best_arm();
+                perfect.pull(arm);
+            }
+            assert!((perfect.skill() - 1.0).abs() < 1e-9, "{}", perfect.skill());
+            assert!(rooms.contains(&1) && rooms[0] == 0);
+            assert_eq!(perfect.best_pulls, 100);
         }
     }
 

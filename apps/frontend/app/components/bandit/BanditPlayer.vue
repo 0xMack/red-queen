@@ -53,7 +53,9 @@ onMounted(newGame)
 onUnmounted(() => timer && clearTimeout(timer))
 watch(() => [props.scenario, props.strategy, props.params, props.observer], newGame)
 
-const rowLabels = computed(() => (props.observer === "lamp.v1" ? ["red lamp", "blue lamp"] : ["every pull"]))
+const rowLabels = computed(() => rowNames(info.value, props.observer))
+// A strategy that values what comes next (a Q-table with gamma > 0).
+const looksAhead = computed(() => Number(/gamma=([\d.]+)/.exec(props.params)?.[1] ?? 0) > 0)
 const kind = computed(() => (props.strategy === "gradient" ? "preference" : "estimate"))
 const curves = computed(() => {
   if (props.strategy !== "thompson" || !info.value.binary) return null
@@ -83,7 +85,12 @@ const curves = computed(() => {
             :kind="kind"
           />
           <p class="mt-2 text-xs leading-relaxed text-fg-subtle">
-            <template v-if="observer === 'lamp.v1'">Two rows: separate values for each lamp colour -- a contextual bandit.</template>
+            <template v-if="info.sequential && looksAhead">
+              A row per room. Each value is the payout <em>plus γ times the best value of the room it leads to</em> -- so the
+              detour's value can be high although it never pays a thing. That is the Bellman update.
+            </template>
+            <template v-else-if="info.sequential">A row per room -- but each value is only what the machine pays, so the detour (which pays nothing) looks worthless.</template>
+            <template v-else-if="observer === 'lamp.v1'">Two rows: separate values for each lamp colour -- a contextual bandit.</template>
             <template v-else-if="info.contexts > 1">One row: it can't tell the lamps apart, so each value averages both colours -- and every machine averages the same.</template>
             <template v-else>One row, because every pull is the same situation. A Q-table is this with a row per situation: Snake's has 2,048.</template>
           </p>
@@ -103,7 +110,7 @@ const curves = computed(() => {
           </template>
           <template v-if="run.done.value && run.reveal.value">
             <p class="label mt-4 mb-2">The reveal</p>
-            <BanditReveal :reveal="run.reveal.value" :players="[{ label, counts: run.counts.value }]" />
+            <BanditReveal :reveal="run.reveal.value" :scenario="info" :players="[{ label, counts: run.counts.value }]" />
           </template>
         </div>
       </div>

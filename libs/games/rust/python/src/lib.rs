@@ -563,6 +563,10 @@ impl BanditCore {
     fn best_arm(&self) -> usize {
         self.inner.best_arm()
     }
+    #[getter]
+    fn detour(&self) -> Option<usize> {
+        self.inner.detour()
+    }
 }
 
 #[pymodule]

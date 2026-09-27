@@ -1,8 +1,8 @@
 # 0011 — Multi-armed bandits: a game for exploration, exploitation, and the step up to Q-tables
 
-Status: **Levels 1 and 2 implemented** (2026-09-27): the game core, the strategies, the leaderboard, the game page and
-the Learn chapter. See "Implementation notes" for what was measured and what changed from the plan below. Level 3 and
-the evolved strategy are still open.
+Status: **Levels 1, 2 and 3 implemented** (2026-09-27): the game core, the strategies, the leaderboard, the game page
+and the Learn chapter. See "Implementation notes" for what was measured and what changed from the plan below. The
+evolved strategy is still open.
 Relates to: [0006](0006-multiagent-games-and-strategy-framework.md) (a game in `libs/games`, one page layout),
 [0007](0007-representations-leaderboards-and-tradeoffs.md) (interfaces, held-out protocols, leaderboards),
 [0009](0009-client-side-inference-at-scale.md) (Rust core → PyO3 + WASM), [0010](0010-reinforcement-learning.md)
@@ -100,6 +100,7 @@ pull, on 500 held-out games; the full table is in "Implementation notes"):
 | **Drifting** | 5 × 200 | Classic arms; at a pull in 50-70 the best arm *breaks* (pays what the worst does) | Staying loyal scores -13; sample-average ε-greedy 43 vs constant step (0.2) 55; optimism 49 (explores once); tuned UCB 59 |
 | **Too many arms** | 16 × 100 | Bernoulli 0.05-0.80 | UCB1 (19) must try all 16 first; ε-greedy 51, optimism 62 |
 | **Two lamps** (Level 2) | 5 × 100 | Red lamp: the classic ladder; blue: `0.9 - p` for each arm | Every strategy that can't see the lamp: ~0 (every arm averages 0.45). Seeing it: Thompson 51, optimism 68 |
+| **Detour** (Level 3) | 5 × 100 | Red room: the ladder, but one machine pays 0 and opens the gold room; gold: every machine pays 3 w.p. 0.4-0.8, back to red | Every strategy that values only the payout: ≤ 10. Q-learning with γ 0.9: 55 |
 
 ## Strategies, and where each leads
 
@@ -233,3 +234,29 @@ What the measurements changed:
   leaderboard, because the gap is the lesson.
 - **The gradient bandit needs a large step here** (α 0.1, the textbook default, scores 15 on *Classic*; 0.5 scores 53):
   100 pulls is not enough for small steps.
+
+### Level 3: the detour (2026-09-27)
+
+The open question above ("a few rooms where a pull decides the next room") was settled by a prototype first: two rooms
+are enough, and the lesson is sharper than on Snake because the whole table is on screen.
+
+- **`Detour`**: the red room is the classic ladder except that one machine (the detour, a `Fixed` 0) lights the gold
+  room; every gold machine pays 3 with probability 0.4-0.8 (means 1.2-2.4) and leads back to red. Detour-then-gold
+  earns ~1.2 a pull against the best red machine's 0.75. Skill can't use "the best arm of this situation" any more (the
+  best red *payout* isn't the best move), so the game computes its yardsticks by backward induction over the budget --
+  the best possible play's and random play's expected totals from the red room -- and a pull is "best" when it's what
+  the best possible play does then. The oracle repeats the dynamic program.
+- **Strategies** gained `update_to(row, arm, reward, next_row)`: only `q_table` uses it, bootstrapping
+  `r + γ max Q(next room)` -- exactly `QTableAgent`'s transition with `done` false. Every other strategy is a bandit
+  strategy and ignores where a pull led. `q_table` takes `gamma` (default 0, so nothing changed for the other scenarios:
+  with γ 0 the bootstrap term is 0 whatever it is).
+- Evaluated seeing the room (`lamp.v1`); a new entrant, *Q-learning, looking ahead* (γ 0.9, optimistic 10, α 0.5,
+  ε 0).
+
+| Q-learning's γ (optimistic 10, α 0.5) | 0 | 0.5 | 0.8 | 0.9 | 0.99 |
+|---|---|---|---|---|---|
+| Skill on Detour | 5.7 | 28.1 | 33.3 | 54.8 | -1.0 |
+
+Every other strategy scores ≤ 10.5; playing the best red machine perfectly and never taking the detour scores 21.5.
+γ 0.99 collapses because the optimistic initial values echo between the rooms faster than 100 pulls wear them down --
+the chapter says so rather than hiding the dial's top end.
