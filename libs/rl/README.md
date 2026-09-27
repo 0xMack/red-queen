@@ -27,11 +27,14 @@ A mixed Rust/Python package, like `libs/games`:
     values. A game that *ends* flushes pending updates with no bootstrap; one *truncated* by the step cap
     bootstraps. SARSA chooses its next action in `observe`, so every update is a pure function of the transition
     (`tabular_replay`, checked exactly against `tests/reference_tabular.py`).
+  - `bandit.rs`: bandit strategies (docs/design/0011) -- *online* learners over a `rows x arms` table (random, greedy,
+    ε-greedy, optimistic, UCB1, Thompson, gradient, and `QTableAgent` with γ 0). They learn within one game, so they
+    don't use the `Trainer`. Checked belief for belief against `tests/reference_bandit_agents.py`.
   - `digest.rs`: determinism digests and the benchmark kernels.
 - `rust/envs` (`redqueen-rl-envs`) — adapters from the games crate: Snake (any native observer, `relative3.v1`
   actions, the game's score; `shaped` or `sparse` reward; `features.v1` offers an 11-bit discretizer) and Reach1D
-  (continuous acceleration; game `seed` draws the target; 25 x 13 bins), plus the games' baselines as policies.
-  Shared by both binding crates.
+  (continuous acceleration; game `seed` draws the target; 25 x 13 bins), plus the games' baselines as policies; and
+  `bandit.rs`'s `BanditRun`, a strategy playing one bandit game. Shared by both binding crates.
 - `rust/python` → `rl._native` (PyO3). `rust/wasm` → `apps/frontend/app/wasm/rl` (built by `build-wasm.py`).
 - `src/rl` — the Python face.
 - `tests/` — parity against `libs/autodiff` (`reference_nn.py`), the adapters against `jobs/evaluate.py`'s scores,

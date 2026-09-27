@@ -4,6 +4,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use redqueen_games::bandit::{Bandit, Payout, Scenario};
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
@@ -442,12 +443,139 @@ impl Reach1DCore {
     }
 }
 
+fn payout_dict(payout: &Payout) -> Vec<(&'static str, f64)> {
+    let mut out = vec![("mean", payout.mean())];
+    match *payout {
+        Payout::Bernoulli { p } => out.push(("p", p)),
+        Payout::Gaussian { mean: _, sd } => out.push(("sd", sd)),
+        Payout::Jackpot { p, prize } => out.extend([("p", p), ("prize", prize)]),
+        Payout::Fixed { value } => out.push(("value", value)),
+    }
+    out
+}
+
+/// A multi-armed bandit game (docs/design/0011); `games/bandit.py` is its Python face.
+#[pyclass(module = "games._native")]
+struct BanditCore {
+    inner: Bandit,
+}
+
+#[pymethods]
+impl BanditCore {
+    #[new]
+    fn new(scenario: &str, seed: u64) -> PyResult<Self> {
+        let scenario = Scenario::from_id(scenario)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown bandit scenario: {scenario}")))?;
+        Ok(BanditCore {
+            inner: Bandit::new(scenario, seed),
+        })
+    }
+
+    fn __copy__(&self) -> Self {
+        BanditCore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> Self {
+        self.__copy__()
+    }
+
+    fn reset(&mut self) {
+        self.inner.reset()
+    }
+
+    /// (payout, done)
+    fn pull(&mut self, arm: usize) -> PyResult<(f64, bool)> {
+        if self.inner.done() {
+            return Err(PyValueError::new_err("the game is over"));
+        }
+        if arm >= self.inner.arms() {
+            return Err(PyValueError::new_err(format!("no arm {arm}")));
+        }
+        Ok(self.inner.pull(arm))
+    }
+
+    fn means(&self) -> Vec<f64> {
+        self.inner.means()
+    }
+
+    /// Each arm's payout under lamp `context`, before any drift: kind and parameters.
+    fn payouts(&self, context: usize) -> Vec<(&'static str, Vec<(&'static str, f64)>)> {
+        self.inner
+            .payouts(context)
+            .iter()
+            .map(|p| (p.kind(), payout_dict(p)))
+            .collect()
+    }
+
+    fn drift(&self) -> Option<(u32, Vec<f64>)> {
+        self.inner
+            .drift()
+            .map(|(at, after)| (at, after.iter().map(Payout::mean).collect()))
+    }
+
+    #[getter]
+    fn arms(&self) -> usize {
+        self.inner.arms()
+    }
+    #[getter]
+    fn budget(&self) -> u32 {
+        self.inner.budget
+    }
+    #[getter]
+    fn pulls(&self) -> u32 {
+        self.inner.pulls
+    }
+    #[getter]
+    fn lamp(&self) -> usize {
+        self.inner.lamp
+    }
+    #[getter]
+    fn done(&self) -> bool {
+        self.inner.done()
+    }
+    #[getter]
+    fn total(&self) -> f64 {
+        self.inner.total
+    }
+    #[getter]
+    fn regret(&self) -> f64 {
+        self.inner.regret()
+    }
+    #[getter]
+    fn efficiency(&self) -> f64 {
+        self.inner.efficiency()
+    }
+    #[getter]
+    fn skill(&self) -> f64 {
+        self.inner.skill()
+    }
+    #[getter]
+    fn counts(&self) -> Vec<u32> {
+        self.inner.counts.clone()
+    }
+    #[getter]
+    fn best_pulls(&self) -> u32 {
+        self.inner.best_pulls
+    }
+    #[getter]
+    fn best_arm(&self) -> usize {
+        self.inner.best_arm()
+    }
+    #[getter]
+    fn detour(&self) -> Option<usize> {
+        self.inner.detour()
+    }
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
     m.add_class::<CheckersCore>()?;
     m.add_class::<CheckersStrategy>()?;
     m.add_class::<Reach1DCore>()?;
+    m.add_class::<BanditCore>()?;
     m.add_class::<Pcg32>()?;
     m.add_class::<Policy>()?;
     m.add_class::<SnakeRandomPolicy>()?;

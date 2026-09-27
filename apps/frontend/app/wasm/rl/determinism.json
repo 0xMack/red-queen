@@ -69,5 +69,15 @@
       "seed": 1,
       "digest": "7e10324fe78dda06"
     }
+  ],
+  "bandit": [
+    {
+      "seed": 0,
+      "digest": "831c151bf685fffb"
+    },
+    {
+      "seed": 4,
+      "digest": "9ea3b835b89bab75"
+    }
   ]
 }

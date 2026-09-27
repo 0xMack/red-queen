@@ -64,7 +64,7 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
             </div>
             <p class="mt-0.5 pl-4 text-[11px] text-fg-subtle">
               <span class="capitalize">{{ r.entrant_kind }}</span>
-              <template v-if="r.entrant_kind === 'champion'"> · {{ entrantDetail(r).split(" · ").slice(0, -1).join(" · ") }}</template>
+              <template v-if="entrantDetail(r, { runId: false }) && r.entrant_kind === 'champion'"> · {{ entrantDetail(r, { runId: false }) }}</template>
               <NuxtLink v-if="r.run_id" :to="`/runs/${r.run_id}`" class="font-mono hover:text-queen-300" @click.stop> · {{ shortId(r.run_id) }} ↗</NuxtLink>
               <span v-if="r.metrics.model.note" class="italic"> · {{ r.metrics.model.note }}</span>
             </p>

@@ -9,6 +9,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig, ALGORITHMS};
+use redqueen_rl::bandit::STRATEGIES as BANDIT_STRATEGIES;
 use redqueen_rl::digest;
 use redqueen_rl::dqn::{td_gradients, Batch, QNet};
 use redqueen_rl::env::{ActionSpace, Episode};
@@ -470,9 +471,79 @@ fn generalized_advantages(
     gae(&rewards, &values, &next_values, &done, &cut, gamma, lambda)
 }
 
+fn bandit_setup(scenario: &str, observer: &str) -> PyResult<(envs::bandit::Scenario, envs::bandit::Observer)> {
+    envs::bandit::parse(scenario, observer).map_err(value_error)
+}
+
+/// A bandit strategy (docs/design/0011) playing each of `seeds` to the end: one dict per game (seed, total payout,
+/// expected regret, efficiency, skill, share of pulls on the best arm).
+#[pyfunction]
+#[pyo3(signature = (strategy, scenario, observer, seeds, params=None))]
+fn bandit_evaluate<'py>(
+    py: Python<'py>,
+    strategy: &str,
+    scenario: &str,
+    observer: &str,
+    seeds: Vec<u64>,
+    params: Option<HashMap<String, f64>>,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let (scenario, observer) = bandit_setup(scenario, observer)?;
+    let params = Params::new(params.unwrap_or_default());
+    let results = envs::bandit::evaluate(strategy, &params, scenario, observer, &seeds).map_err(value_error)?;
+    results
+        .iter()
+        .map(|r| {
+            let d = PyDict::new(py);
+            d.set_item("seed", r.seed)?;
+            d.set_item("total", r.total)?;
+            d.set_item("regret", r.regret)?;
+            d.set_item("efficiency", r.efficiency)?;
+            d.set_item("skill", r.skill)?;
+            d.set_item("best_rate", r.best_rate)?;
+            Ok(d)
+        })
+        .collect()
+}
+
+/// One game, pull by pull, for the strategy oracles: each pull's (row, arm, payout) and the strategy's beliefs about
+/// that row right after it learned from the pull -- (values, spread, counts, probabilities).
+#[pyfunction]
+#[pyo3(signature = (strategy, scenario, observer, seed, params=None))]
+#[allow(clippy::type_complexity)]
+fn bandit_trace(
+    strategy: &str,
+    scenario: &str,
+    observer: &str,
+    seed: u64,
+    params: Option<HashMap<String, f64>>,
+) -> PyResult<Vec<(usize, usize, f64, (Vec<f64>, Vec<f64>, Vec<u32>, Vec<f64>))>> {
+    let (scenario, observer) = bandit_setup(scenario, observer)?;
+    let params = Params::new(params.unwrap_or_default());
+    let mut run = envs::bandit::BanditRun::new(scenario, observer, strategy, &params, seed).map_err(value_error)?;
+    let mut trace = Vec::new();
+    while !run.game.done() {
+        let row = run.row();
+        let (arm, reward, _) = run
+            .step()
+            .ok_or_else(|| value_error("a human game can't play itself".into()))?;
+        let b = run.beliefs(row).expect("a strategy has beliefs");
+        trace.push((row, arm, reward, (b.values, b.spread, b.counts, b.probabilities)));
+    }
+    Ok(trace)
+}
+
+#[pyfunction]
+fn bandit_digest(seed: u64) -> String {
+    envs::bandit::bandit_digest(seed)
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ALGORITHMS", ALGORITHMS.to_vec())?;
+    m.add("BANDIT_STRATEGIES", BANDIT_STRATEGIES.to_vec())?;
+    m.add_function(wrap_pyfunction!(bandit_evaluate, m)?)?;
+    m.add_function(wrap_pyfunction!(bandit_trace, m)?)?;
+    m.add_function(wrap_pyfunction!(bandit_digest, m)?)?;
     m.add_function(wrap_pyfunction!(tabular_replay, m)?)?;
     m.add_class::<Trainer>()?;
     m.add_class::<CheckersSelfPlay>()?;

@@ -102,6 +102,13 @@ const pocketBoard = board([
       where it stops.
     </p>
 
+    <Callout title="Coming from the bandit chapter?">
+      You've already met most of this chapter. A bandit keeps one row of values and nudges an estimate toward each payout;
+      a contextual bandit keeps a row per situation. Q-learning is a contextual bandit where a move also decides the
+      <em>next</em> situation -- so a move's value has to include what follows. That one addition is the Bellman update
+      below.
+    </Callout>
+
     <h2>Learning from experience</h2>
     <p>
       The setup has four parts. At each step the agent sees an <strong>observation</strong> (for Snake: the same 11 features the evolved networks

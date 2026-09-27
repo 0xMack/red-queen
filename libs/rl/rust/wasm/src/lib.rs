@@ -408,3 +408,165 @@ impl SelfPlayTrainer {
         vec![a, b]
     }
 }
+
+/// `bandit_digest(seed)`: every bandit strategy on every scenario, hashed.
+#[wasm_bindgen(js_name = banditDigest)]
+pub fn bandit_digest(seed: u32) -> String {
+    envs::bandit::bandit_digest(seed as u64)
+}
+
+/// A multi-armed bandit game (docs/design/0011), and the strategy playing it -- or `"human"` for a game whose pulls
+/// come from the page. The game page races several of these on one seed; the Learn chapter looks inside one.
+#[wasm_bindgen]
+pub struct BanditRun {
+    inner: envs::bandit::BanditRun,
+}
+
+#[wasm_bindgen]
+impl BanditRun {
+    /// `scenario` (`classic`, `two-lamps`, ...), `observer` (`none.v1` or `lamp.v1`), `strategy` (`thompson`, ...,
+    /// or `human`), `params` as `name=value,...`.
+    #[wasm_bindgen(constructor)]
+    pub fn new(scenario: &str, observer: &str, strategy: &str, params: &str, seed: u32) -> Result<BanditRun, JsError> {
+        let (scenario, observer) = envs::bandit::parse(scenario, observer).map_err(|e| JsError::new(&e))?;
+        let inner = envs::bandit::BanditRun::new(scenario, observer, strategy, &parse_params(params)?, seed as u64)
+            .map_err(|e| JsError::new(&e))?;
+        Ok(BanditRun { inner })
+    }
+
+    /// The strategy's pick for the next pull, without pulling (-1 in a human game).
+    pub fn choose(&mut self) -> i32 {
+        self.inner.choose().map_or(-1, |a| a as i32)
+    }
+
+    /// Pull `arm`; returns its payout. The strategy (if any) learns from it.
+    pub fn pull(&mut self, arm: u32) -> Result<f64, JsError> {
+        if self.inner.game.done() || arm as usize >= self.inner.game.arms() {
+            return Err(JsError::new("the game is over, or no such arm"));
+        }
+        Ok(self.inner.pull(arm as usize).0)
+    }
+
+    /// The strategy's beliefs about situation `row`, flattened: `[values..., spread..., counts..., probabilities...]`
+    /// (each `arms` long; probabilities empty for strategies that don't choose by chance). Empty in a human game.
+    pub fn beliefs(&self, row: u32) -> Vec<f64> {
+        self.inner.beliefs(row as usize).map_or_else(Vec::new, |b| {
+            let counts = b.counts.iter().map(|&c| c as f64);
+            b.values
+                .iter()
+                .chain(&b.spread)
+                .copied()
+                .chain(counts)
+                .chain(b.probabilities.iter().copied())
+                .collect()
+        })
+    }
+
+    /// The situation the strategy is in (the lamp, if it sees it).
+    #[wasm_bindgen(getter)]
+    pub fn row(&self) -> u32 {
+        self.inner.row() as u32
+    }
+    #[wasm_bindgen(getter)]
+    pub fn lamp(&self) -> u32 {
+        self.inner.game.lamp as u32
+    }
+    #[wasm_bindgen(getter)]
+    pub fn arms(&self) -> u32 {
+        self.inner.game.arms() as u32
+    }
+    #[wasm_bindgen(getter)]
+    pub fn budget(&self) -> u32 {
+        self.inner.game.budget
+    }
+    #[wasm_bindgen(getter)]
+    pub fn pulls(&self) -> u32 {
+        self.inner.game.pulls
+    }
+    #[wasm_bindgen(getter)]
+    pub fn done(&self) -> bool {
+        self.inner.game.done()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn total(&self) -> f64 {
+        self.inner.game.total
+    }
+    #[wasm_bindgen(getter)]
+    pub fn regret(&self) -> f64 {
+        self.inner.game.regret()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn efficiency(&self) -> f64 {
+        self.inner.game.efficiency()
+    }
+    /// 0 = no better than pulling at random, 1 = the best arm every pull.
+    #[wasm_bindgen(getter)]
+    pub fn skill(&self) -> f64 {
+        self.inner.game.skill()
+    }
+    #[wasm_bindgen(getter, js_name = bestPulls)]
+    pub fn best_pulls(&self) -> u32 {
+        self.inner.game.best_pulls
+    }
+    #[wasm_bindgen(getter, js_name = bestArm)]
+    pub fn best_arm(&self) -> u32 {
+        self.inner.game.best_arm() as u32
+    }
+    pub fn counts(&self) -> Vec<u32> {
+        self.inner.game.counts.clone()
+    }
+    /// Each arm's true mean right now -- for the reveal, never for play.
+    pub fn means(&self) -> Vec<f64> {
+        self.inner.game.means()
+    }
+
+    /// The arms under lamp `context` before any drift, as JSON `[{kind, mean, ...params}]`, and a drifting game's
+    /// switch (`{"at": n, "after": [means]}`) -- the end-of-game reveal.
+    pub fn reveal(&self) -> String {
+        use redqueen_games::bandit::Payout;
+        let game = &self.inner.game;
+        let arms = |context: usize| {
+            let items: Vec<String> = game
+                .payouts(context)
+                .iter()
+                .map(|p| {
+                    let extra = match *p {
+                        Payout::Bernoulli { p } => format!(r#""p": {p:?}"#),
+                        Payout::Gaussian { sd, .. } => format!(r#""sd": {sd:?}"#),
+                        Payout::Jackpot { p, prize } => format!(r#""p": {p:?}, "prize": {prize:?}"#),
+                        Payout::Fixed { value } => format!(r#""value": {value:?}"#),
+                    };
+                    format!(r#"{{"kind": "{}", "mean": {:?}, {extra}}}"#, p.kind(), p.mean())
+                })
+                .collect();
+            format!("[{}]", items.join(", "))
+        };
+        let lamps: Vec<String> = (0..game.scenario.contexts()).map(arms).collect();
+        let drift = game.drift().map_or("null".to_string(), |(at, after)| {
+            let means: Vec<String> = after.iter().map(|p| format!("{:?}", p.mean())).collect();
+            format!(r#"{{"at": {at}, "after": [{}]}}"#, means.join(", "))
+        });
+        format!(r#"{{"lamps": [{}], "drift": {drift}}}"#, lamps.join(", "))
+    }
+}
+
+/// A strategy on `count` games from seed `first`, as `[regret, efficiency, skill, best_rate]` per game, flattened -- the
+/// scenario comparisons the Learn chapter draws, computed in the reader's browser.
+#[wasm_bindgen(js_name = banditEvaluate)]
+pub fn bandit_evaluate(
+    strategy: &str,
+    params: &str,
+    scenario: &str,
+    observer: &str,
+    first: u32,
+    count: u32,
+) -> Result<Vec<f64>, JsError> {
+    let (scenario, observer) = envs::bandit::parse(scenario, observer).map_err(|e| JsError::new(&e))?;
+    let seeds: Vec<u64> = (first as u64..first as u64 + count as u64).collect();
+    let results = envs::bandit::evaluate(strategy, &parse_params(params)?, scenario, observer, &seeds)
+        .map_err(|e| JsError::new(&e))?;
+    Ok(results
+        .iter()
+        .flat_map(|r| [r.regret, r.efficiency, r.skill, r.best_rate])
+        .collect())
+}

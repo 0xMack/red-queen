@@ -96,9 +96,11 @@ const attention = (() => {
 </script>
 
 <template>
+  <BanditArt v-if="kind === 'bandit'" />
   <svg
+    v-else
     viewBox="0 0 400 250"
-    class="block h-full w-full bg-[#0b0e14]"
+    class="block h-full w-full bg-sunken"
     :preserveAspectRatio="fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'"
   >
     <defs>
@@ -114,7 +116,7 @@ const attention = (() => {
     <rect width="400" height="250" fill="url(#art-glow)" />
 
     <!-- Population -> evaluate -> select -> vary, around a loop -->
-    <g v-if="kind === 'ga-loop'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-if="kind === 'ga-loop'" font-family="Geist Mono, monospace" font-size="10">
       <circle v-for="(p, i) in population" :key="i" :cx="p.x" :cy="p.y" :r="3 + p.f * 3" :fill="p.f > 0.7 ? palette.queen400 : palette.life400" :fill-opacity="0.35 + p.f * 0.6" />
       <text x="85" y="200" text-anchor="middle" :fill="palette.fgMuted">population</text>
       <g v-for="(step, i) in ['evaluate', 'select', 'vary']" :key="step">
@@ -129,7 +131,7 @@ const attention = (() => {
     </g>
 
     <!-- Pareto front: error vs. complexity -->
-    <g v-else-if="kind === 'selection'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'selection'" font-family="Geist Mono, monospace" font-size="10">
       <line x1="36" y1="220" x2="370" y2="220" :stroke="palette.lineStrong" />
       <line x1="36" y1="220" x2="36" y2="22" :stroke="palette.lineStrong" />
       <text x="370" y="238" text-anchor="end" :fill="palette.fgSubtle">complexity →</text>
@@ -141,7 +143,7 @@ const attention = (() => {
     </g>
 
     <!-- A linear program next to the expression tree it computes -->
-    <g v-else-if="kind === 'genomes'" font-family="JetBrains Mono, monospace" font-size="11">
+    <g v-else-if="kind === 'genomes'" font-family="Geist Mono, monospace" font-size="11">
       <rect x="24" y="40" width="150" height="170" rx="10" :fill="palette.raised" :stroke="palette.lineStrong" />
       <text v-for="(line, i) in ['r1 = x0 × x0', 'r2 = r1 - x0', 'r3 = r0 + r2', 'r0 = r2 × r1', 'r1 = r3 ÷ x0']" :key="i" x="38" :y="70 + i * 30" :fill="i === 2 || i === 4 ? palette.fgSubtle : palette.fg" :text-decoration="i === 2 || i === 4 ? 'line-through' : undefined">{{ line }}</text>
       <path d="M185 125 L215 125" :stroke="palette.fgSubtle" stroke-width="1.5" marker-end="url(#art-arrow)" />
@@ -172,7 +174,7 @@ const attention = (() => {
     </g>
 
     <!-- A computation graph with forward values and backward gradients -->
-    <g v-else-if="kind === 'autodiff'" font-family="JetBrains Mono, monospace" font-size="11">
+    <g v-else-if="kind === 'autodiff'" font-family="Geist Mono, monospace" font-size="11">
       <g v-for="e in [[70, 70, 170, 100], [70, 160, 170, 130], [210, 115, 280, 115], [70, 215, 280, 140], [320, 125, 360, 125]]" :key="e.join()">
         <line :x1="e[0]" :y1="e[1]" :x2="e[2]" :y2="e[3]" :stroke="palette.lineStrong" stroke-width="1.5" marker-end="url(#art-arrow)" />
       </g>
@@ -193,7 +195,7 @@ const attention = (() => {
     </g>
 
     <!-- A causal attention matrix over characters -->
-    <g v-else-if="kind === 'attention'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'attention'" font-family="Geist Mono, monospace" font-size="10">
       <g transform="translate(120, 26)">
         <rect
           v-for="c in attention.cells"
@@ -219,7 +221,7 @@ const attention = (() => {
     </g>
 
     <!-- A fixed network read off a flat list of weights, one of them mid-mutation -->
-    <g v-else-if="kind === 'neuroevolution'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'neuroevolution'" font-family="Geist Mono, monospace" font-size="10">
       <g v-for="(from, fi) in [0, 1, 2]" :key="`e${fi}`">
         <line v-for="(to, ti) in [0, 1, 2, 3]" :key="`e${fi}${ti}`" :x1="90" :y1="55 + fi * 45" :x2="200" :y2="40 + ti * 40" :stroke="(fi + ti) % 3 === 0 ? palette.queen400 : palette.life400" :stroke-opacity="0.25 + ((fi * 3 + ti * 5) % 7) / 12" stroke-width="1.5" />
       </g>
@@ -235,7 +237,7 @@ const attention = (() => {
     </g>
 
     <!-- A NEAT graph that has grown a hidden node, genes tagged with innovation numbers -->
-    <g v-else-if="kind === 'neat'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'neat'" font-family="Geist Mono, monospace" font-size="10">
       <g fill="none" stroke-width="1.6">
         <path d="M70 60 C 130 60, 150 60, 210 60" :stroke="palette.life400" stroke-opacity="0.5" stroke-dasharray="4 3" />
         <path d="M70 60 C 110 60, 120 110, 160 130" :stroke="palette.gold400" stroke-width="2.4" />
@@ -258,7 +260,7 @@ const attention = (() => {
     </g>
 
     <!-- Self-play: one network on both sides of a board, values alternating sign ply by ply -->
-    <g v-else-if="kind === 'self-play'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'self-play'" font-family="Geist Mono, monospace" font-size="10">
       <rect v-for="i in 64" :key="`sq${i}`" :x="40 + ((i - 1) % 8) * 20" :y="45 + Math.floor((i - 1) / 8) * 20" width="20" height="20" :fill="((i - 1) % 8 + Math.floor((i - 1) / 8)) % 2 ? palette.raised : palette.line" />
       <circle v-for="p in selfPlayPieces" :key="`p${p[0]}-${p[1]}`" :cx="50 + p[0] * 20" :cy="55 + p[1] * 20" r="7" :fill="p[1] < 4 ? palette.queen500 : palette.fg" />
       <path d="M210 90 C 250 60, 290 60, 320 90" fill="none" :stroke="palette.queen400" stroke-width="1.5" marker-end="url(#art-arrow)" />
@@ -270,7 +272,7 @@ const attention = (() => {
     </g>
 
     <!-- A policy: observation -> network -> move probabilities (sampled), and a Gaussian for a continuous action -->
-    <g v-else-if="kind === 'policy'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'policy'" font-family="Geist Mono, monospace" font-size="10">
       <line v-for="e in qnetEdges" :key="e.key" :x1="e.x1 - 30" :y1="e.y1" :x2="e.x2 - 30" :y2="e.y2" :stroke="palette.lineStrong" stroke-width="0.8" />
       <circle v-for="n in qnetNodes" :key="n.key" :cx="n.x - 30" :cy="n.y" :r="n.layer === 3 ? 4 : n.r" :fill="n.layer === 0 ? palette.signal400 : palette.fgMuted" />
       <g v-for="(p, i) in [0.18, 0.71, 0.11]" :key="`p${i}`">
@@ -286,7 +288,7 @@ const attention = (() => {
     </g>
 
     <!-- A Q-network: observation -> layers -> three action values, trained from a replay buffer against a frozen copy -->
-    <g v-else-if="kind === 'q-network'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'q-network'" font-family="Geist Mono, monospace" font-size="10">
       <g>
         <line v-for="e in qnetEdges" :key="e.key" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" :stroke="palette.lineStrong" stroke-width="0.8" />
         <circle v-for="n in qnetNodes" :key="n.key" :cx="n.x" :cy="n.y" :r="n.r" :fill="n.fill" />
@@ -306,7 +308,7 @@ const attention = (() => {
     </g>
 
     <!-- A board state becomes a row of the Q-table; the update rule underneath -->
-    <g v-else-if="kind === 'q-table'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'q-table'" font-family="Geist Mono, monospace" font-size="10">
       <g>
         <rect v-for="i in 36" :key="`c${i}`" :x="30 + ((i - 1) % 6) * 18" :y="40 + Math.floor((i - 1) / 6) * 18" width="16" height="16" rx="2" :fill="palette.raised" />
         <rect v-for="s in [[2, 3], [3, 3], [4, 3]]" :key="`s${s[0]}`" :x="30 + s[0] * 18" :y="40 + s[1] * 18" width="16" height="16" rx="3" :fill="palette.life400" :fill-opacity="s[0] === 4 ? 1 : 0.6" />
@@ -326,7 +328,7 @@ const attention = (() => {
     </g>
 
     <!-- Training job -> telemetry -> API/SSE -> browser -->
-    <g v-else-if="kind === 'pipeline'" font-family="JetBrains Mono, monospace" font-size="10">
+    <g v-else-if="kind === 'pipeline'" font-family="Geist Mono, monospace" font-size="10">
       <g v-for="(s, i) in [
         { t: 'jobs/*.py', s: 'evolve()' },
         { t: 'telemetry', s: 'jsonl + sqlite' },

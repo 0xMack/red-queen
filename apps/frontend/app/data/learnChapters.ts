@@ -12,6 +12,7 @@ export type ChapterArtKind =
   | "q-network"
   | "policy"
   | "self-play"
+  | "bandit"
 
 export interface LearnChapter {
   slug: string
@@ -128,6 +129,31 @@ export const learnChapters: LearnChapter[] = [
     ],
   },
   {
+    slug: "multi-armed-bandits",
+    title: "Multi-Armed Bandits: Explore or Exploit",
+    summary:
+      "Five slot machines, a hundred pulls: reinforcement learning with one situation and no future. Estimates, exploring on purpose -- ε-greedy, optimism, UCB, Thompson sampling -- which one wins depends on the game, the lamp that turns one row of values into a table, and the detour that needs a future (γ) -- Q-learning in miniature.",
+    path: "/learn/multi-armed-bandits",
+    status: "available",
+    part: "Reinforcement learning",
+    readMinutes: 13,
+    tags: ["reinforcement learning", "bandits", "exploration", "UCB", "Thompson sampling", "contextual bandit", "discount"],
+    art: "bandit",
+    prerequisites: ["genetic-algorithms"],
+    sections: [
+      "One situation, five choices",
+      "Keeping score: a table with one row",
+      "Greedy, and why it fails",
+      "Exploring on purpose",
+      "Which strategy wins depends on the game",
+      "When the world changes",
+      "Letting evolution choose the settings",
+      "Two lamps: when the situation matters",
+      "The detour: when a pull changes what comes next",
+      "From here to Q-learning",
+    ],
+  },
+  {
     slug: "q-learning",
     title: "Reinforcement Learning: Q-learning",
     summary:
@@ -138,7 +164,7 @@ export const learnChapters: LearnChapter[] = [
     readMinutes: 12,
     tags: ["reinforcement learning", "Q-learning", "SARSA", "Bellman equation", "exploration", "Markov", "snake"],
     art: "q-table",
-    prerequisites: ["neuroevolution"],
+    prerequisites: ["multi-armed-bandits", "neuroevolution"],
     sections: [
       "Learning from experience",
       "A value for every move in every situation",

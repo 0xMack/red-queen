@@ -1,6 +1,204 @@
 /* @ts-self-types="./rl.d.ts" */
 
 /**
+ * A multi-armed bandit game (docs/design/0011), and the strategy playing it -- or `"human"` for a game whose pulls
+ * come from the page. The game page races several of these on one seed; the Learn chapter looks inside one.
+ */
+export class BanditRun {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        BanditRunFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_banditrun_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get arms() {
+        const ret = wasm.banditrun_arms(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * The strategy's beliefs about situation `row`, flattened: `[values..., spread..., counts..., probabilities...]`
+     * (each `arms` long; probabilities empty for strategies that don't choose by chance). Empty in a human game.
+     * @param {number} row
+     * @returns {Float64Array}
+     */
+    beliefs(row) {
+        const ret = wasm.banditrun_beliefs(this.__wbg_ptr, row);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get bestArm() {
+        const ret = wasm.banditrun_bestArm(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get bestPulls() {
+        const ret = wasm.banditrun_bestPulls(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get budget() {
+        const ret = wasm.banditrun_budget(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * The strategy's pick for the next pull, without pulling (-1 in a human game).
+     * @returns {number}
+     */
+    choose() {
+        const ret = wasm.banditrun_choose(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint32Array}
+     */
+    counts() {
+        const ret = wasm.banditrun_counts(this.__wbg_ptr);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get done() {
+        const ret = wasm.banditrun_done(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get efficiency() {
+        const ret = wasm.banditrun_efficiency(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get lamp() {
+        const ret = wasm.banditrun_lamp(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Each arm's true mean right now -- for the reveal, never for play.
+     * @returns {Float64Array}
+     */
+    means() {
+        const ret = wasm.banditrun_means(this.__wbg_ptr);
+        var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v1;
+    }
+    /**
+     * `scenario` (`classic`, `two-lamps`, ...), `observer` (`none.v1` or `lamp.v1`), `strategy` (`thompson`, ...,
+     * or `human`), `params` as `name=value,...`.
+     * @param {string} scenario
+     * @param {string} observer
+     * @param {string} strategy
+     * @param {string} params
+     * @param {number} seed
+     */
+    constructor(scenario, observer, strategy, params, seed) {
+        const ptr0 = passStringToWasm0(scenario, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(observer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(strategy, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(params, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.banditrun_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, seed);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        BanditRunFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Pull `arm`; returns its payout. The strategy (if any) learns from it.
+     * @param {number} arm
+     * @returns {number}
+     */
+    pull(arm) {
+        const ret = wasm.banditrun_pull(this.__wbg_ptr, arm);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0];
+    }
+    /**
+     * @returns {number}
+     */
+    get pulls() {
+        const ret = wasm.banditrun_pulls(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get regret() {
+        const ret = wasm.banditrun_regret(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * The arms under lamp `context` before any drift, as JSON `[{kind, mean, ...params}]`, and a drifting game's
+     * switch (`{"at": n, "after": [means]}`) -- the end-of-game reveal.
+     * @returns {string}
+     */
+    reveal() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.banditrun_reveal(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The situation the strategy is in (the lamp, if it sees it).
+     * @returns {number}
+     */
+    get row() {
+        const ret = wasm.banditrun_row(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * 0 = no better than pulling at random, 1 = the best arm every pull.
+     * @returns {number}
+     */
+    get skill() {
+        const ret = wasm.banditrun_skill(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get total() {
+        const ret = wasm.banditrun_total(this.__wbg_ptr);
+        return ret;
+    }
+}
+if (Symbol.dispose) BanditRun.prototype[Symbol.dispose] = BanditRun.prototype.free;
+
+/**
  * Any environment the trainers know (`reach1d`, or a Snake interface id), for a demo to step the greedy policy
  * through and draw -- what `DemoGame` is for Snake, without Snake's board.
  */
@@ -684,6 +882,53 @@ export class Trainer {
 if (Symbol.dispose) Trainer.prototype[Symbol.dispose] = Trainer.prototype.free;
 
 /**
+ * `bandit_digest(seed)`: every bandit strategy on every scenario, hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function banditDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.banditDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * A strategy on `count` games from seed `first`, as `[regret, efficiency, skill, best_rate]` per game, flattened -- the
+ * scenario comparisons the Learn chapter draws, computed in the reader's browser.
+ * @param {string} strategy
+ * @param {string} params
+ * @param {string} scenario
+ * @param {string} observer
+ * @param {number} first
+ * @param {number} count
+ * @returns {Float64Array}
+ */
+export function banditEvaluate(strategy, params, scenario, observer, first, count) {
+    const ptr0 = passStringToWasm0(strategy, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(params, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(scenario, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(observer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.banditEvaluate(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, first, count);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v5;
+}
+
+/**
  * `iterations` single-observation forward passes (choosing an action). Returns a checksum; time the call.
  * @param {Uint32Array} layer_sizes
  * @param {string} activations
@@ -858,6 +1103,9 @@ function __wbg_get_imports() {
     };
 }
 
+const BanditRunFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_banditrun_free(ptr >>> 0, 1));
 const DemoEnvFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_demoenv_free(ptr >>> 0, 1));

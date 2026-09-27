@@ -3,6 +3,7 @@
 //! Learn's live demos as WebAssembly (`rust/wasm`). Never names a game: `redqueen-rl-envs` adapts the games crate.
 
 pub mod agent;
+pub mod bandit;
 pub mod digest;
 pub mod dqn;
 pub mod env;

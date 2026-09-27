@@ -71,8 +71,25 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
       variant?: string | null
     }
     protocol: { held_out_seeds: [number, number]; episodes: number; max_steps: number; board: Record<string, number>; metric: string }
+    // Bandit strategies only (jobs/evaluate_bandit.py, docs/design/0011): the strategy and settings the entrant is,
+    // and its skill on every scenario -- `two-lamps:lamp.v1` is the same strategy seeing the lamp.
+    bandit?: {
+      strategy: string
+      params: Record<string, number>
+      scenarios: Record<string, BanditScenarioResult>
+    }
   }
   hardware: { cpu?: string; python?: string; hardware_class?: string; engine?: string; logical_cores?: number }
+}
+
+export interface BanditScenarioResult {
+  /** 0 = no better than pulling at random, 100 = the best machine every pull. */
+  skill: number
+  skill_ci95: number
+  efficiency: number
+  regret: number
+  best_rate: number
+  scores: number[]
 }
 
 export interface InterfaceInfo {

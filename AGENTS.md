@@ -9,7 +9,8 @@ landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/A
 0006: multi-agent games and the strategy/match framework, 0007: game representations, leaderboards,
 and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons, 0009: client-side inference at scale — Rust/WASM
 games, ONNX Runtime Web, model packages; 0010: reinforcement learning — the Q-table → DQN → policy-gradient →
-self-play plan) — read the relevant one before an
+self-play plan; 0011: multi-armed bandits — a game and chapter for exploration vs. exploitation, the rung under
+Q-learning) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -25,7 +26,7 @@ architectural change that might conflict with a decision already made.
     the chosen backend needs, `device.ts` probes WebGPU/WASM/storage, `match.ts` picks a variant or says
     in plain language why none fits, `blobs.ts` fetches hash-verified blobs into the Cache API forever,
     `lm.ts` + `workers/lm.worker.ts` generate text with a KV cache). No Pyodide anywhere any more.
-    - `/games/{game}` (`snake`, `checkers`) — **one page layout for every game** (docs/design/0007):
+    - `/games/{game}` (`snake`, `checkers`, `bandit`) — **one page layout for every game** (docs/design/0007):
       `GamePage.vue` renders the shared skeleton (Watch/Play stage, ranked leaderboard, measurements,
       cost tradeoffs, head-to-head, representations) from a per-game `GameModule` (`app/games/`); adding a
       game means a module + stage + an evaluation job, not another page. For Snake: watch leaderboard
@@ -48,7 +49,12 @@ architectural change that might conflict with a decision already made.
       what a live demo can't reliably show (a 1-in-20 divergence). Cited experiment results are `ArmResults` strip
       plots fed hard-coded report numbers. `/learn/self-play` trains a Checkers evaluator by self-play in a worker
       (`workers/selfPlayLab.worker.ts` → `useSelfPlayLab` → `SelfPlayLab`) and seats it on the same `VersusStage` the
-      game page uses, so a reader plays the network they just trained.
+      game page uses, so a reader plays the network they just trained. `/games/bandit` and
+      `/learn/multi-armed-bandits` (docs/design/0011) run the rl WASM module on the *main thread* (`useBanditRun`; a pull is
+      microseconds): `components/bandit/` draws the floor of `SlotMachine`s, the table a strategy keeps (`BanditTable`),
+      every pull (`BanditTape`), Thompson's `BeliefCurves`, a same-seed `BanditRace` and the `BanditReveal`;
+      `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
+      `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`.
 
     The session worker is a module-level singleton (`app/composables/useSnakeWorker.ts`), so a model
     loaded on one page is instant on the next. `GridBoard.vue` renders the board (segments keyed by
@@ -143,6 +149,10 @@ architectural change that might conflict with a decision already made.
     `jobs/checkers_neuro_run.py` / `jobs/checkers_neat_run.py` (shared parts in `jobs/checkers_training.py`),
     and the browser gets a champion as plain numbers from `GET /runs/{id}/artifacts/{ref}/brain`
     (`evolve.networks.compiled`), so there is no hand-exported champion file and no client-side NEAT. `games.interfaces` registers `checkers/board32.v1+evaluate1ply.v1`.
+  - `games.bandit` (`rust/core/src/bandit.rs`, docs/design/0011): a multi-armed bandit, 8 scenarios (`detour` is sequential:
+    a pull decides the next room, and skill's yardsticks come from dynamic programming over the budget). Every arm draws
+    payouts from its own PCG32 stream (so the n-th pull of an arm pays the same for every player: races are fair), and
+    the score is *expected* skill -- choices, not luck. Oracle `tests/reference_bandit.py`, pull for pull.
   - `evolve/neat.py` (docs/design/0008) — NEAT: a graph genome of innovation-numbered connection genes
     whose *structure* evolves (add connection / split a connection into a node), with
     innovation-aligned crossover, speciation, and fitness sharing. Has its own loop
@@ -195,6 +205,12 @@ architectural change that might conflict with a decision already made.
     Phase 4: Checkers self-play (`rust/envs/src/selfplay.rs`, a two-player loop beside the single-agent `Trainer`) --
     TD(λ) on a 32 -> 16 -> 1 position-value network, champions saved as `evolve.WeightVector` JSON so they *are*
     Checkers evaluators (versus leaderboard, packaging, page: unchanged); `rl.CheckersSelfPlay`, WASM `SelfPlayTrainer`.
+    Bandits (docs/design/0011): `rust/core/src/bandit.rs` is *online* strategies (greedy, ε-greedy, optimistic, UCB1,
+    Thompson, gradient, and `QTableAgent` itself with γ 0) over a `rows x arms` table -- they learn within one game, so
+    they don't use the `Trainer`; `rust/envs/src/bandit.rs`'s `BanditRun` couples one to one game through the
+    `bandit/none.v1` (one row) or `lamp.v1` (a row per lamp colour, or room) interface; `update_to` passes where a pull
+    led, so `q_table` with `gamma` > 0 is the Bellman update (Level 3). Oracle `reference_bandit_agents.py`, belief
+    for belief; a `bandit` digest in the fixture.
 - `jobs/` — training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
   never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
   `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
@@ -225,6 +241,10 @@ architectural change that might conflict with a decision already made.
   is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
+  `bandit_evolve_run.py` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games and
+  records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
+  pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
+  evolved run's champion; it runs in a second).
   `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
   `failed`; `REDQUEEN_RUN_DATA_DIR` points jobs and the backend at a scratch directory for smoke runs).
   `control.py`'s `make_control_callback`

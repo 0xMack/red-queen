@@ -89,4 +89,7 @@ export interface GameModule {
   initialHuman?(slug: string): { score: number; label: string; live: boolean } | null
   /** Optional page sections. */
   sections: { pareto: boolean; headToHead: boolean; representations: boolean }
+  /** A game's own figure under the full leaderboard (the bandit's strategy x scenario matrix). Receives `entries` and
+   *  `selectedId`, and may emit `select` with an entrant id. */
+  Insights?: Component
 }
