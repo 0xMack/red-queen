@@ -183,6 +183,30 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
     </p>
     <BanditLab title="When the best machine breaks" :scenarios="['drifting']" strategy="epsilon-tracking" />
 
+    <h2>Letting evolution choose the settings</h2>
+    <p>
+      Every strategy above has knobs, and every number in the table depends on how they were set. So let evolution set
+      them. <code>jobs/bandit_evolve_run.py</code> treats ε-greedy's four settings -- how often it explores, how quickly
+      that exploring fades, how far each payout moves an estimate, and what an untried machine is assumed to pay -- as a
+      genome of four numbers, and evolves a population of 32 of them for 40 generations, scoring each on 100 fresh
+      training games every generation (none of them from the table's held-out games).
+    </p>
+    <p>
+      Evolution's answer, on the classic game: explore at random almost never (ε 0.001), start every machine at 0.59 --
+      a little above what an average machine pays -- and move estimates slowly (step 0.05). It turned ε-greedy into
+      <strong>optimistic start</strong>, the strategy that was already winning, and tuned it: <strong>80</strong> on unseen
+      games, the best in the table. The same settings also lead on <em>Drifting</em> (67) and <em>Jackpot</em> (42) --
+      a slow constant step both forgets a broken machine and keeps a rare jackpot from being written off after one miss.
+    </p>
+    <p>
+      And they fail completely on <em>Lucky start</em> (5), whose machines pay 4 to 7 on average: starting every machine
+      at 0.59 isn't optimistic there, it's pessimistic, and the strategy becomes greedy. Evolving on four win-or-lose
+      scenarios at once gives a generalist (the best on <em>Close call</em> and <em>Drifting</em>) with exactly the same
+      blind spot. Evolution finds the best settings for the games it's shown -- and says nothing about the rest. Both
+      runs are on the <NuxtLink to="/runs">runs page</NuxtLink>, with the settings they evolved generation by
+      generation.
+    </p>
+
     <h2>Two lamps: when the situation matters</h2>
     <p>
       Now a lamp above the machines lights red or blue before each pull, and the machines pay differently under each

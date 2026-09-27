@@ -67,13 +67,14 @@ const curves = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <!-- A container, not the viewport: the player sits in a full-width stage, a chapter column and a run page's side panel. -->
+  <div class="@container space-y-5">
     <UiEmpty v-if="run.error.value">{{ run.error.value }}</UiEmpty>
     <template v-else>
       <BanditFloor :run="run" :scenario="info" :chosen="chosen" show-beliefs :spin-ms="Math.min(360, tickMs * 0.6)" :revealed="run.done.value" />
       <PlaybackControls :paused="paused" :speed="speed" new-game-label="New game" @update:paused="(p) => (paused = p)" @update:speed="(s) => (speed = s)" @new-game="newGame" />
 
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div class="grid gap-6 @3xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <div class="min-w-0">
           <p class="label mb-2">What it believes · the table it keeps</p>
           <BanditTable

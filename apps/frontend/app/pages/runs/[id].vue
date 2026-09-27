@@ -283,6 +283,12 @@ async function copyId() {
             <WatchChampion v-else :run-id="runId" :manage-stream="false" :pinned-generation="pinned" @unpin="pinned = null" />
           </ClientOnly>
           <ChampionProgram v-else-if="latest && meta?.representation === 'linear_gp'" :run-id="runId" :champion-ref="latest.champion_ref" />
+          <BanditRunChampion
+            v-else-if="latest && meta?.game === 'bandit'"
+            :run-id="runId"
+            :champion-ref="(pinned !== null ? history.find((h) => h.generation === pinned) : latest)?.champion_ref ?? latest.champion_ref"
+            :scenarios="Array.isArray(run?.config?.scenarios) ? (run!.config!.scenarios as string[]) : undefined"
+          />
           <p v-else-if="latest" class="text-sm text-fg-subtle">
             Champion stored as <code class="chip">{{ latest.champion_ref }}</code> -- no viewer for this representation yet.
           </p>

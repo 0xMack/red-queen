@@ -147,6 +147,7 @@ export const learnChapters: LearnChapter[] = [
       "Exploring on purpose",
       "Which strategy wins depends on the game",
       "When the world changes",
+      "Letting evolution choose the settings",
       "Two lamps: when the situation matters",
       "The detour: when a pull changes what comes next",
       "From here to Q-learning",

@@ -1,8 +1,7 @@
 # 0011 — Multi-armed bandits: a game for exploration, exploitation, and the step up to Q-tables
 
-Status: **Levels 1, 2 and 3 implemented** (2026-09-27): the game core, the strategies, the leaderboard, the game page
-and the Learn chapter. See "Implementation notes" for what was measured and what changed from the plan below. The
-evolved strategy is still open.
+Status: **Implemented** (2026-09-27): all three levels, the evolved strategy, the leaderboard, the game page and the
+Learn chapter. See "Implementation notes" for what was measured and what changed from the plan below.
 Relates to: [0006](0006-multiagent-games-and-strategy-framework.md) (a game in `libs/games`, one page layout),
 [0007](0007-representations-leaderboards-and-tradeoffs.md) (interfaces, held-out protocols, leaderboards),
 [0009](0009-client-side-inference-at-scale.md) (Rust core → PyO3 + WASM), [0010](0010-reinforcement-learning.md)
@@ -260,3 +259,24 @@ are enough, and the lesson is sharper than on Snake because the whole table is o
 Every other strategy scores ≤ 10.5; playing the best red machine perfectly and never taking the detour scores 21.5.
 γ 0.99 collapses because the optimistic initial values echo between the rooms faster than 100 pulls wear them down --
 the chapter says so rather than hiding the dial's top end.
+
+### The evolved strategy (2026-09-27)
+
+`jobs/bandit_evolve_run.py`: ε-greedy's four settings (ε, its decay window, the step α, the initial estimate), squashed
+from an `evolve.WeightVector` of 4 numbers, evolved by `evolve()` (32 genomes, 40 generations, tournament k 3, Gaussian
+mutation σ 0.4) on 100 fresh training games per scenario per generation (seeds 1-9,999); the champion's skill on a fixed
+monitor set (20,000-20,199) every 5 generations is the run's held-out score. Recorded like any evolution run
+(`representation: evolved_bandit`); `evaluate_bandit.py` enters every completed one's final champion (`run:<id>`). The
+run page shows its settings and plays it (`BanditRunChampion`).
+
+| | classic | close-call | lucky-start | jackpot | drifting | too-many-arms | detour |
+|---|---|---|---|---|---|---|---|
+| evolved on classic (ε 0.001, decay 27, α 0.049, initial 0.588) | **80.4** | 17.1 | 4.8 | **42.0** | 67.3 | 66.5 | 14.6 |
+| evolved on classic + close-call + drifting + too-many-arms | 78.5 | **22.8** | 6.0 | 35.5 | **71.8** | **68.3** | 13.9 |
+| best hand-set strategy | 77.9 | 22.2 | 66.1 | 31.2 | 59.4 | 61.8 | 54.8 |
+
+Evolution turned exploration off and the start optimistic -- it rediscovered optimistic initial values and tuned them.
+Training fitness and the monitor score track each other (78.8 vs 78.6): with fresh games every generation there is
+nothing to memorize. The evolved settings are the best in the table on every scenario they -- or their siblings -- were
+evolved on, and fail wherever the payout scale differs (*Lucky start*, where 0.59 is pessimistic) or a future matters
+(*Detour*): the specialization lesson, in one row.

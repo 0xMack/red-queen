@@ -13,6 +13,8 @@ const row = (id: string, label: string, v: number[]): MatrixRow => ({
 })
 
 export const BANDIT_RESULTS: MatrixRow[] = [
+  row("evolved-classic", "ε-greedy, evolved on classic", [80.4, 17.1, 4.8, 42.0, 67.3, 66.5, -0.1, 72.2, 14.6]),
+  row("evolved-mixed", "ε-greedy, evolved on 4 scenarios", [78.5, 22.8, 6.0, 35.5, 71.8, 68.3, 0.1, 71.3, 13.9]),
   row("optimistic", "Optimistic start", [77.9, 22.2, 66.1, 4.2, 49.3, 61.8, 0.4, 68.0, 10.4]),
   row("ucb-tuned", "UCB, tuned (c 0.5)", [70.8, 17.6, 64.7, 5.4, 59.4, 43.2, 0.0, 59.1, 10.5]),
   row("thompson", "Thompson sampling", [64.4, 13.0, 53.5, 4.0, 47.3, 39.5, 0.3, 50.5, 2.7]),

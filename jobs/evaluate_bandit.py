@@ -17,6 +17,7 @@ Run with: uv run python jobs/evaluate_bandit.py
 
 from __future__ import annotations
 
+import json
 import statistics
 import sys
 import time
@@ -25,7 +26,7 @@ from typing import Any
 from costs import hardware_fingerprint
 from games.bandit import SCENARIOS
 from rl import _native
-from run_context import RUN_DATA_DIR
+from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import EvaluationRecord, SqliteEvaluationStore
 
 GAME = "bandit"
@@ -150,7 +151,8 @@ def evaluate(strategy: str, params: dict[str, float]) -> tuple[dict[str, dict[st
     return scenarios, (time.perf_counter() - start) * 1e6 / pulls
 
 
-def record_for(entrant: tuple, hardware: dict[str, Any]) -> EvaluationRecord:
+def record_for(entrant: tuple, hardware: dict[str, Any], run: tuple[str, str] | None = None) -> EvaluationRecord:
+    """`run`: (run id, champion ref) for an entrant that came out of a recorded run (an evolved strategy)."""
     key, strategy, params, label, description, baseline = entrant
     scenarios, us_per_pull = evaluate(strategy, params)
     ranked = scenarios[RANKED]
@@ -159,10 +161,12 @@ def record_for(entrant: tuple, hardware: dict[str, Any]) -> EvaluationRecord:
     return EvaluationRecord(
         game=GAME,
         protocol=PROTOCOL,
-        entrant_id=f"{'baseline' if baseline else 'strategy'}:{key}",
+        entrant_id=f"run:{run[0]}" if run else f"{'baseline' if baseline else 'strategy'}:{key}",
         entrant_kind="baseline" if baseline else "champion",
         label=label,
         interface="bandit/none.v1+arm.v1",
+        run_id=run[0] if run else None,
+        champion_ref=run[1] if run else None,
         created_at=time.time(),
         metrics={
             "quality": {
@@ -205,11 +209,40 @@ def record_for(entrant: tuple, hardware: dict[str, Any]) -> EvaluationRecord:
     )
 
 
+def evolved_entrants() -> list[tuple[tuple, tuple[str, str]]]:
+    """Every completed bandit evolution run's final champion (jobs/bandit_evolve_run.py): its evolved settings, as an
+    entrant linked to the run that produced it."""
+    stores = TelemetryStores.open()
+    out = []
+    for run in stores.registry.list_runs():
+        config = run.config or {}
+        if config.get("game") != GAME or config.get("representation") != "evolved_bandit" or run.status != "completed":
+            continue
+        history = stores.metrics.history(run.run_id)
+        if not history:
+            continue
+        champion = json.loads(stores.artifacts.get_program(history[-1].champion_ref))
+        scenarios = config.get("scenarios", [])
+        on = scenarios[0] if len(scenarios) == 1 else f"{len(scenarios)} scenarios"
+        settings = ", ".join(f"{k} {v}" for k, v in champion["params"].items())
+        entrant = (
+            run.run_id,
+            champion["strategy"],
+            champion["params"],
+            f"ε-greedy, evolved on {on}",
+            f"ε-greedy with settings evolved over {len(history)} generations on {', '.join(scenarios)}: {settings}.",
+            False,
+        )
+        out.append((entrant, (run.run_id, history[-1].champion_ref)))
+    return out
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
     hardware = hardware_fingerprint()
     records = [record_for(e, hardware) for e in ENTRANTS]
+    records += [record_for(e, hardware, run) for e, run in evolved_entrants()]
     for record in records:
         store.put(record)
     for entrant_id in store.prune(GAME, PROTOCOL, {r.entrant_id for r in records}):

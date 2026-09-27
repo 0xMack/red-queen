@@ -241,8 +241,10 @@ architectural change that might conflict with a decision already made.
   is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
-  `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
-  pull -- on 500 held-out games of every scenario, ranked on `classic`; nothing is trained, so it runs in a second).
+  `bandit_evolve_run.py` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games and
+  records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
+  pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
+  evolved run's champion; it runs in a second).
   `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
   `failed`; `REDQUEEN_RUN_DATA_DIR` points jobs and the backend at a scratch directory for smoke runs).
   `control.py`'s `make_control_callback`
