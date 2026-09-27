@@ -12,6 +12,7 @@
 //! Also here: the games' fixed baselines as policies, so `tests/test_envs.py` can check that an episode through an
 //! adapter scores exactly what `jobs/evaluate.py` records for the same seed.
 
+pub mod bandit;
 pub mod selfplay;
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};

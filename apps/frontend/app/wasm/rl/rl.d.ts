@@ -2,6 +2,61 @@
 /* eslint-disable */
 
 /**
+ * A multi-armed bandit game (docs/design/0011), and the strategy playing it -- or `"human"` for a game whose pulls
+ * come from the page. The game page races several of these on one seed; the Learn chapter looks inside one.
+ */
+export class BanditRun {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * The strategy's beliefs about situation `row`, flattened: `[values..., spread..., counts..., probabilities...]`
+     * (each `arms` long; probabilities empty for strategies that don't choose by chance). Empty in a human game.
+     */
+    beliefs(row: number): Float64Array;
+    /**
+     * The strategy's pick for the next pull, without pulling (-1 in a human game).
+     */
+    choose(): number;
+    counts(): Uint32Array;
+    /**
+     * Each arm's true mean right now -- for the reveal, never for play.
+     */
+    means(): Float64Array;
+    /**
+     * `scenario` (`classic`, `two-lamps`, ...), `observer` (`none.v1` or `lamp.v1`), `strategy` (`thompson`, ...,
+     * or `human`), `params` as `name=value,...`.
+     */
+    constructor(scenario: string, observer: string, strategy: string, params: string, seed: number);
+    /**
+     * Pull `arm`; returns its payout. The strategy (if any) learns from it.
+     */
+    pull(arm: number): number;
+    /**
+     * The arms under lamp `context` before any drift, as JSON `[{kind, mean, ...params}]`, and a drifting game's
+     * switch (`{"at": n, "after": [means]}`) -- the end-of-game reveal.
+     */
+    reveal(): string;
+    readonly arms: number;
+    readonly bestArm: number;
+    readonly bestPulls: number;
+    readonly budget: number;
+    readonly done: boolean;
+    readonly efficiency: number;
+    readonly lamp: number;
+    readonly pulls: number;
+    readonly regret: number;
+    /**
+     * The situation the strategy is in (the lamp, if it sees it).
+     */
+    readonly row: number;
+    /**
+     * 0 = no better than pulling at random, 1 = the best arm every pull.
+     */
+    readonly skill: number;
+    readonly total: number;
+}
+
+/**
  * Any environment the trainers know (`reach1d`, or a Snake interface id), for a demo to step the greedy policy
  * through and draw -- what `DemoGame` is for Snake, without Snake's board.
  */
@@ -166,6 +221,17 @@ export class Trainer {
 }
 
 /**
+ * `bandit_digest(seed)`: every bandit strategy on every scenario, hashed.
+ */
+export function banditDigest(seed: number): string;
+
+/**
+ * A strategy on `count` games from seed `first`, as `[regret, efficiency, skill, best_rate]` per game, flattened -- the
+ * scenario comparisons the Learn chapter draws, computed in the reader's browser.
+ */
+export function banditEvaluate(strategy: string, params: string, scenario: string, observer: string, first: number, count: number): Float64Array;
+
+/**
  * `iterations` single-observation forward passes (choosing an action). Returns a checksum; time the call.
  */
 export function benchForwards(layer_sizes: Uint32Array, activations: string, iterations: number): number;
@@ -210,6 +276,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_banditrun_free: (a: number, b: number) => void;
     readonly __wbg_demoenv_free: (a: number, b: number) => void;
     readonly __wbg_demogame_free: (a: number, b: number) => void;
     readonly __wbg_get_progress_entropy: (a: number) => number;
@@ -238,6 +305,27 @@ export interface InitOutput {
     readonly __wbg_set_progress_total_steps: (a: number, b: number) => void;
     readonly __wbg_set_progress_updates: (a: number, b: number) => void;
     readonly __wbg_trainer_free: (a: number, b: number) => void;
+    readonly banditDigest: (a: number) => [number, number];
+    readonly banditEvaluate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+    readonly banditrun_arms: (a: number) => number;
+    readonly banditrun_beliefs: (a: number, b: number) => [number, number];
+    readonly banditrun_bestArm: (a: number) => number;
+    readonly banditrun_bestPulls: (a: number) => number;
+    readonly banditrun_budget: (a: number) => number;
+    readonly banditrun_choose: (a: number) => number;
+    readonly banditrun_counts: (a: number) => [number, number];
+    readonly banditrun_done: (a: number) => number;
+    readonly banditrun_efficiency: (a: number) => number;
+    readonly banditrun_lamp: (a: number) => number;
+    readonly banditrun_means: (a: number) => [number, number];
+    readonly banditrun_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly banditrun_pull: (a: number, b: number) => [number, number, number];
+    readonly banditrun_pulls: (a: number) => number;
+    readonly banditrun_regret: (a: number) => number;
+    readonly banditrun_reveal: (a: number) => [number, number];
+    readonly banditrun_row: (a: number) => number;
+    readonly banditrun_skill: (a: number) => number;
+    readonly banditrun_total: (a: number) => number;
     readonly benchForwards: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly benchUpdates: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly demoenv_done: (a: number) => number;
@@ -290,10 +378,10 @@ export interface InitOutput {
     readonly __wbg_get_selfplayprogress_second_wins: (a: number) => number;
     readonly __wbg_get_selfplayprogress_total_games: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 
