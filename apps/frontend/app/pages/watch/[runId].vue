@@ -18,11 +18,8 @@ const game = computed(() => (typeof run.value?.config?.game === "string" ? run.v
 </script>
 
 <template>
-  <main class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
-    <NuxtLink :to="`/runs/${runId}`" class="text-sm text-fg-subtle transition hover:text-fg">&larr; Run details</NuxtLink>
-    <p class="eyebrow mt-4">Watch mode</p>
-    <h1 class="mt-2 text-3xl font-semibold">A trained champion, playing live</h1>
-    <p class="mt-2 max-w-2xl text-fg-muted">
+  <main class="mx-auto max-w-[1400px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
+    <UiSectionHeader :level="1" eyebrow="Watch mode" title="A trained champion, playing live" :back="{ to: `/runs/${runId}`, label: 'Run details' }">
       <template v-if="game === 'checkers'">
         The champion plays the opponent you pick; drag the slider to see any generation, or measure it in
         the arena. If the run is still training, the newest champion is swapped in the moment it's recorded.
@@ -31,13 +28,12 @@ const game = computed(() => (typeof run.value?.config?.game === "string" ? run.v
         No controls -- the network decides every move. If the run is still training, the newest
         champion is swapped in the moment it's recorded.
       </template>
-      <span class="font-mono text-xs text-fg-subtle">{{ runId }}</span>
-    </p>
-    <div class="card mt-8 p-5">
+    </UiSectionHeader>
+    <UiPanel ticks class="mt-8" :label="`run ${shortId(runId)}`">
       <ClientOnly>
         <CheckersWatch v-if="game === 'checkers'" :run-id="runId" scrubber />
         <WatchChampion v-else :run-id="runId" />
       </ClientOnly>
-    </div>
+    </UiPanel>
   </main>
 </template>

@@ -60,7 +60,7 @@ architectural change that might conflict with a decision already made.
     "interactive textbook" covering how the project's techniques actually work — code snippets,
     embedded live games, callouts citing real results) round out the site; `/runs` is where the run
     list moved: one `GET /runs/summaries` (never per-run histories), held raw in the `runs` store and reused for a
-    minute, with each experiment's runs collapsed into one expandable row (`RunsTableRow`/`RunsCard`). Reusable components (`CodeBlock`, `Callout`, `ChapterCard`, `GameCard`, etc.) and
+    minute, with each experiment's runs collapsed into one expandable row (`RunsTableRow`/`RunsCard`). Components are organized by domain (`ui/` primitives -- `UiPanel`, `UiFigure`, `UiSectionHeader`, `UiStats`, ... -- `lab/` the live-lab kit every Learn training demo is built from, `game/`, `versus/`, `leaderboard/`, `chart/`, `learn/`, `runs/`) but named by file alone (`pathPrefix: false`); colours are tokens in `main.css`, mirrored for SVG/chart code in `utils/palette.ts` -- no hex values in components. Reusable components and
     layered session composables (`useSnakeSession` → `usePlaySession`/`useWatchSession`) are a
     deliberate design principle here, not incidental — see `apps/frontend/README.md` for the full
     breakdown and why `@nuxt/content` was rejected (native-binding risk) in favor of this. The API's

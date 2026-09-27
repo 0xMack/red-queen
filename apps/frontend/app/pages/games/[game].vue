@@ -16,16 +16,13 @@ const board = gameModule ? await useGameBoard(slug) : null
 
 <template>
   <GamePage v-if="game && gameModule && board" :game="game" :module="gameModule" :board="board" />
-  <main v-else class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
-    <NuxtLink to="/games" class="text-sm text-fg-subtle transition hover:text-fg">&larr; Games</NuxtLink>
-    <div v-if="!game" class="card mt-8 p-8 text-center text-fg-muted">
-      No game called “{{ slug }}”. <NuxtLink to="/games" class="link">See all games</NuxtLink>.
-    </div>
-    <template v-else>
-      <p class="eyebrow mt-4">{{ game.tagline }}</p>
-      <h1 class="mt-2 text-3xl font-semibold sm:text-4xl">{{ game.title }}</h1>
-      <p class="mt-2 max-w-3xl text-fg-muted">{{ game.summary }}</p>
-      <p class="card mt-8 p-6 text-fg-muted">Coming soon.</p>
-    </template>
+  <main v-else class="mx-auto max-w-[1600px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
+    <UiSectionHeader :level="1" :eyebrow="game?.tagline ?? 'Games'" :title="game?.title ?? slug" :back="{ to: '/games', label: 'Games' }">
+      {{ game ? game.summary : `No game called “${slug}”.` }}
+    </UiSectionHeader>
+    <UiEmpty class="mt-10 min-h-60">
+      <template v-if="game">Coming soon.</template>
+      <NuxtLink v-else to="/games" class="link">See all games</NuxtLink>
+    </UiEmpty>
   </main>
 </template>

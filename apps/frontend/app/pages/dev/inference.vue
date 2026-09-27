@@ -28,7 +28,7 @@ onMounted(refresh)
 <template>
   <main class="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 lg:px-8">
     <p class="eyebrow">Development</p>
-    <h1 class="mt-2 text-3xl font-semibold">Client-side inference</h1>
+    <h1 class="mt-2 text-[2.6rem] leading-tight">Client-side inference</h1>
     <p class="mt-2 max-w-3xl text-fg-muted">
       What this browser offers, what's cached, and a deliberately large model to test the big-model path.
       Add <code>?device=nowebgpu</code>, <code>nowasm</code> or <code>nothreads</code> to the URL to switch
@@ -36,7 +36,7 @@ onMounted(refresh)
     </p>
 
     <section class="card mt-6 p-5 text-sm" data-device-profile>
-      <h2 class="font-display font-semibold">This device</h2>
+      <h2 class="font-display">This device</h2>
       <dl v-if="profile" class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-[180px_minmax(0,1fr)]">
         <dt class="text-fg-subtle">Browser</dt><dd>{{ profile.browser }}<template v-if="profile.forced.length"> · forced off: {{ profile.forced.join(", ") }}</template></dd>
         <dt class="text-fg-subtle">WebGPU</dt>

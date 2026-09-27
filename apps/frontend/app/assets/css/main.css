@@ -1,44 +1,54 @@
 @import "tailwindcss";
 
 /*
- * Red Queen design tokens. Dark "lab" theme by default: live boards and charts read far better on a
- * dark ground. Semantic names (surface/line/fg/queen) rather than raw palette names everywhere, so
- * a light theme later is a matter of redefining these, not rewriting every component's classes.
+ * Red Queen design system -- "ink & bone": a lab notebook read by lamplight. Warm near-black ink for the
+ * ground (live boards and charts read best on dark), bone-white type, a serif display face for the
+ * editorial voice and a mono for every measured number. Panels are "plates": hairline-ruled, barely
+ * rounded, captioned like figures in a paper (`UiPanel`), some with registration ticks at the corners.
  *
- * "queen" is the accent -- the Red Queen hypothesis (Through the Looking-Glass: running as fast as
- * you can just to stay in place) is the co-evolutionary arms race this project is named after.
+ * Every colour is a token. Components use the semantic names below (bg/surface/raised/line/fg/queen...);
+ * SVG and chart code that needs a literal value reads `utils/palette.ts`, which mirrors these -- change
+ * both together.
+ *
+ * "queen" is the accent -- the Red Queen hypothesis (Through the Looking-Glass: running as fast as you
+ * can just to stay in place) is the co-evolutionary arms race this project is named after.
  */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-bg: #090b10;
-  --color-surface: #0f121a;
-  --color-raised: #151924;
-  --color-sunken: #0b0e14;
-  --color-line: #222837;
-  --color-line-strong: #323a4d;
-  --color-fg: #e9ebf1;
-  --color-fg-muted: #a0a8ba;
-  --color-fg-subtle: #6b7489;
+  --color-bg: #0c0b0a;
+  --color-sunken: #080807;
+  --color-surface: #131211;
+  --color-raised: #1b1a18;
+  --color-line: #2a2825;
+  --color-line-strong: #3d3a35;
+  --color-fg: #efe9df;
+  --color-fg-muted: #b0a899;
+  --color-fg-subtle: #7a7368;
 
-  --color-queen-200: #ffc2cd;
-  --color-queen-300: #ff8fa3;
-  --color-queen-400: #ff5c7a;
-  --color-queen-500: #ef3b5d;
-  --color-queen-600: #c81e45;
-  --color-queen-700: #9b1535;
+  /* vermilion -- the queen's red */
+  --color-queen-200: #ffd0c6;
+  --color-queen-300: #ffa18f;
+  --color-queen-400: #ff6b55;
+  --color-queen-500: #ef4630;
+  --color-queen-600: #c7321f;
+  --color-queen-700: #962414;
 
   /* Series/secondary accents: "life" (the snake, improving fitness), "signal" (mean/reference lines),
-     "gold" (champions). */
-  --color-life-300: #86efac;
-  --color-life-400: #4ade80;
-  --color-life-500: #22c55e;
-  --color-signal-300: #93c5fd;
-  --color-signal-400: #60a5fa;
-  --color-gold-300: #fcd34d;
-  --color-gold-400: #fbbf24;
+     "gold" (champions, baselines), "violet" (a third comparison series). */
+  --color-life-300: #bfeea0;
+  --color-life-400: #93dc6b;
+  --color-life-500: #6cbf45;
+  --color-signal-300: #b2cdff;
+  --color-signal-400: #80a9ff;
+  --color-gold-300: #f6d690;
+  --color-gold-400: #eab551;
+  --color-violet-300: #d3c2ff;
+  --color-violet-400: #b39bff;
+
+  --radius-plate: 10px;
 
   --animate-live-pulse: live-pulse 1.8s ease-in-out infinite;
 
@@ -59,83 +69,157 @@
   html {
     color-scheme: dark;
     scroll-padding-top: 5rem; /* anchor links land below the sticky header */
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-bg font-sans text-fg antialiased;
-    /* A faint dot grid -- lab-notebook texture, low enough contrast to stay out of the way. */
-    background-image: radial-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px);
-    background-size: 22px 22px;
+    font-feature-settings: "ss01", "cv11";
+    /* A lamp overhead: the page is lit at the top and falls off to ink. */
+    background-image:
+      radial-gradient(120% 60% at 50% -10%, rgb(255 107 85 / 0.07), transparent 60%),
+      radial-gradient(80% 50% at 100% 0%, rgb(234 181 81 / 0.035), transparent 70%);
+    background-attachment: fixed;
   }
 
+  /* Display headings are the serif, at its one weight. Smaller headings stay in the sans. */
   h1,
-  h2,
-  h3 {
-    @apply font-display tracking-tight;
+  h2 {
+    @apply font-display font-normal tracking-[-0.01em] text-fg;
+  }
+
+  h3,
+  h4 {
+    @apply font-sans font-semibold tracking-[-0.01em] text-fg;
   }
 
   ::selection {
-    @apply bg-queen-500/40 text-white;
+    @apply bg-queen-500/40 text-fg;
   }
 
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-queen-400;
   }
+
+  input[type="range"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-queen-400);
+  }
+
+  select {
+    @apply cursor-pointer;
+  }
 }
 
+/* A plate: the one panel style. */
 @utility card {
-  @apply rounded-xl border border-line bg-surface/80 backdrop-blur-sm;
+  @apply rounded-[var(--radius-plate)] border border-line bg-surface;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.025),
+    0 1px 0 rgb(0 0 0 / 0.4);
 }
 
 @utility card-hover {
-  @apply transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)];
+  @apply transition duration-200 hover:border-line-strong hover:bg-raised/40;
+}
+
+/* A recessed area inside a plate: a readout, a diagram's ground, a code or data well. */
+@utility well {
+  @apply rounded-[8px] border border-line bg-sunken;
+}
+
+/* Registration marks at a plate's four corners -- the "specimen plate" signature. Use on the few panels
+   that are the point of a page (a stage, a hero figure), not everywhere. */
+@utility ticks {
+  --tick: var(--color-fg-subtle);
+  background-image:
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+  background-repeat: no-repeat;
+  background-size:
+    9px 1px, 1px 9px, 9px 1px, 1px 9px,
+    9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-position:
+    -1px -1px, -1px -1px, calc(100% + 1px) -1px, calc(100% + 1px) -1px,
+    -1px calc(100% + 1px), -1px calc(100% + 1px), calc(100% + 1px) calc(100% + 1px), calc(100% + 1px) calc(100% + 1px);
 }
 
 @utility eyebrow {
-  @apply font-mono text-[11px] font-medium tracking-[0.18em] text-queen-300 uppercase;
+  @apply font-mono text-[11px] font-medium tracking-[0.14em] text-queen-300 uppercase;
+}
+
+/* A figure caption / small label: mono, quiet. */
+@utility label {
+  @apply font-mono text-[10.5px] tracking-[0.08em] text-fg-subtle uppercase;
 }
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40;
+  @apply inline-flex items-center justify-center gap-2 rounded-[7px] px-4 py-2 text-sm font-medium whitespace-nowrap transition select-none disabled:cursor-not-allowed disabled:opacity-40;
 }
 
+/* Primary is bone on ink -- red is kept for what's live, and for the brand. */
 @utility btn-primary {
-  @apply btn bg-queen-500 text-white shadow-[0_0_0_1px_rgb(255_92_122/0.4),0_8px_24px_-8px_rgb(239_59_93/0.6)] hover:bg-queen-400;
+  @apply btn bg-fg text-bg hover:bg-white active:translate-y-px;
+}
+
+@utility btn-accent {
+  @apply btn bg-queen-500 text-white hover:bg-queen-400 active:translate-y-px;
 }
 
 @utility btn-ghost {
-  @apply btn border border-line-strong bg-raised/60 text-fg hover:border-fg-subtle hover:bg-raised;
+  @apply btn border border-line-strong text-fg hover:border-fg-subtle hover:bg-raised;
+}
+
+@utility btn-quiet {
+  @apply btn px-2.5 text-fg-muted hover:bg-raised hover:text-fg;
 }
 
 @utility btn-sm {
-  @apply px-2.5 py-1 text-xs;
+  @apply rounded-[6px] px-2.5 py-1 text-xs;
 }
 
 @utility chip {
-  @apply inline-flex items-center gap-1.5 rounded-md border border-line bg-raised px-2 py-0.5 font-mono text-[11px] text-fg-muted;
+  @apply inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-raised/60 px-1.5 py-px font-mono text-[11px] text-fg-muted;
 }
 
 @utility link {
-  @apply text-queen-300 underline decoration-queen-300/30 underline-offset-4 transition hover:decoration-queen-300;
+  @apply text-fg underline decoration-queen-400/50 decoration-1 underline-offset-[5px] transition hover:text-queen-200 hover:decoration-queen-300;
 }
 
 @utility num {
   @apply font-mono tabular-nums;
 }
 
+/* Form controls (UiSelect / UiRange / UiCheck use these; so can a raw element). */
+@utility field {
+  @apply rounded-[6px] border border-line-strong bg-sunken px-2 py-1 text-xs text-fg transition hover:border-fg-subtle focus:border-queen-400 focus:outline-none;
+}
+
 @layer components {
   /* Long-form chapter prose. Hand-authored pages, so a handful of element rules beats pulling in
-     @tailwindcss/typography for ~8 pages. */
+     @tailwindcss/typography for ~15 pages. */
   .prose-chapter {
-    @apply space-y-5 text-[15.5px] leading-7 text-fg-muted;
+    @apply space-y-5 text-[16px] leading-[1.75] text-fg-muted;
+  }
+
+  .prose-chapter > p:first-child::first-letter {
+    @apply float-left mt-1.5 mr-2 font-display text-[3.4rem] leading-[0.8] text-queen-400;
   }
 
   .prose-chapter h2 {
-    @apply scroll-mt-24 pt-6 text-2xl font-semibold text-fg;
+    @apply scroll-mt-24 pt-10 text-[2rem] leading-tight text-fg;
+  }
+
+  .prose-chapter h2::before {
+    content: "";
+    @apply mb-5 block h-px w-12 bg-queen-400;
   }
 
   .prose-chapter h3 {
-    @apply pt-2 text-lg font-semibold text-fg;
+    @apply pt-3 text-lg text-fg;
   }
 
   .prose-chapter strong {
@@ -147,7 +231,7 @@
   }
 
   .prose-chapter code:not(pre code) {
-    @apply rounded bg-raised px-1.5 py-0.5 font-mono text-[0.85em] text-queen-200;
+    @apply rounded-[4px] border border-line bg-raised px-1 py-px font-mono text-[0.84em] text-queen-200 [overflow-wrap:anywhere];
   }
 
   .prose-chapter ul {
@@ -155,20 +239,77 @@
   }
 
   .prose-chapter ol {
-    @apply list-decimal space-y-1.5 pl-6 marker:text-fg-subtle;
+    @apply list-decimal space-y-1.5 pl-6 marker:font-mono marker:text-fg-subtle;
   }
 
-  .prose-chapter a:not(.btn) {
-    @apply text-queen-300 underline decoration-queen-300/30 underline-offset-4 transition hover:decoration-queen-300;
+  .prose-chapter a:not(.btn, .btn-primary, .btn-ghost, .btn-accent) {
+    @apply text-fg underline decoration-queen-400/50 underline-offset-[5px] transition hover:text-queen-200 hover:decoration-queen-300;
   }
+
+  .prose-chapter blockquote {
+    @apply border-l-2 border-queen-400 pl-5 font-display text-xl text-fg italic;
+  }
+}
+
+/* Sliders: a hairline track filled to the value (`--fill`, set by UiRange), a bone thumb ringed in the accent. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+}
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--color-fg);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+  transition: transform 0.15s;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-fg);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+/* Figures number themselves: "Fig. 3 · Interactive". Each page (a <main>, or a chapter's body) restarts the count. */
+main,
+.prose-chapter {
+  counter-reset: fig;
+}
+.ui-figure {
+  counter-increment: fig;
+}
+.fig-num::before {
+  content: "Fig. " counter(fig) " · ";
+  color: var(--color-queen-300);
 }
 
 /* Route transitions (nuxt.config app.pageTransition). */
 .page-enter-active,
 .page-leave-active {
   transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 .page-enter-from {
   opacity: 0;

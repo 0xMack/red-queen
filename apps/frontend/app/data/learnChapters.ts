@@ -317,3 +317,42 @@ export const learnChapters: LearnChapter[] = [
 export function chapterNumber(slug: string): number {
   return learnChapters.findIndex((c) => c.slug === slug) + 1
 }
+
+// The chapter that explains how a run's algorithm (its config.representation) works -- "read how it was trained".
+const CHAPTER_FOR_REPRESENTATION: Record<string, string> = {
+  linear_gp: "genome-representations",
+  tree_gp: "genome-representations",
+  neuroevolution: "neuroevolution",
+  neat: "neat",
+  q_learning: "q-learning",
+  sarsa: "q-learning",
+  dqn: "dqn",
+  reinforce: "policy-gradients",
+  a2c: "policy-gradients",
+  ppo: "policy-gradients",
+  td_lambda: "self-play",
+}
+
+export function chapterForRepresentation(representation: string): LearnChapter | null {
+  const slug = CHAPTER_FOR_REPRESENTATION[representation]
+  return learnChapters.find((c) => c.slug === slug) ?? null
+}
+
+export interface ChapterPart {
+  part: string
+  numeral: string
+  chapters: { chapter: LearnChapter; number: number }[]
+}
+
+const NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+
+/** The chapters grouped by part, in reading order, each with its chapter number. */
+export function chapterParts(): ChapterPart[] {
+  const groups: ChapterPart[] = []
+  learnChapters.forEach((chapter, i) => {
+    let group = groups.find((g) => g.part === chapter.part)
+    if (!group) groups.push((group = { part: chapter.part, numeral: NUMERALS[groups.length] ?? String(groups.length + 1), chapters: [] }))
+    group.chapters.push({ chapter, number: i + 1 })
+  })
+  return groups
+}

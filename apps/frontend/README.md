@@ -132,13 +132,54 @@ for the full contract and incremental plan this implements (steps 3-6).
 
 ### Visual design
 
-Dark "lab" theme defined as semantic tokens in `app/assets/css/main.css` (`@theme`: `bg`/`surface`/
-`raised`/`line`/`fg`/`fg-muted`, accent `queen-*`, series colors `life`/`signal`/`gold`) plus a few
-`@utility` classes (`card`, `btn-primary`, `btn-ghost`, `chip`, `eyebrow`, `link`, `num`) -- use
-those rather than raw Tailwind palette colors. Fonts (Space Grotesk / Inter / JetBrains Mono) load
-from Google Fonts in `nuxt.config.ts`. The header is `sticky`; pages use `max-w-[1600px]` and
-responsive grids, and embeddable widgets (`WatchChampion`) use container queries so they adapt to
-the column they're placed in, not the viewport.
+"Ink & bone": a lab notebook read by lamplight. Warm near-black ground, bone type, an **Instrument Serif** display face
+for headings and figure titles, **Geist** for UI text and **Geist Mono** for every measured number (fonts load from
+Google Fonts in `nuxt.config.ts`), a vermilion accent (`queen-*`) kept for what's live and for the brand. The brand
+mark is a crown over its own reflection (the Looking-Glass queen; `components/app/BrandMark.vue`, `public/favicon.svg`).
+
+- **Tokens** live in `app/assets/css/main.css` (`@theme`: `bg`/`sunken`/`surface`/`raised`/`line`/`fg`/`fg-muted`/
+  `fg-subtle`, accent `queen-*`, series `life`/`signal`/`gold`/`violet`). Code that needs a literal colour -- SVG
+  attributes (which can't take `var(--…)`), chart series, canvas -- reads **`utils/palette.ts`** (`palette.queen400`,
+  `alpha("life400", 0.3)`), the one mirror of those tokens. **No component writes a hex value**; change a colour in
+  both files. The syntax theme (`utils/codeTheme.ts`) is built from the same palette.
+- **Utilities** (`@utility`): `card` (a *plate*: hairline border, barely rounded), `ticks` (registration marks at a
+  plate's corners -- for the one or two panels a page is about), `well` (a recessed area inside a plate), `label`
+  (mono caption), `eyebrow` (section kicker), `btn-primary` (bone), `btn-accent` (vermilion), `btn-ghost`,
+  `btn-quiet`, `btn-sm`, `chip`, `field` (form controls), `link`, `num`. Sliders are styled globally
+  (`input[type=range]`, filled to `--fill`).
+- **Figures number themselves**: `UiFigure` and `LabFrame` carry `.ui-figure`, and a CSS counter (reset per `main` /
+  `.prose-chapter`) prints "Fig. N · …" -- no bookkeeping, identical on server and client.
+- Pages use `max-w-[1600px]` and responsive grids; embeddable widgets (`WatchChampion`) use container queries so they
+  adapt to the column they're in. Every page is checked for horizontal overflow at 390px. Charts (`LineChart`,
+  `ParetoChart`) draw an absolutely-placed svg sized by a ResizeObserver, so they never give their box an intrinsic
+  width (which in a grid track is a feedback loop that pushes the page wider).
+
+### Component structure
+
+`app/components/` is organized by domain, but components are **named by file alone** (`nuxt.config.ts`:
+`pathPrefix: false`), so moving one never renames it -- file names are unique across folders.
+
+- `ui/` -- the design system's primitives; build pages from these, not raw markup: `UiPanel` (a plate with an optional
+  caption row -- `label`, `title`, `#actions` -- and `ticks`/`fill`/`pad`), `UiFigure` (a numbered figure in a
+  chapter, with `#caption`), `UiSectionHeader` (eyebrow, serif title, lede, `back` breadcrumb, `level: 1` for a page's
+  h1), `UiSegmented`, `UiSelect`, `UiRange`, `UiCheck`, `UiSearch`, `UiStats` (a ruled row of readouts), `UiKeyValues`,
+  `UiLegend`, `UiBars` (what a policy is choosing between), `UiBadge`, `UiEmpty` (where something will appear),
+  `UiSortTh`, plus `StatTile`, `StatusBadge`, `Callout`, `CodeBlock`.
+- `app/` -- the shell: `AppHeader`, `AppFooter`, `BrandMark` (nav links in `data/nav.ts`).
+- `lab/` -- **the live-lab kit** every training demo in the Learn chapters is built from: `LabFrame` (the captioned
+  figure: "trains in your browser" or the `#recorded` fallback, a `#stage` left of the controls, `#below`),
+  `LabControls` (Train / Train again / Pause / Resume + a speed, the lab's knobs in the slot), `LabStepper` (for
+  main-thread evolution demos), `LabBoard`, `LabCurve` (legend + chart, or what will appear), `LabStatus`;
+  `useWasmSupport()` probes the device. A new algorithm's chapter lab is its worker config plus slots -- see
+  `QLearningLab`/`DqnLab`/`PolicyGradientLab`/`ReachLab`/`SelfPlayLab`/`NeatLab`/`NeuroEvoLab`. `lab/results/` holds the
+  cited experiment figures.
+- `game/` (the one `GamePage` and its stage pieces, Snake's stages, `GridBoard`, `PlaybackControls`), `checkers/`,
+  `versus/` (the game-agnostic two-player stack), `leaderboard/`, `chart/` (`LineChart`, `ParetoChart`, `Sparkline`,
+  `NetworkDiagram`, `NeatDiagram`, `ArmResults`), `learn/` (the textbook frame -- `ChapterNav`, `ChapterHeader`,
+  `ChapterOutline`, `ChapterPager`, `LearnSearch`, cards -- and `learn/demos/`), `runs/`.
+- Logic that isn't drawing lives in composables: `useRunsTable` (the runs table's filters, sorting, experiment groups),
+  `useChapterOutline`/`useReadingProgress`, `useNow` (a hydration-safe shared clock), plus the session composables
+  below.
 
 Game/chapter cover images in `public/screenshots/` are **real captures** of the running app,
 regenerated with `scripts/capture_screenshots.py` (see its docstring); chapter covers without a

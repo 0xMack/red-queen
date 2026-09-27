@@ -148,12 +148,12 @@ onMounted(async () => {
     </p>
     <div class="my-6 grid gap-3 sm:grid-cols-2">
       <div class="card p-4">
-        <p class="text-[11px] tracking-wide text-fg-subtle uppercase">Linear GP (12 instructions, 4 registers)</p>
+        <p class="label">Linear GP (12 instructions, 4 registers)</p>
         <p class="num mt-1 text-2xl font-semibold text-fg">−0.284</p>
         <p class="text-xs text-fg-subtle">final mean best fitness · std 0.177 · started at −0.501</p>
       </div>
       <div class="card p-4">
-        <p class="text-[11px] tracking-wide text-fg-subtle uppercase">Tree GP (max depth 4, up to 31 nodes)</p>
+        <p class="label">Tree GP (max depth 4, up to 31 nodes)</p>
         <p class="num mt-1 text-2xl font-semibold text-life-300">−0.126</p>
         <p class="text-xs text-fg-subtle">final mean best fitness · std 0.152 · started at −0.485</p>
       </div>

@@ -6,6 +6,6 @@
 let worker: Worker | null = null
 
 export function getSnakeWorker(): Worker {
-  worker ??= new Worker(new URL("../workers/snakeGame.worker.ts", import.meta.url), { type: "module" })
+  worker ??= new Worker(new URL("~/workers/snakeGame.worker.ts", import.meta.url), { type: "module" })
   return worker
 }

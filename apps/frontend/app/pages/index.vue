@@ -1,259 +1,220 @@
 <script setup lang="ts">
 import { games } from "~/data/games"
-import { learnChapters } from "~/data/learnChapters"
+import type { UiStat } from "~/types/ui"
+import { chapterForRepresentation, learnChapters } from "~/data/learnChapters"
 
 useHead({ title: "" })
 
 const runsStore = useRunsStore()
 await useAsyncData("runs", () => runsStore.ensureLoaded().then(() => true))
+const snake = await useGameBoard("snake")
+const now = useNow()
 
-// The featured champion: a Snake run that's training right now if there is one (you get to watch
-// it improve live), otherwise the best finished one.
-const featured = computed(() => {
-  const snakeRuns = runsStore.runs.filter((r) => describeRun(r).game === "snake" && bestFitnessOf(r) !== null)
-  const live = snakeRuns.find((r) => r.status === "running" && !isStale(r))
-  if (live) return { run: live, live: true }
-  const best = [...snakeRuns].sort((a, b) => (bestFitnessOf(b) ?? -Infinity) - (bestFitnessOf(a) ?? -Infinity))[0]
-  return best ? { run: best, live: false } : null
+// Fig. 1 is the Snake leaderboard's best *trained* entrant -- ranked on held-out games, not by its own training
+// fitness (which isn't comparable across algorithms). Without a leaderboard, the best recorded Snake run.
+const topEntry = computed(() => snake.entries.value.find((r) => r.entrant_kind === "champion" && r.run_id) ?? null)
+const featuredRunId = computed(() => {
+  if (topEntry.value) return topEntry.value.run_id!
+  const snakeRuns = runsStore.runs.filter((r) => describeRun(r).game === "snake" && describeRun(r).watchable && bestFitnessOf(r) !== null)
+  return [...snakeRuns].sort((a, b) => (bestFitnessOf(b) ?? -Infinity) - (bestFitnessOf(a) ?? -Infinity))[0]?.run_id ?? null
 })
-const featuredMeta = computed(() => (featured.value ? describeRun(featured.value.run) : null))
+const featuredRun = computed(() => runsStore.runs.find((r) => r.run_id === featuredRunId.value) ?? null)
+const featuredMeta = computed(() => (featuredRun.value ? describeRun(featuredRun.value) : null))
+const featuredChapter = computed(() => (featuredMeta.value ? chapterForRepresentation(featuredMeta.value.representation) : null))
 
-// WatchChampion owns the metrics stream for the featured run, so its history is right here.
+// WatchChampion owns the metrics stream for the featured run, so its training curve is right here.
 const metricsStream = useMetricsStreamStore()
-const featuredHistory = computed(() =>
-  featured.value && metricsStream.runId === featured.value.run.run_id ? metricsStream.history : [],
-)
+const featuredHistory = computed(() => (metricsStream.runId === featuredRunId.value ? metricsStream.history : []))
 
-const recentRuns = computed(() => runsStore.runs.slice(0, 5))
+const featuredFacts = computed<UiStat[]>(() => {
+  const e = topEntry.value
+  const m = featuredMeta.value
+  const facts: UiStat[] = []
+  if (e) {
+    facts.push(
+      { label: "Rank", value: `#${snake.entries.value.indexOf(e) + 1} of ${snake.entries.value.length}` },
+      { label: "Held-out score", value: `${e.metrics.quality.mean.toFixed(1)} ± ${e.metrics.quality.ci95.toFixed(1)}`, tone: "life" },
+      { label: "Sees", value: e.interface.split("/")[1]?.split("+")[0] ?? e.interface },
+    )
+  }
+  if (m) {
+    facts.push({ label: "Trained by", value: m.representationLabel })
+    if (m.network) facts.push({ label: "Network", value: m.network, wide: !e })
+    if (e?.metrics.inference.parameters ?? m.parameterCount) facts.push({ label: "Weights", value: (e?.metrics.inference.parameters ?? m.parameterCount)!.toLocaleString() })
+  }
+  const steps = e?.metrics.training.env_steps
+  if (steps) facts.push({ label: "Experience", value: `${formatSteps(steps)} moves` })
+  const wall = e?.metrics.training.active_s ?? e?.metrics.training.wall_s
+  if (wall) facts.push({ label: "Training time", value: formatDuration(wall) })
+  return facts
+})
 
 const stats = computed(() => ({
   runs: runsStore.runs.length,
-  bestSnake: runsStore.runs
-    .filter((r) => describeRun(r).game === "snake")
-    .reduce<number | null>((best, r) => {
-      const f = bestFitnessOf(r)
-      return f !== null && (best === null || f > best) ? f : best
-    }, null),
+  top: topEntry.value?.metrics.quality.mean ?? null,
+  entrants: snake.entries.value.length,
   chapters: learnChapters.filter((c) => c.status === "available").length,
 }))
 
-const highlights = [
+const ledger = computed<{ label: string; value: string | number; accent?: boolean }[]>(() => [
+  { label: "Training runs recorded", value: stats.value.runs || "--" },
+  { label: "Best held-out Snake score", value: stats.value.top !== null ? stats.value.top.toFixed(1) : "--", accent: true },
+  { label: "Models on the Snake leaderboard", value: stats.value.entrants || "--" },
+  { label: "ML frameworks used", value: "0" },
+])
+
+const principles = [
   {
-    icon: "{ }",
     title: "Built from scratch",
-    body: "Genetic algorithms, neuroevolution, automatic differentiation, and a transformer -- no ML framework underneath any of it, so every mechanism is something you can actually read.",
+    body: "Genetic programming, neuroevolution, NEAT, Q-learning to PPO, automatic differentiation and a transformer -- no ML framework underneath any of it, so every mechanism is something you can read.",
   },
   {
-    icon: "◎",
-    title: "Tested against real games",
-    body: "Not toy benchmarks alone -- a policy either learns to eat food and avoid walls in Snake, or it honestly doesn't, and the site says which.",
+    title: "Measured honestly",
+    body: "Every model is ranked on games it never trained on, next to hand-written baselines -- so a score says whether something actually learned, and what it cost to get there.",
   },
   {
-    icon: "◉",
-    title: "Watch it happen, live",
-    body: "Every training run streams its progress in real time, and a trained policy plays its game right in your browser -- the same Rust game core training uses, compiled to WebAssembly, with the model run by ONNX Runtime on your own device.",
+    title: "Running in your browser",
+    body: "The same Rust game core the training uses, compiled to WebAssembly, with models in ONNX Runtime on your own device. Watch them play, train one yourself, or take them on.",
   },
 ]
 
-// Shared server/client clock so relative times hydrate without a mismatch (see pages/runs/index.vue).
-const clock = useState("clock:now", () => Date.now() / 1000)
-onMounted(() => (clock.value = Date.now() / 1000)) // after hydration, so no mismatch
-const now = computed(() => clock.value)
+const recentRuns = computed(() => runsStore.runs.slice(0, 6))
 </script>
 
 <template>
   <main>
     <!-- Hero -->
-    <section class="relative overflow-hidden border-b border-line">
-      <div class="pointer-events-none absolute -top-48 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-queen-500/10 blur-3xl" />
-      <div class="relative mx-auto grid max-w-[1600px] gap-10 px-4 pt-16 pb-12 sm:px-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end lg:px-8 lg:pt-24">
+    <section class="mx-auto max-w-[1600px] px-4 pt-14 sm:px-6 lg:px-8 lg:pt-20">
+      <div class="grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end">
         <div>
-          <p class="eyebrow">Evolution &amp; learning, from scratch</p>
-          <h1 class="mt-4 text-4xl leading-[1.05] font-semibold sm:text-6xl">
-            Watch algorithms <span class="bg-gradient-to-r from-queen-300 to-queen-500 bg-clip-text text-transparent">learn to play</span>, live.
+          <p class="eyebrow">A laboratory for evolution &amp; learning</p>
+          <h1 class="mt-5 text-[3.2rem] leading-[0.95] tracking-[-0.02em] sm:text-[5.2rem] xl:text-[6.2rem]">
+            Watch algorithms <em class="text-queen-400">learn to play</em>,<br class="hidden sm:block" />
+            live.
           </h1>
-          <p class="mt-6 max-w-2xl text-lg text-fg-muted">
-            Red Queen is a lab for reinforcement learning and evolutionary algorithms -- custom
-            implementations, tested against purpose-built games, with real-time visualization of
-            what's actually happening inside them.
+        </div>
+        <div class="lg:pb-3">
+          <p class="text-lg leading-relaxed text-fg-muted">
+            Evolutionary algorithms and reinforcement learning, implemented from first principles, tested against
+            purpose-built games -- and drawn as they think, so you can see what's actually happening inside.
           </p>
-          <div class="mt-8 flex flex-wrap items-center gap-3">
+          <div class="mt-7 flex flex-wrap items-center gap-3">
             <NuxtLink to="/learn" class="btn-primary">Start learning →</NuxtLink>
-            <NuxtLink to="/runs" class="btn-ghost">Browse training runs</NuxtLink>
-            <NuxtLink to="/games/snake" class="px-2 text-sm text-fg-subtle transition hover:text-fg">or take on the algorithms at Snake</NuxtLink>
+            <NuxtLink to="/games/snake" class="btn-ghost">Take on the algorithms</NuxtLink>
           </div>
         </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <StatTile label="Training runs" :value="stats.runs || '--'" hint="recorded in telemetry" />
-          <StatTile label="Best Snake fitness" :value="formatFitness(stats.bestSnake, 2)" tone="queen" hint="evolved, not hand-coded" />
-          <StatTile label="Chapters" :value="stats.chapters" hint="of the interactive textbook" />
-          <StatTile label="ML frameworks" value="0" tone="life" hint="every gradient hand-rolled" />
-        </div>
       </div>
+
+      <!-- The ledger -->
+      <dl class="mt-14 grid grid-cols-2 border-y border-line md:grid-cols-4">
+        <div v-for="(s, i) in ledger" :key="s.label" class="py-5 pr-4" :class="[i > 0 ? 'md:border-l md:border-line md:pl-6' : '', i % 2 === 1 ? 'border-l border-line pl-6' : '', i > 1 ? 'border-t border-line md:border-t-0' : '']">
+          <dt class="label">{{ s.label }}</dt>
+          <dd class="num mt-2 text-3xl tracking-tight sm:text-4xl" :class="s.accent ? 'text-queen-300' : 'text-fg'">{{ s.value }}</dd>
+        </div>
+      </dl>
     </section>
 
     <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-      <!-- Now playing -->
-      <section class="mt-12">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p class="eyebrow flex items-center gap-2">
-              <span class="size-1.5 animate-live-pulse rounded-full bg-life-400" />
-              {{ featured?.live ? "Training right now" : "Now playing" }}
-            </p>
-            <h2 class="mt-2 text-2xl font-semibold sm:text-3xl">An evolved neural network, playing Snake</h2>
-            <p class="mt-2 max-w-3xl text-fg-muted">
-              Nobody wrote this policy. It's the champion of a population of networks bred over
-              hundreds of generations -- no gradients, just mutation and selection. Its network is drawn alongside,
-              lighting up with every decision.
-            </p>
-          </div>
-          <NuxtLink v-if="featured" :to="`/runs/${featured.run.run_id}`" class="btn-ghost btn-sm">Open the full run →</NuxtLink>
-        </div>
+      <!-- Fig. 1 -->
+      <section class="mt-14">
+        <UiPanel ticks pad="none">
+          <template #header>
+            <span class="flex items-center gap-2">
+              <span class="size-1.5 animate-live-pulse rounded-full bg-queen-400" />
+              <span class="label text-queen-300">Fig. 1 · Now playing</span>
+            </span>
+            <span v-if="topEntry" class="text-sm font-semibold">{{ entrantShortLabel(topEntry) }}</span>
+            <span v-if="topEntry" class="hidden text-sm text-fg-subtle sm:inline">-- the best-ranked model, playing games it has never seen</span>
+          </template>
+          <template #actions>
+            <NuxtLink to="/games/snake" class="btn-ghost btn-sm">Leaderboard →</NuxtLink>
+          </template>
 
-        <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div class="card p-5">
-            <ClientOnly v-if="featured">
-              <WatchChampion :run-id="featured.run.run_id" />
-            </ClientOnly>
-            <div v-else class="grid items-center gap-8 md:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-              <LiveSnakeDemo />
-              <div class="text-sm text-fg-muted">
-                <p class="font-display text-lg font-semibold text-fg">No trained champion to show yet</p>
-                <p class="mt-2">
-                  {{ runsStore.error ? "The backend isn't reachable" : "No Snake runs have been recorded" }},
-                  so here's the game itself -- click it and steer with the arrow keys. Start the backend
-                  and run <code class="chip">uv run python jobs/snake_neuro_run.py</code> to watch an evolved
-                  policy here instead.
+          <div class="grid xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div class="p-4 sm:p-5">
+              <ClientOnly v-if="featuredRunId">
+                <WatchChampion :run-id="featuredRunId" />
+              </ClientOnly>
+              <div v-else class="grid items-center gap-8 md:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+                <LiveSnakeDemo />
+                <div class="text-sm text-fg-muted">
+                  <p class="font-display text-2xl text-fg">No trained champion to show yet</p>
+                  <p class="mt-2">
+                    {{ runsStore.error ? "The backend isn't reachable" : "No Snake runs have been recorded" }},
+                    so here's the game itself -- click it and steer with the arrow keys. Start the backend
+                    and run <code class="chip">uv run python jobs/snake_neuro_run.py</code> to watch a trained
+                    policy here instead.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <aside v-if="featuredRunId" class="flex flex-col gap-5 border-t border-line p-5 xl:border-t-0 xl:border-l">
+              <div>
+                <p class="label">Specimen</p>
+                <p class="mt-1.5 font-display text-2xl leading-tight">{{ topEntry ? entrantShortLabel(topEntry) : featuredMeta?.title }}</p>
+                <p class="font-mono text-[11px] text-fg-subtle">
+                  run {{ shortId(featuredRunId) }}<template v-if="featuredRun"> · {{ formatRelative(featuredRun.created_at, now) }}</template>
                 </p>
               </div>
-            </div>
+              <UiStats :items="featuredFacts" :cols="2" :ruled="false" />
+              <div v-if="featuredHistory.length > 1">
+                <p class="label mb-2">Training curve · {{ featuredMeta?.terms.fitness }}</p>
+                <Sparkline :values="featuredHistory.map((h) => h.best_fitness)" class="h-14 w-full" />
+              </div>
+              <div class="mt-auto flex flex-col gap-2 border-t border-line pt-4 text-sm">
+                <NuxtLink :to="`/runs/${featuredRunId}`" class="link w-fit">Open the training run</NuxtLink>
+                <NuxtLink v-if="featuredChapter" :to="featuredChapter.path" class="link w-fit">How {{ featuredMeta?.representationLabel }} works</NuxtLink>
+              </div>
+            </aside>
           </div>
-
-          <!-- About this champion -->
-          <aside v-if="featured && featuredMeta" class="card flex flex-col gap-5 p-5 xl:self-start">
-            <div>
-              <p class="text-[11px] tracking-wide text-fg-subtle uppercase">About this champion</p>
-              <p class="mt-1 text-lg font-semibold">{{ featuredMeta.title }}</p>
-              <p class="font-mono text-[11px] text-fg-subtle">{{ shortId(featured.run.run_id) }} · {{ formatRelative(featured.run.created_at, now) }}</p>
-            </div>
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Network</dt>
-                <dd class="font-mono text-fg">{{ featuredMeta.network ?? "--" }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Parameters</dt>
-                <dd class="num text-fg">{{ featuredMeta.parameterCount ?? "--" }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Selection</dt>
-                <dd class="font-mono text-fg">{{ featuredMeta.selection ?? "--" }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Population</dt>
-                <dd class="num text-fg">{{ featuredMeta.populationSize ?? "--" }}</dd>
-              </div>
-              <div class="col-span-2">
-                <dt class="text-[11px] text-fg-subtle">Mutation</dt>
-                <dd class="font-mono text-fg">{{ featuredMeta.variation ?? "--" }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Generations</dt>
-                <dd class="num text-fg">{{ featuredHistory.length || featuredMeta.targetGenerations || "--" }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-fg-subtle">Best fitness</dt>
-                <dd class="num text-queen-300">{{ formatFitness(bestFitnessOf(featured.run, featuredHistory), 2) }}</dd>
-              </div>
-            </dl>
-            <div>
-              <p class="mb-1.5 text-[11px] text-fg-subtle">Best fitness over training</p>
-              <Sparkline :values="featuredHistory.map((h) => h.best_fitness)" class="h-14 w-full" />
-            </div>
-            <ol class="space-y-2 border-t border-line pt-4 text-xs text-fg-muted">
-              <li class="flex gap-2"><span class="num text-queen-300">1</span>11 sensor features in: danger ahead/left/right, heading, food direction.</li>
-              <li class="flex gap-2"><span class="num text-queen-300">2</span>A small tanh network scores 3 moves: turn left, straight, turn right.</li>
-              <li class="flex gap-2"><span class="num text-queen-300">3</span>Fitness = reward across 5 benchmark games; lexicase picks the parents.</li>
-            </ol>
-            <NuxtLink to="/learn/teaching-a-snake" class="link text-sm">Read how it was trained →</NuxtLink>
-          </aside>
-        </div>
+        </UiPanel>
       </section>
 
-      <!-- Highlights -->
-      <section class="mt-20 grid gap-4 md:grid-cols-3">
-        <div v-for="item in highlights" :key="item.title" class="card p-6">
-          <span class="flex size-10 items-center justify-center rounded-lg border border-queen-400/30 bg-queen-500/10 font-mono text-queen-300">
-            {{ item.icon }}
-          </span>
-          <h3 class="mt-4 text-lg font-semibold">{{ item.title }}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-fg-muted">{{ item.body }}</p>
+      <!-- Principles -->
+      <section class="mt-24 grid gap-10 md:grid-cols-3 md:gap-8">
+        <div v-for="(p, i) in principles" :key="p.title" class="border-t border-line-strong pt-5">
+          <p class="font-display text-lg text-queen-400 italic">{{ ["i.", "ii.", "iii."][i] }}</p>
+          <h3 class="mt-1 font-display text-[1.75rem] font-normal">{{ p.title }}</h3>
+          <p class="mt-2 text-[15px] leading-relaxed text-fg-muted">{{ p.body }}</p>
         </div>
       </section>
 
       <!-- Games + recent runs -->
-      <section class="mt-20 grid gap-10 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <section class="mt-28 grid gap-12 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div>
-          <div class="flex items-end justify-between">
-            <div>
-              <p class="eyebrow">Arena</p>
-              <h2 class="mt-2 text-2xl font-semibold">Games</h2>
-            </div>
-            <NuxtLink to="/games" class="link text-sm">All games →</NuxtLink>
-          </div>
-          <div class="mt-5 grid gap-5 sm:grid-cols-2">
+          <UiSectionHeader eyebrow="The arena" :index="2" title="Games" to="/games" link-label="All games" />
+          <div class="mt-6 grid gap-5 sm:grid-cols-2">
             <GameCard v-for="game in games" :key="game.slug" :game="game" compact />
           </div>
         </div>
-
         <div>
-          <div class="flex items-end justify-between">
-            <div>
-              <p class="eyebrow">Telemetry</p>
-              <h2 class="mt-2 text-2xl font-semibold">Recent runs</h2>
+          <UiSectionHeader eyebrow="Telemetry" :index="3" title="Recent runs" to="/runs" link-label="All runs" />
+          <UiPanel class="mt-6" pad="none">
+            <div class="divide-y divide-line">
+              <RunListItem
+                v-for="run in recentRuns"
+                :key="run.run_id"
+                :run="run"
+                :trend="runsStore.summaries[run.run_id]?.trend"
+                :best="bestFitnessOf(run) ?? runsStore.summaries[run.run_id]?.best_fitness ?? null"
+                :now="now"
+              />
+              <p v-if="recentRuns.length === 0" class="px-4 py-10 text-center text-sm text-fg-subtle">
+                {{ runsStore.error ? "Backend offline -- start apis/backend to see runs." : "No runs recorded yet." }}
+              </p>
             </div>
-            <NuxtLink to="/runs" class="link text-sm">All runs →</NuxtLink>
-          </div>
-          <div class="card mt-5 divide-y divide-line/60">
-            <NuxtLink
-              v-for="run in recentRuns"
-              :key="run.run_id"
-              :to="`/runs/${run.run_id}`"
-              class="flex items-center gap-4 px-4 py-3 transition hover:bg-raised/60"
-            >
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium">{{ describeRun(run).title }}</p>
-                <p class="font-mono text-[11px] text-fg-subtle">{{ shortId(run.run_id) }} · {{ formatRelative(run.created_at, now) }}</p>
-              </div>
-              <Sparkline :values="runsStore.summaries[run.run_id]?.trend ?? []" class="hidden h-8 w-24 sm:block" />
-              <span class="num w-14 text-right text-sm">{{ formatFitness(bestFitnessOf(run) ?? runsStore.summaries[run.run_id]?.best_fitness ?? null, 2) }}</span>
-              <StatusBadge :status="run.status" :stale="isStale(run, now)" />
-            </NuxtLink>
-            <p v-if="recentRuns.length === 0" class="px-4 py-8 text-center text-sm text-fg-subtle">
-              {{ runsStore.error ? "Backend offline -- start apis/backend to see runs." : "No runs recorded yet." }}
-            </p>
-          </div>
+          </UiPanel>
         </div>
       </section>
 
       <!-- Learn -->
-      <section class="mt-20">
-        <div class="flex items-end justify-between">
-          <div>
-            <p class="eyebrow">The interactive textbook</p>
-            <h2 class="mt-2 text-2xl font-semibold">Learn how it works</h2>
-          </div>
-          <NuxtLink to="/learn" class="link text-sm">All chapters →</NuxtLink>
-        </div>
-        <div class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <ChapterCard
-            v-for="(chapter, i) in learnChapters.slice(0, 4)"
-            :key="chapter.slug"
-            :chapter="chapter"
-            :number="i + 1"
-          />
+      <section class="mt-28">
+        <UiSectionHeader eyebrow="The interactive textbook" :index="4" title="Learn how it works" to="/learn" link-label="All chapters">
+          Foundations first. Each chapter cites the real code and the real results -- including what didn't work.
+        </UiSectionHeader>
+        <div class="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <ChapterCard v-for="(chapter, i) in learnChapters.slice(0, 4)" :key="chapter.slug" :chapter="chapter" :number="i + 1" />
         </div>
       </section>
     </div>

@@ -52,7 +52,7 @@ const format = (n: number) => Math.round(n).toLocaleString()
 <template>
   <main class="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 lg:px-8">
     <p class="eyebrow">Development</p>
-    <h1 class="mt-2 text-3xl font-semibold">Reinforcement learning in the browser</h1>
+    <h1 class="mt-2 text-[2.6rem] leading-tight">Reinforcement learning in the browser</h1>
     <p class="mt-2 max-w-3xl text-fg-muted">
       The RL core compiled to WebAssembly (docs/design/0010): does it train bit-for-bit like the native build, and how
       fast does it run here? Learn's live-training demos are sized from these numbers.
@@ -60,7 +60,7 @@ const format = (n: number) => Math.round(n).toLocaleString()
 
     <section class="card mt-6 p-5 text-sm" data-rl-determinism>
       <div class="flex items-baseline justify-between gap-3">
-        <h2 class="font-display font-semibold">Determinism</h2>
+        <h2 class="font-display">Determinism</h2>
         <span v-if="digests.length" :class="deterministic ? 'text-life-300' : 'text-queen-300'" data-rl-deterministic>
           {{ deterministic ? "identical to the native build" : "differs from the native build" }}
         </span>
@@ -78,7 +78,7 @@ const format = (n: number) => Math.round(n).toLocaleString()
 
     <section class="card mt-6 p-5 text-sm" data-rl-bench>
       <div class="flex items-baseline justify-between gap-3">
-        <h2 class="font-display font-semibold">Speed</h2>
+        <h2 class="font-display">Speed</h2>
         <button class="btn-ghost btn-sm" :disabled="status === 'running'" @click="run">Run again</button>
       </div>
       <table class="mt-3 w-full text-xs">

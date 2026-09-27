@@ -36,10 +36,10 @@ async def main(run_id: str) -> None:
         # The champion mid-game: wait until it has eaten a few times.
         page = await ctx.new_page()
         await page.goto(f"{BASE}/watch/{run_id}", wait_until="networkidle")
-        board = page.locator("svg.rounded-xl").first
+        board = page.locator("svg[data-grid-board]").first
         await board.wait_for(timeout=60_000)
         for _ in range(120):
-            score = await page.locator("text=🍎").first.inner_text()
+            score = await page.locator("[data-score]").first.inner_text()
             if int(score.split()[0]) >= 6:
                 break
             await page.wait_for_timeout(250)
@@ -51,13 +51,13 @@ async def main(run_id: str) -> None:
         await page.wait_for_timeout(60)
         await board.screenshot(path=OUT / "snake.png")
         await page.add_style_tag(content="[data-board-overlay] { visibility: visible }")
-        await page.locator("div.card").first.screenshot(path=OUT / "snake-watch.png")
+        await page.locator("main .card").first.screenshot(path=OUT / "snake-watch.png")
 
         # The run detail page, top of the fold.
         page = await ctx.new_page()
         await page.set_viewport_size({"width": 1600, "height": 1000})
         await page.goto(f"{BASE}/runs/{run_id}", wait_until="networkidle")
-        await page.wait_for_timeout(9_000)  # Pyodide cold start + a few ticks
+        await page.wait_for_timeout(9_000)  # model load + a few ticks
         await page.screenshot(path=OUT / "run-detail.png")
 
         await browser.close()
