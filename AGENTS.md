@@ -9,7 +9,8 @@ landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/A
 0006: multi-agent games and the strategy/match framework, 0007: game representations, leaderboards,
 and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons, 0009: client-side inference at scale — Rust/WASM
 games, ONNX Runtime Web, model packages; 0010: reinforcement learning — the Q-table → DQN → policy-gradient →
-self-play plan) — read the relevant one before an
+self-play plan; 0011: multi-armed bandits — a game and chapter for exploration vs. exploitation, the rung under
+Q-learning, proposed) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
