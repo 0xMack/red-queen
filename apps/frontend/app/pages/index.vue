@@ -2,12 +2,13 @@
 import { games } from "~/data/games"
 import type { UiStat } from "~/types/ui"
 import { chapterForRepresentation, learnChapters } from "~/data/learnChapters"
+import { gameModules } from "~/games/registry"
 
 useHead({ title: "" })
 
 const runsStore = useRunsStore()
 await useAsyncData("runs", () => runsStore.ensureLoaded().then(() => true))
-const snake = await useGameBoard("snake")
+const [snake, checkers, bandit] = await Promise.all([useGameBoard("snake"), useGameBoard("checkers"), useGameBoard("bandit")])
 const now = useNow()
 
 // Fig. 1 is the Snake leaderboard's best *trained* entrant -- ranked on held-out games, not by its own training
@@ -49,19 +50,13 @@ const featuredFacts = computed<UiStat[]>(() => {
   return facts
 })
 
-const stats = computed(() => ({
-  runs: runsStore.runs.length,
-  top: topEntry.value?.metrics.quality.mean ?? null,
-  entrants: snake.entries.value.length,
-  chapters: learnChapters.filter((c) => c.status === "available").length,
-}))
-
-const ledger = computed<{ label: string; value: string | number; accent?: boolean }[]>(() => [
-  { label: "Training runs recorded", value: stats.value.runs || "--" },
-  { label: "Best held-out Snake score", value: stats.value.top !== null ? stats.value.top.toFixed(1) : "--", accent: true },
-  { label: "Models on the Snake leaderboard", value: stats.value.entrants || "--" },
-  { label: "ML frameworks used", value: "0" },
-])
+// The hero's results: each game's leader against its baselines. Every board's fetch starts before any is awaited.
+const boards = { snake, checkers, bandit }
+const results = computed(() =>
+  games
+    .filter((g) => gameModules[g.slug] && boards[g.slug as keyof typeof boards])
+    .map((g) => ({ game: g, entries: boards[g.slug as keyof typeof boards].entries.value, score: gameModules[g.slug]!.score })),
+)
 
 const principles = [
   {
@@ -83,40 +78,42 @@ const recentRuns = computed(() => runsStore.runs.slice(0, 6))
 
 <template>
   <main>
-    <!-- Hero -->
-    <section class="mx-auto max-w-[1600px] px-4 pt-14 sm:px-6 lg:px-8 lg:pt-20">
-      <div class="grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end">
+    <!-- Hero: what this is (left), how to start (right), then where things stand -- each game's leader against its
+         baselines, live from the leaderboards. -->
+    <section class="mx-auto max-w-[1600px] px-4 pt-10 sm:px-6 lg:px-8 lg:pt-14">
+      <div class="grid gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end">
         <div>
           <p class="eyebrow">A laboratory for evolution &amp; learning</p>
-          <h1 class="mt-5 text-[3.2rem] leading-[0.95] tracking-[-0.02em] sm:text-[5.2rem] xl:text-[6.2rem]">
-            Watch algorithms <em class="text-queen-400">learn to play</em>,<br class="hidden sm:block" />
-            live.
+          <h1 class="mt-4 max-w-[17ch] text-[2.5rem] leading-[1.02] tracking-[-0.02em] sm:text-[3.4rem] xl:text-[4.25rem]">
+            Watch algorithms <em class="text-queen-400">learn to play</em>, live.
           </h1>
         </div>
-        <div class="lg:pb-3">
-          <p class="text-lg leading-relaxed text-fg-muted">
-            Evolutionary algorithms and reinforcement learning, implemented from first principles, tested against
-            purpose-built games -- and drawn as they think, so you can see what's actually happening inside.
+        <div class="lg:pb-1.5">
+          <p class="text-[17px] leading-relaxed text-fg-muted">
+            Evolution and reinforcement learning, built from first principles -- no ML frameworks -- and pitted against each
+            other on purpose-built games. Every model runs in your browser, drawn as it thinks.
           </p>
-          <div class="mt-7 flex flex-wrap items-center gap-3">
-            <NuxtLink to="/learn" class="btn-primary">Start learning →</NuxtLink>
-            <NuxtLink to="/games/snake" class="btn-ghost">Take on the algorithms</NuxtLink>
+          <div class="mt-5 flex flex-wrap items-center gap-3">
+            <NuxtLink to="/games/snake" class="btn-primary">Watch them play →</NuxtLink>
+            <NuxtLink to="/learn" class="btn-ghost">Learn how they work</NuxtLink>
           </div>
         </div>
       </div>
 
-      <!-- The ledger -->
-      <dl class="mt-14 grid grid-cols-2 border-y border-line md:grid-cols-4">
-        <div v-for="(s, i) in ledger" :key="s.label" class="py-5 pr-4" :class="[i > 0 ? 'md:border-l md:border-line md:pl-6' : '', i % 2 === 1 ? 'border-l border-line pl-6' : '', i > 1 ? 'border-t border-line md:border-t-0' : '']">
-          <dt class="label">{{ s.label }}</dt>
-          <dd class="num mt-2 text-3xl tracking-tight sm:text-4xl" :class="s.accent ? 'text-queen-300' : 'text-fg'">{{ s.value }}</dd>
+      <div class="mt-10">
+        <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <p class="label">Where things stand · live from the leaderboards</p>
+          <p class="text-xs text-fg-subtle">Ranked on held-out games, never on training fitness -- against hand-written baselines.</p>
         </div>
-      </dl>
+        <div class="grid gap-4 md:grid-cols-3">
+          <LeaderResult v-for="r in results" :key="r.game.slug" :game="r.game" :entries="r.entries" :score="r.score" />
+        </div>
+      </div>
     </section>
 
     <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
       <!-- Fig. 1 -->
-      <section class="mt-14">
+      <section class="mt-12">
         <UiPanel ticks pad="none">
           <template #header>
             <span class="flex items-center gap-2">
