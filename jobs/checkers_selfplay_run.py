@@ -16,7 +16,10 @@ Each iteration trains `games_per_iteration` games and records, in the fields eve
   and of a position a king up.
 
   uv run python jobs/checkers_selfplay_run.py [--iterations 100] [--games-per-iteration 1000] [--depth 3]
-                                             [--param NAME=VALUE ...] [--rng-seed 0]
+                                             [--param NAME=VALUE ...] [--rng-seed 0] [--init-run RUN_ID]
+
+`--param search_depth=N` (N > 1) trains by TD-Leaf(λ): self-play searches N plies and each position learns at its
+principal variation's leaf (libs/rl/rust/envs/src/selfplay.rs).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from checkers_training import MAX_MOVES, MONITOR_GAMES, monitor_score
 from costs import TrainingCostMeter
 from evolve import WeightVector
 from rl_run import parse_params
-from run_context import recorded_run
+from run_context import TelemetryStores, recorded_run
 from telemetry import GenerationStats
 
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
@@ -54,13 +57,20 @@ def main(
     rng_seed: int = 0,
     held_out_every: int = 10,
     tags: dict[str, Any] | None = None,
+    init_run: str | None = None,
 ) -> str:
-    """Trains one run, records it to telemetry, and returns its run_id."""
+    """Trains one run, records it to telemetry, and returns its run_id. `init_run` continues from that run's final
+    network (same layer sizes) instead of a fresh one -- e.g. TD-Leaf fine-tuning a plain TD champion."""
     params = params or {}
     trainer = rl.CheckersSelfPlay(
         rng_seed, params=params, max_moves_without_capture=MAX_MOVES_WITHOUT_CAPTURE, max_plies=MAX_MOVES
     )
+    if init_run:
+        _, metrics, artifacts = TelemetryStores.open()
+        parent = WeightVector.from_json(artifacts.get_program(metrics.history(init_run)[-1].champion_ref).decode())
+        trainer.set_weights(list(parent.weights))
     layer_sizes = WeightVector.from_json(trainer.snapshot()).layer_sizes
+    leaf = int(params.get("search_depth", 1))
     config = {
         "representation": "td_lambda",
         "game": "checkers",
@@ -74,11 +84,18 @@ def main(
         "games_per_iteration": games_per_iteration,
         "max_moves": MAX_MOVES,
         "opponents": list(OPPONENTS),  # monitored against, never trained against
-        "training": "self-play" + (", opponent pool" if params.get("pool_every") else ""),
+        "training": "self-play"
+        + (", opponent pool" if params.get("pool_every") else "")
+        + (f", TD-Leaf searching {leaf} plies" if leaf > 1 else ""),
         "held_out_every": held_out_every,
         "rng_seed": rng_seed,
         **(tags or {}),
     }
+    if init_run:
+        # The run's own cost is only the continuation; the note says where the rest was spent.
+        config["init_run"] = init_run
+        config["note"] = f"continued from run {init_run[:8]}"
+
     counters = _Counters()
     cost = TrainingCostMeter(population_size=1, fitness=counters)
 
@@ -146,6 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--rng-seed", type=int, default=0)
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE", help="a self-play parameter")
     parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
+    parser.add_argument("--init-run", default=None, help="continue from this run's final network (same layer sizes)")
     args = parser.parse_args()
     main(
         iterations=args.iterations,
@@ -155,4 +173,5 @@ if __name__ == "__main__":
         rng_seed=args.rng_seed,
         held_out_every=args.held_out_every,
         tags={"experiment": args.experiment} if args.experiment else None,
+        init_run=args.init_run,
     )

@@ -208,8 +208,10 @@ architectural change that might conflict with a decision already made.
     Snake, a Gaussian one (learned log std) for Reach1D; `pg_gradients`/`gae` checked against `reference_pg.py`; a `pg`
     digest in the fixture. `Agent::action_values` is what demos draw (a table row, Q-values, or move probabilities).
     Phase 4: Checkers self-play (`rust/envs/src/selfplay.rs`, a two-player loop beside the single-agent `Trainer`) --
-    TD(λ) on a 32 -> 16 -> 1 position-value network, champions saved as `evolve.WeightVector` JSON so they *are*
-    Checkers evaluators (versus leaderboard, packaging, page: unchanged); `rl.CheckersSelfPlay`, WASM `SelfPlayTrainer`.
+    TD(λ) on a position-value network (`hidden`/`hidden_layers`; the leaders are 32 -> 64 -> 64 -> 1 -- one hidden layer
+    plateaus), champions saved as `evolve.WeightVector` JSON so they *are* Checkers evaluators (versus leaderboard,
+    packaging, page: unchanged); `rl.CheckersSelfPlay`, WASM `SelfPlayTrainer`. `search_depth` > 1 is TD-Leaf(λ):
+    self-play searches and learns at the principal variation's leaf; `set_weights` / `--init-run` continue a network.
     Bandits (docs/design/0011): `rust/core/src/bandit.rs` is *online* strategies (greedy, ε-greedy, optimistic, UCB1,
     Thompson, gradient, and `QTableAgent` itself with γ 0) over a `rows x arms` table -- they learn within one game, so
     they don't use the `Trainer`; `rust/envs/src/bandit.rs`'s `BanditRun` couples one to one game through the

@@ -185,6 +185,12 @@ impl CheckersSelfPlay {
         self.inner.snapshot()
     }
 
+    /// Replace the network's weights with a saved network's (same layer sizes) -- to continue training it, e.g.
+    /// fine-tuning a plain TD champion with TD-Leaf (`search_depth` > 1). The optimizer starts fresh.
+    fn set_weights(&mut self, weights: Vec<f64>) -> PyResult<()> {
+        self.inner.set_weights(weights).map_err(value_error)
+    }
+
     /// The network's value of the starting position for the side to move, and of the same position a king up.
     fn probe(&self) -> (f64, f64) {
         self.inner.probe()

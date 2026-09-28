@@ -85,6 +85,7 @@ export function algorithmIdFor(r: EvaluationRecord): string | null {
   if (algorithm === "reinforce" || algorithm === "a2c") return "policy-gradient"
   if (algorithm === "q-learning" || algorithm === "sarsa") return "q-learning"
   if (algorithm.startsWith("td(")) return "td-lambda"
+  if (algorithm.startsWith("td-leaf")) return "td-leaf"
   return null
 }
 
