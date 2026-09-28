@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/frontend/public/favicon.svg" width="96" height="96" alt="Red Queen logo: a crown and its reflection">
+
 # Red Queen
 
 **Evolution and reinforcement learning, built from scratch and made visible.**
@@ -10,7 +12,7 @@ think, live in the browser.
 
 </div>
 
-![The Snake game page: PPO, the current leader, playing live in the browser with its network's activations drawn beside the board, and the ranked standings of every algorithm](docs/images/snake.jpg)
+![PPO, the Snake leader, playing live in the browser: its network lights up with every move, beside the ranked standings of every algorithm](docs/images/snake.gif)
 
 > *"Now, here, you see, it takes all the running you can do, to keep in the same place."*
 > The Red Queen, *Through the Looking-Glass*. The name is for the co-evolutionary arms race, where every
@@ -62,10 +64,11 @@ training and inference costs, are on each game's page.
 The biggest jumps came from changing what the snake *sees*, not from changing the algorithm. DQN went from 29 to 42
 when the observer added "how much room does this move leave?"
 
-**Checkers** is a round robin scored in points per game. A 32 → 64 → 64 → 1 network trained only by playing itself
-(TD(λ), 1M games) leads at 0.92 searching 4 plies. Searching only 3, one ply fewer than the baseline, it is second
-(0.85) and still beats 4-ply material search head to head (10 wins, 9 draws, 1 loss). With a single hidden
-layer, however long or wide, it had stayed a step behind material search.
+**Checkers** is a round robin scored in points per game. The leader is a 32 → 64 → 64 → 1 network that learned only
+by playing itself: TD(λ) for 1M games, then **TD-Leaf(λ)**, which trains through its own alpha-beta search. Searching
+4 plies it scores 0.94 and is **undefeated in 380 games** (13 wins and 7 draws against 4-ply material search).
+Searching only 3, one ply fewer than that baseline, it is second (0.88). Two things broke the plateau: a second hidden
+layer (one layer stalled however long or wide it was trained) and learning from searched positions.
 
 **Bandit** is scored as skill: 0 = pulling at random, 100 = the best machine every pull. ε-greedy with settings
 *evolved* on the scenario leads (80.4), ahead of optimistic initial values (77.9) and Thompson sampling (64.4). On
