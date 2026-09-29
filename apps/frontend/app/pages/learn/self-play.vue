@@ -126,18 +126,26 @@ pub fn lambda_returns(values: &[f64], outcome: f64, lambda: f64) -> Vec<f64> {
       and <strong>0.62 against material search a ply deeper than itself</strong>. A single 192-wide layer with the same number of weights and the same
       training stayed at 0.60, so it's the depth together with the capacity, not either alone. One layer was the ceiling, not the training.
     </p>
+    <p>
+      One more step closed the gap between how the network learned and how it plays. It learned from positions that one-ply greedy play
+      passed through, but it plays through a 3- or 4-ply search. <strong>TD-Leaf(λ)</strong> (the method behind the chess program KnightCap)
+      trains through the search instead. Every self-play move is an alpha-beta search, and each position's error is applied at the leaf of
+      the search's best line: the position whose evaluation the search actually returned. Continuing the 2 × 64 networks for another 50,000
+      games this way lifted every seed by about 0.10 points. The same 50,000 games of plain TD did nothing, because the network had already
+      plateaued.
+    </p>
     <Callout variant="finding" title="Learned knowledge beats deeper search">
-      On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the 32 → 64 → 64 → 1 network is
-      <strong>first at 0.92 points per game</strong> searching 4 plies (against material-4: 11 wins, 7 draws, 2 losses), and
-      <strong>second at 0.85</strong> searching only 3 (10 wins, 9 draws, 1 loss against material-4). Material search, the baseline nothing trained
-      had beaten, is now third. You can play both there.
+      On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the TD-Leaf network is <strong>first at 0.94 points per
+      game, undefeated in 380 games</strong> searching 4 plies (13 wins and 7 draws against material-4), and <strong>second at 0.88</strong>
+      searching only 3. That's ahead of its own plain-TD parent searching 4. Material search, the baseline nothing trained had beaten, is
+      fifth. You can play all of them there.
     </Callout>
 
     <h2>Where this goes next</h2>
     <p>
       This closes the ladder this part of the project set out to climb: a table, a network of values, a policy learned directly, and a player that
       learns from itself. The Checkers evaluator here only ever learned values of positions and borrowed its lookahead from a fixed search. The
-      natural next steps are to let the search improve the network's targets and the network guide the search -- the combination behind AlphaZero --
+      natural next steps are to let the network guide the search as well as learn from it -- the combination behind AlphaZero --
       and to bring the two paradigms together, evolving the hyperparameters or the architectures that the gradient methods train.
     </p>
   </article>

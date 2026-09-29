@@ -19,6 +19,10 @@ Arms (200k self-play games each; 32 -> 16 -> 1 tanh; lambda 0.7 unless noted):
 size: `pool-2x32-1m` (two layers at `pool-h64`'s parameter count) and `pool-h192-1m` (one layer at `pool-2x64-1m`'s).
 Report it with `--games 60`: 20 per opponent is too noisy to separate these arms.
 
+`selfplay-v3` is TD-Leaf(λ): `ft-td`, `ft-leaf2`, `ft-leaf3` each continue the same seed's `pool-2x64-1m` network
+(from `selfplay-v2`) for 50k games -- plain TD, or self-play searching 2 or 3 plies and learning at the principal
+variation's leaves.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
 """
@@ -53,9 +57,12 @@ class Arm:
     params: dict[str, float] = field(default_factory=dict)
     games: int = 200_000
     baseline: str | None = "sp"
+    # Continue from the final network of this (experiment, arm)'s run with the same rng seed, instead of a fresh one.
+    init: tuple[str, str] | None = None
 
 
 POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
+BIG = {**POOL, "hidden": 64, "hidden_layers": 2}
 ARMS: dict[str, Arm] = {
     "sp": Arm(baseline=None),
     "sp-pool": Arm(POOL),
@@ -70,6 +77,11 @@ ARMS: dict[str, Arm] = {
     "pool-2x32-1m": Arm({**POOL, "hidden": 32, "hidden_layers": 2}, games=1_000_000, baseline="pool-h64-1m"),
     # ...or size, not depth? 32 -> 192 -> 1 has about as many weights (6.5k) as 32 -> 64 -> 64 -> 1 (6.3k)
     "pool-h192-1m": Arm({**POOL, "hidden": 192}, games=1_000_000, baseline="pool-2x64-1m"),
+    # selfplay-v3: TD-Leaf(λ). Each seed's 2 x 64 champion (selfplay-v2) trains 50k more games, plainly or through
+    # its own search -- paired by seed, so the control is the same network given the same games without search.
+    "ft-td": Arm(BIG, games=50_000, baseline=None, init=("selfplay-v2", "pool-2x64-1m")),
+    "ft-leaf2": Arm({**BIG, "search_depth": 2}, games=50_000, baseline="ft-td", init=("selfplay-v2", "pool-2x64-1m")),
+    "ft-leaf3": Arm({**BIG, "search_depth": 3}, games=50_000, baseline="ft-td", init=("selfplay-v2", "pool-2x64-1m")),
 }
 GAMES_PER_ITERATION = 1000
 
@@ -87,6 +99,18 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
                 print(f"skip {arm_name} seed {seed}: already completed as {done[0].run_id}", flush=True)
                 continue
             arm = ARMS[arm_name]
+            init_run = None
+            if arm.init:
+                parents = [
+                    r
+                    for r in experiment_runs(registry, arm.init[0])
+                    if r.config.get("arm") == arm.init[1]
+                    and r.config.get("rng_seed") == seed
+                    and r.status == "completed"
+                ]
+                if not parents:
+                    sys.exit(f"{arm_name} seed {seed} continues {arm.init}, which has no completed run for that seed")
+                init_run = parents[0].run_id
             iterations = max(1, arm.games // GAMES_PER_ITERATION)
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.games:,} games)", flush=True)
             checkers_selfplay_run.main(
@@ -97,6 +121,7 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
                 rng_seed=seed,
                 held_out_every=max(1, iterations // 10),
                 tags={"experiment": name, "arm": arm_name},
+                init_run=init_run,
             )
 
 

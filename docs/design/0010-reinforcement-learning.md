@@ -1,6 +1,6 @@
 # 0010 — Reinforcement learning, from a Q-table to PPO and self-play
 
-Status: **Phases 0-4 implemented** (4b: self-play scaled past material search) (see "Implementation notes"); Phase 5 is a stretch. Each phase lands as its own PR,
+Status: **Phases 0-4 implemented** (4b: self-play scaled past material search; 4c: TD-Leaf) (see "Implementation notes"); Phase 5 is a stretch. Each phase lands as its own PR,
 with its measured results written back into this doc and into the Learn section.
 Relates to: [0003](0003-algorithm-landscape-and-roadmap.md) (gradient-based RL as a *sibling* of the evolution
 machinery), [0004](0004-small-transformer-from-scratch.md) (`libs/autodiff`, the gradient oracle here),
@@ -601,5 +601,37 @@ evolved evaluator, **60** games each -- 20 could not separate these arms):
   plies -- training is deterministic, so both entrants are the same network): **#1 at 0.916** (4-ply; 11W 7D 2L against
   material-4) and **#2 at 0.854** (3-ply; 10W 9D 1L against material-4), ahead of material-4 (0.775; its score fell
   because the field got stronger). The old 32 -> 16 -> 1 self-play entrant is #4 (0.757).
-- Still open: search-improved targets (TD-Leaf, AlphaZero-style). The network trains on the positions its 1-ply
-  greedy play passes through but plays through a 3-4 ply search; training through the search is the next rung.
+- Search-improved targets: TD-Leaf, below (Phase 4c). The network trained on the positions its 1-ply
+  greedy play passes through but played through a 3-4 ply search.
+
+### Phase 4c: TD-Leaf(λ) -- training through the search (2026-09-27)
+
+Built: `search_depth` (> 1) in `rust/envs/src/selfplay.rs` turns self-play into **TD-Leaf(λ)** (Baxter, Tridgell and
+Weaver's KnightCap). Every self-play move is an alpha-beta search with the network at the leaves; a position's value
+is its *searched* value, and its error trains the network at the **principal variation's leaf** (sign-adjusted for
+whose move it is there). Depth 1 is the original loop, bit for bit (the `selfplay` determinism digest is unchanged).
+Tests: the search equals plain minimax at depths 1-3, every searched value equals its leaf's evaluation, and a TD-Leaf
+run improves on its starting network. `set_weights` (and `checkers_selfplay_run.py --init-run`) continues a saved
+network, so TD-Leaf can refine a plain-TD champion instead of starting over.
+
+**Results (`selfplay-v3`: each seed's `pool-2x64-1m` network from `selfplay-v2`, trained 50k more games; scored as
+before, 3-ply against the field, 60 games per opponent):**
+
+| Arm | Points (mean ± sd) | Per seed | material-4 | evolved 3-ply | Train (s) |
+|---|---|---|---|---|---|
+| (start: `pool-2x64-1m`) | 0.752 ± 0.022 | 0.72-0.77 | 0.62 | 0.80 | |
+| `ft-td` (plain TD) | 0.751 ± 0.080 | 0.63-0.86 | 0.65 | 0.76 | 202 |
+| `ft-leaf2` (TD-Leaf, 2 plies) | 0.818 ± 0.020 | 0.80-0.84 | 0.73 | 0.80 | 1034 |
+| **`ft-leaf3`** (TD-Leaf, 3 plies) | **0.855 ± 0.024** | **0.82-0.88** | 0.71 | **0.92** | 4071 |
+
+- **More plain TD does nothing** (0.751 from 0.752: the network had plateaued) and makes seeds *less* alike; **TD-Leaf
+  lifts every seed**, by about 0.10 at 3 plies. Against the plain-TD control it wins 4 of 5 seeds (paired p = 0.125;
+  the fifth, seed 0, is a 0.002 loss to a lucky 0.856 control).
+- **Training at the depth it plays helps most**: 3 plies beats 2 overall, above all against the other learned
+  evaluator (0.92 vs 0.80); against material-4 the two are level (0.71, 0.73).
+- It is expensive: a 3-ply search per self-play move is ~20x slower than one ply (~68 min for 50k games, alone ~40).
+- **On the leaderboard** (the current #1 network, run `c7ed9f33`, continued by TD-Leaf at 3 plies for 50k games, seed 0;
+  entered at 3 and 4 plies like its parent): **#1 at 0.938, undefeated** (4-ply; 333W 47D 0L over 380 games; 13W 7D 0L
+  against material-4, 9W 11D 0L against its own parent at 4 plies) and **#2 at 0.882** (3-ply), ahead of the plain-TD
+  parent at 4 plies (0.847). Searching a ply less, the TD-Leaf network holds its parent level (5W 10D 5L) and beats it
+  at equal depth (11W 9D 0L). Material-4 is now fifth (0.729).

@@ -199,7 +199,7 @@ const cellX = (i: number) => 76 + i * 40
       <g v-for="(n, i) in [{ x: 40, v: '0' }, { x: 70, v: '−2' }, { x: 100, v: '+3' }, { x: 180, v: '+1' }, { x: 210, v: '+4' }, { x: 240, v: '✂' }]" :key="`m${i}`">
         <text :x="n.x" y="112" text-anchor="middle" font-size="8.5" :fill="n.v === '✂' ? palette.fgSubtle : palette.fgMuted">{{ n.v }}</text>
       </g>
-      <text x="12" y="132" font-size="8" :fill="palette.fgSubtle">leaves: material count · ✂ pruned: can't change the answer</text>
+      <text x="12" y="132" font-size="8" :fill="palette.fgSubtle">leaves: scored positions · ✂ pruned: can't matter</text>
     </g>
 
     <!-- First legal: the move list, top one taken -->
