@@ -549,6 +549,15 @@ impl Bandit {
         }
     }
 
+    /// The smallest payout an arm of this game typically makes: 0 unless its payouts are Gaussian, which can go
+    /// negative. (Tells a display whether to leave room for a minus sign.)
+    pub fn min_payout(&self) -> f64 {
+        match self.scenario {
+            Scenario::LuckyStart => -2.0, // the worst mean minus two sd
+            _ => 0.0,
+        }
+    }
+
     /// The payouts' typical spread, for strategies whose exploration bonus needs a scale (UCB, Gaussian Thompson).
     pub fn reward_scale(&self) -> f64 {
         match self.scenario {

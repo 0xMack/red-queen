@@ -36,8 +36,21 @@ export interface TermDef {
   forms?: Record<string, TermForm>
   /** Whether the reader may switch forms (else only the page's view picks one). */
   expandable?: boolean
-  /** How a bound value is written. */
+  /** How a bound value is written, as a fixed-width number (preferred: it doesn't move as the value changes). */
+  num?: NumFormat
+  /** Or as any string -- for values that aren't numbers in a range. Takes precedence over `num`. */
   format?: (value: number) => string
+}
+
+/** A fixed-width number: always `decimals` places, and padded (with invisible digits, and an invisible minus when it
+ *  could be negative) to the width of the largest value it can take -- so a worked line doesn't shift when 9.50 becomes
+ *  10.00 or 0.40 becomes −0.40. TeX's digits are all one width, so the padding is exact. */
+export interface NumFormat {
+  decimals?: number
+  /** The largest magnitude it can take: sets how many integer digits to reserve. */
+  max?: number
+  /** It can be negative: reserve a minus sign. */
+  signed?: boolean
 }
 
 type Part = Expr | string
@@ -95,13 +108,42 @@ export interface FormulaView {
   values?: Record<string, BoundValue | undefined>
   /** Bind values (the worked / numbers view) or not (symbols). */
   bind?: boolean
+  /** Number formats by term id, for this instance -- the lab knows ranges the formula can't (this game's budget, its
+   *  largest payout). Merged over each term's own `num`. */
+  formats?: Record<string, NumFormat>
 }
 
-function formatValue(v: BoundValue, def: TermDef): string {
+const warned = new Set<string>()
+
+/** A value as plain text, in its term's format (what a card shows). */
+export function formatPlain(v: BoundValue, def: TermDef, view: FormulaView = {}): string {
   if (typeof v === "string") return v
   if (def.format) return def.format(v)
-  if (Number.isInteger(v)) return String(v)
-  return v.toFixed(2)
+  const spec = { ...def.num, ...view.formats?.[def.id] }
+  const decimals = spec.decimals ?? (Number.isInteger(v) ? 0 : 2)
+  return (v < 0 ? "−" : "") + Math.abs(v).toFixed(decimals)
+}
+
+/** A value as LaTeX, padded to its format's full width (see `NumFormat`). */
+function formatValue(v: BoundValue, def: TermDef, view: FormulaView): string {
+  if (typeof v === "string") return v
+  if (def.format) return def.format(v)
+  const spec = { ...def.num, ...view.formats?.[def.id] }
+  const decimals = spec.decimals ?? (Number.isInteger(v) ? 0 : 2)
+  const digits = Math.abs(v).toFixed(decimals)
+  let pad = ""
+  if (spec.max !== undefined) {
+    const room = String(Math.floor(Math.abs(spec.max))).length
+    const used = digits.split(".")[0]!.length
+    if (used > room && import.meta.dev && !warned.has(def.id)) {
+      warned.add(def.id)
+      console.warn(`formula term "${def.id}": ${v} is outside its declared range (max ${spec.max}) -- the formula will shift`)
+    }
+    if (room > used) pad = `\\phantom{${"0".repeat(room - used)}}`
+  }
+  // `{-}`: an ordinary minus (a sign, not a binary operator), so it and its invisible stand-in are the same width.
+  const sign = v < 0 ? "{-}" : spec.signed ? "\\phantom{{-}}" : ""
+  return `${pad}${sign}${digits}`
 }
 
 /** The LaTeX for an expression under a view. Every term is `\htmlData{term=id}{…}`. */
@@ -129,7 +171,7 @@ export function compile(e: Expr, view: FormulaView = {}): string {
       // A bound term shows its value -- unless what it shows is built from other terms (1/n, r − Q): then the value
       // goes one level down, into those terms, and the structure stays readable (1/5, 1 − 0.40).
       const bound = view.bind ? view.values?.[def.id] : undefined
-      const inner = bound !== undefined && !hasTerms(shown) ? formatValue(bound, def) : c(shown)
+      const inner = bound !== undefined && !hasTerms(shown) ? formatValue(bound, def, view) : c(shown)
       return `\\htmlData{term=${def.id}}{${inner}}`
     }
   }
@@ -148,11 +190,13 @@ export function compileFormula(f: Formula, view: FormulaView, worked: boolean): 
   if (f.result) {
     const def = termsOfFormula(f).find((t) => t.id === f.result)
     const v = view.values?.[f.result]
-    if (v !== undefined && def) rhs += ` = \\htmlData{term=${def.id}}{${formatValue(v, def)}}`
+    if (v !== undefined && def) rhs += ` = \\htmlData{term=${def.id}}{${formatValue(v, def, bound)}}`
   }
   const cls = (tex: string) => `\\htmlClass{math-worked}{${tex}}`
   const top = f.lhs ? `${compile(f.lhs, symbolic)} &${rel} ${compile(f.body, symbolic)}` : `& ${compile(f.body, symbolic)}`
-  const bottom = `${f.workedLhs ? cls(compile(f.workedLhs, bound)) : ""} &${cls(`= ${rhs}`)}`
+  // The worked row takes no width in the layout (`\mathrlap`): the block is sized and centred by the symbolic row alone,
+  // which never changes, so a new value can't move the formula -- the numbers only extend to the right of the relation.
+  const bottom = `${f.workedLhs ? cls(compile(f.workedLhs, bound)) : ""} &\\mathrlap{${cls(`= ${rhs}`)}}`
   return `\\begin{aligned} ${top} \\\\[0.35em] ${bottom} \\end{aligned}`
 }
 

@@ -94,6 +94,15 @@ export class BanditRun {
         return ret >>> 0;
     }
     /**
+     * The largest payout an arm can make (a Gaussian arm's is a typical maximum, not a hard bound): what the Learn
+     * chapter's formulas size their numbers for, so they don't shift as values grow.
+     * @returns {number}
+     */
+    get maxPayout() {
+        const ret = wasm.banditrun_maxPayout(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * Each arm's true mean right now -- for the reveal, never for play.
      * @returns {Float64Array}
      */
@@ -102,6 +111,14 @@ export class BanditRun {
         var v1 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
         return v1;
+    }
+    /**
+     * The smallest payout an arm typically makes (negative only for Gaussian arms): whether numbers need a sign.
+     * @returns {number}
+     */
+    get minPayout() {
+        const ret = wasm.banditrun_minPayout(this.__wbg_ptr);
+        return ret;
     }
     /**
      * `scenario` (`classic`, `two-lamps`, ...), `observer` (`none.v1` or `lamp.v1`), `strategy` (`thompson`, ...,
@@ -171,6 +188,14 @@ export class BanditRun {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * The payouts' typical spread: the scale in UCB's bonus and Gaussian Thompson's beliefs.
+     * @returns {number}
+     */
+    get rewardScale() {
+        const ret = wasm.banditrun_rewardScale(this.__wbg_ptr);
+        return ret;
     }
     /**
      * The situation the strategy is in (the lamp, if it sees it).

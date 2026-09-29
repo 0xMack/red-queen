@@ -247,6 +247,28 @@ demand (a chapter fetches the few faces it uses). Firefox and Safari were not av
     `lhs`/`rel`/`body` for this; `workedLhs` gives the worked row its own left side (UCB: `score(C) =`). The worked
     row is set back a step (`\htmlClass{math-worked}`). Value chips were dropped.
   - At rest a formula is plain ink; hovering it underlines its smallest live terms in their colours.
+  - **Numbers don't move.** Three measures, agreed with the user:
+    1. **The worked row takes no width.** It's `\mathrlap`-ed, so the block is sized and centred by the symbolic row
+       alone and never re-centres when a value changes.
+    2. **Fixed-width numbers.** Every number is padded to its format's full width: invisible `\phantom{0}` digits up to
+       the largest value it can take, and an invisible `{-}` where it could be negative. KaTeX's digits are all one
+       width, so this is exact. A term declares `num: { decimals, max, signed }`; the ranges that depend on the game
+       come from the lab as `scope.formats`, per game:
+       - counts: up to the budget;
+       - payouts: up to `max_payout`, the Rust scenario's own bound, now a WASM getter alongside `minPayout` and
+         `rewardScale`;
+       - estimates: up to the largest payout or the optimistic start, and with lookahead up to r_max / (1 − γ);
+       - differences: twice that, signed;
+       - the UCB bonus: c_max · scale · √(ln budget).
+
+       A sign is reserved only where a value can really go negative (`minPayout < 0`: Lucky start's Gaussian arms).
+       A value outside its declared range warns in development, so a wrong bound is noticed.
+    3. **Fixed widths around the formula.** The narration's pull number and payout are tabular with reserved widths;
+       the pulled machine's name in `score(C)` is set at the width of an M.
+
+    Measured over 16 to 30 pulls in each lab, including `1/9 → 1/10`, the symbolic row's position and the worked row's
+    width never changed. The cost is a small gap before a value that is shorter than the widest it could be (`␣9.50`
+    where Q can reach 10 or more).
   - It shows no worked line until the formula's result has a value, so it's never half-filled.
 - `MathTerm` is a term inside prose.
 

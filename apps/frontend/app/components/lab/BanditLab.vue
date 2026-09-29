@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BanditUpdate } from "~/composables/useBanditRun"
 import * as F from "~/data/math/multi-armed-bandits"
-import type { BoundValue } from "~/utils/math/expr"
+import type { BoundValue, NumFormat } from "~/utils/math/expr"
 
 // The bandit chapter's live lab (docs/design/0011): pick a strategy and a scenario, and watch it play -- the table it
 // keeps, every pull, its beliefs, the reveal. `scenarios` limits the choice (a section about one lesson), `lamp` adds
@@ -38,9 +38,10 @@ const observer = computed(() => observerFor(info.value, config.seesLamp))
 // `gamma`: the Q-learning agent alone, with its discount on a dial (0 = only the next payout counts).
 const GAMMAS = [0, 0.5, 0.8, 0.9, 0.99]
 const Q_ALPHA = 0.5
+const Q_INITIAL = 10
 const chosen = computed(() => {
   if (props.gamma) {
-    return { id: "q", strategy: "q_table", params: `gamma=${config.gamma},initial_q=10,alpha=${Q_ALPHA},epsilon=0`, label: `Q-learning, γ ${config.gamma}` }
+    return { id: "q", strategy: "q_table", params: `gamma=${config.gamma},initial_q=${Q_INITIAL},alpha=${Q_ALPHA},epsilon=0`, label: `Q-learning, γ ${config.gamma}` }
   }
   // A formula's knob overrides the strategy's own setting, so the slider is the setting.
   if (props.math === "epsilon") return { id: "e", strategy: "epsilon_greedy", params: `epsilon=${applied.epsilon}`, label: `ε-greedy (ε ${applied.epsilon})` }
@@ -86,7 +87,7 @@ const values = computed<Record<string, BoundValue | undefined>>(() => {
       const n = b?.counts[u.arm] ?? 0
       if (!b || n === 0) return knobValues // an untried machine is pulled before any score is compared
       const t = b.counts.reduce((s, x) => s + x, 0)
-      return { ...played, arm: `\\text{${armName(u.arm)}}`, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
+      return { ...played, arm: `\\mathrlap{\\text{${armName(u.arm)}}}\\phantom{\\text{M}}` /* as wide as the widest letter, whichever machine */, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
     }
     case "bellman":
       return {
@@ -103,6 +104,38 @@ const values = computed<Record<string, BoundValue | undefined>>(() => {
   }
 })
 watch(values, (v) => (scope.values.value = v), { immediate: true })
+
+// How wide each number can get in this game, so the worked row keeps its width from pull to pull (NumFormat): counts
+// up to the budget, payouts up to the scenario's largest, estimates up to that or the optimistic start -- or, looking
+// ahead, the most a discounted future can add up to: r_max / (1 − γ).
+const formats = computed((): Record<string, NumFormat> => {
+  const g = last.value?.game
+  if (!g) return {}
+  const binary = info.value.binary
+  // A minus sign is reserved only where a value can really go negative: Gaussian payouts (and so the estimates).
+  const negative = g.minPayout < 0
+  const initial = props.math === "bellman" ? Q_INITIAL : 0
+  const qMax = Math.max(initial, props.math === "bellman" && config.gamma < 1 ? g.maxPayout / (1 - config.gamma) : g.maxPayout)
+  const bonusMax = 3 * g.rewardScale * Math.sqrt(Math.log(g.budget))
+  const value = { decimals: 2, max: qMax, signed: negative }
+  const difference = { decimals: 2, max: 2 * qMax, signed: true }
+  const count = { decimals: 0, max: g.budget }
+  return {
+    n: count,
+    t: count,
+    count,
+    reward: { decimals: binary ? 0 : 2, max: g.maxPayout, signed: negative },
+    "q-old": value,
+    "q-new": value,
+    estimate: value,
+    "max-next": value,
+    error: difference,
+    td: difference,
+    bonus: { decimals: 2, max: bonusMax },
+    score: { decimals: 2, max: qMax + bonusMax, signed: negative },
+  }
+})
+watch(formats, (f) => (scope.formats.value = f), { immediate: true })
 // ε-greedy: light the branch each pull took, in the formula and the narration.
 watch(last, (u) => {
   if (u && props.math === "epsilon") scope.flash(u.greedy ? "exploit" : "explore", 450)
@@ -126,11 +159,12 @@ const narration = computed(() => {
       <MathFormula v-if="showFormula" :formula="formula" :forms="forms" bare />
       <p class="mt-2 flex min-h-5 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line pt-2.5 text-xs text-fg-subtle">
         <template v-if="narration">
-          <span class="num text-fg-subtle">pull {{ narration.pull }}</span>
+          <!-- fixed widths (tabular digits, room for the largest), so the centred line doesn't shift from pull to pull -->
+          <span class="num inline-block min-w-[8ch] text-right text-fg-subtle">pull {{ narration.pull }}</span>
           <span class="flex items-center gap-1.5 text-fg">
             <span class="size-2 rounded-full" :style="{ background: armColor(narration.arm) }" />machine {{ narration.machine }}
           </span>
-          <span>paid <span class="num text-fg" v-bind="scope.target('reward')">{{ narration.paid }}</span></span>
+          <span>paid <span class="num inline-block min-w-[5ch] text-left text-fg" v-bind="scope.target('reward')">{{ narration.paid }}</span></span>
           <template v-if="narration.term">
             · <span class="rounded px-1 text-fg-muted" v-bind="scope.target(narration.term)">{{ narration.term }}</span>
           </template>

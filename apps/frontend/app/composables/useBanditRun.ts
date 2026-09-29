@@ -40,6 +40,8 @@ export interface BanditUpdate {
   greedy: boolean
   /** The best value in the row the pull led to, before the update (a Q-table's lookahead); 0 at the end. */
   nextMax: number
+  /** The game's bounds: what a formula sizes its numbers for. */
+  game: { budget: number; minPayout: number; maxPayout: number; rewardScale: number }
 }
 
 export interface BanditRunSpec {
@@ -144,6 +146,7 @@ export function useBanditRun() {
         pullsBefore,
         greedy: chosenFrom.values[arm] === best,
         nextMax: nextBefore ? Math.max(...nextBefore.values) : 0,
+        game: { budget: run.budget, minPayout: run.minPayout, maxPayout: run.maxPayout, rewardScale: run.rewardScale },
       }
     }
     skillCurve.value = [...skillCurve.value, run.skill]

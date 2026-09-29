@@ -479,6 +479,22 @@ impl BanditRun {
     pub fn budget(&self) -> u32 {
         self.inner.game.budget
     }
+    /// The largest payout an arm can make (a Gaussian arm's is a typical maximum, not a hard bound): what the Learn
+    /// chapter's formulas size their numbers for, so they don't shift as values grow.
+    #[wasm_bindgen(getter, js_name = maxPayout)]
+    pub fn max_payout(&self) -> f64 {
+        self.inner.game.max_payout()
+    }
+    /// The smallest payout an arm typically makes (negative only for Gaussian arms): whether numbers need a sign.
+    #[wasm_bindgen(getter, js_name = minPayout)]
+    pub fn min_payout(&self) -> f64 {
+        self.inner.game.min_payout()
+    }
+    /// The payouts' typical spread: the scale in UCB's bonus and Gaussian Thompson's beliefs.
+    #[wasm_bindgen(getter, js_name = rewardScale)]
+    pub fn reward_scale(&self) -> f64 {
+        self.inner.game.reward_scale()
+    }
     #[wasm_bindgen(getter)]
     pub fn pulls(&self) -> u32 {
         self.inner.game.pulls

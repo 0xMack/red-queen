@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { mathSymbol } from "~/data/math/symbols"
-import { compile, compileFormula, termsOfFormula, type BoundValue, type Formula, type TermDef } from "~/utils/math/expr"
+import { compile, compileFormula, formatPlain, termsOfFormula, type BoundValue, type Formula, type TermDef } from "~/utils/math/expr"
 import { renderTex } from "~/utils/math/katex"
 import "katex/dist/katex.min.css"
 
@@ -36,7 +36,9 @@ const values = computed(() => props.values ?? scope.values.value)
 // A worked row needs its result: until then (a lab between games, an untried machine) the formula stays symbolic
 // rather than half-filled.
 const worked = computed(() => !!props.formula.worked && !!props.formula.result && values.value[props.formula.result] !== undefined)
-const html = computed(() => renderTex(compileFormula(props.formula, { forms: forms.value, values: values.value }, worked.value), true))
+const html = computed(() =>
+  renderTex(compileFormula(props.formula, { forms: forms.value, values: values.value, formats: scope.formats.value }, worked.value), true),
+)
 
 // --- Linking: event delegation over the rendered terms, and colouring them from the scope ---------------------------
 const root = ref<HTMLElement | null>(null)
@@ -110,7 +112,7 @@ const card = computed(() => {
     name: d.name ?? sym?.name ?? id,
     meaning: d.meaning ?? sym?.meaning,
     range: sym?.range,
-    value: v === undefined ? null : typeof v === "number" ? (d.format ? d.format(v) : Number.isInteger(v) ? String(v) : v.toFixed(3)) : v,
+    value: v === undefined ? null : formatPlain(v, d, { formats: scope.formats.value }),
     forms: d.expandable && d.forms ? [{ name: "default", label: "as written" }, ...Object.entries(d.forms).map(([name, f]) => ({ name, label: f.label }))] : [],
     form: forms.value[id] ?? "default",
     symbol: d.symbol,
