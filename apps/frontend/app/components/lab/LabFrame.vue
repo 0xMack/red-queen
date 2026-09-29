@@ -2,7 +2,8 @@
 // The frame every live lab in the Learn chapters shares: a plate captioned "Live lab" with what's being trained and
 // where (your browser, or a recording), a stage on the left (the policy playing), the controls and curves on the
 // right, and anything wide below. Without WebAssembly (`live === false`) the `recorded` slot replaces all of it.
-// Labs differ only in what they put in the slots -- see QLearningLab, DqnLab, PolicyGradientLab, ReachLab.
+// Labs differ only in what they put in the slots -- see QLearningLab, DqnLab, PolicyGradientLab, ReachLab. `formula`
+// (docs/design/0012) is the rule the lab runs, on its own plate above everything, linked to the lab's knobs and values.
 withDefaults(defineProps<{ live: boolean | null; title: string; split?: "stage" | "none"; runtime?: string }>(), { split: "stage", runtime: "WebAssembly" })
 </script>
 
@@ -23,6 +24,9 @@ withDefaults(defineProps<{ live: boolean | null; title: string; split?: "stage" 
       <slot name="recorded" />
     </div>
     <template v-else>
+      <div v-if="$slots.formula" class="math-panel mb-6">
+        <slot name="formula" />
+      </div>
       <div v-if="split === 'stage'" class="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <div class="min-w-0"><slot name="stage" /></div>
         <div class="min-w-0"><slot /></div>

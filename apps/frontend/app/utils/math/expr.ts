@@ -335,7 +335,8 @@ export function compileFormula(f: Formula, view: FormulaView, worked: boolean): 
     const v = view.values?.[f.result]
     if (v !== undefined && def) {
       const shown = formatValue(v, def, { ...ctx, operand: false })
-      rhs += ` ${ctx.rounded.any ? "\\approx" : "="} \\htmlData{term=${def.id}}{${shown}}`
+      // "≈" only for a number: a choice (argmax → "straight") is exact however rounded the values it chose between.
+      rhs += ` ${ctx.rounded.any && typeof v === "number" ? "\\approx" : "="} \\htmlData{term=${def.id}}{${shown}}`
     }
   }
   const cls = (t: string) => `\\htmlClass{math-worked}{${t}}`

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import * as code from "~/data/snippets/q-learning"
+import * as math from "~/data/math/q-learning"
 import type { RenderState } from "~/types/games"
 
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
@@ -72,11 +73,13 @@ const pocketBoard = board([
       The agent doesn't want the biggest reward <em>now</em>; it wants the biggest total from here on. That total, with later rewards counted a
       little less than sooner ones, is the <strong>return</strong>:
     </p>
-    <p class="text-center font-mono text-sm">G = r₀ + γ·r₁ + γ²·r₂ + γ³·r₃ + …</p>
-    <p>
-      γ (gamma, the <strong>discount</strong>) is a number just below 1. At 0.95, a reward twenty moves away counts for about a third of one
+    <MathScope>
+      <MathFormula :formula="math.discountedReturn" caption="Pin the sum and switch it to its recursive form: that's the Bellman equation's seed." />
+      <p>
+        <MathTerm id="gamma" symbol="gamma" /> (gamma, the <strong>discount</strong>) is a number just below 1. At 0.95, a reward twenty moves away counts for about a third of one
       right now. It keeps the sum finite and expresses a sensible preference: food now beats the same food later.
-    </p>
+      </p>
+    </MathScope>
 
     <h2>A value for every move in every situation</h2>
     <p>
@@ -101,12 +104,15 @@ const pocketBoard = board([
       <strong>Bellman equation</strong>, and Q-learning turns it into an update. After each move, compare what the table predicted with what one
       step of real experience suggests, and move the prediction part of the way there:
     </p>
-    <p class="text-center font-mono text-sm">Q(s, a) ← Q(s, a) + α · [ r + γ · max Q(s′, ·) − Q(s, a) ]</p>
-    <p>
-      The bracket is the <strong>temporal-difference error</strong> -- how surprised the table was. α (alpha, the learning rate) is how far to move:
-      0.1 means a tenth of the way, so the value becomes an average over many visits rather than whatever happened last time. Here is the update,
-      as the project's Rust core does it:
-    </p>
+    <MathScope>
+      <MathFormula :formula="math.update" />
+      <p>
+        The bracket is the <strong>temporal-difference error</strong> <MathTerm id="td" tex="\delta" /> -- how surprised the table was: the
+        <MathTerm id="target" tex="r + \gamma \max_{a'} Q(s',a')" /> one step of experience suggests, minus what the table said.
+        <MathTerm id="alpha" symbol="alpha" /> (alpha, the learning rate) is how far to move: 0.1 means a tenth of the way, so the value becomes an
+        average over many visits rather than whatever happened last time. Here is the update, as the project's Rust core does it:
+      </p>
+    </MathScope>
     <CodeBlock :snippet="code.update" />
     <p>
       Notice what this does <em>not</em> need: a finished game. The table learns from each step using its own guess about the next situation

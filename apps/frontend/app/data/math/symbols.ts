@@ -118,6 +118,22 @@ export const SYMBOLS = {
     meaning: "What the player can observe before choosing -- the lamp, the room, Snake's 11 features. It picks the row of the table.",
     chapters: ["multi-armed-bandits", "q-learning"],
   },
+  G: {
+    tex: "G",
+    plain: "G",
+    name: "return",
+    meaning:
+      "Everything the agent will be paid from here on, later rewards discounted by γ per step. What an agent wants to be large -- not the next reward.",
+    chapters: ["q-learning", "policy-gradients"],
+  },
+  nstep: {
+    tex: "n",
+    plain: "n",
+    name: "n-step horizon",
+    meaning: "How many real rewards to wait for before trusting the table's guess about the rest. 1 bootstraps at once; larger waits for more evidence.",
+    range: "1 and up",
+    chapters: ["q-learning", "dqn"],
+  },
 } satisfies Record<string, MathSymbol>
 
 export type SymbolId = keyof typeof SYMBOLS
