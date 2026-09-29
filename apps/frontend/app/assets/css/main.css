@@ -262,12 +262,12 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+  background: linear-gradient(90deg, var(--range-accent, var(--color-queen-400)) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
 }
 input[type="range"]::-moz-range-track {
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+  background: linear-gradient(90deg, var(--range-accent, var(--color-queen-400)) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -276,7 +276,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 12px;
   border-radius: 999px;
   background: var(--color-fg);
-  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--range-accent, var(--color-queen-400));
   transition: transform 0.15s;
 }
 input[type="range"]::-moz-range-thumb {
@@ -285,10 +285,63 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   border-radius: 999px;
   background: var(--color-fg);
-  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--range-accent, var(--color-queen-400));
 }
 input[type="range"]:hover::-webkit-slider-thumb {
   transform: scale(1.15);
+}
+
+/* Formula terms and everything linked to them (docs/design/0012, useTermScope). A term's colour comes from its scope
+   as --term-color. At rest a term is ink with a faint underline in its colour -- a hint that it's live; focused (hovered,
+   pinned, or pointed at from a slider or a chart), it takes its colour, and the rest of the formula steps back. */
+.math-formula .katex-display {
+  margin: 0.2em 0;
+}
+.math-formula [data-term] {
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.15s, background-color 0.15s, opacity 0.15s;
+  background-image: linear-gradient(color-mix(in srgb, var(--term-color) 55%, transparent), color-mix(in srgb, var(--term-color) 55%, transparent));
+  background-size: 100% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+.math-formula [data-term] [data-term] {
+  background-size: 100% 1px;
+}
+.math-formula.math-has-focus [data-term]:not(.term-on) {
+  opacity: 0.5;
+}
+.math-formula.math-has-focus .term-on [data-term] {
+  opacity: 1;
+}
+.math-formula [data-term].term-on,
+.math-formula [data-term]:focus-visible {
+  color: var(--term-color);
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--term-color) 14%, transparent);
+  background-size: 100% 2px;
+}
+.math-worked {
+  font-size: 0.95em;
+}
+.term-target {
+  --range-accent: var(--term-color);
+  transition: outline-color 0.15s, opacity 0.15s, stroke 0.15s;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.term-target.term-on {
+  outline-color: var(--term-color);
+}
+.term-target.term-dim {
+  opacity: 0.6;
+}
+svg .term-target.term-on {
+  stroke: var(--term-color);
+  stroke-width: 2px;
 }
 
 /* Figures number themselves: "Fig. 3 · Interactive". Each page (a <main>, or a chapter's body) restarts the count. */

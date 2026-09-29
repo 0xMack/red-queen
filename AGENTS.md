@@ -71,7 +71,8 @@ architectural change that might conflict with a decision already made.
     Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored "interactive textbook"
     covering how the project's techniques actually work — organised as learning paths through a chapter graph,
     `learnPaths`/`prerequisites` in `data/learnChapters.ts`, drawn as a transit map; no global chapter numbers, so prose
-    links chapters by name; code snippets in pseudocode/Python/Rust tabs from `data/snippets/`, embedded live games,
+    links chapters by name; code snippets in pseudocode/Python/Rust tabs from `data/snippets/`, formulas as KaTeX-typeset expression trees whose
+    terms link both ways to the labs (`data/math/`, `MathFormula`, `useTermScope`; docs/design/0012), embedded live games,
     callouts citing real results) round out the site; `/runs` is where the run
     list moved: one `GET /runs/summaries` (never per-run histories), held raw in the `runs` store and reused for a
     minute, with each experiment's runs collapsed into one expandable row (`RunsTableRow`/`RunsCard`). Components are organized by domain (`ui/` primitives -- `UiPanel`, `UiFigure`, `UiSectionHeader`, `UiStats`, ... -- `lab/` the live-lab kit every Learn training demo is built from, `game/`, `versus/`, `leaderboard/`, `chart/`, `learn/`, `runs/`) but named by file alone (`pathPrefix: false`); colours are tokens in `main.css`, mirrored for SVG/chart code in `utils/palette.ts` -- no hex values in components. Reusable components and

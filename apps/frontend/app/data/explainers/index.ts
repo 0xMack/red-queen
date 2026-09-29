@@ -6,6 +6,7 @@ import { ALGORITHMS } from "./algorithms"
 import { METRICS } from "./metrics"
 import { REPRESENTATIONS } from "./representations"
 import { SCENARIOS } from "./scenarios"
+import { symbolConcepts } from "~/data/math/symbols"
 
 // The explainer registry and resolver. A concept (what ε-greedy is) is authored once; `resolveExplainer` turns a ref
 // into what the card and the panel draw, adding -- when the page has leaderboard records (`ExplainContext`) -- the
@@ -20,14 +21,14 @@ export interface ExplainContext {
 
 export const EMPTY_CONTEXT: ExplainContext = { game: null, entries: [], interfacesById: {} }
 
-const CONCEPTS = new Map<string, ExplainConcept>([...ALGORITHMS, ...SCENARIOS, ...REPRESENTATIONS, ...METRICS].map((c) => [`${c.kind}:${c.id}`, c]))
+const CONCEPTS = new Map<string, ExplainConcept>([...ALGORITHMS, ...SCENARIOS, ...REPRESENTATIONS, ...METRICS, ...symbolConcepts()].map((c) => [`${c.kind}:${c.id}`, c]))
 
 export function parseRef(value: string | null | undefined): ExplainRef | null {
   if (!value) return null
   const i = value.indexOf(":")
   if (i < 0) return null
   const kind = value.slice(0, i) as ExplainKind
-  if (!["algorithm", "entrant", "scenario", "representation", "metric"].includes(kind)) return null
+  if (!["algorithm", "entrant", "scenario", "representation", "metric", "symbol"].includes(kind)) return null
   return { kind, id: value.slice(i + 1) }
 }
 

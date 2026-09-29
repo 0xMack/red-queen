@@ -280,6 +280,16 @@ Numbers derived from `Math.tanh` and written into SVG/style attributes are round
 and the browser can disagree in the last digit, which is a hydration mismatch on a server-rendered
 chapter.
 
+**Maths notation (docs/design/0012).** Formulas are expression trees (`utils/math/expr.ts`), compiled to LaTeX with every
+*term* wrapped in `\htmlData{term=<id>}` and typeset by KaTeX (`utils/math/katex.ts`, server-rendered, memoised). A
+chapter's formulas live in `data/math/<chapter>.ts`; the notation registry is `data/math/symbols.ts` (each symbol is
+also a `symbol:<id>` explainer). `MathFormula` renders one: hover/focus/click a term (click pins it), a card says what it
+is, its current value, and offers its other forms (δ ↔ the bracket, 1/n ↔ α, Q_n ↔ the average). A term scope
+(`useTermScope`, or `<MathScope>` around prose + formula + lab) links everything that names a term:
+`v-bind="scope.target('alpha')"` makes any element -- a slider, a table cell, an SVG mark -- light up with it and focus
+it; colours are per scope in reading order. A lab writes the last update into `scope.values`, and the formula shows a
+worked line with the real numbers (`BanditLab`'s `math` prop). New formulas: check them on `/dev/math`.
+
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),
 `GameCard.vue` (index cards with a `status: "available" | "coming-soon"` prop, so

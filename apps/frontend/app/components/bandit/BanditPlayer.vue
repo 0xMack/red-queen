@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { BanditUpdate } from "~/composables/useBanditRun"
+
 // A strategy playing bandit games, one pull per tick (docs/design/0011) -- what the game page's Watch stage and the
 // Learn chapter's labs both show: the floor (the machine it picks is outlined, then pulled), playback controls, the
 // table of values it keeps, every pull on a tape, Thompson sampling's belief curves, and the reveal when a game ends
@@ -11,9 +13,13 @@ const props = withDefaults(
     /** "none.v1" (one row) or "lamp.v1" (a row per lamp colour). */
     observer?: string
     label?: string
+    /** Hold the game still (a reader pinned a formula term to study it); playback resumes when released. */
+    hold?: boolean
   }>(),
-  { params: "", observer: "none.v1", label: "strategy" },
+  { params: "", observer: "none.v1", label: "strategy", hold: false },
 )
+// Every pull's effect on the table, for a formula to show worked (docs/design/0012).
+const emit = defineEmits<{ update: [BanditUpdate | null] }>()
 
 const info = computed(() => scenarioById(props.scenario))
 const run = useBanditRun()
@@ -26,6 +32,7 @@ let timer: ReturnType<typeof setTimeout> | null = null
 function newGame() {
   if (timer) clearTimeout(timer)
   chosen.value = null
+  emit("update", null)
   run
     .start({ scenario: props.scenario, observer: props.observer, strategy: props.strategy, params: props.params, seed: 1 + Math.floor(Math.random() * 1e9) })
     .then(schedule)
@@ -37,13 +44,14 @@ function schedule() {
   timer = setTimeout(tick, run.done.value ? 3400 : tickMs.value)
 }
 function tick() {
-  if (paused.value) return schedule()
+  if (paused.value || props.hold) return schedule()
   if (run.done.value) return newGame()
   const arm = run.choose()
   if (arm === null) return
   chosen.value = arm
   timer = setTimeout(() => {
     run.pull(arm)
+    emit("update", run.lastUpdate.value)
     chosen.value = null
     schedule()
   }, tickMs.value * 0.35)
@@ -82,6 +90,7 @@ const curves = computed(() => {
             :current="run.currentRow()"
             :arm="chosen ?? run.history.value.at(-1)?.arm ?? null"
             :row-labels="rowLabels"
+            :updated="run.lastUpdate.value"
             :binary="info.binary"
             :kind="kind"
           />

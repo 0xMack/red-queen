@@ -1,34 +1,156 @@
 <script setup lang="ts">
+import type { BanditUpdate } from "~/composables/useBanditRun"
+import * as F from "~/data/math/multi-armed-bandits"
+import type { BoundValue } from "~/utils/math/expr"
+
 // The bandit chapter's live lab (docs/design/0011): pick a strategy and a scenario, and watch it play -- the table it
 // keeps, every pull, its beliefs, the reveal. `scenarios` limits the choice (a section about one lesson), `lamp` adds
 // the "it can see the lamp" switch that turns one row into two.
+//
+// `math` puts the section's formula on top (docs/design/0012), in one term scope with the lab: every pull fills the
+// formula's worked line with the real update the Rust strategy just made, the table and the tape light up with the
+// terms, the formula's knobs (ε, α, c, γ) are sliders linked to their symbols, and pinning a term holds the game still.
 const props = withDefaults(
-  defineProps<{ title: string; scenarios?: string[]; strategy?: string; lamp?: boolean; initialLamp?: boolean; gamma?: boolean }>(),
-  { scenarios: () => BANDIT_SCENARIOS.map((s) => s.id), strategy: "greedy", lamp: false, initialLamp: false, gamma: false },
+  defineProps<{
+    title: string
+    scenarios?: string[]
+    strategy?: string
+    lamp?: boolean
+    initialLamp?: boolean
+    gamma?: boolean
+    math?: "incremental" | "constant-step" | "epsilon" | "ucb" | "bellman" | null
+    /** Show the formula in the lab; off when the chapter shows it in the prose, in the same <MathScope>. */
+    showFormula?: boolean
+  }>(),
+  { scenarios: () => BANDIT_SCENARIOS.map((s) => s.id), strategy: "greedy", lamp: false, initialLamp: false, gamma: false, math: null, showFormula: true },
 )
 const config = reactive({ strategy: props.strategy, scenario: props.scenarios[0]!, seesLamp: props.initialLamp, gamma: 0.9 })
+const knobs = reactive({ epsilon: 0.1, alpha: 0.2, c: 1.41 })
+// A knob restarts the game with its new setting once the slider settles, not on every step of a drag.
+const applied = reactive({ ...knobs })
+let settle: ReturnType<typeof setTimeout> | null = null
+watch(knobs, () => {
+  if (settle) clearTimeout(settle)
+  settle = setTimeout(() => Object.assign(applied, knobs), 350)
+})
 const info = computed(() => scenarioById(config.scenario))
 const observer = computed(() => observerFor(info.value, config.seesLamp))
 // `gamma`: the Q-learning agent alone, with its discount on a dial (0 = only the next payout counts).
 const GAMMAS = [0, 0.5, 0.8, 0.9, 0.99]
-const chosen = computed(() =>
-  props.gamma
-    ? { id: "q", strategy: "q_table", params: `gamma=${config.gamma},initial_q=10,alpha=0.5,epsilon=0`, label: `Q-learning, γ ${config.gamma}` }
-    : (BANDIT_STRATEGIES.find((s) => s.id === config.strategy) ?? BANDIT_STRATEGIES[0]!),
-)
+const Q_ALPHA = 0.5
+const chosen = computed(() => {
+  if (props.gamma) {
+    return { id: "q", strategy: "q_table", params: `gamma=${config.gamma},initial_q=10,alpha=${Q_ALPHA},epsilon=0`, label: `Q-learning, γ ${config.gamma}` }
+  }
+  // A formula's knob overrides the strategy's own setting, so the slider is the setting.
+  if (props.math === "epsilon") return { id: "e", strategy: "epsilon_greedy", params: `epsilon=${applied.epsilon}`, label: `ε-greedy (ε ${applied.epsilon})` }
+  if (props.math === "constant-step") return { id: "t", strategy: "epsilon_greedy", params: `epsilon=0.1,alpha=${applied.alpha}`, label: `ε-greedy, step ${applied.alpha}` }
+  if (props.math === "ucb") return { id: "u", strategy: "ucb1", params: `c=${applied.c}`, label: `UCB (c ${applied.c})` }
+  return BANDIT_STRATEGIES.find((s) => s.id === config.strategy) ?? BANDIT_STRATEGIES[0]!
+})
+
+// --- The formula ------------------------------------------------------------------------------------------------------
+// The chapter's scope when it wraps the lab in a <MathScope> (prose terms then link to the lab too), else its own.
+const scope = props.math ? useOrProvideTermScope() : useTermScope()
+const formula = computed(() => {
+  switch (props.math) {
+    case "incremental":
+    case "constant-step":
+      return F.incremental
+    case "epsilon":
+      return F.epsilonGreedy
+    case "ucb":
+      return F.ucb
+    case "bellman":
+      return F.bellman
+    default:
+      return null
+  }
+})
+const forms = computed<Record<string, string>>(() => (props.math === "constant-step" ? { step: "alpha" } : ({} as Record<string, string>)))
+const last = shallowRef<BanditUpdate | null>(null)
+
+// The last pull, as values for the formula's terms -- read from the real update, never recomputed where it can be read.
+const values = computed<Record<string, BoundValue | undefined>>(() => {
+  const u = last.value
+  const knobValues = { epsilon: knobs.epsilon, c: knobs.c, alpha: props.math === "bellman" ? Q_ALPHA : knobs.alpha, gamma: config.gamma }
+  // The worked line is the game's real update, made with the settings it was started with.
+  const played = { ...knobValues, epsilon: applied.epsilon, c: applied.c, alpha: props.math === "bellman" ? Q_ALPHA : applied.alpha }
+  if (!u) return props.math === "bellman" ? { gamma: config.gamma, alpha: Q_ALPHA } : knobValues
+  switch (props.math) {
+    case "incremental":
+    case "constant-step":
+      return { ...played, "q-old": u.before, "q-new": u.after, n: u.n, reward: u.reward, error: u.reward - u.before, step: props.math === "constant-step" ? applied.alpha : 1 / u.n }
+    case "ucb": {
+      const b = u.chosenFrom
+      const n = b?.counts[u.arm] ?? 0
+      if (!b || n === 0) return knobValues // an untried machine is pulled before any score is compared
+      const t = b.counts.reduce((s, x) => s + x, 0)
+      return { ...played, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
+    }
+    case "bellman":
+      return {
+        gamma: config.gamma,
+        alpha: Q_ALPHA,
+        "q-old": u.before,
+        "q-new": u.after,
+        reward: u.reward,
+        "max-next": u.nextMax,
+        td: u.reward + config.gamma * u.nextMax - u.before,
+      }
+    default:
+      return knobValues
+  }
+})
+watch(values, (v) => (scope.values.value = v), { immediate: true })
+// ε-greedy: light the branch each pull took, in the formula and the narration.
+watch(last, (u) => {
+  if (u && props.math === "epsilon") scope.flash(u.greedy ? "exploit" : "explore", 450)
+})
+const hold = computed(() => scope.pinned.value !== null)
+
+// What the last pull was, in words, under the formula.
+const narration = computed(() => {
+  const u = last.value
+  if (!u) return null
+  const machine = armName(u.arm)
+  if (props.math === "epsilon") return { text: `Pull ${u.pull}: machine ${machine} --`, term: u.greedy ? "exploit" : "explore", after: u.greedy ? "it had the best estimate." : "not the best estimate: an exploring pull." }
+  if (props.math === "ucb" && (u.chosenFrom?.counts[u.arm] ?? 0) === 0) return { text: `Pull ${u.pull}: machine ${machine} had never been pulled, so it goes first -- its bonus is infinite.` }
+  return { text: `Pull ${u.pull}: machine ${machine} paid ${u.reward % 1 === 0 ? u.reward : u.reward.toFixed(2)}.` }
+})
 </script>
 
 <template>
   <LabFrame :live="true" :title="title" split="none" data-bandit-lab>
+    <div v-if="formula" class="mb-5 border-b border-line pb-4" :class="showFormula ? '' : 'pb-2'">
+      <MathFormula v-if="showFormula" :formula="formula" :forms="forms" />
+      <p v-if="narration" class="text-center text-xs text-fg-subtle">
+        {{ narration.text }}
+        <template v-if="narration.term">
+          <span class="text-fg-muted" v-bind="scope.target(narration.term)">{{ narration.term }}</span> -- {{ narration.after }}
+        </template>
+        <template v-if="hold"> · <span class="text-fg-muted">held while a term is pinned</span></template>
+      </p>
+    </div>
+
     <div class="flex flex-wrap items-end gap-x-5 gap-y-3">
-      <UiSelect v-if="!gamma" v-model="config.strategy" class="w-56" label="Strategy" :options="BANDIT_STRATEGIES.map((s) => ({ value: s.id, label: s.label }))" />
-      <UiSelect
-        v-else
-        v-model="config.gamma"
-        class="w-56"
-        label="γ, how much the future counts"
-        :options="GAMMAS.map((g) => ({ value: g, label: g === 0 ? '0 -- only the next payout' : String(g) }))"
-      />
+      <UiSelect v-if="!gamma && !math" v-model="config.strategy" class="w-56" label="Strategy" :options="BANDIT_STRATEGIES.map((s) => ({ value: s.id, label: s.label }))" />
+      <div v-else-if="gamma" v-bind="scope.target('gamma')" class="w-56">
+        <UiSelect
+          v-model="config.gamma"
+          label="γ, how much the future counts"
+          :options="GAMMAS.map((g) => ({ value: g, label: g === 0 ? '0 -- only the next payout' : String(g) }))"
+        />
+      </div>
+      <div v-if="math === 'epsilon'" v-bind="scope.target('epsilon')" class="w-56">
+        <UiRange v-model="knobs.epsilon" label="ε, how often it explores" :min="0" :max="0.5" :step="0.01" />
+      </div>
+      <div v-if="math === 'constant-step'" v-bind="scope.target('alpha')" class="w-56">
+        <UiRange v-model="knobs.alpha" label="α, the step" :min="0.02" :max="1" :step="0.02" />
+      </div>
+      <div v-if="math === 'ucb'" v-bind="scope.target('c')" class="w-56">
+        <UiRange v-model="knobs.c" label="c, the exploration weight" :min="0" :max="3" :step="0.01" />
+      </div>
       <UiSelect
         v-if="scenarios.length > 1"
         v-model="config.scenario"
@@ -40,7 +162,16 @@ const chosen = computed(() =>
     </div>
     <p class="mt-2 text-xs text-fg-subtle"><span class="text-fg-muted">{{ info.lesson }}</span> {{ info.pitfall }}</p>
     <ClientOnly>
-      <BanditPlayer class="mt-5" :scenario="config.scenario" :strategy="chosen.strategy" :params="chosen.params" :observer="observer" :label="chosen.label" />
+      <BanditPlayer
+        class="mt-5"
+        :scenario="config.scenario"
+        :strategy="chosen.strategy"
+        :params="chosen.params"
+        :observer="observer"
+        :label="chosen.label"
+        :hold="hold"
+        @update="(u) => (last = u)"
+      />
     </ClientOnly>
   </LabFrame>
 </template>

@@ -20,6 +20,28 @@ export interface BanditPull {
   lamp: number
 }
 
+/** What one pull did to the strategy's table, read from its beliefs just before and just after (the real Rust
+ *  update, not a recomputation): what the Learn chapter's worked formulas show. */
+export interface BanditUpdate {
+  pull: number
+  arm: number
+  reward: number
+  /** The row the pull was made in, and the row it led to (null when the game ended). */
+  row: number
+  nextRow: number | null
+  /** The pulled cell's estimate before and after, and its pull count after. */
+  before: number
+  after: number
+  n: number
+  /** The row's beliefs when the choice was made (what the strategy chose from), and pulls before this one. */
+  chosenFrom: Beliefs | null
+  pullsBefore: number
+  /** Whether the pulled machine had the best estimate in its row (a greedy choice) or not (exploring). */
+  greedy: boolean
+  /** The best value in the row the pull led to, before the update (a Q-table's lookahead); 0 at the end. */
+  nextMax: number
+}
+
 export interface BanditRunSpec {
   scenario: string
   /** "none.v1" (one row) or "lamp.v1" (a row per lamp colour). */
@@ -55,6 +77,7 @@ export function useBanditRun() {
   /** Skill after each pull, for a race's curve. */
   const skillCurve = shallowRef<number[]>([])
   const error = ref<string | null>(null)
+  const lastUpdate = shallowRef<BanditUpdate | null>(null)
 
   function sync() {
     if (!run) return
@@ -85,6 +108,7 @@ export function useBanditRun() {
     arms.value = run.arms
     budget.value = run.budget
     history.value = []
+    lastUpdate.value = null
     skillCurve.value = []
     reveal.value = null
     sync()
@@ -94,10 +118,34 @@ export function useBanditRun() {
   function pull(arm: number): BanditPull | null {
     if (!run || run.done) return null
     const at = run.lamp
+    const row = run.row
+    const beforeRows = beliefs.value
+    const pullsBefore = run.pulls
     const reward = run.pull(arm)
     const made = { arm, reward, lamp: at }
     history.value = [...history.value, made]
     sync()
+    const chosenFrom = beforeRows[row] ?? null
+    const after = beliefs.value[row]
+    if (chosenFrom && after) {
+      const best = Math.max(...chosenFrom.values)
+      const nextRow = run.done ? null : run.row
+      const nextBefore = nextRow === null ? null : beforeRows[nextRow]
+      lastUpdate.value = {
+        pull: run.pulls,
+        arm,
+        reward,
+        row,
+        nextRow,
+        before: chosenFrom.values[arm]!,
+        after: after.values[arm]!,
+        n: after.counts[arm]!,
+        chosenFrom,
+        pullsBefore,
+        greedy: chosenFrom.values[arm] === best,
+        nextMax: nextBefore ? Math.max(...nextBefore.values) : 0,
+      }
+    }
     skillCurve.value = [...skillCurve.value, run.skill]
     return made
   }
@@ -141,6 +189,7 @@ export function useBanditRun() {
     reveal,
     skillCurve,
     error,
+    lastUpdate,
     start,
     pull,
     choose,

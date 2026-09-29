@@ -1,7 +1,8 @@
 # 0012 — Interactive maths notation: formulas tied to the demos they describe
 
-Status: **Proposed** (2026-09-29). Nothing built yet. The plan is a renderer spike, then one pilot chapter iterated
-until it's right, then the rest.
+Status: **Pilot implemented** (2026-09-29). Phase 0 (the renderer spike) chose KaTeX. Phase 1 (the framework) and
+phase 2 (the Multi-Armed Bandits pilot) are built, pending review and iteration with the user; the other chapters wait
+on that. See "Implementation notes".
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one frontend, reusable components),
 [0011](0011-multi-armed-bandits.md) (the pilot chapter's game and demos), the explainer registry
 (`app/data/explainers/`, `types/explain.ts`).
@@ -194,3 +195,89 @@ running process, with pause and step. After that, the rest follow.
   when the formula is on screen?
 - **Without JavaScript and in print:** the server-rendered KaTeX output is already a complete formula. Nothing
   interactive should be needed to read it.
+
+## Implementation notes
+
+### Phase 0: the renderer spike (2026-09-29)
+
+The same incremental-mean and UCB formulas went through KaTeX 0.18 (`\htmlData`) and Temml 0.13 (`\data` to MathML
+Core), each term carrying a `data-term` id. Both were rendered during setup, so on the server too, with one hover
+state lighting every element with the hovered id.
+
+| | KaTeX | Temml |
+|---|---|---|
+| Term hooks | `<span data-term>` around exactly the sub-expression | `data-term` on the MathML node (`msub`, `mrow`, `mi`, …) |
+| Linking across both renderers | worked | worked |
+| Look (Chromium, Windows) | TeX spacing and fonts; `arg max` limits, fractions and radicals as in LaTeX | cramped with the system maths font (Cambria Math); needs a hosted Latin Modern or STIX woff2 (several hundred KB, not in the npm package) for a consistent look |
+| Re-render (client, a pair of formulas) | ~0.23 ms | ~0.07 ms |
+| JS, gzipped | ~76 KB (its own chunk, only on pages with formulas: 83 KB built) | ~50 KB, plus the font |
+| Server render and hydration | no warnings | no warnings |
+
+**Decision: KaTeX.** Temml is faster, but both are far below a frame. KaTeX's output is HTML and CSS with its own
+fonts, so it renders the same in every browser. Temml's look depends on each browser's MathML support and on a maths
+font we would have to host; that variance is exactly what this project would have to test for. KaTeX's fonts load on
+demand (a chapter fetches the few faces it uses). Firefox and Safari were not available to test.
+
+### Phase 1: the framework
+
+- `utils/math/expr.ts` is the expression tree:
+  - Builders: `seq`, `mul`, `frac`, `sqrt`, `paren`/`bracket`, `cases`, `term`.
+  - `compile(expr, view)` produces LaTeX; `compileWorked` produces the worked line, ending in `= result`.
+  - A `mul` is juxtaposed as symbols and gets a `·` once values are bound (`0.9 · 10.00`, not `0.9 10.00`).
+  - A bound term shows its value only if what it shows has no nested terms. Otherwise the value goes one level down,
+    so `1/n` becomes `1/5` and `r − Q_n` becomes `1 − 0.40`, instead of the structure collapsing to one number. The
+    same rule makes an `α` form show `0.20`.
+- `utils/math/katex.ts` renders memoised, with `trust` limited to `\htmlData`.
+- `data/math/symbols.ts` is the notation registry. Each symbol is also a `symbol:<id>` explainer, so the side panel
+  works for it.
+- `useTermScope` (and the `MathScope` component) holds one figure's shared state:
+  - Colours are assigned per scope in reading order, as decided.
+  - `active` is the pinned term, else the hovered one.
+  - `lit` is the active term plus the terms it's built from: focusing the bonus lights `c`, `t` and `N(a)`.
+  - `flash` lights a term for a moment, without dimming anything, when a lab points at what just happened.
+  - `target(ids)` is a spread of bindings that makes any HTML or SVG element take part.
+- `MathFormula` renders a formula:
+  - Hover, focus and click (click pins, Esc or clicking outside releases) are handled by delegation over the rendered
+    terms.
+  - The card shows name, meaning, the current value, range and forms, and "More" opens the panel. It sits below the
+    whole figure, so the worked line stays visible.
+  - The value presentations are the worked line (default) and "numbers in place" (a toggle). Value chips aren't built.
+  - It shows no worked line until the formula's result has a value, so it's never half-filled.
+- `MathTerm` is a term inside prose.
+
+### Phase 2: the pilot, Multi-Armed Bandits
+
+- `useBanditRun.lastUpdate` reads each pull's effect from the Rust strategy's beliefs just before and after: the
+  cell's old and new value, n, the row the pull was made in and the row it led to, the next row's best value, the
+  beliefs the choice was made from, and whether the choice was greedy.
+- `BanditLab`'s `math` prop is one of incremental, constant-step, epsilon, ucb or bellman. It shows the formula, a
+  narration line and the knob sliders (ε, α, c; γ stays a select), each linked to its term.
+  - Knobs restart the game 350 ms after the slider settles.
+  - While a term is pinned, the game holds.
+  - Each ε-greedy pull flashes the branch it took.
+- `BanditTable` and `BanditTape` take part through the term scope:
+  - estimates are `estimate`, counts are `count`, uncertainties are `bonus`;
+  - the updated cell is also `q-new` and `n`;
+  - the last pull on the tape is `reward`.
+- Each worked line was checked against the real update pull by pull, with nothing recomputed that could be read:
+  - incremental: `0.50 + ⅓·(1 − 0.50) = 0.67`;
+  - constant step: `0.20 + 0.20·(0 − 0.20) = 0.16`;
+  - UCB: `0.89 + 1.41·√(ln 27 / 9) = 1.74`, equal to the strategy's own reported bonus;
+  - Bellman: `10 + 0.5·[0 + 0.9·10 − 10] = 9.5`.
+- The chapter now has:
+  - the incremental formula in the prose, with `MathTerm`s and the "as an average" expansion;
+  - worked formulas in the greedy and drifting labs;
+  - new ε and UCB labs;
+  - Thompson's formula (symbolic only);
+  - the detour's formula, prose and γ lab in one `MathScope`, so the prose formula fills in from the lab below it.
+- `/dev/math` (unlinked) renders every registered formula and, with `?lab=<math>`, a lab at the top of the page. It's
+  where a new formula gets checked (KaTeX throws in development), and it's usable for screenshots, since the Browser
+  pane doesn't draw scrolled content while hidden.
+
+### Open, for the iteration with the user
+
+- **Colours at rest:** a faint underline in the term's colour. Too quiet, or too busy with nested terms?
+- **Keyboard stops:** every term is a tab stop. Nested terms make that a lot of stops.
+- **Thompson and the lamp section:** the `wins`/`losses` terms aren't linked to `BeliefCurves` yet, and `Q(s, a)`'s
+  `s` isn't linked to the table's rows yet.
+- **Value chips:** the third value presentation isn't built.
