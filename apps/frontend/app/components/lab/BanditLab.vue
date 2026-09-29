@@ -86,7 +86,7 @@ const values = computed<Record<string, BoundValue | undefined>>(() => {
       const n = b?.counts[u.arm] ?? 0
       if (!b || n === 0) return knobValues // an untried machine is pulled before any score is compared
       const t = b.counts.reduce((s, x) => s + x, 0)
-      return { ...played, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
+      return { ...played, arm: `\\text{${armName(u.arm)}}`, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
     }
     case "bellman":
       return {
@@ -109,27 +109,35 @@ watch(last, (u) => {
 })
 const hold = computed(() => scope.pinned.value !== null)
 
-// What the last pull was, in words, under the formula.
+// What the last pull was, in words, under the formula: the pull number, the machine (in its colour), and what happened.
 const narration = computed(() => {
   const u = last.value
   if (!u) return null
-  const machine = armName(u.arm)
-  if (props.math === "epsilon") return { text: `Pull ${u.pull}: machine ${machine} --`, term: u.greedy ? "exploit" : "explore", after: u.greedy ? "it had the best estimate." : "not the best estimate: an exploring pull." }
-  if (props.math === "ucb" && (u.chosenFrom?.counts[u.arm] ?? 0) === 0) return { text: `Pull ${u.pull}: machine ${machine} had never been pulled, so it goes first -- its bonus is infinite.` }
-  return { text: `Pull ${u.pull}: machine ${machine} paid ${u.reward % 1 === 0 ? u.reward : u.reward.toFixed(2)}.` }
+  const base = { pull: u.pull, arm: u.arm, machine: armName(u.arm), paid: u.reward % 1 === 0 ? String(u.reward) : u.reward.toFixed(2), term: null as string | null }
+  if (props.math === "epsilon") return { ...base, term: u.greedy ? "exploit" : "explore", text: u.greedy ? "it had the best estimate" : "not the best estimate: an exploring pull" }
+  if (props.math === "ucb" && (u.chosenFrom?.counts[u.arm] ?? 0) === 0) return { ...base, text: "never pulled before, so it goes first: its bonus is infinite" }
+  return { ...base, text: null }
 })
 </script>
 
 <template>
   <LabFrame :live="true" :title="title" split="none" data-bandit-lab>
-    <div v-if="formula" class="mb-5 border-b border-line pb-4" :class="showFormula ? '' : 'pb-2'">
-      <MathFormula v-if="showFormula" :formula="formula" :forms="forms" />
-      <p v-if="narration" class="text-center text-xs text-fg-subtle">
-        {{ narration.text }}
-        <template v-if="narration.term">
-          <span class="text-fg-muted" v-bind="scope.target(narration.term)">{{ narration.term }}</span> -- {{ narration.after }}
+    <div v-if="formula" class="math-panel mb-5">
+      <MathFormula v-if="showFormula" :formula="formula" :forms="forms" bare />
+      <p class="mt-2 flex min-h-5 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line pt-2.5 text-xs text-fg-subtle">
+        <template v-if="narration">
+          <span class="num text-fg-subtle">pull {{ narration.pull }}</span>
+          <span class="flex items-center gap-1.5 text-fg">
+            <span class="size-2 rounded-full" :style="{ background: armColor(narration.arm) }" />machine {{ narration.machine }}
+          </span>
+          <span>paid <span class="num text-fg" v-bind="scope.target('reward')">{{ narration.paid }}</span></span>
+          <template v-if="narration.term">
+            · <span class="rounded px-1 text-fg-muted" v-bind="scope.target(narration.term)">{{ narration.term }}</span>
+          </template>
+          <span v-if="narration.text">· {{ narration.text }}</span>
         </template>
-        <template v-if="hold"> · <span class="text-fg-muted">held while a term is pinned</span></template>
+        <span v-else>Waiting for the first pull…</span>
+        <span v-if="hold" class="ml-1 rounded-full border border-line-strong px-2 py-px text-[10.5px] text-fg-muted">paused while a term is pinned</span>
       </p>
     </div>
 

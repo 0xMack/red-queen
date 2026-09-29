@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as bandits from "~/data/math/multi-armed-bandits"
 import { SYMBOLS } from "~/data/math/symbols"
-import { termsOf, type Formula } from "~/utils/math/expr"
+import { termsOfFormula, type Formula } from "~/utils/math/expr"
 
 // Every formula in data/math/, rendered with its terms (docs/design/0012) -- the place to check a new formula
 // compiles (KaTeX throws in development) and every term reads right, and to try a lab's formula at the top of a page.
@@ -11,7 +11,7 @@ const route = useRoute()
 const lab = computed(() => (typeof route.query.lab === "string" ? route.query.lab : null))
 const groups: { chapter: string; formulas: Formula[] }[] = [{ chapter: "multi-armed-bandits", formulas: Object.values(bandits) }]
 const unknownSymbols = groups.flatMap((g) =>
-  g.formulas.flatMap((f) => termsOf(f.body).filter((t) => t.symbol && !(t.symbol in SYMBOLS)).map((t) => `${f.id}: ${t.id} → ${t.symbol}`)),
+  g.formulas.flatMap((f) => termsOfFormula(f).filter((t) => t.symbol && !(t.symbol in SYMBOLS)).map((t) => `${f.id}: ${t.id} → ${t.symbol}`)),
 )
 </script>
 
@@ -25,7 +25,7 @@ const unknownSymbols = groups.flatMap((g) =>
 
     <section v-for="g in groups" :key="g.chapter" class="mt-8">
       <p class="label">{{ g.chapter }}</p>
-      <div v-for="f in g.formulas" :key="f.id" class="card mt-3 px-5 py-2">
+      <div v-for="f in g.formulas" :key="f.id">
         <MathScope>
           <MathFormula :formula="f" :caption="f.id" />
         </MathScope>

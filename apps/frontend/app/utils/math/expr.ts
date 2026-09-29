@@ -67,12 +67,22 @@ export interface Formula {
   id: string
   /** What the formula says, in words -- its accessible label and the card's heading. */
   title: string
+  /** The left-hand side and the relation (`Q_{n+1}`, `\leftarrow`). With them, the worked row aligns under the
+   *  relation -- a derivation: `Q_{n+1} ← Q_n + …` over `= 0.40 + … = 0.52`. */
+  lhs?: Expr
+  rel?: string
+  /** The right-hand side (or the whole formula, without `lhs`). */
   body: Expr
-  /** The worked instance: typically the right-hand side with values bound, ending `= result`. */
+  /** The worked instance: the right-hand side with values bound, ending `= result`. */
   worked?: Expr
-  /** The term whose bound value ends the worked line (`… = 0.52`). */
+  /** The worked row's own left-hand side, when it isn't just "=" under the formula's (UCB: `score(C) =`). */
+  workedLhs?: Expr
+  /** The term whose bound value ends the worked row (`… = 0.52`). */
   result?: string
 }
+
+/** Every part of a formula, for finding and registering its terms. */
+const partsOf = (f: Formula): Expr[] => [f.lhs, f.body, f.workedLhs, f.worked].filter((e): e is Expr => !!e)
 
 export const formula = (f: Formula): Formula => f
 
@@ -125,16 +135,31 @@ export function compile(e: Expr, view: FormulaView = {}): string {
   }
 }
 
-/** The worked line: the formula's `worked` expression with values bound, then `= result`. */
-export function compileWorked(f: Formula, view: FormulaView): string | null {
-  if (!f.worked) return null
+/** A whole formula: symbolic, and -- when `worked` is true and it has a worked instance -- a second row with the
+ *  values bound, aligned on the relation. The worked row's cells are wrapped in `\htmlClass{math-worked}` so the page
+ *  can set them back a step. */
+export function compileFormula(f: Formula, view: FormulaView, worked: boolean): string {
+  const symbolic = { ...view, bind: false }
+  const rel = f.rel ?? "="
+  if (!worked || !f.worked) return f.lhs ? `${compile(f.lhs, symbolic)} ${rel} ${compile(f.body, symbolic)}` : compile(f.body, symbolic)
+
   const bound = { ...view, bind: true }
-  let out = compile(f.worked, bound)
+  let rhs = compile(f.worked, bound)
   if (f.result) {
-    const def = findTerm(f.body, f.result) ?? findTerm(f.worked, f.result)
+    const def = termsOfFormula(f).find((t) => t.id === f.result)
     const v = view.values?.[f.result]
-    if (v !== undefined && def) out += ` = \\htmlData{term=${def.id}}{${formatValue(v, def)}}`
+    if (v !== undefined && def) rhs += ` = \\htmlData{term=${def.id}}{${formatValue(v, def)}}`
   }
+  const cls = (tex: string) => `\\htmlClass{math-worked}{${tex}}`
+  const top = f.lhs ? `${compile(f.lhs, symbolic)} &${rel} ${compile(f.body, symbolic)}` : `& ${compile(f.body, symbolic)}`
+  const bottom = `${f.workedLhs ? cls(compile(f.workedLhs, bound)) : ""} &${cls(`= ${rhs}`)}`
+  return `\\begin{aligned} ${top} \\\\[0.35em] ${bottom} \\end{aligned}`
+}
+
+/** Every term of a formula -- both sides, and the worked row's -- in reading order. */
+export function termsOfFormula(f: Formula): TermDef[] {
+  const out: TermDef[] = []
+  for (const part of partsOf(f)) termsOf(part, out)
   return out
 }
 

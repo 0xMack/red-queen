@@ -1,6 +1,6 @@
 import katex from "katex"
 
-// KaTeX, configured once (docs/design/0012). `trust` and the relaxed `strict` are for `\htmlData` only: every input is
+// KaTeX, configured once (docs/design/0012). `trust` and the relaxed `strict` are for `\htmlData`/`\htmlClass` only: every input is
 // authored by us, compiled from an expression tree, never user text. Output is HTML plus hidden MathML, so screen
 // readers get the maths. Renders are memoised: a live lab re-renders the same few strings over and over.
 
@@ -14,7 +14,7 @@ export function renderTex(tex: string, display = true): string {
   const html = katex.renderToString(tex, {
     displayMode: display,
     output: "htmlAndMathml",
-    trust: (context) => context.command === "\\htmlData",
+    trust: (context) => context.command === "\\htmlData" || context.command === "\\htmlClass",
     strict: (code: string) => (code === "htmlExtension" ? "ignore" : "warn"),
     throwOnError: import.meta.dev,
   })

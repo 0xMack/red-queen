@@ -41,19 +41,21 @@ const error = term("error", seq(reward, "-", qOld), {
 export const incremental = formula({
   id: "bandit-incremental",
   title: "The new estimate is the old one, moved a step of 1/n toward the payout",
-  body: seq(term("q-new", "Q_{n+1}", { symbol: "Q", name: "the estimate after this pull", format: two }), "\\leftarrow", qOld, "+", mul(step, paren(error))),
+  lhs: term("q-new", "Q_{n+1}", { symbol: "Q", name: "the estimate after this pull", format: two }),
+  rel: "\\leftarrow",
+  body: seq(qOld, "+", mul(step, paren(error))),
   worked: seq(qOld, "+", mul(step, paren(error))),
   result: "q-new",
 })
 
 const epsilon = term("epsilon", "\\varepsilon", { symbol: "epsilon", format: two })
-const estimate = term("estimate", "Q(a)", { symbol: "Q", name: "each machine's estimate", meaning: "The values in the table: one per machine." })
+const estimate = term("estimate", "Q(a)", { symbol: "Q", name: "each machine's estimate", meaning: "The values in the table: one per machine.", format: two })
 
 export const epsilonGreedy = formula({
   id: "bandit-epsilon-greedy",
   title: "Epsilon-greedy: a random machine with probability epsilon, the best estimate otherwise",
+  lhs: seq("a_t"),
   body: seq(
-    "a_t =",
     cases(
       [term("explore", "\\text{any machine, at random}", { name: "explore", meaning: "Ignore the estimates: every machine is equally likely." }), seq("\\text{with probability }", epsilon)],
       [term("exploit", seq("\\operatorname*{arg\\,max}_a", estimate), { name: "exploit", meaning: "The machine with the best estimate so far." }), "\\text{otherwise}"],
@@ -73,7 +75,14 @@ const bonus = term("bonus", mul(c, sqrt(frac(seq("\\ln", t), count))), {
 export const ucb = formula({
   id: "bandit-ucb",
   title: "UCB: pull the machine whose estimate plus uncertainty bonus is highest",
-  body: seq("a_t = \\operatorname*{arg\\,max}_a", bracket(term("score", seq(estimate, "+", bonus), { name: "the machine's score", format: two }))),
+  lhs: seq("a_t"),
+  body: seq("\\operatorname*{arg\\,max}_a", bracket(term("score", seq(estimate, "+", bonus), { name: "the machine's score", format: two }))),
+  // The worked row is the score of the machine just pulled: `score(C) = 0.89 + 1.41·√(ln 27 / 9) = 1.74`.
+  workedLhs: seq(
+    "\\text{score}(",
+    term("arm", "a", { symbol: "a", name: "the machine pulled", meaning: "The machine this pull chose: the one with the highest score." }),
+    ")",
+  ),
   worked: seq(estimate, "+", bonus),
   result: "score",
 })
@@ -115,7 +124,9 @@ const td = term("td", seq(term("reward", "r", { symbol: "r", name: "what this pu
 export const bellman = formula({
   id: "bandit-bellman",
   title: "Q-learning's update: move the value toward the payout plus gamma times the best value of the next room",
-  body: seq(term("q-new", "Q(s,a)", { symbol: "Q", name: "the value after the pull", format: two }), "\\leftarrow", qSa, "+", mul(alpha, bracket(td))),
+  lhs: term("q-new", "Q(s,a)", { symbol: "Q", name: "the value after the pull", format: two }),
+  rel: "\\leftarrow",
+  body: seq(qSa, "+", mul(alpha, bracket(td))),
   worked: seq(qSa, "+", mul(alpha, bracket(td))),
   result: "q-new",
 })

@@ -241,7 +241,12 @@ demand (a chapter fetches the few faces it uses). Firefox and Safari were not av
     terms.
   - The card shows name, meaning, the current value, range and forms, and "More" opens the panel. It sits below the
     whole figure, so the worked line stays visible.
-  - The value presentations are the worked line (default) and "numbers in place" (a toggle). Value chips aren't built.
+  - Values: settled with the user after the first pass. There's no toggle; both are always on: the symbolic formula,
+    and under it the same formula with the numbers, in one KaTeX `aligned` block aligned on the relation, like a line
+    of working (`Q_{n+1} ← Q_n + 1/n (r − Q_n)` over `= 0.60 + 1/6 · (1 − 0.60) = 0.67`). A formula has an explicit
+    `lhs`/`rel`/`body` for this; `workedLhs` gives the worked row its own left side (UCB: `score(C) =`). The worked
+    row is set back a step (`\htmlClass{math-worked}`). Value chips were dropped.
+  - At rest a formula is plain ink; hovering it underlines its smallest live terms in their colours.
   - It shows no worked line until the formula's result has a value, so it's never half-filled.
 - `MathTerm` is a term inside prose.
 
@@ -276,8 +281,6 @@ demand (a chapter fetches the few faces it uses). Firefox and Safari were not av
 
 ### Open, for the iteration with the user
 
-- **Colours at rest:** a faint underline in the term's colour. Too quiet, or too busy with nested terms?
 - **Keyboard stops:** every term is a tab stop. Nested terms make that a lot of stops.
 - **Thompson and the lamp section:** the `wins`/`losses` terms aren't linked to `BeliefCurves` yet, and `Q(s, a)`'s
   `s` isn't linked to the table's rows yet.
-- **Value chips:** the third value presentation isn't built.
