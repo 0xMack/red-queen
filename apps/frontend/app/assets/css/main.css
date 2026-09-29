@@ -297,9 +297,12 @@ input[type="range"]:hover::-webkit-slider-thumb {
 .math-formula .katex-display {
   margin: 0.2em 0;
 }
+/* The pointer is a hand only over a term's glyphs (MathFormula hit-tests by glyph, not by box). */
+.math-formula[data-hit] {
+  cursor: pointer;
+}
 .math-formula [data-term] {
   border-radius: 3px;
-  cursor: pointer;
   outline: none;
   transition: color 0.15s, background-color 0.15s, opacity 0.15s;
   background-image: linear-gradient(color-mix(in srgb, var(--term-color) 60%, transparent), color-mix(in srgb, var(--term-color) 60%, transparent));

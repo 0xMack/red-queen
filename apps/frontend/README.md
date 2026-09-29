@@ -287,8 +287,11 @@ also a `symbol:<id>` explainer). `MathFormula` renders one: hover/focus/click a 
 is, its current value, and offers its other forms (δ ↔ the bracket, 1/n ↔ α, Q_n ↔ the average). A term scope
 (`useTermScope`, or `<MathScope>` around prose + formula + lab) links everything that names a term:
 `v-bind="scope.target('alpha')"` makes any element -- a slider, a table cell, an SVG mark -- light up with it and focus
-it; colours are per scope in reading order. A lab writes the last update into `scope.values`, and the formula shows a
-worked line with the real numbers (`BanditLab`'s `math` prop). New formulas: check them on `/dev/math`.
+it; colours are per scope in reading order. A lab writes only the *inputs* of the last update into `scope.values`
+(and what the algorithm reported into `scope.expected`); the formula computes the rest from its operator nodes, shows a
+worked row with the real numbers, and in development warns if its result disagrees with the algorithm (`BanditLab`'s
+`math` prop). Pointer selection hit-tests glyphs, not boxes. New formulas: check them on `/dev/math`
+(`?lab=<math>&scenario=<id>` puts a lab at the top).
 
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),

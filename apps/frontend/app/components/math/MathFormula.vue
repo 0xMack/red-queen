@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { mathSymbol } from "~/data/math/symbols"
-import { compile, compileFormula, formatPlain, termsOfFormula, type BoundValue, type Formula, type TermDef } from "~/utils/math/expr"
+import {
+  checkValues,
+  compile,
+  compileFormula,
+  computeValues,
+  formatPlain,
+  termsOfFormula,
+  type BoundValue,
+  type Formula,
+  type TermDef,
+} from "~/utils/math/expr"
 import { renderTex } from "~/utils/math/katex"
 import "katex/dist/katex.min.css"
 
 // A formula whose terms are part of the page (docs/design/0012). Typeset by KaTeX from an expression tree; every term
 // is hoverable, focusable and clickable (click pins it), coloured by its term scope, and linked to everything else in
-// the scope that names it -- a slider, a table cell, a chart mark. With values bound (a lab's last update), a second
-// row repeats it with the real numbers, aligned on the relation like a line of working: `Q_{n+1} ← Q_n + …` over
-// `= 0.40 + … = 0.52`. A term's card says what it is, its current value, and -- when it has other forms -- lets the
-// reader switch.
+// the scope that names it -- a slider, a table cell, a chart mark. With inputs bound (a lab's last update), the formula
+// computes its derived terms and a second row repeats it with the real numbers, aligned on the relation like a line of
+// working: `Q_{n+1} ← Q_n + …` over `= 0.40 + … = 0.52`. A term's card says what it is, its current value, what it's
+// part of, and -- when it has other forms -- lets the reader switch.
 const props = withDefaults(
   defineProps<{
     formula: Formula
     /** Initial form per term id. */
     forms?: Record<string, string>
-    /** Values by term id; defaults to the scope's. */
+    /** Input values by term id; defaults to the scope's. The formula computes the rest. */
     values?: Record<string, BoundValue | undefined>
     /** A line under the formula: what it says. */
     caption?: string
@@ -32,7 +42,8 @@ scope.register(terms.value)
 const forms = ref<Record<string, string>>({ ...props.forms })
 watch(() => props.forms, (f) => (forms.value = { ...f }))
 
-const values = computed(() => props.values ?? scope.values.value)
+// Inputs plus everything the formula works out from them (the error, the bonus, the result).
+const values = computed(() => computeValues(props.formula, props.values ?? scope.values.value, forms.value))
 // A worked row needs its result: until then (a lab between games, an untried machine) the formula stays symbolic
 // rather than half-filled.
 const worked = computed(() => !!props.formula.worked && !!props.formula.result && values.value[props.formula.result] !== undefined)
@@ -40,38 +51,123 @@ const html = computed(() =>
   renderTex(compileFormula(props.formula, { forms: forms.value, values: values.value, formats: scope.formats.value }, worked.value), true),
 )
 
-// --- Linking: event delegation over the rendered terms, and colouring them from the scope ---------------------------
-const root = ref<HTMLElement | null>(null)
-const local = ref<{ id: string; el: HTMLElement } | null>(null)
+// The formula checking the algorithm, in development: what it computed against what the real code reported.
+if (import.meta.dev) {
+  watch([values, () => scope.expected.value], ([v, expected]) => {
+    for (const problem of checkValues(v, expected)) console.warn(`formula ${props.formula.id} disagrees with the algorithm -- ${problem}`)
+  })
+}
 
-function termAt(e: Event): HTMLElement | null {
-  const el = (e.target as Element | null)?.closest?.("[data-term]") as HTMLElement | null
-  return el && root.value?.contains(el) ? el : null
+// --- Hit-testing: by glyph, not by box -------------------------------------------------------------------------------
+// A term's box is everything inside it -- a compound term's box covers its parts, and KaTeX's boxes include invisible
+// struts and whole fraction stacks -- so "the element under the pointer" is often the wrong term. Instead: the glyphs
+// (text, rules, the radical's svg) of the rendered formula, each belonging to its innermost term; the pointer picks the
+// smallest glyph under it (or the nearest within a few pixels). Pointing at a compound term's own glyphs -- its minus
+// sign, its brackets -- picks the compound; pointing at a letter inside it picks the letter.
+const root = ref<HTMLElement | null>(null)
+interface Glyph {
+  el: Element
+  term: string
 }
-function onOver(e: Event) {
-  const el = termAt(e)
-  scope.hover(el?.dataset.term ?? null)
-  if (el) local.value = { id: el.dataset.term!, el }
+let glyphs: Glyph[] | null = null
+
+function collectGlyphs(): Glyph[] {
+  const out: Glyph[] = []
+  const html = root.value?.querySelector(".katex-html")
+  if (!html) return out
+  const walker = document.createTreeWalker(html, NodeFilter.SHOW_ELEMENT)
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const el = node as Element
+    const glyph =
+      el.tagName.toLowerCase() === "svg" ||
+      el.classList.contains("frac-line") ||
+      [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim() !== "")
+    if (!glyph) continue
+    const term = el.closest("[data-term]")
+    if (term && root.value!.contains(term)) out.push({ el, term: (term as HTMLElement).dataset.term! })
+  }
+  return out
 }
-function onLeave() {
+
+const SLOP = 4
+function termAtPoint(x: number, y: number): string | null {
+  glyphs ??= collectGlyphs()
+  let best: { term: string; area: number } | null = null
+  let near: { term: string; d: number } | null = null
+  for (const g of glyphs) {
+    for (const r of g.el.getClientRects()) {
+      if (r.width === 0 && r.height === 0) continue
+      const inside = x >= r.left - 1 && x <= r.right + 1 && y >= r.top - 1 && y <= r.bottom + 1
+      if (inside) {
+        const area = r.width * r.height
+        if (!best || area < best.area) best = { term: g.term, area }
+      } else {
+        const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom))
+        if (d <= SLOP && (!near || d < near.d)) near = { term: g.term, d }
+      }
+    }
+  }
+  return best?.term ?? near?.term ?? null
+}
+
+const local = ref<{ id: string; el: HTMLElement } | null>(null)
+function elementFor(id: string): HTMLElement | null {
+  return root.value?.querySelector<HTMLElement>(`[data-term="${id}"]`) ?? null
+}
+
+// No throttling needed: browsers already deliver pointer moves at most once per frame.
+function onPointerMove(e: PointerEvent) {
+  if (e.pointerType === "touch") return // touch has no hover: a tap pins
+  const id = termAtPoint(e.clientX, e.clientY)
+  root.value?.toggleAttribute("data-hit", !!id)
+  if (id !== scope.hovered.value) scope.hover(id)
+  if (id) local.value = { id, el: (document.elementFromPoint(e.clientX, e.clientY)?.closest(`[data-term="${id}"]`) as HTMLElement) ?? elementFor(id)! }
+}
+function onPointerLeave() {
+  root.value?.removeAttribute("data-hit")
   scope.hover(null)
 }
-function onClick(e: Event) {
-  const el = termAt(e)
+function onClick(e: MouseEvent) {
+  const id = e.detail === 0 ? ((e.target as Element).closest?.("[data-term]") as HTMLElement | null)?.dataset.term : termAtPoint(e.clientX, e.clientY)
+  if (!id) return
+  const under = e.detail === 0 ? (e.target as Element) : document.elementFromPoint(e.clientX, e.clientY)
+  local.value = { id, el: (under?.closest(`[data-term="${id}"]`) as HTMLElement | null) ?? elementFor(id)! }
+  scope.pin(id)
+}
+function onFocusIn(e: FocusEvent) {
+  const el = (e.target as Element).closest?.("[data-term]") as HTMLElement | null
   if (!el) return
   local.value = { id: el.dataset.term!, el }
-  scope.pin(el.dataset.term!)
+  scope.hover(el.dataset.term!)
 }
 function onKey(e: KeyboardEvent) {
   if (e.key === "Escape") scope.pin(null)
   else if (e.key === "Enter" || e.key === " ") {
-    const el = termAt(e)
+    const el = (e.target as Element).closest?.("[data-term]") as HTMLElement | null
     if (el) {
       e.preventDefault()
-      onClick(e)
+      local.value = { id: el.dataset.term!, el }
+      scope.pin(el.dataset.term!)
     }
   }
 }
+
+// --- Painting, and keeping keyboard focus across re-renders ----------------------------------------------------------
+// Every new value re-renders the formula's markup; a term focused from the keyboard would otherwise vanish with it.
+// Before the swap, remember which term (and which occurrence of it) had focus; after, focus the same one again.
+let refocus: { id: string; index: number } | null = null
+watch(
+  html,
+  () => {
+    glyphs = null
+    const active = document.activeElement as HTMLElement | null
+    if (active && root.value?.contains(active) && active.dataset.term) {
+      const same = [...root.value.querySelectorAll<HTMLElement>(`[data-term="${active.dataset.term}"]`)]
+      refocus = { id: active.dataset.term, index: Math.max(0, same.indexOf(active)) }
+    }
+  },
+  { flush: "pre" },
+)
 
 function paint() {
   const lit = scope.lit.value
@@ -85,6 +181,11 @@ function paint() {
     el.setAttribute("role", "button")
     el.setAttribute("aria-label", nameOf(id))
   })
+  if (refocus) {
+    const same = root.value?.querySelectorAll<HTMLElement>(`[data-term="${refocus.id}"]`)
+    same?.[Math.min(refocus.index, same.length - 1)]?.focus({ preventScroll: true })
+    refocus = null
+  }
 }
 watch([() => scope.lit.value, html], () => nextTick(paint))
 onMounted(paint)
@@ -106,6 +207,11 @@ const card = computed(() => {
   const d = def(id)!
   const sym = mathSymbol(d.symbol)
   const v = values.value[id]
+  // What it's part of *here*: the enclosing term of this occurrence (the same Q_n can stand alone and sit inside a
+  // bracket), read from the element that was pointed at.
+  const el = local.value?.el
+  const parentEl = el?.isConnected ? (el.parentElement?.closest("[data-term]") as HTMLElement | null) : null
+  const parent = parentEl && root.value?.contains(parentEl) ? parentEl.dataset.term! : null
   return {
     id,
     glyph: renderTex(compile(d.body), false),
@@ -116,6 +222,7 @@ const card = computed(() => {
     forms: d.expandable && d.forms ? [{ name: "default", label: "as written" }, ...Object.entries(d.forms).map(([name, f]) => ({ name, label: f.label }))] : [],
     form: forms.value[id] ?? "default",
     symbol: d.symbol,
+    parent: parent ? { id: parent, name: nameOf(parent) } : null,
     pinned: scope.pinned.value === id,
   }
 })
@@ -127,8 +234,8 @@ const cardEl = ref<HTMLElement | null>(null)
 function placeCard() {
   const id = cardId.value
   if (!id) return
-  let el = local.value?.el
-  if (!el?.isConnected) el = root.value?.querySelector<HTMLElement>(`[data-term="${id}"]`) ?? undefined
+  let el: HTMLElement | null | undefined = local.value?.el
+  if (!el?.isConnected) el = elementFor(id)
   if (!el) return
   local.value = { id, el }
   const r = el.getBoundingClientRect()
@@ -145,6 +252,14 @@ watch([cardId, html], () => nextTick(() => nextTick(placeCard)))
 function setForm(id: string, name: string) {
   forms.value = { ...forms.value, [id]: name }
 }
+/** Step out: pin the term this one is part of (the bracket around r, the bonus around c). */
+function pinParent(id: string) {
+  const inner = local.value?.el
+  const el = (inner?.isConnected ? (inner.parentElement?.closest(`[data-term="${id}"]`) as HTMLElement | null) : null) ?? elementFor(id)
+  if (!el) return
+  local.value = { id, el }
+  scope.pin(id)
+}
 const { open: openExplain } = useExplain()
 
 // A click anywhere outside the formula and its card releases a pin this formula made.
@@ -153,7 +268,9 @@ function onDocClick(e: MouseEvent) {
   if (cardId.value && scope.pinned.value === cardId.value && !root.value?.contains(t) && !(t as Element).closest?.("[data-term-card]")) scope.pin(null)
 }
 onMounted(() => document.addEventListener("click", onDocClick))
-onUnmounted(() => document.removeEventListener("click", onDocClick))
+onUnmounted(() => {
+  document.removeEventListener("click", onDocClick)
+})
 </script>
 
 <template>
@@ -162,10 +279,10 @@ onUnmounted(() => document.removeEventListener("click", onDocClick))
     class="math-formula not-prose"
     :class="bare ? '' : 'math-panel my-7'"
     :aria-label="formula.title"
-    @mouseover="onOver"
-    @mouseleave="onLeave"
-    @focusin="onOver"
-    @focusout="onLeave"
+    @pointermove="onPointerMove"
+    @pointerleave="onPointerLeave"
+    @focusin="onFocusIn"
+    @focusout="onPointerLeave"
     @click="onClick"
     @keydown="onKey"
   >
@@ -203,6 +320,11 @@ onUnmounted(() => document.removeEventListener("click", onDocClick))
             @update:model-value="(v) => setForm(card!.id, v as string)"
           />
         </div>
+        <p v-if="card.parent" class="mt-3 text-[12px] text-fg-subtle">
+          Part of
+          <button v-if="card.pinned" class="link" @click.stop="pinParent(card.parent.id)">{{ card.parent.name }}</button>
+          <span v-else class="text-fg-muted">{{ card.parent.name }}</span>
+        </p>
         <p class="mt-3 flex items-center justify-between border-t border-line pt-2.5 text-[11px] text-fg-subtle">
           <span>{{ card.pinned ? "Pinned · Esc or click it to release" : "Click the term to pin" }}</span>
           <button v-if="card.symbol && card.pinned" class="link" @click.stop="openExplain(`symbol:${card.symbol}`)">More →</button>

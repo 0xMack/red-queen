@@ -301,6 +301,42 @@ demand (a chapter fetches the few faces it uses). Firefox and Safari were not av
   where a new formula gets checked (KaTeX throws in development), and it's usable for screenshots, since the Browser
   pane doesn't draw scrolled content while hidden.
 
+### After a critical review (2026-09-29)
+
+A review of the pilot found bugs and gaps. Fixed:
+
+- **Operators are nodes.** `ops`/`add`/`sub`, `mul`, `frac`, `sqrt` and `fn` (`ln`) replace strings like `"+"`:
+  - A negative number after an operator is bracketed (`1 − (−0.50)`, never `1 − −0.50`).
+  - A number that could be negative reserves the brackets' width, so it doesn't move when it changes sign.
+- **Formulas evaluate.** A lab supplies only the inputs; `computeValues` works out the rest (the error, the TD term,
+  the bonus, the score, the result). `checkValues` then compares the formula's result with what the Rust strategy
+  reported, and in development every mismatch is logged. The bandit labs' hand-written arithmetic is gone.
+- **Showing values in the worked row:**
+  - A term shows its structure only when that structure can be worked out from the values in hand (`1/5`,
+    `1 − 0.40`); otherwise it shows its number (`Q_n` as an average of payouts the page doesn't have).
+  - The result reads `≈` when any number shown, the result included, was rounded.
+- **Keyboard focus survives re-renders.** Every pull replaces the markup; the focused term (and which occurrence of
+  it) is focused again afterwards.
+- **Hit-testing by glyph, not by box.** A compound term's box covers its parts, and KaTeX's boxes include invisible
+  struts and whole fraction stacks, so "the element under the pointer" was often the wrong term. The pointer now
+  picks the smallest glyph under it (text, rules, the radical's svg), or the nearest within 4 px, and that glyph's
+  innermost term. A compound term is picked by its own glyphs (its minus sign, its brackets). Measured by pointing at
+  the centre of every glyph: 65 of 65 across the UCB, incremental and Bellman formulas; the old box lookup got 8 of
+  them wrong.
+- **"Part of".** The card offers the enclosing term of the occurrence pointed at, so a small term can be pinned and
+  then widened to the expression it's part of.
+
+Still open from the review:
+
+- Typed formula instances (term ids checked at compile time).
+- Separating a term's identity from where it appears (`q-old` means different things in different formulas).
+- Moving each lab's formula logic into adapters next to the formulas.
+- Colours by declared role rather than arrival order.
+- The screen-reader layer: KaTeX's HTML is `aria-hidden`, so the MathML copy should carry the terms, with arrow-key
+  navigation within a formula.
+- Tests for the compiler (Vitest or a CI script: the user's call).
+- Auto-discovery of formula files on `/dev/math`.
+
 ### Open, for the iteration with the user
 
 - **Keyboard stops:** every term is a tab stop. Nested terms make that a lot of stops.

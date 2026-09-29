@@ -71,38 +71,44 @@ const formula = computed(() => {
 const forms = computed<Record<string, string>>(() => (props.math === "constant-step" ? { step: "alpha" } : ({} as Record<string, string>)))
 const last = shallowRef<BanditUpdate | null>(null)
 
-// The last pull, as values for the formula's terms -- read from the real update, never recomputed where it can be read.
+// The last pull, as the formula's *inputs* -- read from the real update. The formula works out the rest itself (the
+// error, the TD term, the bonus, the score, the new value) and, in development, checks its result against `expected`:
+// what the Rust strategy actually reported. A disagreement is a bug in the formula, the lab's reading, or the strategy.
 const values = computed<Record<string, BoundValue | undefined>>(() => {
   const u = last.value
   const knobValues = { epsilon: knobs.epsilon, c: knobs.c, alpha: props.math === "bellman" ? Q_ALPHA : knobs.alpha, gamma: config.gamma }
-  // The worked line is the game's real update, made with the settings it was started with.
-  const played = { ...knobValues, epsilon: applied.epsilon, c: applied.c, alpha: props.math === "bellman" ? Q_ALPHA : applied.alpha }
   if (!u) return props.math === "bellman" ? { gamma: config.gamma, alpha: Q_ALPHA } : knobValues
+  // The worked row is the game's real update, made with the settings the game was started with.
+  const played = { ...knobValues, epsilon: applied.epsilon, c: applied.c, alpha: props.math === "bellman" ? Q_ALPHA : applied.alpha }
   switch (props.math) {
     case "incremental":
     case "constant-step":
-      return { ...played, "q-old": u.before, "q-new": u.after, n: u.n, reward: u.reward, error: u.reward - u.before, step: props.math === "constant-step" ? applied.alpha : 1 / u.n }
+      return { ...played, "q-old": u.before, n: u.n, reward: u.reward }
     case "ucb": {
       const b = u.chosenFrom
       const n = b?.counts[u.arm] ?? 0
       if (!b || n === 0) return knobValues // an untried machine is pulled before any score is compared
       const t = b.counts.reduce((s, x) => s + x, 0)
-      return { ...played, arm: `\\mathrlap{\\text{${armName(u.arm)}}}\\phantom{\\text{M}}` /* as wide as the widest letter, whichever machine */, estimate: b.values[u.arm], count: n, t, bonus: b.spread[u.arm], score: b.values[u.arm]! + b.spread[u.arm]! }
+      // the machine's name, as wide as the widest letter whichever machine it is
+      return { ...played, arm: `\\mathrlap{\\text{${armName(u.arm)}}}\\phantom{\\text{M}}`, estimate: b.values[u.arm], count: n, t }
     }
     case "bellman":
-      return {
-        gamma: config.gamma,
-        alpha: Q_ALPHA,
-        "q-old": u.before,
-        "q-new": u.after,
-        reward: u.reward,
-        "max-next": u.nextMax,
-        td: u.reward + config.gamma * u.nextMax - u.before,
-      }
+      return { gamma: config.gamma, alpha: Q_ALPHA, "q-old": u.before, reward: u.reward, "max-next": u.nextMax }
     default:
       return knobValues
   }
 })
+const expected = computed((): Record<string, number> => {
+  const u = last.value
+  if (!u) return {}
+  if (props.math === "incremental" || props.math === "constant-step" || props.math === "bellman") return { "q-new": u.after }
+  if (props.math === "ucb" && u.chosenFrom && u.chosenFrom.counts[u.arm]! > 0) {
+    // UCB's reported spread is c · scale · √(ln t / N); the formula shows scale 1 -- true for every win-or-lose scenario
+    return u.game.rewardScale === 1 ? { bonus: u.chosenFrom.spread[u.arm]! } : {}
+  }
+  return {}
+})
+watch(expected, (e) => (scope.expected.value = e), { immediate: true })
 watch(values, (v) => (scope.values.value = v), { immediate: true })
 
 // How wide each number can get in this game, so the worked row keeps its width from pull to pull (NumFormat): counts

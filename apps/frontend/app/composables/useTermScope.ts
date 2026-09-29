@@ -21,6 +21,9 @@ export interface TermScope {
   values: Ref<Record<string, BoundValue | undefined>>
   /** Number formats for this figure's values (the lab's ranges: budget, largest payout), so numbers keep their width. */
   formats: Ref<Record<string, NumFormat>>
+  /** What the real algorithm reported for terms a formula computes (the value after the update): in development each
+   *  formula checks its own result against these. */
+  expected: Ref<Record<string, number>>
   register: (defs: TermDef[] | string[]) => void
   color: (id: string) => string
   /** What a term is, for its card: the first definition registered under the id. */
@@ -41,6 +44,7 @@ function createScope(inert: boolean): TermScope {
   const pinned = ref<string | null>(null)
   const values = ref<Record<string, BoundValue | undefined>>({})
   const formats = ref<Record<string, NumFormat>>({})
+  const expected = ref<Record<string, number>>({})
   // Plain, not reactive: `target()` registers during render, and a colour never changes once assigned.
   const order: string[] = []
   const defs = new Map<string, TermDef>()
@@ -92,7 +96,7 @@ function createScope(inert: boolean): TermScope {
     }
   }
 
-  return { active, lit, hovered, pinned, values, formats, register, color, def: (id) => defs.get(id), hover, flash, pin, target, inert }
+  return { active, lit, hovered, pinned, values, formats, expected, register, color, def: (id) => defs.get(id), hover, flash, pin, target, inert }
 }
 
 /** Opens a scope for this component's subtree. */
