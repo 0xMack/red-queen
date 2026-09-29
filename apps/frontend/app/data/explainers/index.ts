@@ -44,12 +44,11 @@ export function concept(ref: string): ExplainConcept | null {
 export function chapterLink(slug: string, section?: string, label?: string): ExplainLink | null {
   const chapter = learnChapters.find((c) => c.slug === slug)
   if (!chapter) return null
-  const n = learnChapters.indexOf(chapter) + 1
   if (section && chapter.sections?.includes(section)) {
     return { kind: "section", label: label ?? section, to: `${chapter.path}#${slugify(section)}` }
   }
   if (section && import.meta.dev) console.warn(`explainers: no section "${section}" in chapter ${slug}`)
-  return { kind: "chapter", label: label ?? `Ch. ${n} · ${chapter.title}`, to: chapter.path }
+  return { kind: "chapter", label: label ?? chapter.title, to: chapter.path }
 }
 
 function conceptLinks(c: ExplainConcept): ExplainLink[] {

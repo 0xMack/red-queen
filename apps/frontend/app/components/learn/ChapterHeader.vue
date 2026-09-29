@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { chapterNumber, learnChapters, type LearnChapter } from "~/data/learnChapters"
+import { chapterBySlug, chapterHref, type LearnChapter } from "~/data/learnChapters"
+import { palette } from "~/utils/palette"
 
-// A chapter's title page, generated from data/learnChapters.ts: number and part, the title, the summary, what it
-// covers, what it builds on -- and its cover.
+// A chapter's title page, generated from data/learnChapters.ts: where it sits on the path being read, the title, the
+// summary, what it covers, what it builds on (and pairs well with) -- and its cover.
 const props = defineProps<{ chapter: LearnChapter }>()
-const prerequisites = computed(() =>
-  (props.chapter.prerequisites ?? []).map((slug) => learnChapters.find((c) => c.slug === slug)).filter((c) => !!c),
-)
+const position = useLearnPath(toRef(props, "chapter"))
+const prerequisites = computed(() => (props.chapter.prerequisites ?? []).map(chapterBySlug).filter((c) => !!c))
+const related = computed(() => (props.chapter.related ?? []).map(chapterBySlug).filter((c) => !!c))
 </script>
 
 <template>
   <header class="card ticks relative overflow-hidden">
     <div class="grid md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div class="relative z-10 p-6 sm:p-9">
-        <p class="flex items-baseline gap-3">
-          <span class="font-display text-4xl leading-none text-queen-400 italic">{{ chapterNumber(chapter.slug) }}.</span>
-          <span class="label">{{ chapter.part }}</span>
+        <p class="flex items-center gap-2.5">
+          <span class="size-2.5 rounded-full" :style="{ background: palette[position.path.color] }" />
+          <span class="label">{{ position.path.title }} · {{ position.index + 1 }} of {{ position.stops.length }}</span>
         </p>
         <h1 class="mt-4 text-[2.4rem] leading-[1.02] sm:text-[3.1rem]">{{ chapter.title }}</h1>
         <p class="mt-4 text-[15.5px] leading-relaxed text-fg-muted">{{ chapter.summary }}</p>
@@ -26,7 +27,13 @@ const prerequisites = computed(() =>
         <p v-if="prerequisites.length" class="mt-5 text-sm text-fg-subtle">
           Builds on
           <template v-for="(p, i) in prerequisites" :key="p.slug">
-            <NuxtLink :to="p.path" class="link">{{ p.title }}</NuxtLink><span v-if="i < prerequisites.length - 1">, </span>
+            <NuxtLink :to="chapterHref(p, position.path)" class="link">{{ p.title }}</NuxtLink><span v-if="i < prerequisites.length - 1">, </span>
+          </template>.
+        </p>
+        <p v-if="related.length" class="mt-1.5 text-sm text-fg-subtle">
+          Pairs well with
+          <template v-for="(p, i) in related" :key="p.slug">
+            <NuxtLink :to="p.path" class="link">{{ p.title }}</NuxtLink><span v-if="i < related.length - 1">, </span>
           </template>.
         </p>
       </div>

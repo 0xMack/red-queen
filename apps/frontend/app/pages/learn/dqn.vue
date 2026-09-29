@@ -1,33 +1,8 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
+import * as code from "~/data/snippets/dqn"
 
-const lossCode = `for i in 0..size {
-    // the target: reward so far, plus the discounted value of the best next move -- read from the TARGET network
-    let row = &next_target[i * n..(i + 1) * n];
-    let chosen = match &next_online {
-        Some(next) => argmax(&next[i * n..(i + 1) * n]),   // Double DQN: the online net picks the move...
-        None => argmax(row),                               // ...plain DQN: the target net picks it too
-    };
-    let y = batch.returns[i] + batch.discounts[i] * row[chosen];
-    let predicted = q[i * n + batch.actions[i]];
-    let delta = y - predicted;                             // the same TD error the table used
-    // Huber loss: quadratic near the target, linear far away -- a big surprise can't make a huge step
-    loss += if delta.abs() <= 1.0 { 0.5 * delta * delta } else { delta.abs() - 0.5 };
-    q_grad[i * n + batch.actions[i]] = -delta.clamp(-1.0, 1.0) / size as f64;
-}
-// then backpropagate q_grad through the network and take an Adam step
-grads = online.backward(&cache, &q_grad);`
-
-const stabilizersCode = `// experience replay: every transition goes into a ring buffer of the last 50,000...
-replay.push(&stored);
-// ...and every 4th step, the network trains on 32 of them drawn at random
-let (indices, weights) = replay.sample(self.batch_size, beta, &mut self.sample_rng);
-
-// a target network: the targets come from a frozen copy, refreshed every 2,000 steps
-if self.target_update > 0 && self.observed.is_multiple_of(self.target_update) {
-    self.target = Some(self.online.clone());
-}`
 </script>
 
 <template>
@@ -59,7 +34,7 @@ if self.target_update > 0 && self.observed.is_multiple_of(self.target_update) {
       <NuxtLink to="/learn/autodiff">autodiff chapter</NuxtLink>'s machinery, written out by hand in the Rust core) turns it into a gradient step on
       every weight. The target is treated as a constant: the network is pulled toward its own next-step estimate, not the other way round.
     </p>
-    <CodeBlock lang="rust" :code="lossCode" />
+    <CodeBlock :snippet="code.loss" />
     <p>
       This is the whole update, as the project's Rust core runs it. It is checked against an independent implementation on the project's own
       autodiff engine: same network, same minibatch, gradients equal to twelve decimal places.
@@ -102,7 +77,7 @@ if self.target_update > 0 && self.observed.is_multiple_of(self.target_update) {
         can't move the very target it's chasing.
       </li>
     </ul>
-    <CodeBlock lang="rust" :code="stabilizersCode" />
+    <CodeBlock :snippet="code.stabilizers" />
     <p>
       Switch both off in the lab and train with seed 0: the values climb into the millions and the snake never learns to eat. Then try any other
       seed: all of the lab's other nine learn normally (24-27). The project ran each setup twenty times, and without a target network <strong>1 run

@@ -1,32 +1,7 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-const mulCode = `def __mul__(self, other) -> Tensor:
-    other = self._as_tensor(other)
-    out = Tensor(self.data * other.data, (self, other), "*")
-
-    def _backward():
-        # d(a*b)/da = b, d(a*b)/db = a -- times the gradient flowing in from above
-        self.grad += _unbroadcast(other.data * out.grad, self.data.shape)
-        other.grad += _unbroadcast(self.data * out.grad, other.data.shape)
-
-    out._backward = _backward
-    return out`
-
-const backwardCode = `def backward(self) -> None:
-    topo, visited = [], set()
-
-    def build(node):
-        if id(node) not in visited:
-            visited.add(id(node))
-            for parent in node._parents:
-                build(parent)
-            topo.append(node)
-
-    build(self)
-    self.grad = np.ones_like(self.data)   # dL/dL = 1
-    for node in reversed(topo):           # every node after all nodes that depend on it
-        node._backward()`
+import * as code from "~/data/snippets/autodiff"
 
 const unbroadcastCode = `def _unbroadcast(grad, shape):
     """Forward broadcasting silently reused a value at many positions; the gradient
@@ -49,29 +24,6 @@ const getitemCode = `def __getitem__(self, idx) -> Tensor:
     out._backward = _backward
     return out`
 
-const gradCheckCode = `def numerical_grad(f, x, eps=1e-6):
-    grad = np.zeros_like(x)
-    for idx in np.ndindex(x.shape):
-        original = x[idx]
-        x[idx] = original + eps; f_plus = f(x)
-        x[idx] = original - eps; f_minus = f(x)
-        x[idx] = original
-        grad[idx] = (f_plus - f_minus) / (2 * eps)
-    return grad
-
-def test_matmul_gradient_matches_numerical():
-    a, b = Tensor(a_data.copy()), Tensor(b_data.copy())
-    (a @ b).sum().backward()
-    assert np.allclose(a.grad, numerical_grad(lambda x: (x @ b_data).sum(), a_data.copy()), atol=1e-4)`
-
-const adamCode = `def step(self):
-    self._t += 1
-    for i, p in enumerate(self.parameters):
-        self._m[i] = self.beta1 * self._m[i] + (1 - self.beta1) * p.grad        # momentum
-        self._v[i] = self.beta2 * self._v[i] + (1 - self.beta2) * (p.grad**2)   # per-weight scale
-        m_hat = self._m[i] / (1 - self.beta1**self._t)                         # bias correction
-        v_hat = self._v[i] / (1 - self.beta2**self._t)
-        p.data -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)`
 </script>
 
 <template>
@@ -79,7 +31,7 @@ const adamCode = `def step(self):
     <p>
       Every Snake policy in this project was <em>evolved</em>: 243 weights, nudged at random, kept when
       the snake did better. That works at 243 weights. It doesn't at 78,795 -- the size of the
-      transformer in the next chapter -- because random mutation can't tell which of those numbers to
+      <NuxtLink to="/learn/transformers">transformer</NuxtLink> this engine trains -- because random mutation can't tell which of those numbers to
       move, or which way. A <strong>gradient</strong> can: for every weight at once, it says exactly how
       the loss would change if you nudged it. This chapter builds the machine that computes gradients,
       <code>libs/autodiff</code>, from scratch.
@@ -109,13 +61,13 @@ const adamCode = `def step(self):
       closure that pushes its gradient to those parents. Every operation builds that closure as it runs.
       Multiplication, in full:
     </p>
-    <CodeBlock lang="python" :code="mulCode" />
+    <CodeBlock :snippet="code.mul" />
     <p>
       Gradients use <code>+=</code>, never <code>=</code>: a tensor used in two places gets gradient
       from both, and they add. Then <code>backward()</code> just orders the graph so every node runs
       after everything that depends on it:
     </p>
-    <CodeBlock lang="python" :code="backwardCode" />
+    <CodeBlock :snippet="code.backward" />
 
     <Callout variant="note" title="Why arrays, not single numbers">
       The classic teaching engine (Karpathy's micrograd) makes one graph node per scalar. A transformer
@@ -147,9 +99,9 @@ const adamCode = `def step(self):
       is tested against a <strong>numerical gradient</strong>: nudge each input by ±ε, see how the output
       moves, and compare. The playground above does the same check live for <code>w</code>.
     </p>
-    <CodeBlock lang="python" :code="gradCheckCode" />
+    <CodeBlock :snippet="code.gradCheck" />
     <Callout variant="finding" title="The most important tests in the language-model work">
-      Everything in the next chapter -- attention, layer norm, a 78,795-parameter model learning English
+      Everything in the transformers chapter -- attention, layer norm, a 78,795-parameter model learning English
       spelling -- rests on these gradients being right. <code>libs/autodiff/tests</code> checks add,
       multiply, broadcasting, power and divide, matmul (including batched and mismatched batch ranks),
       sums and means over axes, exp and log, relu and tanh, transpose and reshape, indexing with repeated
@@ -165,12 +117,13 @@ const adamCode = `def step(self):
       This project uses Adam, hand-written: plain gradient descent struggles on transformers, and Adam's
       per-weight step sizes are a few lines on top of the gradients:
     </p>
-    <CodeBlock lang="python" :code="adamCode" />
+    <CodeBlock :snippet="code.adam" />
     <p>
       Evolution and gradients aren't rivals here, they're tools for different shapes of problem. Evolution
       needs only a score, handles non-differentiable things like "did the snake eat?", and is simple to
       run; gradients need a differentiable loss but scale to models evolution could never search. The
-      <NuxtLink to="/learn/transformers">next chapter</NuxtLink> puts this engine to work on a transformer.
+      <NuxtLink to="/learn/transformers">transformers chapter</NuxtLink> puts this engine to work on a language model, and
+      <NuxtLink to="/learn/dqn">Deep Q-Networks</NuxtLink> on a network that learns from reward.
     </p>
   </article>
 </template>

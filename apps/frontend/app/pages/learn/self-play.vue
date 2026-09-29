@@ -1,33 +1,8 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
+import * as code from "~/data/snippets/self-play"
 
-const moveCode = `/// The move \`net\` would play: the one leaving the position worst for the opponent.
-fn best_move(net: &Mlp, game: &Checkers) -> usize {
-    let moves = game.legal_moves();
-    let mut best = (0, f64::NEG_INFINITY);
-    for (i, mv) in moves.iter().enumerate() {
-        // simulate() encodes the position the move leaves from the *opponent's* side
-        let value = -net.forward(&game.simulate(mv).expect("a legal move"))[0];
-        if value > best.1 {
-            best = (i, value);
-        }
-    }
-    best.0
-}`
-
-const lambdaCode = `/// λ-return targets for one game's positions, given the network's values of them and the outcome for the
-/// player who made the last move.
-pub fn lambda_returns(values: &[f64], outcome: f64, lambda: f64) -> Vec<f64> {
-    let n = values.len();
-    let mut targets = vec![0.0; n];
-    targets[n - 1] = outcome;                    // the last position: how the game actually ended, for its mover
-    for t in (0..n - 1).rev() {
-        // the next position belongs to the other player, so its value -- and its target -- flip sign
-        targets[t] = -((1.0 - lambda) * values[t + 1] + lambda * targets[t + 1]);
-    }
-    targets
-}`
 </script>
 
 <template>
@@ -53,7 +28,7 @@ pub fn lambda_returns(values: &[f64], outcome: f64, lambda: f64) -> Vec<f64> {
       king, −1 and −2 for the opponent's), one number out -- how good this position is for the player about to move. To choose a move, look at the
       position each legal move leaves and pick the one that is worst for the opponent:
     </p>
-    <CodeBlock lang="rust" :code="moveCode" />
+    <CodeBlock :snippet="code.move" />
     <p>
       That is exactly the kind of network the evolved Checkers players are (a 32 → 16 → 1 tanh network), used exactly the same way -- so a network
       trained by self-play drops straight into the same search (it can look several plies ahead), the same leaderboard and the same board you can
@@ -67,7 +42,7 @@ pub fn lambda_returns(values: &[f64], outcome: f64, lambda: f64) -> Vec<f64> {
       the next position (one-step TD, λ = 0) and the target already computed for it (which ultimately leads back to the result, λ = 1). Because the
       next position belongs to the other player, both flip sign on the way back:
     </p>
-    <CodeBlock lang="rust" :code="lambdaCode" />
+    <CodeBlock :snippet="code.lambda" />
     <p>
       That is TD(λ) -- the <NuxtLink to="/learn/q-learning">Q-learning chapter</NuxtLink>'s bootstrapping, applied to positions rather than moves,
       with λ controlling how far back each result reaches. Then one gradient step pulls every value of the game toward its target. The whole learning

@@ -1,74 +1,8 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-const genomeCode = `@dataclass(frozen=True, slots=True)
-class ConnectionGene:
-    innovation: int   # global historical marking: same (source, target) -> same number, forever
-    source: int       # node id
-    target: int
-    weight: float
-    enabled: bool = True
+import * as code from "~/data/snippets/neat"
 
-@dataclass(frozen=True)
-class NeatGenome:
-    num_inputs: int
-    num_outputs: int
-    connections: tuple[ConnectionGene, ...]   # nodes are implied by what the genes touch`
-
-const addNodeCode = `def add_node(genome, tracker, config, rng):
-    old = rng.choice(splittable_connections)            # an enabled A -> B
-    node = tracker.split_node(old.innovation)           # same split -> same node id, everywhere
-    into = ConnectionGene(tracker.connection(old.source, node), old.source, node, 1.0)
-    out  = ConnectionGene(tracker.connection(node, old.target), node, old.target, old.weight)
-    # old gene disabled; the new node starts out nearly neutral
-    return replace(genome, connections=sorted([*disable(old), into, out]))`
-
-const trackerCode = `class InnovationTracker:
-    def connection(self, source, target):
-        key = (source, target)
-        if key not in self._connection:            # first time anyone has made this connection
-            self._connection[key] = self._next_innovation
-            self._next_innovation += 1
-        return self._connection[key]               # ...and the same number ever after`
-
-const crossoverCode = `def crossover(fitter, other, config, rng):
-    matched = {f.innovation: (f, o) for f, o in align(fitter, other).matching}
-    child = []
-    for gene in fitter.connections:                # only ever the fitter parent's genes
-        pair = matched.get(gene.innovation)
-        if pair is None:
-            child.append(gene)                     # disjoint / excess: inherited from the fitter
-            continue
-        f, o = pair
-        chosen = f if rng.random() < 0.5 else o    # matching: a coin flip
-        enabled = chosen.enabled
-        if not (f.enabled and o.enabled):          # disabled in either parent...
-            enabled = rng.random() >= config.disabled_inherit_rate   # ...usually stays disabled
-        child.append(replace(chosen, enabled=enabled))
-    return replace(fitter, connections=tuple(child))`
-
-const distanceCode = `def compatibility_distance(a, b, config):
-    matching, dis_a, dis_b, exc_a, exc_b = align(a, b)
-    n = max(len(a.connections), len(b.connections))
-    n = 1 if n < 20 else n                          # don't normalize small genomes
-    weight_diff = mean(abs(x.weight - y.weight) for x, y in matching)
-    return (config.excess_coefficient   * (len(exc_a) + len(exc_b)) / n
-          + config.disjoint_coefficient * (len(dis_a) + len(dis_b)) / n
-          + config.weight_coefficient   * weight_diff)`
-
-const sharingCode = `# fitness can be negative in Snake, so shift it before dividing it up
-shifted = [f - min(fitness) + 1e-6 for f in fitness]
-# each species' claim on the next generation = its MEAN shifted fitness (fitness sharing)
-shares  = [mean(shifted[i] for i in species.members) for species in breeding]
-quotas  = allocate(shares, population_size)          # offspring per species, largest remainder`
-
-const adaptiveCode = `# A fixed threshold assumes small genomes. Snake starts at 36 genes, where distance is
-# divided by N >= 20 -- so structural differences barely register and one species swallows everything.
-# Aim for a species COUNT instead, and let the threshold chase it:
-if len(species) < config.target_species:
-    threshold -= config.threshold_step
-elif len(species) > config.target_species:
-    threshold += config.threshold_step`
 </script>
 
 <template>
@@ -92,7 +26,7 @@ elif len(species) > config.target_species:
       and it's currently on or off". Nodes aren't stored at all -- a hidden node exists if some gene touches it. The starting genome has no hidden
       nodes: every input, plus a constant bias, wired straight to every output.
     </p>
-    <CodeBlock lang="python" :code="genomeCode" />
+    <CodeBlock :snippet="code.genome" />
     <p>
       There are four mutations. Two change weights or on/off state; two change <em>structure</em>: <strong>add connection</strong> joins two nodes that
       weren't linked (never in a way that makes a loop -- these are feed-forward networks), and <strong>add node</strong> splits an existing
@@ -107,19 +41,19 @@ elif len(species) > config.target_species:
       The new node passes A's signal through almost unchanged, so the network still behaves about as well as before -- with a new place for later
       mutations to work. (Try it above: click <em>Add node</em> and compare the fitness before and after.)
     </p>
-    <CodeBlock lang="python" :code="addNodeCode" />
+    <CodeBlock :snippet="code.addNode" />
     <p>
       The old gene is disabled, not deleted. It stays in the genome as a record -- and, as the next sections show, that record matters.
     </p>
 
     <h2>Innovation numbers: telling genes apart</h2>
     <p>
-      Here is the problem from the last chapter again. Two networks that grew different structures have genomes of different lengths and shapes;
+      Here is the problem from <NuxtLink to="/learn/neuroevolution">neuroevolution</NuxtLink> again. Two networks that grew different structures have genomes of different lengths and shapes;
       there is no "gene <em>i</em> in each" to swap. NEAT's answer is to give every structural change a permanent identity the moment it first
       appears. A global counter hands out an <strong>innovation number</strong> to each new (source → target) connection, and hands out the
       <em>same</em> number if any genome, anywhere in the run, makes that same connection again:
     </p>
-    <CodeBlock lang="python" :code="trackerCode" />
+    <CodeBlock :snippet="code.tracker" />
     <p>
       Now two genomes can be lined up by innovation number, gene for gene. Genes both have are <strong>matching</strong>; genes only one has are
       <strong>disjoint</strong> if they fall inside the other's range of numbers and <strong>excess</strong> if they lie beyond it. Crossover uses
@@ -127,7 +61,7 @@ elif len(species) > config.target_species:
       disabled in either parent usually stays disabled. Flip which parent is fitter below and see the child change:
     </p>
     <NeatCrossoverDemo />
-    <CodeBlock lang="python" :code="crossoverCode" />
+    <CodeBlock :snippet="code.crossover" />
     <p>
       Notice what this does <em>not</em> do. The child never gains a gene neither parent had, so an acyclic fitter parent guarantees an acyclic
       child, with no cycle check needed. Crossover recombines structure that already exists; only the mutations invent new structure.
@@ -140,14 +74,14 @@ elif len(species) > config.target_species:
       their own species. The similarity measure reuses the alignment from crossover -- how many excess and disjoint genes two genomes have, and how
       far apart their matching weights are:
     </p>
-    <CodeBlock lang="python" :code="distanceCode" />
+    <CodeBlock :snippet="code.distance" />
     <SpeciationDemo />
     <p>
       Genomes within a threshold δₜ of a species' representative join it; otherwise they found a new species. Then <strong>fitness sharing</strong>
       does the protecting: a species' claim on the next generation is its <em>average</em> fitness, not its headcount, so a large species can't
       crowd out a small one just by being large, and a promising newcomer gets offspring in proportion to how good it is, not how many there are of it.
     </p>
-    <CodeBlock lang="python" :code="sharingCode" />
+    <CodeBlock :snippet="code.sharing" />
     <p>
       A species that hasn't improved for 15 generations stops breeding (the best two are always kept), and a species of five or more keeps its
       champion unchanged, so progress can't be lost to bad luck.
@@ -209,7 +143,7 @@ elif len(species) > config.target_species:
       different from each other. In the first trial run the species count sat at 1 in every generation, which would have made NEAT silently
       equivalent to "neuroevolution with a growing network". The fix is to steer the threshold toward a target species count instead of fixing it:
     </p>
-    <CodeBlock lang="python" :code="adaptiveCode" />
+    <CodeBlock :snippet="code.adaptive" />
     <Callout variant="finding" title="Found by running it: species count 1, every generation">
       The first Snake trial run reported <code>species = 1</code> for every generation it recorded, with a threshold that never came into play.
       Nothing was wrong with the code -- the unit tests passed -- the configuration just didn't suit a 36-gene genome. It only showed up in the per-generation

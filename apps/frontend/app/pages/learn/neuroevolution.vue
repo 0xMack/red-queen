@@ -1,26 +1,7 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-const forwardCode = `def _forward(weights, layer_sizes, observation):
-    """A tanh-activated feedforward pass over one flat list of weights."""
-    activations = list(observation)
-    offset = 0
-    for i in range(len(layer_sizes) - 1):
-        in_size, out_size = layer_sizes[i], layer_sizes[i + 1]
-        next_activations = []
-        for o in range(out_size):
-            total = weights[offset + in_size * out_size + o]  # this unit's bias
-            for k in range(in_size):
-                total += weights[offset + o * in_size + k] * activations[k]
-            next_activations.append(math.tanh(total))
-        offset += in_size * out_size + out_size
-        activations = next_activations
-    return activations`
-
-const genomeCode = `@dataclass(frozen=True, slots=True)
-class WeightVector:
-    weights: tuple[float, ...]     # every weight and bias, flattened
-    layer_sizes: tuple[int, ...]   # e.g. (11, 16, 3) -- fixed for the whole run`
+import * as code from "~/data/snippets/neuroevolution"
 
 const fitnessCode = `def act(genome, observation):
     outputs = genome.forward(observation)        # 11 features in, 3 numbers out
@@ -28,15 +9,6 @@ const fitnessCode = `def act(genome, observation):
 
 fitness = SimulationFitnessEvaluator(envs=games, act=act, max_steps=200)
 fitness.evaluate(genome)   # -> one total reward per game: the genome's "test cases"`
-
-const mutationCode = `class GaussianMutation:
-    def __init__(self, sigma: float = 0.1):
-        self._sigma = sigma
-
-    def vary(self, parents, rng):
-        parent = parents[0]
-        new_weights = tuple(w + rng.gauss(0.0, self._sigma) for w in parent.weights)
-        return replace(parent, weights=new_weights)`
 
 const loopCode = `evolve(
     population,                                  # 100 random WeightVectors
@@ -50,8 +22,8 @@ const loopCode = `evolve(
 <template>
   <article class="prose-chapter">
     <p>
-      <NuxtLink to="/learn/genetic-algorithms">Chapter 1</NuxtLink>'s loop -- evaluate, select, vary -- works on any genome, and the previous
-      chapter gave it two program-shaped ones. <strong>Neuroevolution</strong> gives it a neural network instead. There is no gradient and no
+      The <NuxtLink to="/learn/genetic-algorithms">genetic algorithm</NuxtLink>'s loop -- evaluate, select, vary -- works on any genome, and
+      <NuxtLink to="/learn/genome-representations">Genome Representations</NuxtLink> gave it two program-shaped ones. <strong>Neuroevolution</strong> gives it a neural network instead. There is no gradient and no
       backpropagation: the network is treated as a black box that maps observations to actions, scored by how well it plays, and improved by
       mutating copies of the ones that did best. It's the technique behind the Snake policy in
       <NuxtLink to="/learn/teaching-a-snake">the Snake case study</NuxtLink>; this chapter opens it up.
@@ -63,11 +35,11 @@ const loopCode = `evolve(
       (say, 11 inputs → 16 hidden units → 3 outputs) and the genome is every weight and bias, flattened into one list, layer by layer. That
       is the whole data structure:
     </p>
-    <CodeBlock lang="python" :code="genomeCode" />
+    <CodeBlock :snippet="code.genome" />
     <p>
       Running it is the ordinary feedforward pass, reading numbers out of the list by position:
     </p>
-    <CodeBlock lang="python" :code="forwardCode" />
+    <CodeBlock :snippet="code.forward" />
     <p>
       Below is a tiny 2-3-1 network, so all thirteen numbers fit on screen. Click a cell to see which connection it is, drag it, and watch what
       happens to the XOR truth table. XOR is the classic test because no network without a hidden layer can compute it -- the best a
@@ -94,7 +66,7 @@ const loopCode = `evolve(
       To make a child, copy the parent and nudge <em>every</em> weight by a small random amount drawn from a bell curve of width
       <strong>σ</strong>. That's all of it:
     </p>
-    <CodeBlock lang="python" :code="mutationCode" />
+    <CodeBlock :snippet="code.mutation" />
     <p>
       σ is the one knob that matters. Whether a mutation is useful depends on how big it is relative to how much the current network can
       tolerate. The plot below mutates one nearly-solved XOR network 400 times and compares each child's fitness to its parent's:
@@ -117,15 +89,15 @@ const loopCode = `evolve(
     </p>
     <NeuroEvoLab />
     <p>
-      On Snake the code is the same shape, only bigger -- the identical <code>evolve()</code> from Chapter 1, with a
+      On Snake the code is the same shape, only bigger -- the identical <code>evolve()</code> from the genetic-algorithms chapter, with a
       <code>WeightVector</code> genome:
     </p>
     <CodeBlock lang="python" :code="loopCode" />
 
     <h2>Why there's no crossover</h2>
     <p>
-      Chapter 3's genomes recombine: linear GP swaps instruction runs, tree GP swaps subtrees. Weight vectors here are <em>only</em> mutated,
-      and the reason is worth understanding because it's the problem the next chapter is built to solve. Two networks can compute exactly the
+      The program genomes recombine: linear GP swaps instruction runs, tree GP swaps subtrees. Weight vectors here are <em>only</em> mutated,
+      and the reason is worth understanding because it's the problem <NuxtLink to="/learn/neat">NEAT</NuxtLink> is built to solve. Two networks can compute exactly the
       same function while storing completely different lists of numbers -- swap which hidden unit is "unit 0" and "unit 1" and nothing about
       the behaviour changes, but every weight moves. Breed those two by position and the child mixes half of one convention with half of
       another:
