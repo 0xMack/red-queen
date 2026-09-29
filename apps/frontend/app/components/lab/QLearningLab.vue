@@ -2,6 +2,7 @@
 import type { ChartSeries } from "~/types/chart"
 import recording from "~/data/recordings/q-learning-snake.json"
 import * as F from "~/data/math/q-learning"
+import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 
 // Tabular Q-learning, live: the Rust RL core (compiled to WebAssembly, in a worker) learning Snake from scratch in
 // the reader's browser -- the same Trainer the training jobs run (docs/design/0010 Phase 1b). Left: the current
@@ -63,13 +64,7 @@ const scope = useOrProvideTermScope()
 const updateForms = computed<Record<string, string>>(() =>
   config.nStep > 1 ? { target: "nstep" } : config.algorithm === "sarsa" ? { target: "sarsa" } : ({} as Record<string, string>),
 )
-const MOVES = ["left", "straight", "right"]
-const greedyValues = computed(() => {
-  const q = currentQ.value
-  const a = lab.action.value
-  if (!q || a === null) return {}
-  return { "q-left": q[0], "q-straight": q[1], "q-right": q[2], move: `\\text{${MOVES[a]}}` }
-})
+const greedy = computed(() => greedyValues(currentQ.value, lab.action.value))
 watch(
   () => ({ alpha: config.alpha, gamma: config.gamma, nstep: config.nStep }),
   (v) => (scope.values.value = { ...scope.values.value, ...v }),
@@ -115,9 +110,9 @@ const currentQ = computed(() => {
             :labels="ACTIONS"
             :values="currentQ"
             :chosen="lab.action.value"
-            :bind="(i) => scope.target([['q-left', 'q-straight', 'q-right'][i]!, 'q-row'])"
+            :bind="(i) => scope.target(greedyBarTerms(i))"
           />
-          <MathFormula class="mt-2" :formula="F.greedy" :values="greedyValues" bare />
+          <MathFormula class="mt-2" :formula="F.greedy" :values="greedy" bare />
         </template>
       </LabBoard>
     </template>

@@ -17,6 +17,7 @@ const isFormula = (v: unknown): v is Formula => !!v && typeof v === "object" && 
 const groups = Object.entries(modules)
   .filter(([path]) => !path.endsWith("/symbols.ts"))
   .map(([path, mod]) => ({ chapter: path.split("/").pop()!.replace(/\.ts$/, ""), formulas: Object.values(mod).filter(isFormula) }))
+  .filter((g) => g.formulas.length > 0)
   .sort((a, b) => a.chapter.localeCompare(b.chapter))
 const unknownSymbols = groups.flatMap((g) =>
   g.formulas.flatMap((f) => termsOfFormula(f).filter((t) => t.symbol && !(t.symbol in SYMBOLS)).map((t) => `${f.id}: ${t.id} → ${t.symbol}`)),

@@ -134,6 +134,35 @@ export const SYMBOLS = {
     range: "1 and up",
     chapters: ["q-learning", "dqn"],
   },
+  weights: {
+    tex: "\\theta",
+    plain: "θ",
+    name: "the network's weights",
+    meaning: "Every weight and bias of the network, as one vector. Training moves them; everything the network computes depends on all of them at once.",
+    chapters: ["dqn", "policy-gradients", "self-play"],
+  },
+  weightsTarget: {
+    tex: "\\theta^-",
+    plain: "θ⁻",
+    name: "the target network's weights",
+    meaning:
+      "A frozen copy of θ, refreshed every few thousand steps. Targets computed from it hold still while the online network learns, instead of moving with every update.",
+    chapters: ["dqn"],
+  },
+  loss: {
+    tex: "L",
+    plain: "L",
+    name: "loss",
+    meaning: "How wrong the network is, as one number: training takes steps that make it smaller.",
+    chapters: ["dqn", "policy-gradients", "autodiff", "transformers"],
+  },
+  eta: {
+    tex: "\\eta",
+    plain: "η",
+    name: "learning rate",
+    meaning: "How big a step down the gradient each update takes. Too small and learning crawls; too large and it overshoots and can diverge.",
+    chapters: ["dqn", "policy-gradients", "autodiff"],
+  },
 } satisfies Record<string, MathSymbol>
 
 export type SymbolId = keyof typeof SYMBOLS

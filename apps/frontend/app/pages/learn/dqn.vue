@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/dqn"
+import * as math from "~/data/math/dqn"
 
 </script>
 
@@ -28,12 +29,26 @@ import * as code from "~/data/snippets/dqn"
     </p>
 
     <h2>The update, as a loss</h2>
-    <p>
-      The learning rule is still the Bellman update: move Q(s, a) toward <em>r + γ · max Q(s′, ·)</em>. With a network there is no cell to move, so
-      the difference becomes a <strong>loss</strong> -- how far the prediction is from its target -- and backpropagation (the
-      <NuxtLink to="/learn/autodiff">autodiff chapter</NuxtLink>'s machinery, written out by hand in the Rust core) turns it into a gradient step on
-      every weight. The target is treated as a constant: the network is pulled toward its own next-step estimate, not the other way round.
-    </p>
+    <MathScope>
+      <p>
+        The learning rule is still the Bellman update: move Q(s, a) toward a target -- the reward plus <MathTerm id="gamma" symbol="gamma" /> times the
+        best next value:
+      </p>
+      <MathFormula :formula="math.dqnTarget" caption="Pin the target to see the Double DQN and 3-step forms the lab below can switch to." />
+      <p>
+        With a network there is no cell to move, so the difference becomes a <strong>loss</strong> -- how far the prediction is from its target --
+      </p>
+      <MathFormula :formula="math.dqnLoss" />
+      <p>
+        and backpropagation (the <NuxtLink to="/learn/autodiff">autodiff chapter</NuxtLink>'s machinery, written out by hand in the Rust core) turns
+        it into a gradient step on every weight <MathTerm id="theta" symbol="weights" />:
+      </p>
+      <MathFormula :formula="math.dqnStep" caption="The project takes an Adam step, not a plain one -- the same direction, scaled per weight." />
+      <p>
+        The target is treated as a constant: the network is pulled toward its own next-step estimate, not the other way round. That's why the
+        target is computed by <MathTerm id="theta-minus" symbol="weightsTarget" />, a frozen copy.
+      </p>
+    </MathScope>
     <CodeBlock :snippet="code.loss" />
     <p>
       This is the whole update, as the project's Rust core runs it. It is checked against an independent implementation on the project's own

@@ -1,4 +1,5 @@
-import { add, bracket, formula, mul, paren, seq, sub, term } from "~/utils/math/expr"
+import { add, bracket, formula, mul, sub, term } from "~/utils/math/expr"
+import { greedyChoice } from "./rl-shared"
 
 // Q-learning's formulas (docs/design/0012). The update rule is shown by the lab (QLearningLab's `formula` slot) with
 // its knobs linked -- α, γ, ε and n are sliders, and the algorithm switch picks the target's form (Q-learning's max,
@@ -82,14 +83,4 @@ export const update = formula({
 
 // --- The greedy choice (the demo board) ------------------------------------------------------------------------------
 
-const qMove = (id: string, move: string, doing: string) =>
-  term(id, `Q(s,\\text{${move}})`, { symbol: "Q", name: `the value of ${doing}`, num: { decimals: 2, max: 20, signed: true } })
-
-export const greedy = formula({
-  id: "q-greedy",
-  title: "The greedy move: the one with the largest value in the current row",
-  lhs: term("move", "a", { symbol: "a", name: "the move it plays" }),
-  body: seq("\\operatorname*{arg\\,max}_{a}", term("q-row", "Q(s,a)", { symbol: "Q", name: "this row's three values" })),
-  worked: seq("\\operatorname*{arg\\,max}", paren(seq(qMove("q-left", "left", "turning left"), ",\\;", qMove("q-straight", "straight", "going straight"), ",\\;", qMove("q-right", "right", "turning right")))),
-  result: "move",
-})
+export const greedy = greedyChoice("q-greedy", (a) => `Q(s,${a})`, "in the current row")
