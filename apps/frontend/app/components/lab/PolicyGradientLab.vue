@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ChartSeries } from "~/types/chart"
 import recording from "~/data/recordings/pg-snake.json"
+import * as F from "~/data/math/policy-gradients"
+import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 
 // Policy gradients, live on Snake: the Rust RL core (WebAssembly, in a worker) training a policy network in the
 // reader's browser -- the same `PgAgent` the training jobs run (docs/design/0010 Phase 3b). Pick the rung of the
@@ -36,6 +38,15 @@ const live = useWasmSupport()
 const running = ref<{ label: string } | null>(null)
 const previous = shallowRef<{ label: string; points: CurvePoint[] } | null>(null)
 const rung = computed(() => RUNGS.find((r) => r.id === config.rung)!)
+
+// The rule it trains by, on top (docs/design/0012): the theorem's weight follows the rung -- the return, the return
+// minus a baseline, or the GAE advantage -- and PPO adds its clipped objective. The move on the board is worked from
+// the policy's probabilities.
+const scope = useOrProvideTermScope()
+const forms = computed<Record<string, string>>(() =>
+  config.rung === "baseline" ? { weight: "baseline" } : config.rung === "a2c" || config.rung === "ppo" ? { weight: "gae" } : ({} as Record<string, string>),
+)
+const choice = computed(() => greedyValues(lab.actionValues.value, lab.action.value))
 
 function train() {
   if (running.value && lab.points.value.length > 1) previous.value = { label: running.value.label, points: lab.points.value }
@@ -108,6 +119,11 @@ const entropyChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
       <LabCurve class="mt-4" :x="scoreChart.x" :series="scoreChart.series" show :height="220" />
     </template>
 
+    <template #formula>
+      <MathFormula :formula="F.theorem" :forms="forms" bare />
+      <MathFormula v-if="config.rung === 'ppo'" class="mt-1" :formula="F.ppo" bare />
+    </template>
+
     <template #stage>
       <LabBoard :board="lab.board.value" :live="live" placeholder="Press Train: the policy starts out choosing at random.">
         <p>
@@ -122,7 +138,9 @@ const entropyChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
           :chosen="lab.action.value"
           :max="1"
           :format="(p) => `${(p * 100).toFixed(0)}%`"
+          :bind="(i) => scope.target(greedyBarTerms(i))"
         />
+        <MathFormula v-if="lab.actionValues.value" class="mt-2" :formula="F.choice" :values="choice" bare />
       </LabBoard>
     </template>
 
@@ -136,7 +154,7 @@ const entropyChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
       @pause="lab.pause"
       @resume="lab.resume"
     >
-      <UiSelect v-model="config.rung" label="algorithm" :options="RUNGS.map((r) => ({ value: r.id, label: r.label }))" />
+      <UiSelect v-bind="scope.target('weight')" v-model="config.rung" label="algorithm" :options="RUNGS.map((r) => ({ value: r.id, label: r.label }))" />
       <div class="flex flex-wrap items-end gap-x-4 gap-y-2.5">
         <UiSelect v-model="config.observer" class="flex-1" label="the snake sees" :options="OBSERVERS.map((o) => ({ value: o.id, label: o.label }))" />
         <UiSelect v-model="config.seed" class="w-24" label="seed" :options="Array.from({ length: 10 }, (_, i) => i)" />

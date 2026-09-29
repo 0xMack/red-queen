@@ -163,6 +163,57 @@ export const SYMBOLS = {
     meaning: "How big a step down the gradient each update takes. Too small and learning crawls; too large and it overshoots and can diverge.",
     chapters: ["dqn", "policy-gradients", "autodiff"],
   },
+  pi: {
+    tex: "\\pi",
+    plain: "π",
+    name: "policy",
+    meaning: "The agent's rule for choosing, as probabilities: π(a | s) is the chance of move a in situation s. A policy-gradient method learns it directly.",
+    chapters: ["policy-gradients"],
+  },
+  J: {
+    tex: "J",
+    plain: "J",
+    name: "expected return",
+    meaning: "How much the policy earns on average, from the start of a game: what policy-gradient methods climb.",
+    chapters: ["policy-gradients"],
+  },
+  V: {
+    tex: "V",
+    plain: "V",
+    name: "state value",
+    meaning: "How good a situation is, before choosing: the return expected from s onwards, playing as the policy plays. Learned by the critic.",
+    chapters: ["policy-gradients", "self-play"],
+  },
+  advantage: {
+    tex: "\\hat A",
+    plain: "Â",
+    name: "advantage",
+    meaning: "How much better a move turned out than the situation's usual: positive pushes the move up, negative pushes it down.",
+    chapters: ["policy-gradients"],
+  },
+  lambda: {
+    tex: "\\lambda",
+    plain: "λ",
+    name: "trace decay",
+    meaning: "How far back one step's surprise reaches, or how much a return trusts real rewards over the critic's guess: 0 is one step, 1 is the whole episode.",
+    range: "0 to 1",
+    chapters: ["policy-gradients", "self-play"],
+  },
+  clip: {
+    tex: "\\epsilon",
+    plain: "ε",
+    name: "clip range",
+    meaning: "PPO's leash: once a move's probability has moved this fraction away from where it was when played, that sample stops pushing it.",
+    range: "0.2 here",
+    chapters: ["policy-gradients"],
+  },
+  ratio: {
+    tex: "\\rho",
+    plain: "ρ",
+    name: "probability ratio",
+    meaning: "How much more (or less) likely a move is now than when it was played: 1 means unchanged.",
+    chapters: ["policy-gradients"],
+  },
 } satisfies Record<string, MathSymbol>
 
 export type SymbolId = keyof typeof SYMBOLS

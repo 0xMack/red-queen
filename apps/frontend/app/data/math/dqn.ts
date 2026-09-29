@@ -79,4 +79,4 @@ export const dqnStep = formula({
   body: sub(theta, mul(term("eta", "\\eta", { symbol: "eta" }), seq("\\nabla_{\\theta}", term("loss", "L", { symbol: "loss" })))),
 })
 
-export const greedy = greedyChoice("dqn-greedy", (a) => `Q(s,${a};\\theta)`, "the network computes", 100)
+export const greedy = greedyChoice("dqn-greedy", (a) => `Q(s,${a};\\theta)`, "the network computes", { max: 100 })

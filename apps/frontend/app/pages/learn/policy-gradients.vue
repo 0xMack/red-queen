@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/policy-gradients"
+import * as math from "~/data/math/policy-gradients"
 
 </script>
 
@@ -32,12 +33,15 @@ import * as code from "~/data/snippets/policy-gradients"
       We want to raise the expected return. The <strong>policy-gradient theorem</strong> says its gradient is an average over the moves the policy
       actually made: for each one, the gradient of the log-probability of that move, times how good things turned out afterwards.
     </p>
-    <p class="text-center font-mono text-sm">∇ J = E[ G<sub>t</sub> · ∇ log π(a<sub>t</sub> | s<sub>t</sub>) ]</p>
-    <p>
-      Nothing in it needs a model of the game, or even a derivative of the game: the snake plays, and every move is made more likely if it was
-      followed by a high return and less likely if not. <strong>REINFORCE</strong> is exactly that: play whole episodes, compute each move's
-      return G<sub>t</sub> (the discounted rewards from there to the end), and step along that estimate.
-    </p>
+    <MathScope>
+      <MathFormula :formula="math.theorem" caption="Pin the weight: its baseline and GAE forms are the next two sections." />
+      <p>
+        Nothing in it needs a model of the game, or even a derivative of the game: the snake plays, and every move is made more likely if it was
+        followed by a high return and less likely if not. <strong>REINFORCE</strong> is exactly that: play whole episodes, compute each move's
+        return <MathTerm id="return" tex="G_t" /> (the discounted rewards from there to the end), and step along
+        <MathTerm id="grad-log-pi" tex="\nabla_\theta \log \pi_\theta" /> that far.
+      </p>
+    </MathScope>
     <CodeBlock :snippet="code.reinforce" />
     <p>
       For a softmax the gradient of log π(a) with respect to the logits is simply <em>1 for the chosen move, minus the probabilities</em> -- the
@@ -63,6 +67,10 @@ import * as code from "~/data/snippets/policy-gradients"
       learning) -- is <strong>generalized advantage estimation</strong>, with λ sliding between them. The project uses one function for all three
       algorithms:
     </p>
+    <MathScope>
+      <MathFormula :formula="math.tdResidual" />
+      <MathFormula :formula="math.gae" caption="λ = 1 adds up every surprise to the end: the real return minus the baseline. λ = 0 trusts the critic after one step." />
+    </MathScope>
     <CodeBlock :snippet="code.gae" />
 
     <h2>Why PPO clips</h2>
@@ -72,6 +80,10 @@ import * as code from "~/data/snippets/policy-gradients"
       one batch can move the policy: it weighs each move by the <em>ratio</em> of its probability now to when it was played, and clips the ratio's
       effect to ±20%.
     </p>
+    <MathScope>
+      <MathFormula :formula="math.ratio" />
+      <MathFormula :formula="math.ppo" caption="Taking the smaller of the two makes the objective pessimistic: a move can't earn more by moving further than ε." />
+    </MathScope>
     <CodeBlock :snippet="code.ppo" />
     <p>Here is what each idea bought, one rung at a time, on the observation DQN reached 28.5 with:</p>
     <PgResults view="ladder" />
