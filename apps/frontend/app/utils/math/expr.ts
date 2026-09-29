@@ -181,6 +181,17 @@ function formatValue(v: BoundValue, def: TermDef, ctx: Ctx): string {
   return `${pad}${sign}${digits}`
 }
 
+/** A sum or difference as shown (a term showing one counts): it needs brackets as a factor. */
+function isSum(e: Expr, view: FormulaView): boolean {
+  if (e.k === "ops") return e.rest.length > 0
+  if (e.k === "term") {
+    const bound = view.bind ? view.values?.[e.term.id] : undefined
+    if (bound !== undefined && !hasTerms(shownForm(e.term, view))) return false
+    return isSum(shownForm(e.term, view), view)
+  }
+  return false
+}
+
 function shownForm(def: TermDef, view: FormulaView): Expr {
   const name = view.forms?.[def.id]
   return name && def.forms?.[name] ? def.forms[name]!.expr : def.body
@@ -197,7 +208,13 @@ function compileIn(e: Expr, ctx: Ctx): string {
     case "ops":
       return [compileIn(e.first, ctx), ...e.rest.map((r) => `${r.op === "+" ? "+" : "-"} ${compileIn(r.e, { ...ctx, operand: true })}`)].join(" ")
     case "mul":
-      return e.parts.map((p, i) => compileIn(p, i === 0 ? ctx : { ...ctx, operand: true })).join(ctx.view.bind ? " \\cdot " : " \\, ")
+      // Precedence: a sum or difference that is a factor gets brackets -- (1 − λ)·V, never 1 − λ V.
+      return e.parts
+        .map((p, i) => {
+          const out = compileIn(p, i === 0 ? ctx : { ...ctx, operand: true })
+          return isSum(p, ctx.view) ? `\\left( ${out} \\right)` : out
+        })
+        .join(ctx.view.bind ? " \\cdot " : " \\, ")
     case "fn":
       return `${e.tex} ${c(e.arg)}`
     case "frac":

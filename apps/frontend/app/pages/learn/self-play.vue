@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/self-play"
+import * as math from "~/data/math/self-play"
 
 </script>
 
@@ -28,6 +29,7 @@ import * as code from "~/data/snippets/self-play"
       king, −1 and −2 for the opponent's), one number out -- how good this position is for the player about to move. To choose a move, look at the
       position each legal move leaves and pick the one that is worst for the opponent:
     </p>
+    <MathFormula :formula="math.move" caption="The minus sign: the position after my move is scored from the side of the player who moves next." />
     <CodeBlock :snippet="code.move" />
     <p>
       That is exactly the kind of network the evolved Checkers players are (a 32 → 16 → 1 tanh network), used exactly the same way -- so a network
@@ -42,12 +44,21 @@ import * as code from "~/data/snippets/self-play"
       the next position (one-step TD, λ = 0) and the target already computed for it (which ultimately leads back to the result, λ = 1). Because the
       next position belongs to the other player, both flip sign on the way back:
     </p>
-    <CodeBlock :snippet="code.lambda" />
-    <p>
-      That is TD(λ) -- the <NuxtLink to="/learn/q-learning">Q-learning chapter</NuxtLink>'s bootstrapping, applied to positions rather than moves,
-      with λ controlling how far back each result reaches. Then one gradient step pulls every value of the game toward its target. The whole learning
-      loop is these two functions and the network's backpropagation; there is no reward except who won.
-    </p>
+    <MathScope>
+      <MathFormula :formula="math.lambdaEnd" />
+      <MathFormula :formula="math.lambdaReturn" caption="λ = 0: trust the network's value of the next position. λ = 1: every position's target is the final result." />
+      <CodeBlock :snippet="code.lambda" />
+      <p>
+        That is TD(λ) -- the <NuxtLink to="/learn/q-learning">Q-learning chapter</NuxtLink>'s bootstrapping, applied to positions rather than
+        moves, with <MathTerm id="lambda" symbol="lambda" /> controlling how far back each result reaches. Then one gradient step pulls every value of
+        the game toward its target:
+      </p>
+      <MathFormula :formula="math.update" />
+      <p>
+        The whole learning loop is these two functions and the network's backpropagation; there is no reward except who won,
+        <MathTerm id="outcome" tex="z" />.
+      </p>
+    </MathScope>
 
     <h2>What the dice did for backgammon</h2>
     <p>
