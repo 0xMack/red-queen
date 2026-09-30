@@ -309,6 +309,9 @@ Each directory has its own README with specifics — this file is the map, not t
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.
+- Writing LaTeX or other backslash-heavy source through a Bash heredoc on this Windows setup can collapse `\\` to `\`
+  (so a TS `"\\beta"` lands as `"\beta"` -- a backspace plus `eta`). Use the Write/Edit tools for such files, or a
+  script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas.
 - Long jobs: redirected stdout is block-buffered (an empty log ≠ a dead job — use `python -u`), and git-bash
   `ps` can't see Windows processes (`Get-CimInstance Win32_Process` can). Check a run's metrics file before
   concluding it died or launching a second copy.

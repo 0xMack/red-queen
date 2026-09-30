@@ -1,4 +1,4 @@
-import { add, formula, frac, mul, pow, sub, tanh, term } from "~/utils/math/expr"
+import { add, formula, frac, mul, pow, sqrt, sub, tanh, term } from "~/utils/math/expr"
 
 // Autodiff's formulas (docs/design/0012), for the one-neuron playground: every node of its graph is a term, so the
 // formula, the sliders and the graph's circles are one figure. The playground computes the forward and backward
@@ -62,4 +62,42 @@ export const finiteDifference = formula({
   lhs: term("dL-dw", frac("\\partial L", "\\partial w"), { name: "the gradient backward() computed" }),
   rel: "\\approx",
   body: frac(sub("L(w + \\varepsilon)", "L(w - \\varepsilon)"), "2\\varepsilon"),
+})
+
+// --- Adam ------------------------------------------------------------------------------------------------------------
+
+const beta1 = term("beta1", "\\beta_1", { name: "the momentum decay", meaning: "0.9: how much of the old running mean of the gradient to keep each step." })
+const beta2 = term("beta2", "\\beta_2", { name: "the scale decay", meaning: "0.999: how much of the old running mean of the squared gradient to keep." })
+const grad = term("grad", "g_t", { name: "this step's gradient", meaning: "∂L/∂θ for this weight, from backward()." })
+const m = (id: string, tex: string, name: string, meaning?: string) => term(id, tex, { name, meaning })
+
+export const adamMomentum = formula({
+  id: "adam-m",
+  title: "Adam's momentum: a running mean of the gradient",
+  lhs: m("m", "m_t", "the momentum", "A running mean of the gradient: noise averages out, a consistent direction builds up."),
+  body: add(mul(beta1, m("m-prev", "m_{t-1}", "last step's momentum")), mul(sub("1", beta1), grad)),
+})
+
+export const adamScale = formula({
+  id: "adam-v",
+  title: "Adam's scale: a running mean of the squared gradient",
+  lhs: m("v", "v_t", "the scale", "A running mean of the squared gradient: how big this weight's gradients usually are."),
+  body: add(mul(beta2, m("v-prev", "v_{t-1}", "last step's scale")), mul(sub("1", beta2), pow(grad, "2"))),
+})
+
+export const adamStep = formula({
+  id: "adam-step",
+  title: "Adam's step: the bias-corrected momentum, divided by the square root of the bias-corrected scale",
+  lhs: term("theta", "\\theta", { symbol: "weights" }),
+  rel: "\\leftarrow",
+  body: sub(
+    term("theta", "\\theta", { symbol: "weights" }),
+    mul(
+      term("eta", "\\eta", { symbol: "eta" }),
+      frac(
+        term("m-hat", frac(m("m", "m_t", "the momentum"), sub("1", "\\beta_1^{\\,t}")), { name: "the momentum, bias-corrected", meaning: "m starts at 0, so early on it's too small; dividing by 1 − β₁ᵗ undoes that." }),
+        add(sqrt(term("v-hat", frac(m("v", "v_t", "the scale"), sub("1", "\\beta_2^{\\,t}")), { name: "the scale, bias-corrected" })), term("adam-eps", "\\epsilon", { name: "a tiny constant", meaning: "10⁻⁸: keeps the division safe for a weight whose gradient has been zero." })),
+      ),
+    ),
+  ),
 })
