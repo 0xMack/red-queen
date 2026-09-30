@@ -101,7 +101,7 @@ function selectionRef(selection: string | null | undefined): string | null {
   return null
 }
 
-const SCORE_METRIC: Record<string, string> = { snake: "metric:held-out", checkers: "metric:points", bandit: "metric:skill" }
+const SCORE_METRIC: Record<string, string> = { snake: "metric:held-out", checkers: "metric:elo", bandit: "metric:skill" }
 
 // --- Label for a ref (the related chips) ---------------------------------------------------------------------------
 
@@ -182,13 +182,13 @@ function entrantRows(ctx: ExplainContext, pick: (r: EvaluationRecord) => boolean
 }
 
 function formatScore(game: string | null, v: number): string {
-  if (game === "checkers") return v.toFixed(3)
+  if (game === "checkers") return v.toFixed(0)
   if (game === "bandit") return v.toFixed(1)
   return v.toFixed(2)
 }
 
 function scoreMax(ctx: ExplainContext): number {
-  if (ctx.game === "checkers") return 1
+  if (ctx.game === "checkers") return Math.max(400, ...ctx.entries.map((r) => r.metrics.quality.mean))
   if (ctx.game === "bandit") return 100
   return Math.max(1, ...ctx.entries.map((r) => r.metrics.quality.mean))
 }
@@ -331,7 +331,7 @@ function resolveEntrant(ref: ExplainRef, ctx: ExplainContext): ResolvedExplainer
 
   base.instance = { title: r.entrant_kind === "baseline" ? "This baseline" : "This entrant", subtitle: r.metrics.model.description, facts, notes }
 
-  const score = { label: game === "checkers" ? "points / game" : game === "bandit" ? "skill (classic)" : "held-out score", value: `${formatScore(game, r.metrics.quality.mean)} ± ${formatScore(game, r.metrics.quality.ci95)}` }
+  const score = { label: game === "checkers" ? "Elo rating" : game === "bandit" ? "skill (classic)" : "held-out score", value: `${formatScore(game, r.metrics.quality.mean)} ± ${formatScore(game, r.metrics.quality.ci95)}` }
   base.facts = [{ label: "rank", value: `#${rank} of ${ctx.entries.length}` }, score, ...facts.slice(0, 2)]
 
   // --- Results

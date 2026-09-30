@@ -25,6 +25,14 @@ const regret = (() => {
 
 // Best machine: which pulls went to it -- rarely at first, then mostly.
 const pulls = Array.from({ length: 100 }, (_, t) => ((t * 37) % 100) / 100 < (t < 25 ? 0.25 : 0.85))
+
+// Elo: expected points per game against a rating difference of -600 ... +600 (rounded: SSR and client must agree).
+const eloX = (d: number) => 24 + ((d + 600) / 1200) * (W - 48)
+const eloY = (s: number) => 100 - s * 80
+const eloCurve = Array.from({ length: 49 }, (_, i) => {
+  const d = -600 + i * 25
+  return `${eloX(d).toFixed(1)},${eloY(expectedScore(d)).toFixed(2)}`
+}).join(" ")
 </script>
 
 <template>
@@ -67,6 +75,32 @@ const pulls = Array.from({ length: 100 }, (_, t) => ((t * 37) % 100) / 100 < (t 
       </g>
       <text x="190" y="16" font-size="8" :fill="palette.fgMuted">per game</text>
       <text x="24" y="124" font-size="7.5" :fill="palette.fgSubtle">win 1 · draw ½ · loss 0, against everyone, both colours</text>
+    </g>
+
+    <g v-else-if="mode === 'elo'">
+      <line :x1="eloX(-600)" :x2="eloX(600)" :y1="eloY(0)" :y2="eloY(0)" :stroke="palette.lineStrong" />
+      <line :x1="eloX(0)" :x2="eloX(0)" :y1="eloY(1)" :y2="eloY(0)" :stroke="palette.line" stroke-dasharray="2 2" />
+      <polyline :points="eloCurve" fill="none" :stroke="palette.signal400" stroke-width="1.75" />
+      <g v-for="p in [{ d: 200, t: '+200 → 0.76' }, { d: -200, t: '−200 → 0.24' }]" :key="p.d">
+        <circle :cx="eloX(p.d)" :cy="eloY(expectedScore(p.d))" r="3" :fill="palette.queen400" />
+        <text :x="eloX(p.d) + (p.d > 0 ? 6 : -6)" :y="eloY(expectedScore(p.d)) + (p.d > 0 ? 10 : -4)" :text-anchor="p.d > 0 ? 'start' : 'end'" font-size="8" :fill="palette.fg">{{ p.t }}</text>
+      </g>
+      <text x="24" y="16" font-size="8" :fill="palette.fgMuted">expected points per game</text>
+      <text :x="eloX(600)" y="112" text-anchor="end" font-size="8" :fill="palette.fgMuted">rating difference →</text>
+      <text x="24" y="128" font-size="7.5" :fill="palette.fgSubtle">1 / (1 + 10^(−difference / 400)) · Random is rated 0</text>
+    </g>
+
+    <g v-else-if="mode === 'game-pairs'">
+      <text x="24" y="18" font-size="8" :fill="palette.fgMuted">one opening, played twice</text>
+      <g v-for="(g, i) in [{ a: 'A moves first', r: 'A wins · 1' }, { a: 'B moves first', r: 'draw · ½' }]" :key="i">
+        <rect x="24" :y="28 + i * 30" width="22" height="22" rx="3" :fill="palette.raised" :stroke="palette.lineStrong" />
+        <circle cx="31" :cy="35 + i * 30" r="3" :fill="i ? palette.fg : palette.queen500" />
+        <circle cx="39" :cy="43 + i * 30" r="3" :fill="i ? palette.queen500 : palette.fg" />
+        <text x="56" :y="42 + i * 30" font-size="8.5" :fill="palette.fg">{{ g.a }}</text>
+        <text x="150" :y="42 + i * 30" font-size="8.5" :fill="palette.fgMuted">{{ g.r }}</text>
+      </g>
+      <text x="24" y="104" font-size="8.5" :fill="palette.fg">the pair: 1½ of 2 for A</text>
+      <text x="24" y="124" font-size="7.5" :fill="palette.fgSubtle">a lopsided opening favours the same colour both times, and cancels</text>
     </g>
 
     <g v-else-if="mode === 'interval'">

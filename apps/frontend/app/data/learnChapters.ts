@@ -13,6 +13,7 @@ export type ChapterArtKind =
   | "policy"
   | "self-play"
   | "bandit"
+  | "strength"
 
 export interface LearnChapter {
   slug: string
@@ -263,6 +264,31 @@ export const learnChapters: LearnChapter[] = [
     ],
   },
   {
+    slug: "measuring-strength",
+    title: "Measuring Strength: Elo, Openings and Sequential Tests",
+    short: "Measuring strength",
+    summary:
+      "When the best player stops losing, points per game can't tell it from a better one. Level openings played in pairs, Elo ratings fitted to a whole round robin, and a sequential test that stops as soon as the games have answered -- the yardstick every two-player training experiment here is judged by. Run the test yourself.",
+    path: "/learn/measuring-strength",
+    status: "available",
+    home: "rl",
+    readMinutes: 12,
+    tags: ["evaluation", "Elo", "Bradley-Terry", "SPRT", "statistics", "checkers", "two-player games", "openings"],
+    art: "strength",
+    prerequisites: ["self-play"],
+    related: ["multi-agent-games"],
+    sections: [
+      "The yardstick ran out",
+      "Openings, played in pairs",
+      "Elo: a scale for win probability",
+      "Ratings from a round robin",
+      "Is A stronger than B? Ask sequentially",
+      "What it says about self-play",
+      "What it can't tell you",
+      "Where this goes next",
+    ],
+  },
+  {
     slug: "teaching-a-snake",
     title: "Teaching a Snake to Play Itself",
     short: "Teaching a snake",
@@ -419,7 +445,7 @@ export const learnPaths: LearnPath[] = [
     summary:
       "Exploration vs. exploitation, then values, then values from a network, then the policy itself -- and finally two players, a strategy framework, and an agent with nobody to learn from but itself.",
     color: "signal400",
-    chapters: ["multi-armed-bandits", "q-learning", "autodiff", "dqn", "policy-gradients", "multi-agent-games", "self-play"],
+    chapters: ["multi-armed-bandits", "q-learning", "autodiff", "dqn", "policy-gradients", "multi-agent-games", "self-play", "measuring-strength"],
     assumes: ["genetic-algorithms"],
   },
   {

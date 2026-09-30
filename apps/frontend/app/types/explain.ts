@@ -33,7 +33,7 @@ export type StrategyMode =
   | "search"
   | "first-legal"
 
-export type MetricMode = "skill" | "held-out" | "points" | "interval" | "level" | "gap" | "regret" | "best-rate" | "cost"
+export type MetricMode = "skill" | "held-out" | "points" | "elo" | "game-pairs" | "interval" | "level" | "gap" | "regret" | "best-rate" | "cost"
 
 /** Something live for the panel: a strategy playing a scenario (the real Rust core, in WebAssembly), or an observer
  *  watching a moving snake. */
