@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import * as math from "~/data/math/genetic-algorithms"
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 const baselineCode = `from evolve import (
@@ -76,6 +77,15 @@ onMounted(async () => {
       register-machine program -- to approximate <code>x⁴ - 3x² + 2</code>
       from 11 sample points, using nothing but add/subtract/multiply/divide:
     </p>
+
+    <MathScope>
+      <MathFormula :formula="math.target" :values="{ x: 0.6 }" caption="Worked at x = 0.6, one of the 11 sample points." />
+      <p>
+        A program <em>g</em> is scored on each sample point separately, and its fitness is the mean:
+      </p>
+      <MathFormula :formula="math.caseFitness" />
+      <MathFormula :formula="math.meanFitness" caption="Keeping the per-case numbers, not just the mean, is what lets lexicase selection treat each point as its own test." />
+    </MathScope>
 
     <CodeBlock lang="python" :code="baselineCode" />
 
