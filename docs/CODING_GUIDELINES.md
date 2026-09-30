@@ -195,9 +195,17 @@ what belongs here and how to add to it). Read before writing code, not after.
   (`snake-long-v1`, docs/design/0008). Before buying compute, check the training episode matches the evaluation one.
 - **Deterministic players make a tiny fitness set.** Checkers strategies that don't randomize replay the same game from
   the standard start, so "3 opponents x 2 seats" is six games however many you list, and `--resample` only reseeds
-  tie-breaks. Random openings (`--opening-plies`, both seats sharing one) help the signal but did not by themselves
-  make evolution learn. Print `champion gen0 == final` as a first check on any long run: six 300-600 generation
-  Checkers runs never left generation 0.
+  tie-breaks. Print `champion gen0 == final` as a first check on any long run: six 300-600 generation Checkers runs
+  never left generation 0. **And check an opening is actually played:** `--opening-plies` stepped random moves onto a
+  fresh env, and `play_match` then called `env.reset()` -- every "opening" game was played from the start, for months,
+  with no error (found in docs/design/0013). Start games with `Checkers(opening=...)`, whose `reset()` returns to it,
+  and assert on the first position a player sees, not on the env you built.
+- **Measure two-player strength in game pairs, by rating, head to head** (docs/design/0013). Points per game against a
+  field saturates once the leader outclasses it (TD-Leaf's +120 Elo on every seed read as p = 0.125 there). Play ballot
+  openings from both seats, rank by Bradley–Terry Elo (`jobs/versus_stats.py`), and compare two players with the SPRT
+  (`jobs/checkers_sprt.py`). Check the test's own error rates by simulation before trusting its defaults: with a first
+  look at 10 pairs it said "stronger" for equal players 8% of the time (5% promised); from 20 pairs, 6%. A pooled
+  interval over seeds counts pairs, so it compares *these* networks; a regime needs the per-seed results to agree.
 - **A regression target only teaches what its labels contain.** Evolving an evaluator to predict a deeper *material*
   search reached MSE 0.06 yet played far worse than exact material (an approximate leaf evaluator is a worse leaf
   evaluator); playout-outcome labels were too noisy in 300 generations. Distillation needs labels with information the

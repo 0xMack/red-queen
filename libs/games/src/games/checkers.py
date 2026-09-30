@@ -85,9 +85,15 @@ class Evaluate1Ply:
 
 
 class Checkers:
-    def __init__(self, max_moves_without_capture: int = 40):
+    """`opening` is a sequence of move indices (into `legal_moves()`, move order being part of the game) played from
+    the standard start; the game then *starts* there -- `reset()` returns to the opening, not to the initial position,
+    so a runner that resets its env (`evolve.play_match`) plays the opening it was given (games.checkers_openings)."""
+
+    def __init__(self, max_moves_without_capture: int = 40, opening: Sequence[int] = ()):
         self.max_moves_without_capture = max_moves_without_capture
+        self.opening = tuple(opening)
         self._core = _native.CheckersCore(max_moves_without_capture)
+        self.reset()
 
     def __copy__(self):
         # The state lives in the native core, so even a "shallow" copy must not share it.
@@ -111,6 +117,12 @@ class Checkers:
 
     def reset(self) -> list[float]:
         self._core.reset()
+        for index in self.opening:
+            moves = self._core.legal_moves()
+            if not 0 <= index < len(moves):
+                raise ValueError(f"opening {self.opening}: move index {index} of {len(moves)} legal moves")
+            if self._core.step([tuple(square) for square in moves[index]]):
+                raise ValueError(f"opening {self.opening} ends the game")
         return self._core.observation()
 
     def legal_moves(self) -> list[Move]:

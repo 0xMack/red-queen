@@ -60,6 +60,11 @@ material_3 = _bound("material-3")
 material_4 = _bound("material-4")
 
 
+def strategy(name: str) -> BoundFactory:
+    """Any fixed strategy by name: one of STRATEGIES, or `material-N` for any N >= 3 (deeper than STRATEGIES lists)."""
+    return STRATEGIES.get(name) or _bound(name)
+
+
 def evaluator(weights: Sequence[float], layer_sizes: Sequence[int], depth: int = 1) -> BoundFactory:
     """A trained network as the position evaluator -- an `evolve.WeightVector`'s `weights` and
     `layer_sizes` (32 inputs, 1 output, tanh layers). `depth` 1: play the move whose resulting position,

@@ -148,13 +148,17 @@ class OpponentPool:
         def make() -> Checkers:
             rng = random.Random(base + count[0] // 2)
             count[0] += 1
-            env = Checkers()
+            # An opening the env *starts* from: play_match resets its env first, which used to throw these random
+            # moves away (every "opening" game was played from the standard start until docs/design/0013 found it).
+            env, opening = Checkers(), []
             for _ in range(self._opening_plies):
                 moves = env.legal_moves()
-                if not moves or env.winner() is not None:
+                index = rng.randrange(len(moves))
+                _, _, done = env.step(moves[index])
+                if done:
                     break
-                env.step(rng.choice(moves))
-            return env
+                opening.append(index)
+            return Checkers(opening=opening)
 
         return make
 

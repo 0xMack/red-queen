@@ -596,6 +596,11 @@ evolved evaluator, **60** games each -- 20 could not separate these arms):
   same plateau, 0.56-0.61. A second layer at the small size (`pool-2x32-1m`) doesn't lift it either. Only depth and
   capacity together do: 2 x 64 beats the matched-size 192-wide net on every seed (paired p = 0.062, the floor for 5
   pairs; its worst seed, 0.719, beats every other arm's best, 0.673).
+  **Revised by head-to-head measurement ([0013](0013-measuring-two-player-strength.md))**: "the same plateau" was the
+  field's resolution, not the networks'. Each arm against its baseline, seed for seed, over the whole ballot: `pool-h64-1m`
+  beats `pool-1m` by +55 Elo and `pool-2x32-1m` beats `pool-h64-1m` by +36, both on all five seeds; `pool-1m` is -14
+  against `sp-pool` and `pool-h64` +16 (seeds split). Depth and capacity together is still the big step (+143; the
+  192-wide net -151), but width and depth each help a little too.
 - **The learned evaluator now beats deeper search.** At 3 plies the 2 x 64 net scores 0.62 against material *4*-ply.
 - **On the leaderboard** (the winning recipe, seed 0 fixed in advance, 1M games, ~40 min alone; entered at 3 and at 4
   plies -- training is deterministic, so both entrants are the same network): **#1 at 0.916** (4-ply; 11W 7D 2L against
@@ -626,7 +631,9 @@ before, 3-ply against the field, 60 games per opponent):**
 
 - **More plain TD does nothing** (0.751 from 0.752: the network had plateaued) and makes seeds *less* alike; **TD-Leaf
   lifts every seed**, by about 0.10 at 3 plies. Against the plain-TD control it wins 4 of 5 seeds (paired p = 0.125;
-  the fifth, seed 0, is a 0.002 loss to a lucky 0.856 control).
+  the fifth, seed 0, is a 0.002 loss to a lucky 0.856 control). Head to head ([0013](0013-measuring-two-player-strength.md),
+  the whole ballot): **+120 Elo on every seed** (+103 to +127; seed 0 included), TD-Leaf at 2 plies +81; the SPRT
+  decides it in 25 pairs. The field, not the effect, was what ran out.
 - **Training at the depth it plays helps most**: 3 plies beats 2 overall, above all against the other learned
   evaluator (0.92 vs 0.80); against material-4 the two are level (0.71, 0.73).
 - It is expensive: a 3-ply search per self-play move is ~20x slower than one ply (~68 min for 50k games, alone ~40).
