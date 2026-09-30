@@ -1,48 +1,8 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
+import * as code from "~/data/snippets/genome-representations"
 import type { GenerationStats, RunInfo } from "~/types/telemetry"
-
-const linearRunCode = `def run(self, inputs: Sequence[float]) -> list[float]:
-    registers = [0.0] * self.num_registers
-    for instr in self.instructions:
-        a = registers[instr.src_a % self.num_registers]
-        b_idx = instr.src_b % (self.num_registers + self.num_inputs)
-        b = registers[b_idx] if b_idx < self.num_registers else inputs[b_idx - self.num_registers]
-        op = self.ops[instr.op % len(self.ops)]
-        registers[instr.dst % self.num_registers] = op(a, b)
-    return registers`
-
-const treeCode = `@dataclass(frozen=True, slots=True)
-class Terminal:
-    value: float | None  # None means "the input variable x"; otherwise a random constant
-
-    def evaluate(self, x, ops=DEFAULT_OPS):
-        return x if self.value is None else self.value
-
-
-@dataclass(frozen=True, slots=True)
-class FunctionNode:
-    op: int  # index into ops
-    left: Node
-    right: Node
-
-    def evaluate(self, x, ops=DEFAULT_OPS):
-        return ops[self.op % len(ops)](self.left.evaluate(x), self.right.evaluate(x))`
-
-const crossoverCode = `def vary(self, parents, rng):
-    a, b = parents[0], parents[1]
-    # swap a random subtree of a for a random subtree of b...
-    crossover_point = rng.randrange(len(_flatten(a.root)))
-    donor = rng.choice(_flatten(b.root))
-    child_root = _replace_at(a.root, crossover_point, donor)
-    # ...then, sometimes, replace a random subtree with a fresh random one
-    if rng.random() < self._mutation_rate:
-        ...
-    # bloat control: an offspring deeper than the limit is thrown away
-    if _depth(child_root) > self._max_tree_depth:
-        return a
-    return replace(a, root=child_root)`
 
 const paretoCode = `# linear GP: complexity = instructions that can reach the output register
 ParetoSelection(complexity=lambda p: p.effective_instruction_count(), k=3)
@@ -70,7 +30,7 @@ onMounted(async () => {
 <template>
   <article class="prose-chapter">
     <p>
-      Chapter 1's loop -- evaluate, select, vary, repeat -- never says what a candidate solution
+      The <NuxtLink to="/learn/genetic-algorithms">genetic algorithm</NuxtLink>'s loop -- evaluate, select, vary, repeat -- never says what a candidate solution
       <em>is</em>. That choice, the <strong>genome representation</strong>, decides what evolution can
       build, which mutations are even possible, and how easily good parts survive being recombined.
       This project implements three: a <strong>linear program</strong> (a tiny register machine), an
@@ -92,7 +52,7 @@ onMounted(async () => {
       result to a register. Register <code>r0</code> after the last instruction is the output. This is
       the whole interpreter:
     </p>
-    <CodeBlock lang="python" :code="linearRunCode" />
+    <CodeBlock :snippet="code.linearRun" />
     <p>
       Every field is taken modulo its range, so <em>any</em> random integers form a valid program --
       mutation can change a single number anywhere and the result still runs. That's a big part of why
@@ -130,7 +90,7 @@ onMounted(async () => {
       input <code>x</code> or random constants; internal nodes apply an operator to their two children.
       Evaluation is plain recursion:
     </p>
-    <CodeBlock lang="python" :code="treeCode" />
+    <CodeBlock :snippet="code.tree" />
     <p>
       Variation works on whole subtrees: <strong>crossover</strong> swaps a random subtree of one parent
       for a random subtree of the other, and <strong>mutation</strong> replaces a random subtree with a
@@ -138,7 +98,7 @@ onMounted(async () => {
       makes trees grow without bound (<strong>bloat</strong>). The standard fix, used here, is a depth
       limit:
     </p>
-    <CodeBlock lang="python" :code="crossoverCode" />
+    <CodeBlock :snippet="code.crossover" />
 
     <h2>Head to head</h2>
     <p>
@@ -178,8 +138,9 @@ onMounted(async () => {
     <CodeBlock lang="python" :code="paretoCode" />
     <p>
       The third representation took that further: a neural network's weights, a genome that isn't a
-      program at all. The same loop evolved it to play Snake -- that's the
-      <NuxtLink to="/learn/teaching-a-snake">next chapter</NuxtLink>.
+      program at all. That's
+      <NuxtLink to="/learn/neuroevolution">neuroevolution</NuxtLink>, and the same loop evolved it to play Snake in
+      <NuxtLink to="/learn/teaching-a-snake">the Snake case study</NuxtLink>.
     </p>
   </article>
 </template>

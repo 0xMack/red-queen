@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import * as F from "~/data/math/autodiff"
+
 // A one-neuron computation graph, L = (tanh(x·w + b) − t)², with every node's forward value and
 // backward gradient shown live -- the same mechanics libs/autodiff's Tensor runs (each op records its
 // parents and a local backward rule; backward() walks the graph in reverse topological order and
@@ -12,10 +14,10 @@ const lr = 0.25
 // Built here, not inline in the template: the template auto-unwraps top-level refs, so an inline
 // [x, w, ...] would hand each slider a plain number instead of the ref it needs to write to.
 const sliders = [
-  { name: "x (input)", model: x, min: -2, max: 2 },
-  { name: "w (weight)", model: w, min: -2, max: 2 },
-  { name: "b (bias)", model: b, min: -2, max: 2 },
-  { name: "t (target)", model: t, min: -1, max: 1 },
+  { id: "x", name: "x (input)", model: x, min: -2, max: 2 },
+  { id: "w", name: "w (weight)", model: w, min: -2, max: 2 },
+  { id: "b", name: "b (bias)", model: b, min: -2, max: 2 },
+  { id: "t", name: "t (target)", model: t, min: -1, max: 1 },
 ]
 const history = ref<number[]>([])
 
@@ -73,11 +75,33 @@ const nodes = computed(() => {
 })
 const EDGES: [string, string][] = [["x", "u"], ["w", "u"], ["u", "z"], ["b", "z"], ["z", "a"], ["a", "e"], ["e", "L"]]
 const byId = computed(() => Object.fromEntries(nodes.value.map((n) => [n.id, n])))
+// The same computation as formulas (docs/design/0012), one figure with the graph: the sliders and the circles are the
+// formulas' terms. The formulas get only the sliders; they work out L and ∂L/∂w themselves and, in development, check
+// them against this graph's forward and backward passes.
+const scope = useOrProvideTermScope()
+watch(
+  () => ({ x: x.value, w: w.value, b: b.value, t: t.value, eta: lr }),
+  (v) => (scope.values.value = v),
+  { immediate: true },
+)
+watch(
+  graph,
+  (g) => (scope.expected.value = { L: g.L, "dL-dw": g.grads.w, u: g.u, z: g.z, a: g.a, e: g.e }),
+  { immediate: true },
+)
+// The step formula starts from the backward pass's gradient (it's the chain formula that computes it).
+const stepValues = computed(() => ({ w: w.value, eta: lr, "dL-dw": graph.value.grads.w }))
+const GRAD_TERMS: Record<string, string> = { e: "dL-de", w: "dL-dw" }
+
 const fmt = (v: number) => (Math.abs(v) < 1e-4 ? "0.000" : v.toFixed(3))
 </script>
 
 <template>
   <UiFigure>
+    <div class="math-panel mb-4">
+      <MathFormula :formula="F.forward" bare />
+      <MathFormula class="mt-1" :formula="F.chain" bare />
+    </div>
     <svg viewBox="0 0 800 300" class="block h-auto w-full">
       <defs>
         <marker id="ad-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -96,16 +120,16 @@ const fmt = (v: number) => (Math.abs(v) < 1e-4 ? "0.000" : v.toFixed(3))
         marker-end="url(#ad-arrow)"
       />
       <g v-for="n in nodes" :key="n.id">
-        <circle :cx="n.cx" :cy="n.cy" r="26" :fill="n.op === 'param' ? '#1d1420' : palette.raised" :stroke="n.op === 'param' ? palette.queen400 : palette.signal400" stroke-width="1.5" />
+        <circle v-bind="scope.target(n.id)" :cx="n.cx" :cy="n.cy" r="26" :fill="n.op === 'param' ? '#1d1420' : palette.raised" :stroke="n.op === 'param' ? palette.queen400 : palette.signal400" stroke-width="1.5" />
         <text :x="n.cx" :y="n.cy + 5" text-anchor="middle" class="fill-fg font-mono text-[14px]">{{ n.label }}</text>
         <text :x="n.cx" :y="n.cy - 36" text-anchor="middle" class="num fill-signal-300 text-[11px]">{{ fmt(n.value) }}</text>
-        <text :x="n.cx" :y="n.cy + 44" text-anchor="middle" class="num fill-queen-300 text-[11px]">∂L {{ fmt(n.grad) }}</text>
+        <text v-bind="GRAD_TERMS[n.id] ? scope.target(GRAD_TERMS[n.id]!) : {}" :x="n.cx" :y="n.cy + 44" text-anchor="middle" class="num fill-queen-300 text-[11px]">∂L {{ fmt(n.grad) }}</text>
       </g>
     </svg>
 
     <div class="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div class="grid grid-cols-2 gap-3 text-xs">
-        <UiRange v-for="s in sliders" :key="s.name" v-model="s.model.value" :label="s.name" :min="s.min" :max="s.max" :step="0.01" :display="(v) => v.toFixed(2)" />
+        <UiRange v-for="s in sliders" :key="s.name" v-bind="scope.target(s.id)" v-model="s.model.value" :label="s.name" :min="s.min" :max="s.max" :step="0.01" :display="(v) => v.toFixed(2)" />
       </div>
       <div class="flex flex-col gap-3 text-xs">
         <div class="well p-3">
@@ -115,6 +139,7 @@ const fmt = (v: number) => (Math.abs(v) < 1e-4 ? "0.000" : v.toFixed(3))
             <span class="text-signal-300">{{ numericalDw.toFixed(6) }}</span>
           </p>
         </div>
+        <MathFormula :formula="F.step" :values="stepValues" bare />
         <div class="flex items-center gap-2">
           <button class="btn-primary btn-sm" @click="step">Gradient step on w, b</button>
           <button class="btn-ghost btn-sm" @click="reset">Reset</button>

@@ -262,12 +262,12 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+  background: linear-gradient(90deg, var(--range-accent, var(--color-queen-400)) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
 }
 input[type="range"]::-moz-range-track {
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--color-queen-400) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+  background: linear-gradient(90deg, var(--range-accent, var(--color-queen-400)) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -276,7 +276,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 12px;
   border-radius: 999px;
   background: var(--color-fg);
-  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--range-accent, var(--color-queen-400));
   transition: transform 0.15s;
 }
 input[type="range"]::-moz-range-thumb {
@@ -285,10 +285,116 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   border-radius: 999px;
   background: var(--color-fg);
-  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--color-queen-400);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4px var(--range-accent, var(--color-queen-400));
 }
 input[type="range"]:hover::-webkit-slider-thumb {
   transform: scale(1.15);
+}
+
+/* Formula terms and everything linked to them (docs/design/0012, useTermScope). A term's colour comes from its scope
+   as --term-color. At rest a term is ink with a faint underline in its colour -- a hint that it's live; focused (hovered,
+   pinned, or pointed at from a slider or a chart), it takes its colour, and the rest of the formula steps back. */
+.math-formula .katex-display {
+  margin: 0.2em 0;
+}
+/* The pointer is a hand only over a term's glyphs (MathFormula hit-tests by glyph, not by box). */
+.math-formula[data-hit] {
+  cursor: pointer;
+}
+.math-formula [data-term] {
+  border-radius: 3px;
+  outline: none;
+  transition: color 0.15s, background-color 0.15s, opacity 0.15s;
+  background-image: linear-gradient(color-mix(in srgb, var(--term-color) 60%, transparent), color-mix(in srgb, var(--term-color) 60%, transparent));
+  background-size: 0 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+/* At rest a formula is plain ink; pointing at it reveals which parts are live -- the smallest terms only, so nested
+   ones don't stack underlines. */
+.math-formula:hover [data-term]:not(:has([data-term])) {
+  background-size: 100% 1.5px;
+}
+.math-formula.math-has-focus [data-term]:not(.term-on) {
+  opacity: 0.5;
+}
+.math-formula.math-has-focus .term-on [data-term] {
+  opacity: 1;
+}
+.math-formula [data-term].term-on,
+.math-formula [data-term]:focus-visible {
+  color: var(--term-color);
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--term-color) 14%, transparent);
+  background-size: 100% 2px;
+}
+/* A display formula in the prose sits on its own plate; in a lab (bare) the lab is the plate. */
+.math-panel {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-plate);
+  background: color-mix(in srgb, var(--color-sunken) 70%, transparent);
+  padding: 0.9rem 1.25rem 0.75rem;
+}
+.math-caption {
+  margin-top: 0.35rem;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-fg-subtle);
+}
+/* The worked row: the same formula with the last update's numbers, set a step back from the symbols above it. Its
+   numbers still take their term's colour when lit. */
+.math-formula .math-worked {
+  color: var(--color-fg-muted);
+}
+.math-formula:hover .math-worked [data-term]:not(:has([data-term])) {
+  background-size: 100% 1px;
+}
+.math-card {
+  border: 1px solid var(--color-line-strong);
+  border-top: 2px solid var(--term-color);
+  border-radius: var(--radius-plate);
+  background: var(--color-raised);
+  padding: 0.9rem 1rem 0.7rem;
+  text-align: left;
+  box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.65);
+}
+.math-card-glyph {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 2.6rem;
+  height: 2.6rem;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  color: var(--term-color);
+  background: color-mix(in srgb, var(--term-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--term-color) 30%, transparent);
+}
+.math-card-value {
+  color: var(--term-color);
+  font-weight: 600;
+}
+.term-target {
+  --range-accent: var(--term-color);
+  transition: outline-color 0.15s, opacity 0.15s, stroke 0.15s;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.term-target.term-on {
+  outline-color: var(--term-color);
+}
+.term-target.term-dim {
+  opacity: 0.6;
+}
+svg .term-target.term-on {
+  stroke: var(--term-color);
+  stroke-width: 2px;
+}
+svg text.term-target.term-on {
+  fill: var(--term-color);
+  stroke: none;
 }
 
 /* Figures number themselves: "Fig. 3 · Interactive". Each page (a <main>, or a chapter's body) restarts the count. */

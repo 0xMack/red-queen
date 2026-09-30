@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { BanditUpdate } from "~/composables/useBanditRun"
 import type { Beliefs } from "~/utils/bandit"
 
 // What a strategy believes, as the table it literally keeps (docs/design/0011): a row per situation it can tell
@@ -17,9 +18,18 @@ const props = withDefaults(
     binary?: boolean
     /** What `values` are: estimates, or a gradient bandit's preferences. */
     kind?: "estimate" | "preference"
+    /** The last pull's update: its cell is the one a formula's worked line is about. */
+    updated?: BanditUpdate | null
   }>(),
-  { current: 0, arm: null, rowLabels: () => ["every pull"], binary: true, kind: "estimate" },
+  { current: 0, arm: null, rowLabels: () => ["every pull"], binary: true, kind: "estimate", updated: null },
 )
+
+// Inside a formula's term scope (docs/design/0012) the table takes part: every estimate is `estimate`, every count
+// `count`, every uncertainty `bonus` -- and the cell the last pull updated is also `q-new` and `n`.
+const scope = useTermScope()
+const isUpdated = (r: number, a: number) => props.updated?.row === r && props.updated.arm === a
+const valueTerms = (r: number, a: number) => (r === props.current || isUpdated(r, a) ? [...(isUpdated(r, a) ? ["q-new"] : []), "estimate"] : [])
+const countTerms = (r: number, a: number) => (r === props.current || isUpdated(r, a) ? [...(isUpdated(r, a) ? ["n"] : []), "count"] : [])
 
 const arms = computed(() => props.beliefs.find((b) => b)?.values.length ?? 0)
 // Colour by value within the table, so the best-looking cell in a row stands out whatever the payout scale.
@@ -57,11 +67,16 @@ const fmt = (v: number) => (props.kind === "preference" ? v.toFixed(2) : props.b
             :style="{ background: b ? shade(b, a - 1) : 'transparent' }"
           >
             <template v-if="b">
-              <span class="block text-[13px]" :class="b.counts[a - 1] || kind === 'preference' ? 'text-fg' : 'text-fg-subtle'">
+              <span
+                class="block text-[13px]"
+                :class="b.counts[a - 1] || kind === 'preference' ? 'text-fg' : 'text-fg-subtle'"
+                v-bind="valueTerms(r, a - 1).length ? scope.target(valueTerms(r, a - 1)) : {}"
+              >
                 {{ b.counts[a - 1] || kind === "preference" ? fmt(b.values[a - 1]!) : "?" }}
               </span>
               <span class="block text-[10px] text-fg-subtle">
-                {{ b.counts[a - 1] }}×<template v-if="b.spread[a - 1]"> ±{{ b.spread[a - 1]!.toFixed(2) }}</template>
+                <span v-bind="countTerms(r, a - 1).length ? scope.target(countTerms(r, a - 1)) : {}">{{ b.counts[a - 1] }}×</span>
+                <span v-if="b.spread[a - 1]" v-bind="r === current ? scope.target('bonus') : {}"> ±{{ b.spread[a - 1]!.toFixed(2) }}</span>
                 <template v-if="b.probabilities.length"> · {{ Math.round(b.probabilities[a - 1]! * 100) }}%</template>
               </span>
             </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { learnChapters } from "~/data/learnChapters"
+import { learnChapters, learnPath } from "~/data/learnChapters"
+import { palette } from "~/utils/palette"
 
 // Search across every chapter's title, summary, tags, and section headings -- results link straight
 // to the matching section's anchor. Press "/" anywhere on a Learn page to focus it; arrow keys +
@@ -13,7 +14,7 @@ const props = withDefaults(defineProps<{ autofocusShortcut?: boolean; placeholde
 interface Result {
   key: string
   chapterTitle: string
-  number: number
+  color: string
   label: string
   kind: "chapter" | "section" | "tag"
   to: string | null
@@ -30,10 +31,11 @@ const results = computed<Result[]>(() => {
   const terms = q.split(/\s+/)
   const matches = (text: string) => terms.every((t) => text.toLowerCase().includes(t))
   const out: Result[] = []
-  learnChapters.forEach((c, i) => {
+  learnChapters.forEach((c) => {
     const available = c.status === "available"
-    const base = { chapterTitle: c.title, number: i + 1, available }
-    if (matches(`${c.title} ${c.summary} ${c.part}`)) {
+    const path = learnPath(c.home)!
+    const base = { chapterTitle: c.title, color: palette[path.color], available }
+    if (matches(`${c.title} ${c.summary} ${path.title}`)) {
       out.push({ ...base, key: c.slug, label: c.summary, kind: "chapter", to: available ? c.path : null })
     }
     for (const s of c.sections ?? []) {
@@ -98,7 +100,7 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalKey))
         @mousedown.prevent="go(r)"
         @mouseenter="activeIndex = i"
       >
-        <span class="mt-0.5 font-display text-base leading-none text-queen-400 italic">{{ r.number }}.</span>
+        <span class="mt-1.5 size-2 shrink-0 rounded-full" :style="{ background: r.color }" />
         <span class="min-w-0">
           <span class="block truncate text-sm font-medium text-fg">
             <span v-if="r.kind === 'section'" class="text-queen-300">§ </span>{{ r.kind === "section" ? r.label : r.chapterTitle }}

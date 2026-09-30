@@ -24,7 +24,7 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener("keydown", onKey))
 onUnmounted(() => window.removeEventListener("keydown", onKey))
 
-const KIND_LABEL = { algorithm: "Algorithm", entrant: "Entrant", scenario: "Scenario", representation: "Representation", metric: "Measure" } as const
+const KIND_LABEL = { algorithm: "Algorithm", entrant: "Entrant", scenario: "Scenario", representation: "Representation", metric: "Measure", symbol: "Notation" } as const
 </script>
 
 <template>

@@ -59,7 +59,7 @@ onMounted(async () => {
 
     <ol class="ml-5 list-decimal space-y-1">
       <li>Score every individual in the population against the fitness function.</li>
-      <li>Select parents, biased toward higher fitness (but not exclusively the best -- more on why in the next chapter).</li>
+      <li>Select parents, biased toward higher fitness (but not exclusively the best -- more on why in <NuxtLink to="/learn/selection-strategies">Selection Strategies</NuxtLink>).</li>
       <li>Vary them (mutation, sometimes crossover) to produce the next generation.</li>
       <li>Repeat.</li>
     </ol>

@@ -43,8 +43,21 @@ export class BanditRun {
     readonly done: boolean;
     readonly efficiency: number;
     readonly lamp: number;
+    /**
+     * The largest payout an arm can make (a Gaussian arm's is a typical maximum, not a hard bound): what the Learn
+     * chapter's formulas size their numbers for, so they don't shift as values grow.
+     */
+    readonly maxPayout: number;
+    /**
+     * The smallest payout an arm typically makes (negative only for Gaussian arms): whether numbers need a sign.
+     */
+    readonly minPayout: number;
     readonly pulls: number;
     readonly regret: number;
+    /**
+     * The payouts' typical spread: the scale in UCB's bonus and Gaussian Thompson's beliefs.
+     */
+    readonly rewardScale: number;
     /**
      * The situation the strategy is in (the lamp, if it sees it).
      */
@@ -317,12 +330,15 @@ export interface InitOutput {
     readonly banditrun_done: (a: number) => number;
     readonly banditrun_efficiency: (a: number) => number;
     readonly banditrun_lamp: (a: number) => number;
+    readonly banditrun_maxPayout: (a: number) => number;
     readonly banditrun_means: (a: number) => [number, number];
+    readonly banditrun_minPayout: (a: number) => number;
     readonly banditrun_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly banditrun_pull: (a: number, b: number) => [number, number, number];
     readonly banditrun_pulls: (a: number) => number;
     readonly banditrun_regret: (a: number) => number;
     readonly banditrun_reveal: (a: number) => [number, number];
+    readonly banditrun_rewardScale: (a: number) => number;
     readonly banditrun_row: (a: number) => number;
     readonly banditrun_skill: (a: number) => number;
     readonly banditrun_total: (a: number) => number;

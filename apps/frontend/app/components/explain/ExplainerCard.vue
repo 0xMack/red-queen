@@ -6,7 +6,7 @@ import type { ResolvedExplainer } from "~/types/explain"
 defineProps<{ explainer: ResolvedExplainer }>()
 defineEmits<{ more: []; navigate: [] }>()
 
-const KIND_LABEL = { algorithm: "Algorithm", entrant: "Entrant", scenario: "Scenario", representation: "Representation", metric: "Measure" } as const
+const KIND_LABEL = { algorithm: "Algorithm", entrant: "Entrant", scenario: "Scenario", representation: "Representation", metric: "Measure", symbol: "Notation" } as const
 </script>
 
 <template>

@@ -11,6 +11,8 @@ const props = withDefaults(defineProps<{ pulls: BanditPull[]; budget: number; bi
 })
 const W = 600
 const step = computed(() => W / Math.max(1, props.budget))
+// In a formula's term scope, the latest pull is `reward`: what the worked line's r is.
+const scope = useTermScope()
 const high = (r: number) => (props.binary ? r >= 1 : r > (props.pulls.reduce((s, p) => s + p.reward, 0) / Math.max(1, props.pulls.length)))
 </script>
 
@@ -28,6 +30,7 @@ const high = (r: number) => (props.binary ? r >= 1 : r > (props.pulls.reduce((s,
       :fill="armColor(p.arm)"
       :opacity="high(p.reward) ? 1 : 0.55"
       rx="0.8"
+      v-bind="i === pulls.length - 1 ? scope.target('reward') : {}"
     />
     <template v-if="lamps">
       <circle v-for="(p, i) in pulls" :key="`l${i}`" :cx="i * step + step / 2" cy="39" r="1.6" :fill="p.lamp === 0 ? palette.queen400 : palette.signal400" />

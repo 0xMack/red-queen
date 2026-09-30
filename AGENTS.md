@@ -10,7 +10,8 @@ landscape and roadmap, 0004: small transformer/LM from scratch, 0005: frontend/A
 and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons, 0009: client-side inference at scale — Rust/WASM
 games, ONNX Runtime Web, model packages; 0010: reinforcement learning — the Q-table → DQN → policy-gradient →
 self-play plan; 0011: multi-armed bandits — a game and chapter for exploration vs. exploitation, the rung under
-Q-learning) — read the relevant one before an
+Q-learning; 0012: interactive maths notation — formulas as expression trees with addressable terms, linked
+both ways to the demos) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -67,9 +68,12 @@ architectural change that might conflict with a decision already made.
     backend requests go through `useApi()`. `app/types/modelpack.ts` and the free-form parts of the
     leaderboard types still mirror Python by hand. No automated frontend test suite yet — verified with a live backend + the in-app browser.
 
-    Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored, foundations-first
-    "interactive textbook" covering how the project's techniques actually work — code snippets,
-    embedded live games, callouts citing real results) round out the site; `/runs` is where the run
+    Beyond runs/games, `/` (landing), `/games`, and `/learn` (a hand-authored "interactive textbook"
+    covering how the project's techniques actually work — organised as learning paths through a chapter graph,
+    `learnPaths`/`prerequisites` in `data/learnChapters.ts`, drawn as a transit map; no global chapter numbers, so prose
+    links chapters by name; code snippets in pseudocode/Python/Rust tabs from `data/snippets/`, formulas as KaTeX-typeset expression trees whose
+    terms link both ways to the labs (`data/math/`, `MathFormula`, `useTermScope`; docs/design/0012), embedded live games,
+    callouts citing real results) round out the site; `/runs` is where the run
     list moved: one `GET /runs/summaries` (never per-run histories), held raw in the `runs` store and reused for a
     minute, with each experiment's runs collapsed into one expandable row (`RunsTableRow`/`RunsCard`). Components are organized by domain (`ui/` primitives -- `UiPanel`, `UiFigure`, `UiSectionHeader`, `UiStats`, ... -- `lab/` the live-lab kit every Learn training demo is built from, `game/`, `versus/`, `leaderboard/`, `chart/`, `learn/`, `runs/`) but named by file alone (`pathPrefix: false`); colours are tokens in `main.css`, mirrored for SVG/chart code in `utils/palette.ts` -- no hex values in components. Reusable components and
     layered session composables (`useSnakeSession` → `usePlaySession`/`useWatchSession`) are a

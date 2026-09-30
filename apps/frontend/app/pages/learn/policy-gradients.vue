@@ -1,36 +1,9 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
+import * as code from "~/data/snippets/policy-gradients"
+import * as math from "~/data/math/policy-gradients"
 
-const reinforceCode = `// log π(a | s) and its gradient w.r.t. the network's outputs (the logits of a softmax)
-let logp = log_softmax(row);
-let log_p = logp[a];                               // a: the move that was played
-let d_log_p: Vec<f64> = (0..outputs).map(|j| (j == a) as u8 as f64 - p[j]).collect();
-
-// REINFORCE / A2C: push log π(a | s) up in proportion to the advantage of what followed
-loss -= advantage * log_p * scale;
-// ...plus a small entropy bonus, so the policy doesn't commit before it has explored
-loss -= entropy_coef * entropy * scale;`
-
-const gaeCode = `/// GAE(λ): δ_t = r_t + γ V(s_t+1) − V(s_t),  A_t = δ_t + γλ A_t+1, restarting at every episode boundary.
-for t in (0..n).rev() {
-    let bootstrap = if done[t] { 0.0 } else { next_values[t] };   // a game that ended has no future
-    let delta = rewards[t] + gamma * bootstrap - values[t];
-    if cut[t] {
-        next_advantage = 0.0;                                     // a new episode starts after t
-    }
-    next_advantage = delta + gamma * lambda * next_advantage;
-    advantages[t] = next_advantage;
-}
-// λ = 1 and V = 0: plain Monte-Carlo returns (REINFORCE). λ = 1 and a learned V: returns minus a baseline.`
-
-const ppoCode = `let ratio = exp(log_p - old_log_prob);             // how much more likely the move is than when it was played
-let clamped = ratio.clamp(1.0 - eps, 1.0 + eps);   // eps = 0.2
-let (unclipped, capped) = (ratio * advantage, clamped * advantage);
-loss -= unclipped.min(capped) * scale;             // the pessimistic of the two
-// the gradient flows only through the unclipped term, and only when it is the smaller one:
-// once a move is 20% more (or less) likely than it was, this sample stops pushing it further
-let weight = if unclipped <= capped { ratio * advantage } else { 0.0 };`
 </script>
 
 <template>
@@ -60,13 +33,16 @@ let weight = if unclipped <= capped { ratio * advantage } else { 0.0 };`
       We want to raise the expected return. The <strong>policy-gradient theorem</strong> says its gradient is an average over the moves the policy
       actually made: for each one, the gradient of the log-probability of that move, times how good things turned out afterwards.
     </p>
-    <p class="text-center font-mono text-sm">∇ J = E[ G<sub>t</sub> · ∇ log π(a<sub>t</sub> | s<sub>t</sub>) ]</p>
-    <p>
-      Nothing in it needs a model of the game, or even a derivative of the game: the snake plays, and every move is made more likely if it was
-      followed by a high return and less likely if not. <strong>REINFORCE</strong> is exactly that: play whole episodes, compute each move's
-      return G<sub>t</sub> (the discounted rewards from there to the end), and step along that estimate.
-    </p>
-    <CodeBlock lang="rust" :code="reinforceCode" />
+    <MathScope>
+      <MathFormula :formula="math.theorem" caption="Pin the weight: its baseline and GAE forms are the next two sections." />
+      <p>
+        Nothing in it needs a model of the game, or even a derivative of the game: the snake plays, and every move is made more likely if it was
+        followed by a high return and less likely if not. <strong>REINFORCE</strong> is exactly that: play whole episodes, compute each move's
+        return <MathTerm id="return" tex="G_t" /> (the discounted rewards from there to the end), and step along
+        <MathTerm id="grad-log-pi" tex="\nabla_\theta \log \pi_\theta" /> that far.
+      </p>
+    </MathScope>
+    <CodeBlock :snippet="code.reinforce" />
     <p>
       For a softmax the gradient of log π(a) with respect to the logits is simply <em>1 for the chosen move, minus the probabilities</em> -- the
       snippet's <code>d_log_p</code>. As everywhere in this project, the Rust is checked against the project's own autodiff engine: loss and gradients
@@ -91,7 +67,11 @@ let weight = if unclipped <= capped { ratio * advantage } else { 0.0 };`
       learning) -- is <strong>generalized advantage estimation</strong>, with λ sliding between them. The project uses one function for all three
       algorithms:
     </p>
-    <CodeBlock lang="rust" :code="gaeCode" />
+    <MathScope>
+      <MathFormula :formula="math.tdResidual" />
+      <MathFormula :formula="math.gae" caption="λ = 1 adds up every surprise to the end: the real return minus the baseline. λ = 0 trusts the critic after one step." />
+    </MathScope>
+    <CodeBlock :snippet="code.gae" />
 
     <h2>Why PPO clips</h2>
     <p>
@@ -100,7 +80,11 @@ let weight = if unclipped <= capped { ratio * advantage } else { 0.0 };`
       one batch can move the policy: it weighs each move by the <em>ratio</em> of its probability now to when it was played, and clips the ratio's
       effect to ±20%.
     </p>
-    <CodeBlock lang="rust" :code="ppoCode" />
+    <MathScope>
+      <MathFormula :formula="math.ratio" />
+      <MathFormula :formula="math.ppo" caption="Taking the smaller of the two makes the objective pessimistic: a move can't earn more by moving further than ε." />
+    </MathScope>
+    <CodeBlock :snippet="code.ppo" />
     <p>Here is what each idea bought, one rung at a time, on the observation DQN reached 28.5 with:</p>
     <PgResults view="ladder" />
     <ul>

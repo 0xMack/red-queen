@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 // Round-robin numbers: jobs/checkers_round_robin.py (200 games per pairing, seats alternating).
+import * as code from "~/data/snippets/multi-agent-games"
 import { checkersSnapshot } from "~/data/checkersSnapshot"
 
 const protocolCode = `class MultiAgentEnvironment(Protocol):
@@ -11,47 +12,6 @@ const protocolCode = `class MultiAgentEnvironment(Protocol):
     def step(self, move: Move) -> tuple[Observation, dict[int, float], bool]:
         """(observation, {player: reward}, done)"""
     def winner(self) -> int | None: ...`
-
-const strategyCode = `# (observation, legal_moves) -> move. That's the whole interface: a hand-written
-# heuristic, an evolved network, or (later) a human in a browser all fit it.
-Strategy = Callable[[Observation, list[Move]], Move]
-
-def play_match(env, strategies: dict[int, Strategy], max_moves=200) -> MatchResult:
-    observation = env.reset()
-    moves_played, done = 0, False
-    while not done and moves_played < max_moves:
-        player = env.current_player()
-        move = strategies[player](observation, env.legal_moves())
-        observation, _rewards, done = env.step(move)
-        moves_played += 1
-    return MatchResult(winner=env.winner(), moves_played=moves_played)`
-
-const materialCode = `def material_1(env, rng):
-    # simulate() = the position after a move, from the opponent's side (their move next)
-    return lambda obs, moves: max((-sum(env.simulate(m)), rng.random(), m) for m in moves)[2]
-
-def material_2(env, rng):
-    def pick(obs, moves):
-        best = None
-        for move in moves:
-            child = copy.deepcopy(env)
-            child.step(move)
-            # assume the opponent replies with whatever is worst for me
-            score = min(sum(child.simulate(reply)) for reply in child.legal_moves())
-            ...
-        return best_move
-    return pick`
-
-const fitnessCode = `class MatchFitnessEvaluator:
-    def evaluate(self, genome) -> list[float]:
-        fitnesses = []
-        for opponent in self._opponents:
-            for genome_seat in (0, 1):          # both seats: first-move advantage cancels out
-                result = play_match(self._env_factory(),
-                                    {genome_seat: genome_strategy, 1 - genome_seat: opponent})
-                fitnesses.append(0.0 if result.winner is None
-                                 else 1.0 if result.winner == genome_seat else -1.0)
-        return fitnesses                         # one "test case" per (opponent, seat)`
 
 const results = [
   { a: "random", b: "first-legal", w: 65, d: 66, l: 69 },
@@ -103,7 +63,7 @@ const results = [
       There's no strategy class hierarchy. Anything that maps an observation and the legal moves to a
       move is a strategy, and one function plays a match between any two of them:
     </p>
-    <CodeBlock lang="python" :code="strategyCode" />
+    <CodeBlock :snippet="code.strategy" />
 
     <h2>What actually makes a player good</h2>
     <p>
@@ -112,7 +72,7 @@ const results = [
       move that leaves the best piece balance), and <strong>material-2</strong> (the same, but assuming the
       opponent then replies with its best capture -- a two-move lookahead):
     </p>
-    <CodeBlock lang="python" :code="materialCode" />
+    <CodeBlock :snippet="code.material" />
     <div class="card my-6 overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
@@ -161,7 +121,7 @@ const results = [
       from <em>both</em> seats, and returns one win/draw/loss per game -- the same per-test-case shape as
       every other evaluator, so lexicase selection works on it unchanged:
     </p>
-    <CodeBlock lang="python" :code="fitnessCode" />
+    <CodeBlock :snippet="code.fitness" />
     <Callout variant="warning" title="Match outcomes are a noisy signal">
       A small weight-vector population evolved against a randomized opponent with this evaluator
       <em>does</em> improve -- mean fitness about 0.09 → 0.21 over 40 generations. But the first attempt,

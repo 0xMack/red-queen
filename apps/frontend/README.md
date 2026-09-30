@@ -76,12 +76,20 @@ for the full contract and incremental plan this implements (steps 3-6).
   playback.ts`, over each game's base timing: Snake's tick, a versus game's pause between moves) sits under every
   game's board, in Snake's watch panel and in `VersusStage`; `BoardResult` is the one game-over overlay (Checkers'
   "Red wins" / "Draw", Snake's "Game over · N 🍎"), shown only once the board has stopped moving.
-- `/learn` — an interactive textbook. `app/pages/learn.vue` is the parent route: the index renders
-  full-width (search, part filter, `ChapterCard` grid with covers); a chapter gets a sidebar (chapter
-  nav grouped by part + `LearnSearch`), a header generated from `app/data/learnChapters.ts`
-  (number, cover, tags, prerequisites), prev/next links, a reading-progress bar, and an "on this
-  page" outline built at runtime from the chapter's `<h2>`s (ids = `slugify(text)`, the same
-  anchors the search's `sections` index links to). Chapter pages themselves are just the body --
+- `/learn` — an interactive textbook, organised as **learning paths** rather than one numbered line: the chapters form
+  a graph (`prerequisites` in `app/data/learnChapters.ts`), and `learnPaths` in the same file are curated routes
+  through it (Evolution, Reinforcement learning, Neural nets & LMs, Under the hood), each an ordered list of chapter
+  slugs plus what it `assumes` from another path. A chapter can sit on several paths; `pathProblems()` (warned at load
+  in dev) checks every path puts each prerequisite first or assumes it. There are no global chapter numbers -- refer
+  to chapters by name/link in prose, never "Chapter 3". The index draws the paths as a transit map (`LearnMap`, hand
+  placed; a new chapter needs a place there) above `LearnPathCard`s. A chapter is read *on* a path (`?path=`, else its
+  `home`; `useLearnPath`): the sidebar (`ChapterNav`) shows that path's stops, the header "Path · 3 of 7", prev/next
+  follow it, and `ChapterPager` lists every chapter that builds on this one (where the graph forks). Reaching the end
+  of a chapter marks it read (`useReadChapters`, localStorage -- a per-viewer convenience) on the map and cards.
+  `learn.vue` is the parent route: the index renders full-width; a chapter gets the sidebar + `LearnSearch`, a header
+  generated from `learnChapters.ts` (path position, cover, tags, builds on / pairs well with), a reading-progress bar,
+  and an "on this page" outline built at runtime from the chapter's `<h2>`s (ids = `slugify(text)`, the same anchors
+  the search's `sections` index links to). Chapter pages themselves are just the body --
   one root `<article class="prose-chapter">` (page transitions need a single root; a template
   comment next to it counts as a second one in dev). Every listed chapter is written, each citing
   real code and real results (via `Callout`) rather than invented examples -- numbers come from the
@@ -272,14 +280,32 @@ Numbers derived from `Math.tanh` and written into SVG/style attributes are round
 and the browser can disagree in the last digit, which is a hydration mismatch on a server-rendered
 chapter.
 
+**Maths notation (docs/design/0012).** Formulas are expression trees (`utils/math/expr.ts`), compiled to LaTeX with every
+*term* wrapped in `\htmlData{term=<id>}` and typeset by KaTeX (`utils/math/katex.ts`, server-rendered, memoised). A
+chapter's formulas live in `data/math/<chapter>.ts`; the notation registry is `data/math/symbols.ts` (each symbol is
+also a `symbol:<id>` explainer). `MathFormula` renders one: hover/focus/click a term (click pins it), a card says what it
+is, its current value, and offers its other forms (δ ↔ the bracket, 1/n ↔ α, Q_n ↔ the average). A term scope
+(`useTermScope`, or `<MathScope>` around prose + formula + lab) links everything that names a term:
+`v-bind="scope.target('alpha')"` makes any element -- a slider, a table cell, an SVG mark -- light up with it and focus
+it; colours are per scope in reading order. A lab writes only the *inputs* of the last update into `scope.values`
+(and what the algorithm reported into `scope.expected`); the formula computes the rest from its operator nodes, shows a
+worked row with the real numbers, and in development warns if its result disagrees with the algorithm (`BanditLab`'s
+`math` prop). Pointer selection hit-tests glyphs, not boxes. New formulas: check them on `/dev/math`
+(`?lab=<math>&scenario=<id>` puts a lab at the top).
+
 Other components in `app/components/`, used across the games/learn pages: `GameStatRow.vue` (the
 score/step/reward readout, extracted from its duplicated form in the play/watch pages),
-`GameCard.vue`/`ChapterCard.vue` (index cards with a `status: "available" | "coming-soon"` prop, so
-unwritten chapters/unbuilt games render dimmed and unlinked instead of being omitted),
+`GameCard.vue` (index cards with a `status: "available" | "coming-soon"` prop, so
+unbuilt games render dimmed and unlinked instead of being omitted),
 `CodeBlock.vue` (syntax-highlighted snippets via `app/composables/useHighlighter.ts`, a `shiki`
-fine-grained-bundle singleton -- explicit langs (python/typescript/bash/json) and the JS regex
-engine, not the full bundle or WASM oniguruma, to keep this lean and native-binding-free), and
-`Callout.vue` (`variant: "note" | "warning" | "finding"` -- `"finding"` flags a real bug/result the
+fine-grained-bundle singleton -- explicit langs and the JS regex engine, not the full bundle or WASM oniguruma, to
+keep this lean and native-binding-free; pseudocode is a small TextMate grammar of our own, `utils/pseudocodeGrammar.ts`).
+A snippet can come in several languages (`types/code.ts`'s `Snippet`: pseudocode, Python, Rust, in that tab order),
+and the reader's choice is site-wide and persisted (`useCodeLanguage`); a block without the chosen language falls back
+to its first. Each chapter's snippets live in `app/data/snippets/<chapter>.ts`; a variant that is the project's own
+code carries its repo `source` path, and one written for the page (a translation into the other language) doesn't,
+and the block labels it "translation". Library-usage snippets (a call into a Python-only API, a shell command) stay
+single-language. `Callout.vue` (`variant: "note" | "warning" | "finding"` -- `"finding"` flags a real bug/result the
 prose references, e.g. Snake's reward-hacking or its representation-ceiling result).
 
 Deliberately **not** `@nuxt/content`: it pulls in a SQLite-backed content database

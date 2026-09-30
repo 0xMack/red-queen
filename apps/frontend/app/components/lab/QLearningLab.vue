@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ChartSeries } from "~/types/chart"
 import recording from "~/data/recordings/q-learning-snake.json"
+import * as F from "~/data/math/q-learning"
+import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 
 // Tabular Q-learning, live: the Rust RL core (compiled to WebAssembly, in a worker) learning Snake from scratch in
 // the reader's browser -- the same Trainer the training jobs run (docs/design/0010 Phase 1b). Left: the current
@@ -55,8 +57,24 @@ const series = computed<ChartSeries[]>(() => {
     { key: "neat", label: `best evolved, NEAT (${NEAT})`, color: palette.violet400, values: x.map(() => NEAT), width: 1, dashed: true },
   ]
 })
+// The rule it runs, on top (docs/design/0012): the knobs are linked to their symbols, and the target's form follows the
+// algorithm -- Q-learning's max, SARSA's next move, or (n > 1) the n-step return. The demo board's greedy choice is
+// shown worked: the row's three values and the move they pick.
+const scope = useOrProvideTermScope()
+const updateForms = computed<Record<string, string>>(() =>
+  config.nStep > 1 ? { target: "nstep" } : config.algorithm === "sarsa" ? { target: "sarsa" } : ({} as Record<string, string>),
+)
+const greedy = computed(() => greedyValues(currentQ.value, lab.action.value))
+watch(
+  () => ({ alpha: config.alpha, gamma: config.gamma, nstep: config.nStep }),
+  (v) => (scope.values.value = { ...scope.values.value, ...v }),
+  { immediate: true },
+)
 const tableValues = computed(() => (live.value === false ? recording.values : lab.values.value))
+// The three values the greedy move was chosen from -- sent with the move itself, so they always agree (reading the row
+// out of the table instead can lag the move by a training step, and then the bars and the choice disagree).
 const currentQ = computed(() => {
+  if (lab.actionValues.value?.length === 3) return lab.actionValues.value
   const v = lab.values.value
   const r = lab.row.value
   if (!v || r === null || r < 0 || v.length < (r + 1) * 3) return null
@@ -75,6 +93,10 @@ const currentQ = computed(() => {
       <div class="mt-5"><QTableGrid :values="tableValues" :initial="recording.initial_q" /></div>
     </template>
 
+    <template #formula>
+      <MathFormula :formula="F.update" :forms="updateForms" bare />
+    </template>
+
     <template #stage>
       <LabBoard :board="lab.board.value" :live="live" placeholder="Press Train: the agent starts knowing nothing.">
         <p>
@@ -83,7 +105,14 @@ const currentQ = computed(() => {
         </p>
         <template v-if="currentQ">
           <p class="mt-2 font-mono">table row {{ lab.row.value }}</p>
-          <UiBars class="mt-1" :labels="ACTIONS" :values="currentQ" :chosen="lab.action.value" />
+          <UiBars
+            class="mt-1"
+            :labels="ACTIONS"
+            :values="currentQ"
+            :chosen="lab.action.value"
+            :bind="(i) => scope.target(greedyBarTerms(i))"
+          />
+          <MathFormula class="mt-2" :formula="F.greedy" :values="greedy" bare />
         </template>
       </LabBoard>
     </template>
@@ -99,12 +128,12 @@ const currentQ = computed(() => {
       @resume="lab.resume"
     >
       <div class="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
-        <UiSelect v-model="config.algorithm" label="algorithm" :options="[{ value: 'q_learning', label: 'Q-learning' }, { value: 'sarsa', label: 'SARSA' }]" />
+        <UiSelect v-bind="scope.target('target')" v-model="config.algorithm" label="algorithm" :options="[{ value: 'q_learning', label: 'Q-learning' }, { value: 'sarsa', label: 'SARSA' }]" />
         <UiSelect v-model="config.reward" label="reward" :options="[{ value: 'shaped', label: 'shaped (the game’s)' }, { value: 'sparse', label: 'sparse (food / death)' }]" />
-        <UiRange v-model="config.alpha" label="α (learn)" :min="0.02" :max="0.5" :step="0.02" :display="(v) => v.toFixed(2)" />
-        <UiRange v-model="config.gamma" label="γ (discount)" :min="0.5" :max="0.99" :step="0.01" :display="(v) => v.toFixed(2)" />
+        <UiRange v-bind="scope.target('alpha')" v-model="config.alpha" label="α (learn)" :min="0.02" :max="0.5" :step="0.02" :display="(v) => v.toFixed(2)" />
+        <UiRange v-bind="scope.target('gamma')" v-model="config.gamma" label="γ (discount)" :min="0.5" :max="0.99" :step="0.01" :display="(v) => v.toFixed(2)" />
         <UiRange v-model="config.epsilonDecaySteps" label="ε decay" :min="10000" :max="500000" :step="10000" :display="formatSteps" :disabled="config.optimistic" />
-        <UiRange v-model="config.nStep" label="n-step" :min="1" :max="8" />
+        <UiRange v-bind="scope.target('nstep')" v-model="config.nStep" label="n-step" :min="1" :max="8" />
       </div>
       <UiCheck v-model="config.optimistic">optimistic start (every Q begins at 2, ε fixed at 0.02: optimism does the exploring)</UiCheck>
     </LabControls>

@@ -2,32 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 // Numbers and samples are notebooks/0006-tinylm-from-scratch.ipynb's real, executed output.
-const modelCode = `class TinyLM:
-    def __call__(self, token_ids):                     # (batch, seq_len) ints
-        _batch, seq_len = token_ids.shape
-        x = self.token_embedding(token_ids) + self.position_embedding(np.arange(seq_len))
-        for block in self.blocks:                      # 2 transformer blocks
-            x = block(x)
-        x = self.ln_final(x)
-        return self.head(x)                            # (batch, seq_len, vocab) logits`
-
-const attentionCode = `def __call__(self, x):
-    batch, seq_len, _ = x.shape
-    q = self._split_heads(self.query(x), batch, seq_len)   # (batch, heads, seq, head_dim)
-    k = self._split_heads(self.key(x), batch, seq_len)
-    v = self._split_heads(self.value(x), batch, seq_len)
-
-    scores = q.matmul(k.transpose(0, 1, 3, 2)) * (1.0 / np.sqrt(self.head_dim))
-    scores = scores + Tensor(_causal_mask(seq_len))        # -1e9 above the diagonal
-    weights = softmax(scores, axis=-1)
-    out = weights.matmul(v)
-    return self.out_proj(self._merge_heads(out, batch, seq_len))`
-
-const blockCode = `class TransformerBlock:
-    def __call__(self, x):
-        x = x + self.attn(self.ln1(x))   # tokens exchange information
-        x = x + self.mlp(self.ln2(x))    # each token processes what it gathered
-        return x`
+import * as code from "~/data/snippets/transformers"
 
 const trainCode = `model = TinyLM(vocab_size=75, max_seq_len=32, d_model=64, n_heads=4,
                n_layers=2, d_hidden=128, rng=rng)      # 78,795 parameters
@@ -68,7 +43,7 @@ const samples = [
       ln(75) ≈ 4.317. The untrained model measured 4.431: close, which is how you know the forward pass
       and loss are wired up correctly before spending minutes training.
     </p>
-    <CodeBlock lang="python" :code="modelCode" />
+    <CodeBlock :snippet="code.model" />
     <p>
       Two lookups start it off: a learned vector per character (<em>what</em> it is) plus a learned
       vector per position (<em>where</em> it is). Attention by itself has no sense of order, so without
@@ -83,7 +58,7 @@ const samples = [
       values. Four <strong>heads</strong> do this in parallel on 16-dimensional slices, so different
       heads can track different relationships.
     </p>
-    <CodeBlock lang="python" :code="attentionCode" />
+    <CodeBlock :snippet="code.attention" />
     <p>
       One line keeps it honest: the <strong>causal mask</strong>. When predicting the character after
       position <em>i</em>, the model mustn't see position <em>i+1</em> -- that's the answer. Adding −10⁹ to
@@ -104,7 +79,7 @@ const samples = [
       through the network; layer norm keeps activations in a sane range. Both are what make stacking
       blocks trainable at all.
     </p>
-    <CodeBlock lang="python" :code="blockCode" />
+    <CodeBlock :snippet="code.block" />
     <Callout variant="finding" title="A real bug, caught by the first smoke test">
       <code>matmul</code>'s backward pass originally didn't handle broadcasting between a 2-D weight and a
       3-D batch of inputs -- which is exactly what every linear layer does inside a transformer. The

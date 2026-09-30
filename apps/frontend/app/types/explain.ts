@@ -3,7 +3,7 @@
 // settings, how it was trained, how it did) is assembled from leaderboard records by `resolveExplainer`. Both render
 // through the same card (the popover) and panel (the "More" view), so every kind shares one presentation.
 
-export type ExplainKind = "algorithm" | "entrant" | "scenario" | "representation" | "metric"
+export type ExplainKind = "algorithm" | "entrant" | "scenario" | "representation" | "metric" | "symbol"
 
 /** What to explain, as it appears in the URL (`?explain=algorithm:epsilon-greedy`, `entrant:run:0ddb…`). */
 export interface ExplainRef {

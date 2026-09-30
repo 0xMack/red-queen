@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ChartSeries } from "~/types/chart"
 import recording from "~/data/recordings/dqn-snake.json"
+import * as F from "~/data/math/dqn"
+import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 
 // A DQN, live: the Rust RL core (WebAssembly, in a worker) training a Q-network on Snake in the reader's browser --
 // the same `DqnAgent` the training jobs run (docs/design/0010 Phase 2b). Choose what the snake sees and which
@@ -77,6 +79,19 @@ const scoreChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
   return { x: grid, series }
 })
 
+// The rule it trains by, on top (docs/design/0012), following the switches: no target network makes θ⁻ plain θ, Double
+// DQN and 3-step returns change the target's form (with both on, the 3-step form is shown). The greedy choice under the
+// board is worked from the values it chose between.
+const scope = useOrProvideTermScope()
+const forms = computed<Record<string, string>>(() => {
+  const f: Record<string, string> = {}
+  if (config.nStep3) f.target = "nstep"
+  else if (config.double) f.target = "double"
+  if (!config.target) f["theta-minus"] = "online"
+  return f
+})
+const greedy = computed(() => greedyValues(lab.actionValues.value, lab.action.value))
+
 // Q on a symmetric log scale, so a diverging run stays on the chart; ticks are labeled in real units.
 const symlog = (q: number) => Math.sign(q) * Math.log10(1 + Math.abs(q))
 const unsymlog = (v: number) => Math.sign(v) * (10 ** Math.abs(v) - 1)
@@ -104,6 +119,11 @@ const qChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
       <LabCurve class="mt-4" :x="scoreChart.x" :series="scoreChart.series" show :height="200" />
     </template>
 
+    <template #formula>
+      <MathFormula :formula="F.dqnTarget" :forms="forms" bare />
+      <MathFormula class="mt-1" :formula="F.dqnLoss" :forms="forms" bare />
+    </template>
+
     <template #stage>
       <LabBoard :board="lab.board.value" :live="live" placeholder="Press Train: the network starts with random weights.">
         <p>
@@ -117,7 +137,9 @@ const qChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
           :values="lab.actionValues.value"
           :chosen="lab.action.value"
           :format="(q) => (Math.abs(q) < 1e4 ? q.toFixed(2) : q.toExponential(1))"
+          :bind="(i) => scope.target(greedyBarTerms(i))"
         />
+        <MathFormula v-if="lab.actionValues.value" class="mt-2" :formula="F.greedy" :values="greedy" bare />
       </LabBoard>
     </template>
 
@@ -136,11 +158,11 @@ const qChart = computed<{ x: number[]; series: ChartSeries[] }>(() => {
         <UiSelect v-model="config.seed" class="w-24" label="seed" :options="Array.from({ length: 10 }, (_, i) => i)" />
       </div>
       <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-        <UiCheck v-model="config.replay">replay buffer</UiCheck>
-        <UiCheck v-model="config.target">target network</UiCheck>
-        <UiCheck v-model="config.double">Double DQN</UiCheck>
+        <UiCheck v-bind="scope.target('replay')" v-model="config.replay">replay buffer</UiCheck>
+        <UiCheck v-bind="scope.target('theta-minus')" v-model="config.target">target network</UiCheck>
+        <UiCheck v-bind="scope.target('target')" v-model="config.double">Double DQN</UiCheck>
         <UiCheck v-model="config.dueling">dueling heads</UiCheck>
-        <UiCheck v-model="config.nStep3">3-step returns</UiCheck>
+        <UiCheck v-bind="scope.target('target')" v-model="config.nStep3">3-step returns</UiCheck>
       </div>
     </LabControls>
 

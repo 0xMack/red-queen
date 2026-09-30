@@ -1,58 +1,10 @@
 <script setup lang="ts">
+import * as code from "~/data/snippets/q-learning"
+import * as math from "~/data/math/q-learning"
 import type { RenderState } from "~/types/games"
 
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-
-const discretizerCode = `// Snake's features.v1: 11 numbers, each 0 or 1 -> one of 2^11 = 2,048 rows
-Discretizer::Binary { bits } => observation
-    .iter()
-    .enumerate()
-    .map(|(i, &v)| if v != 0.0 { 1 << i } else { 0 })
-    .sum(),`
-
-const updateCode = `/// Move the oldest pending transition towards its n-step return ending in \`bootstrap\`.
-fn update_oldest(&mut self, bootstrap: f64) {
-    let mut g = bootstrap;
-    for &(_, _, reward) in self.pending.iter().rev() {
-        g = reward + self.gamma * g;              // r + γ·(what comes after)
-    }
-    let (state, action, _) = self.pending.pop_front().expect("something pending");
-    let cell = state * self.actions + action;
-    let td = g - self.q[cell];                   // how wrong the table was
-    self.q[cell] += self.alpha * td;             // ...move a fraction α of the way
-}`
-
-const learnCode = `pub fn learn(&mut self, step: Step) {
-    self.pending.push_back((step.state, step.action, step.reward));
-    let value_next = |agent: &Self| match (agent.sarsa, step.next_action) {
-        (true, Some(a)) => agent.row(step.next_state)[a],        // SARSA: the move it will make
-        _ => {
-            let row = agent.row(step.next_state);
-            row[agent.greedy(step.next_state)]                  // Q-learning: the best move
-        }
-    };
-    if step.done {
-        self.flush(0.0);                          // the game ended: nothing comes after
-    } else if step.truncated {
-        let bootstrap = value_next(self);
-        self.flush(bootstrap);                    // cut off by the step cap: the game would have gone on
-    } else if self.pending.len() == self.n_step {
-        let bootstrap = value_next(self);
-        self.update_oldest(bootstrap);
-    }
-}`
-
-const epsilonCode = `fn epsilon_greedy(&self, state: usize, rng: &mut Rng) -> usize {
-    if rng.uniform() < self.epsilon() {
-        rng.below(self.actions as u32) as usize   // explore: any move, at random
-    } else {
-        self.greedy(state)                       // exploit: the best move the table knows
-    }
-}
-
-// ε falls in a straight line from epsilon_start (1.0) to epsilon_end (0.05)
-// over the first epsilon_decay_steps (100k) moves, then stays there.`
 
 // Two boards the table can't tell apart (docs/design/0010, "Why it stops"). Both: heading right, head at (5,5),
 // food up and to the right, nothing in the three cells around the head -- the same features.v1 row. On the left,
@@ -121,11 +73,13 @@ const pocketBoard = board([
       The agent doesn't want the biggest reward <em>now</em>; it wants the biggest total from here on. That total, with later rewards counted a
       little less than sooner ones, is the <strong>return</strong>:
     </p>
-    <p class="text-center font-mono text-sm">G = r₀ + γ·r₁ + γ²·r₂ + γ³·r₃ + …</p>
-    <p>
-      γ (gamma, the <strong>discount</strong>) is a number just below 1. At 0.95, a reward twenty moves away counts for about a third of one
+    <MathScope>
+      <MathFormula :formula="math.discountedReturn" caption="Pin the sum and switch it to its recursive form: that's the Bellman equation's seed." />
+      <p>
+        <MathTerm id="gamma" symbol="gamma" /> (gamma, the <strong>discount</strong>) is a number just below 1. At 0.95, a reward twenty moves away counts for about a third of one
       right now. It keeps the sum finite and expresses a sensible preference: food now beats the same food later.
-    </p>
+      </p>
+    </MathScope>
 
     <h2>A value for every move in every situation</h2>
     <p>
@@ -137,7 +91,7 @@ const pocketBoard = board([
       With 11 yes/no features there are 2<sup>11</sup> = 2,048 possible situations, so the whole agent is a <strong>table</strong>: 2,048 rows,
       three columns, 6,144 numbers. A situation's row number is just its features read as a binary number:
     </p>
-    <CodeBlock lang="rust" :code="discretizerCode" />
+    <CodeBlock :snippet="code.discretizer" />
     <p>
       Only 256 of those rows can ever happen (the snake always heads exactly one way, and the food is never in two opposite directions at once),
       and those are the ones drawn in the grid under the live demo below.
@@ -150,20 +104,23 @@ const pocketBoard = board([
       <strong>Bellman equation</strong>, and Q-learning turns it into an update. After each move, compare what the table predicted with what one
       step of real experience suggests, and move the prediction part of the way there:
     </p>
-    <p class="text-center font-mono text-sm">Q(s, a) ← Q(s, a) + α · [ r + γ · max Q(s′, ·) − Q(s, a) ]</p>
-    <p>
-      The bracket is the <strong>temporal-difference error</strong> -- how surprised the table was. α (alpha, the learning rate) is how far to move:
-      0.1 means a tenth of the way, so the value becomes an average over many visits rather than whatever happened last time. Here is the update,
-      as the project's Rust core does it:
-    </p>
-    <CodeBlock lang="rust" :code="updateCode" />
+    <MathScope>
+      <MathFormula :formula="math.update" />
+      <p>
+        The bracket is the <strong>temporal-difference error</strong> <MathTerm id="td" tex="\delta" /> -- how surprised the table was: the
+        <MathTerm id="target" tex="r + \gamma \max_{a'} Q(s',a')" /> one step of experience suggests, minus what the table said.
+        <MathTerm id="alpha" symbol="alpha" /> (alpha, the learning rate) is how far to move: 0.1 means a tenth of the way, so the value becomes an
+        average over many visits rather than whatever happened last time. Here is the update, as the project's Rust core does it:
+      </p>
+    </MathScope>
+    <CodeBlock :snippet="code.update" />
     <p>
       Notice what this does <em>not</em> need: a finished game. The table learns from each step using its own guess about the next situation
       (<strong>bootstrapping</strong>). One piece of food propagates backwards over many games -- first to the move that ate it, then to the move
       before that, and so on. The code above is slightly more general than the formula. It can wait <em>n</em> steps and use n real rewards before
       bootstrapping (<strong>n-step returns</strong>), and it handles the end of a game explicitly:
     </p>
-    <CodeBlock lang="rust" :code="learnCode" />
+    <CodeBlock :snippet="code.learn" />
     <p>
       There are two ways a game can stop. When the snake dies, there is no future, so nothing is added after the last reward. When a game is merely
       <em>cut off</em> by a step limit, the snake would have gone on playing, so the value of where it stopped still counts. Treating those alike
@@ -182,7 +139,7 @@ const pocketBoard = board([
       "best", and the moves it never tries never get the chance to look better. So the agent sometimes picks a move at random:
       <strong>ε-greedy</strong> exploration.
     </p>
-    <CodeBlock lang="rust" :code="epsilonCode" />
+    <CodeBlock :snippet="code.epsilon" />
     <p>
       There's another way to explore, with no randomness at all: start every value <em>high</em> (<strong>optimistic initialization</strong>).
       Every untried move looks better than anything tried so far, so the greedy agent tries each of them until experience drags its value down to

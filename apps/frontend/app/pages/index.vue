@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { games } from "~/data/games"
 import type { UiStat } from "~/types/ui"
-import { chapterForRepresentation, learnChapters } from "~/data/learnChapters"
+import { chapterForRepresentation, learnPaths } from "~/data/learnChapters"
 import { gameModules } from "~/games/registry"
 
 useHead({ title: "" })
@@ -207,11 +207,11 @@ const recentRuns = computed(() => runsStore.runs.slice(0, 6))
 
       <!-- Learn -->
       <section class="mt-28">
-        <UiSectionHeader eyebrow="The interactive textbook" :index="4" title="Learn how it works" to="/learn" link-label="All chapters">
-          Foundations first. Each chapter cites the real code and the real results -- including what didn't work.
+        <UiSectionHeader eyebrow="The interactive textbook" :index="4" title="Learn how it works" to="/learn" link-label="The map">
+          Pick a path. Each chapter cites the real code and the real results -- including what didn't work.
         </UiSectionHeader>
         <div class="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <ChapterCard v-for="(chapter, i) in learnChapters.slice(0, 4)" :key="chapter.slug" :chapter="chapter" :number="i + 1" />
+          <LearnPathCard v-for="p in learnPaths" :key="p.id" :path="p" />
         </div>
       </section>
     </div>

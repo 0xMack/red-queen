@@ -1,37 +1,11 @@
 <script setup lang="ts">
+import * as code from "~/data/snippets/multi-armed-bandits"
+import * as math from "~/data/math/multi-armed-bandits"
 import { BANDIT_RESULTS } from "~/data/banditResults"
 
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 
-const updateCode = `fn update(&mut self, row: usize, arm: usize, reward: f64) {
-    let c = self.cell(row, arm);
-    self.counts[c] += 1;
-    let step = if self.alpha > 0.0 {
-        self.alpha                         // a constant step: recent payouts count more
-    } else {
-        1.0 / self.counts[c] as f64        // 1/n: exactly the running average
-    };
-    self.values[c] += step * (reward - self.values[c]);   // move toward what just happened
-}`
-
-const epsilonCode = `fn choose(&mut self, row: usize, rng: &mut Rng) -> usize {
-    if rng.uniform() < self.epsilon() {
-        return rng.below(self.arms as u32) as usize;         // explore: any machine
-    }
-    argmax_random(self.values(row), rng)                   // exploit: the best one so far
-}`
-
-const ucbCode = `// untried machines first; then the estimate plus a bonus for how little it has been tried
-self.c * self.scale * sqrt(ln(t) / n)`
-
-const thompsonCode = `/// A draw from Beta(a, b) for whole numbers a, b: the a-th smallest of a + b - 1 uniforms.
-pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
-    let mut draws: Vec<f64> = (0..a + b - 1).map(|_| rng.uniform()).collect();
-    draws.sort_by(|x, y| x.partial_cmp(y).unwrap());
-    draws[a as usize - 1]
-}
-// each pull: draw from Beta(1 + wins, 1 + losses) for every machine, pull the highest draw`
 </script>
 
 <template>
@@ -75,10 +49,19 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       <strong>estimate</strong> per machine: the average of its payouts so far. There is a way to keep an average without
       storing every payout -- nudge the old estimate toward each new payout by a step of 1/n:
     </p>
-    <CodeBlock lang="rust" :code="updateCode" />
+    <MathScope>
+      <MathFormula :formula="math.incremental" caption="Hover a term to see what it is; click one to pin it." />
+      <p>
+        Read it left to right: the new estimate <MathTerm id="q-new" tex="Q_{n+1}" /> is the old one <MathTerm id="q-old" tex="Q_n" />,
+        moved toward the payout <MathTerm id="reward" symbol="r" /> by a fraction <MathTerm id="step" tex="\tfrac{1}{n}" /> of the
+        <MathTerm id="error" tex="r - Q_n" /> gap. With a step of exactly 1/n that lands on the average of all n payouts -- pin
+        <MathTerm id="q-old" tex="Q_n" /> and switch it to <em>as an average</em> to see what it stands for.
+      </p>
+    </MathScope>
+    <CodeBlock :snippet="code.update" />
     <p>
       Five machines, one number each: that's a table with <strong>one row and five columns</strong>. Hold on to that
-      picture. The Q-table in the next chapter is exactly this, with a row for every situation instead of one row -- and
+      picture. The Q-table in the <NuxtLink to="/learn/q-learning">Q-learning chapter</NuxtLink> is exactly this, with a row for every situation instead of one row -- and
       the update above, with a step of α instead of 1/n, <em>is</em> Q-learning's update in a world with no next state.
     </p>
 
@@ -89,7 +72,7 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       that machine is decent it will keep paying often enough to stay ahead, and greedy never tries the others again.
       Watch the pull tape: a greedy game is a few scattered pulls and then one colour to the end.
     </p>
-    <BanditLab title="A strategy playing, and the table it keeps" :scenarios="['classic', 'lucky-start', 'close-call']" strategy="greedy" />
+    <BanditLab title="A strategy playing, and the table it keeps" :scenarios="['classic', 'lucky-start', 'close-call']" strategy="greedy" math="incremental" />
     <p>
       On the classic game (five win-or-lose machines, one clearly best) greedy spends only <strong>38%</strong> of its
       pulls on the best machine, for a skill of <strong>39</strong>. When the payouts are noisy (<em>Lucky start</em>),
@@ -102,7 +85,8 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       Every other strategy here is a different answer to <em>how much</em> to explore and <em>when</em>. The oldest is
       <strong>ε-greedy</strong>: be greedy, except that one pull in ten (ε = 0.1) goes to a machine picked at random.
     </p>
-    <CodeBlock lang="rust" :code="epsilonCode" />
+    <CodeBlock :snippet="code.epsilon" />
+    <BanditLab title="ε-greedy, with ε on a dial" :scenarios="['classic', 'lucky-start']" math="epsilon" />
     <p>
       A fixed ε keeps exploring at the same rate after it has long since found the best machine; a
       <strong>decaying ε</strong> starts curious (0.3) and settles down (to 0 by pull 100). Two strategies explore without
@@ -119,7 +103,8 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
         been pulled -- "it could be this good, for all I know" -- and pulls the highest total:
       </li>
     </ul>
-    <CodeBlock lang="rust" :code="ucbCode" />
+    <CodeBlock :snippet="code.ucb" />
+    <BanditLab title="UCB, with c on a dial" :scenarios="['classic', 'close-call']" math="ucb" />
     <p>
       And one strategy explores by keeping a whole <em>belief</em> per machine. For a win-or-lose machine,
       <strong>Thompson sampling</strong> keeps a curve of where its win rate could be -- wide when it has barely been tried,
@@ -128,7 +113,8 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       never does. (Choose Thompson sampling in the lab above to see the curves.) The draw itself needs nothing fancier than
       sorting some random numbers:
     </p>
-    <CodeBlock lang="rust" :code="thompsonCode" />
+    <MathFormula :formula="math.thompson" />
+    <CodeBlock :snippet="code.thompson" />
 
     <h2>Which strategy wins depends on the game</h2>
     <p>
@@ -181,7 +167,7 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       learning rate makes. Optimism is no help here (49): it explores once, at the start, and never again. UCB, which never
       entirely stops exploring, does best (59).
     </p>
-    <BanditLab title="When the best machine breaks" :scenarios="['drifting']" strategy="epsilon-tracking" />
+    <BanditLab title="When the best machine breaks" :scenarios="['drifting']" strategy="epsilon-tracking" math="constant-step" />
 
     <h2>Letting evolution choose the settings</h2>
     <p>
@@ -221,7 +207,7 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
     <BanditLab title="One row or two: seeing the lamp" :scenarios="['two-lamps']" strategy="thompson" lamp :initial-lamp="false" />
     <p>
       This is the step from a bandit to reinforcement learning proper -- a <strong>contextual bandit</strong>: the best
-      action depends on the situation, so the table gets a row per situation. Snake's Q-table in the next chapter has a row
+      action depends on the situation, so the table gets a row per situation. Snake's Q-table in the Q-learning chapter has a row
       for every combination of its 11 yes-or-no features: 2<sup>11</sup> = 2,048 rows. And the failure is the one that
       stops it there: when two situations need different moves but <em>look</em> the same, they share one row, and no
       amount of learning can make that row right for both.
@@ -240,14 +226,17 @@ pub fn beta_order_statistic(a: u32, b: u32, rng: &mut Rng) -> f64 {
       machine perfectly, from the first pull to the last, would score only 21. What's missing is a way to value a pull
       for <em>where it leads</em>:
     </p>
-    <p class="text-center font-mono text-sm text-fg">Q(room, machine) ← Q + α · [ payout + γ · max Q(next room, ·) − Q ]</p>
-    <p>
-      That is the Q-learning update, and the table is the same two-row table as <em>Two lamps</em>: a row per room. γ
-      (gamma) says how much the next room's value counts. At γ = 0 it's the bandit update and the detour looks worthless;
-      raise it and the detour's value fills in from the gold room behind it, although the detour itself never pays. The
-      lab puts γ on a dial -- watch the red room's row:
-    </p>
-    <BanditLab title="Detour: valuing where a pull leads" :scenarios="['detour']" gamma />
+    <MathScope>
+      <MathFormula :formula="math.bellman" caption="The lab below fills in the numbers from every pull it makes." />
+      <p>
+        That is the Q-learning update, and the table is the same two-row table as <em>Two lamps</em>: a row per room (the
+        <em>s</em> in <MathTerm id="q-old" tex="Q(s,a)" />). <MathTerm id="gamma" symbol="gamma" /> (gamma) says how much
+        <MathTerm id="max-next" tex="\max_{a'} Q(s',a')" />, the next room's best value, counts. At γ = 0 it's the bandit update and the
+        detour looks worthless; raise it and the detour's value fills in from the gold room behind it, although the detour
+        itself never pays. The lab puts γ on a dial -- watch the red room's row:
+      </p>
+      <BanditLab title="Detour: valuing where a pull leads" :scenarios="['detour']" gamma math="bellman" :show-formula="false" />
+    </MathScope>
     <p>
       Measured on 500 games: γ 0 scores <strong>6</strong>, like every other strategy; γ 0.5 scores 28; γ 0.9 scores
       <strong>55</strong>, and takes the best move 52% of the time. And γ 0.99 scores <strong>-1</strong>: this agent starts

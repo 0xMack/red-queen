@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChartSeries } from "~/types/chart"
 import { cellOf, CheckersEngine, squareOf, STATIC_STRATEGIES, wasmStrategy, type CheckersPosition } from "~/utils/checkersEngine"
+import * as F from "~/data/math/self-play"
 
 // Checkers by self-play, live (docs/design/0010 Phase 4): a position-value network learning from games against
 // itself in the reader's browser (the Rust TD(λ) loop, WebAssembly, in a worker). The curve is its points per game,
@@ -16,6 +17,14 @@ const config = reactive({ lambda: 0.7, seed: 0 })
 const lab = useSelfPlayLab()
 const live = useWasmSupport()
 onMounted(() => session.load())
+
+// The targets it learns from, on top (docs/design/0012), with λ linked to its select.
+const scope = useOrProvideTermScope()
+watch(
+  () => config.lambda,
+  (lambda) => (scope.values.value = { lambda }),
+  { immediate: true },
+)
 
 function train() {
   lab.start({ params: `lambda=${config.lambda}`, seed: config.seed, budget: BUDGET, evalEvery: EVAL_EVERY, depth: DEPTH })
@@ -68,6 +77,10 @@ const { board, trail, turn, banner, pieceCounts: scores } = useCheckersBoardView
         </p>
       </template>
 
+      <template #formula>
+        <MathFormula :formula="F.lambdaReturn" bare />
+      </template>
+
       <LabControls
         :status="lab.status.value"
         :disabled="live !== true"
@@ -79,6 +92,7 @@ const { board, trail, turn, banner, pieceCounts: scores } = useCheckersBoardView
       >
         <div class="flex flex-wrap gap-x-6 gap-y-2.5">
           <UiSelect
+            v-bind="scope.target('lambda')"
             v-model="config.lambda"
             class="w-48"
             label="λ"

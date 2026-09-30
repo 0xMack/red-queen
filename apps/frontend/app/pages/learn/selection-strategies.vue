@@ -1,37 +1,7 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-const tournamentCode = `class TournamentSelection:
-    """Selects the fittest (by mean fitness across cases) of \`k\`
-    uniformly-random individuals."""
-
-    def __init__(self, k: int = 3):
-        self._k = k
-
-    def select(self, population, case_fitnesses, rng):
-        indices = [rng.randrange(len(population)) for _ in range(self._k)]
-        best_idx = max(indices, key=lambda i: statistics.fmean(case_fitnesses[i]))
-        return population[best_idx]`
-
-const lexicaseCode = `class LexicaseSelection:
-    """Filters candidates case-by-case, in random order, keeping only
-    individuals within epsilon of the best remaining fitness on each
-    case -- until one candidate remains or every case is used."""
-
-    def select(self, population, case_fitnesses, rng):
-        candidates = list(range(len(population)))
-        cases = list(range(len(case_fitnesses[0])))
-        rng.shuffle(cases)
-
-        for case in cases:
-            if len(candidates) == 1:
-                break
-            values = [case_fitnesses[i][case] for i in candidates]
-            best = max(values)
-            epsilon = self._epsilon_for(values)
-            candidates = [i for i in candidates if case_fitnesses[i][case] >= best - epsilon]
-
-        return population[rng.choice(candidates)]`
+import * as code from "~/data/snippets/selection-strategies"
 
 const paretoUsage = `selection = ParetoSelection(
     complexity=lambda program: program.effective_instruction_count(),
@@ -54,7 +24,7 @@ const paretoUsage = `selection = ParetoSelection(
       Pick <code>k</code> individuals at random,
       return whichever has the best mean fitness across all test cases. Simple, fast, and it works:
     </p>
-    <CodeBlock lang="python" :code="tournamentCode" />
+    <CodeBlock :snippet="code.tournament" />
 
     <Callout variant="warning" title="The problem with averaging">
       A population selected purely on mean fitness can get <em>better on average</em> while a
@@ -71,7 +41,7 @@ const paretoUsage = `selection = ParetoSelection(
       order each time it's called, keeping only whoever's within a small tolerance of the best
       performer on that case -- until one candidate survives or every case has been used:
     </p>
-    <CodeBlock lang="python" :code="lexicaseCode" />
+    <CodeBlock :snippet="code.lexicase" />
 
     <Callout variant="finding" title="A specialist can beat a generalist">
       Comparing tournament and lexicase selection on the same fixed benchmark
@@ -105,7 +75,7 @@ const paretoUsage = `selection = ParetoSelection(
       <code>TournamentSelection</code>/<code>LexicaseSelection</code>
       classes work unchanged whether the population is register-machine programs, expression
       trees, or a neural network's weights --
-      <NuxtLink to="/learn/teaching-a-snake">the next chapter's case study</NuxtLink>
+      <NuxtLink to="/learn/teaching-a-snake">the Snake case study</NuxtLink>
       uses <code class="text-xs">LexicaseSelection</code> against a neuroevolved policy, the same
       class shown above, with zero changes.
     </p>
