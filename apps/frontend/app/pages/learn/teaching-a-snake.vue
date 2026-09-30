@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/teaching-a-snake"
+import * as math from "~/data/math/teaching-a-snake"
 
 const trainingCode = `LAYER_SIZES = (11, 16, 3)  # was (100, 24, 3) -- ~10x fewer weights
 
@@ -80,6 +81,7 @@ evolve(
     </p>
     <CodeBlock lang="python" :code="trainingCode" />
 
+    <MathFormula :formula="math.improvement" :values="{ after: 17.28, before: 0.65 }" />
     <Callout variant="finding" title="best_fitness: 0.65 → 17.28">
       Same generation-count class, same benchmark, same reward function -- only the observation
       and selection strategy changed. The retrained policy doesn't just survive longer, it
@@ -92,6 +94,13 @@ evolve(
       Before either observation redesign, an earlier version of the reward function gave a
       symmetric nudge toward/away from food. An evolved policy found a loophole:
     </p>
+    <MathScope>
+      <MathFormula :formula="math.reward" caption="The fixed reward. The loophole was in the last two lines." />
+      <p>Step toward the food, then step back. With the original, symmetric nudge (−0.01 for a step away), that nets nothing:</p>
+      <MathFormula :formula="math.cycle" :values="{ closer: 0.01, farther: -0.01 }" />
+      <p>With the step away costing twice the step toward, hovering in place loses reward every cycle:</p>
+      <MathFormula :formula="math.cycle" :values="{ closer: 0.01, farther: -0.02 }" />
+    </MathScope>
     <CodeBlock :snippet="code.rewardShaping" />
     <Callout variant="warning" title="Reward hacking, not a training failure">
       With a symmetric reward, a policy that oscillates between two adjacent cells forever nets

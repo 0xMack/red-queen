@@ -13,6 +13,9 @@ const parentFitness = xorWeightsFitness(PARENT)
 const logSigma = ref(-0.7) // sigma = 10^logSigma
 const sigma = computed(() => 10 ** logSigma.value)
 const seed = ref(1)
+// In the chapter's term scope, the slider is the mutation formula's σ (docs/design/0012).
+const scope = useTermScope()
+watch(sigma, (v) => (scope.values.value = { ...scope.values.value, sigma: v }), { immediate: true })
 const CHILDREN = 400
 
 const deltas = computed(() => {
@@ -45,7 +48,7 @@ const zeroX = ((0 - LOW) / (HIGH - LOW)) * W
       <button class="btn-ghost btn-sm" @click="seed++">Resample</button>
     </template>
 
-    <UiRange v-model="logSigma" class="mt-4 max-w-md" label="step size σ" :min="-2" :max="0.7" :step="0.02" :display="() => sigma.toFixed(sigma < 0.1 ? 3 : 2)" />
+    <UiRange v-bind="scope.target('sigma')" v-model="logSigma" class="mt-4 max-w-md" label="step size σ" :min="-2" :max="0.7" :step="0.02" :display="() => sigma.toFixed(sigma < 0.1 ? 3 : 2)" />
 
     <svg :viewBox="`0 0 ${W} ${H + 22}`" class="mt-4 block h-auto w-full" role="img" aria-label="histogram of child fitness minus parent fitness">
       <g v-for="(count, i) in bins" :key="i">

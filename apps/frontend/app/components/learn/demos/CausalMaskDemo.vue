@@ -6,6 +6,8 @@ const text = ref("Alice was ")
 const chars = computed(() => [...text.value.slice(0, 16)])
 const hovered = ref<number>(4)
 const show = (c: string) => (c === " " ? "␣" : c)
+// In the chapter's term scope, each cell is one of the mask formula's two cases (docs/design/0012).
+const scope = useTermScope()
 </script>
 
 <template>
@@ -34,6 +36,7 @@ const show = (c: string) => (c === " " ? "␣" : c)
             <td
               v-for="(_, j) in chars"
               :key="j"
+              v-bind="scope.target(j > i ? 'blocked' : 'allowed', { interactive: false })"
               class="size-6 rounded-sm transition-colors"
               :class="
                 j > i

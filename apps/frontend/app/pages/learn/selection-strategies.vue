@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/selection-strategies"
+import * as math from "~/data/math/selection-strategies"
 
 const paretoUsage = `selection = ParetoSelection(
     complexity=lambda program: program.effective_instruction_count(),
@@ -24,6 +25,10 @@ const paretoUsage = `selection = ParetoSelection(
       Pick <code>k</code> individuals at random,
       return whichever has the best mean fitness across all test cases. Simple, fast, and it works:
     </p>
+    <MathScope>
+      <MathFormula :formula="math.mean" />
+      <MathFormula :formula="math.tournament" />
+    </MathScope>
     <CodeBlock :snippet="code.tournament" />
 
     <Callout variant="warning" title="The problem with averaging">
@@ -41,6 +46,14 @@ const paretoUsage = `selection = ParetoSelection(
       order each time it's called, keeping only whoever's within a small tolerance of the best
       performer on that case -- until one candidate survives or every case has been used:
     </p>
+    <MathScope>
+      <MathFormula
+        :formula="math.lexicaseCut"
+        :values="{ best: 0.9, 'epsilon-c': 0.1 }"
+        caption="An example case: four candidates score 0.9, 0.8, 0.7 and 0.4. The median is 0.75, the distances from it are 0.15, 0.05, 0.05 and 0.35, so ε is their median, 0.10 -- and 0.9 and 0.8 survive."
+      />
+      <MathFormula :formula="math.lexicaseEpsilon" />
+    </MathScope>
     <CodeBlock :snippet="code.lexicase" />
 
     <Callout variant="finding" title="A specialist can beat a generalist">
@@ -59,6 +72,7 @@ const paretoUsage = `selection = ParetoSelection(
       than that one? It optimizes a genuine tradeoff curve (accuracy vs. an injected complexity
       measure) rather than a single "best":
     </p>
+    <MathFormula :formula="math.dominance" caption="Within a tournament, the winner is drawn from the genomes nothing else dominates." />
     <CodeBlock lang="python" :code="paretoUsage" />
 
     <Callout variant="finding" title="A real tradeoff, not a free lunch">

@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/genome-representations"
+import * as math from "~/data/math/genome-representations"
 import type { GenerationStats, RunInfo } from "~/types/telemetry"
 
 const paretoCode = `# linear GP: complexity = instructions that can reach the output register
@@ -52,6 +53,10 @@ onMounted(async () => {
       result to a register. Register <code>r0</code> after the last instruction is the output. This is
       the whole interpreter:
     </p>
+    <MathScope>
+      <MathFormula :formula="math.instruction" />
+      <MathFormula :formula="math.protectedDivision" />
+    </MathScope>
     <CodeBlock :snippet="code.linearRun" />
     <p>
       Every field is taken modulo its range, so <em>any</em> random integers form a valid program --

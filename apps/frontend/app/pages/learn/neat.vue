@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/neat"
+import * as math from "~/data/math/neat"
 
 </script>
 
@@ -81,6 +82,10 @@ import * as code from "~/data/snippets/neat"
       does the protecting: a species' claim on the next generation is its <em>average</em> fitness, not its headcount, so a large species can't
       crowd out a small one just by being large, and a promising newcomer gets offspring in proportion to how good it is, not how many there are of it.
     </p>
+    <MathScope>
+      <MathFormula :formula="math.shift" />
+      <MathFormula :formula="math.sharing" caption="Dividing by the species' size is the point: a big species can't take over just by being big." />
+    </MathScope>
     <CodeBlock :snippet="code.sharing" />
     <p>
       A species that hasn't improved for 15 generations stops breeding (the best two are always kept), and a species of five or more keeps its

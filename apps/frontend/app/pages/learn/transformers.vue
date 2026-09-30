@@ -3,6 +3,7 @@
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 // Numbers and samples are notebooks/0006-tinylm-from-scratch.ipynb's real, executed output.
 import * as code from "~/data/snippets/transformers"
+import * as math from "~/data/math/transformers"
 
 const trainCode = `model = TinyLM(vocab_size=75, max_seq_len=32, d_model=64, n_heads=4,
                n_layers=2, d_hidden=128, rng=rng)      # 78,795 parameters
@@ -58,13 +59,18 @@ const samples = [
       values. Four <strong>heads</strong> do this in parallel on 16-dimensional slices, so different
       heads can track different relationships.
     </p>
-    <CodeBlock :snippet="code.attention" />
-    <p>
-      One line keeps it honest: the <strong>causal mask</strong>. When predicting the character after
-      position <em>i</em>, the model mustn't see position <em>i+1</em> -- that's the answer. Adding −10⁹ to
-      every score above the diagonal makes those weights zero after the softmax:
-    </p>
-    <ClientOnly><CausalMaskDemo /></ClientOnly>
+    <MathScope>
+      <MathFormula :formula="math.attention" />
+      <MathFormula :formula="math.softmax" caption="Positive, and summing to 1: each row of scores becomes a set of weights." />
+      <CodeBlock :snippet="code.attention" />
+      <p>
+        One term keeps it honest: the <strong>causal mask</strong> <MathTerm id="mask" tex="M" />. When predicting the character after
+        position <em>i</em>, the model mustn't see position <em>i+1</em> -- that's the answer. Adding −10⁹ to
+        every score above the diagonal makes those weights zero after the softmax:
+      </p>
+      <MathFormula :formula="math.causalMask" caption="Hover a case, or a cell of the grid below: they are the same thing." />
+      <ClientOnly><CausalMaskDemo /></ClientOnly>
+    </MathScope>
     <p>
       There's a test for exactly this (<code>test_causal_attention_does_not_leak_future_information</code>):
       change a later character and assert that earlier positions' outputs don't move. A leak wouldn't
@@ -79,6 +85,11 @@ const samples = [
       through the network; layer norm keeps activations in a sane range. Both are what make stacking
       blocks trainable at all.
     </p>
+    <MathScope>
+      <MathFormula :formula="math.blockAttention" />
+      <MathFormula :formula="math.blockMlp" />
+      <MathFormula :formula="math.layerNorm" />
+    </MathScope>
     <CodeBlock :snippet="code.block" />
     <Callout variant="finding" title="A real bug, caught by the first smoke test">
       <code>matmul</code>'s backward pass originally didn't handle broadcasting between a 2-D weight and a
@@ -90,10 +101,19 @@ const samples = [
     </Callout>
 
     <h2>Training it</h2>
+    <p>Training lowers one number: how surprised the model is by each actual next character.</p>
+    <MathScope>
+      <MathFormula :formula="math.loss" />
+      <p>
+        A model that knows nothing spreads its probability evenly over the 75 characters, so it starts at exactly
+      </p>
+      <MathFormula :formula="math.chanceLoss" :values="{ vocab: 75 }" />
+    </MathScope>
     <CodeBlock lang="python" :code="trainCode" />
     <p>
       Two blocks, four heads, 64-dimensional vectors: 78,795 parameters. Three thousand steps took
-      <strong>157.8 seconds</strong> on plain NumPy -- no GPU. The loss fell from 4.41 to about 1.45
+      <strong>157.8 seconds</strong> on plain NumPy -- no GPU. The loss fell from 4.41 (a touch above chance's 4.32: random weights
+      aren't perfectly uniform) to about 1.45
       (averaged over the last 50 steps). Here's the same prompt, <code>"Alice "</code>, sampled at
       different points in that run:
     </p>

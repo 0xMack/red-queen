@@ -1,8 +1,9 @@
 # 0012 — Interactive maths notation: formulas tied to the demos they describe
 
-Status: **Pilot implemented** (2026-09-29). Phase 0 (the renderer spike) chose KaTeX. Phase 1 (the framework) and
-phase 2 (the Multi-Armed Bandits pilot) are built, pending review and iteration with the user; the other chapters wait
-on that. See "Implementation notes".
+Status: **Implemented** (2026-09-30). Phase 0 (the renderer spike) chose KaTeX. Phase 1 (the framework), phase 2 (the
+Multi-Armed Bandits pilot) and phase 3 (every other chapter with maths -- 63 formulas in 14 chapters; the real-time
+architecture chapter has none) are built. The notation page (phase 4) and the items under "Still open from the review"
+remain. See "Implementation notes".
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one frontend, reusable components),
 [0011](0011-multi-armed-bandits.md) (the pilot chapter's game and demos), the explainer registry
 (`app/data/explainers/`, `types/explain.ts`).
@@ -336,6 +337,31 @@ Still open from the review:
   navigation within a formula.
 - Tests for the compiler (Vitest or a CI script: the user's call).
 - Auto-discovery of formula files on `/dev/math`.
+
+### Phase 3: the other chapters (2026-09-30)
+
+The pattern, per chapter:
+
+- **Every chapter with maths:** its key equations as formulas in the prose, with inline terms linked.
+- **Where the lab has a knob for a symbol:** that knob is linked to it. The formula follows the lab's switches through
+  term forms (SARSA / n-step targets, the Double-DQN target, θ⁻ without a target network, the policy-gradient weight per
+  rung).
+- **Where the lab or demo exposes one concrete step:** a live worked row, cross-checked in development against the
+  demo's own computation. That covers the greedy choice on the RL demo boards (a shared builder,
+  `data/math/rl-shared.ts`), the autodiff playground's loss / chain rule / step, the XOR output neuron from the genome,
+  and NEAT's compatibility distance.
+- **Everything else:** a small fixed worked example where it makes a point (lexicase's ε, the chance-level loss
+  ln 75, the reward-hacking cycle, the chapter's reported gains).
+
+Labs that train in a worker keep their update rules symbolic: they don't expose individual updates.
+
+The tree gained what these chapters needed:
+
+- `pow`, `tanh` and `exp`, with arguments and bases bracketed when compound or negative;
+- automatic brackets for a sum inside a product, so `(1 − λ)·V`, never `1 − λ V`;
+- `atoms`, for terms a worked row shows as numbers rather than writing them out again.
+
+`/dev/math` finds every formula file itself.
 
 ### Open, for the iteration with the user
 

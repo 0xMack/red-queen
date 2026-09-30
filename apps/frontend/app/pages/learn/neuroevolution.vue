@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/neuroevolution"
+import * as math from "~/data/math/neuroevolution"
 
 const fitnessCode = `def act(genome, observation):
     outputs = genome.forward(observation)        # 11 features in, 3 numbers out
@@ -39,6 +40,7 @@ const loopCode = `evolve(
     <p>
       Running it is the ordinary feedforward pass, reading numbers out of the list by position:
     </p>
+    <MathFormula :formula="math.neuron" caption="Every unit of every layer: the forward pass is this, over and over." />
     <CodeBlock :snippet="code.forward" />
     <p>
       Below is a tiny 2-3-1 network, so all thirteen numbers fit on screen. Click a cell to see which connection it is, drag it, and watch what
@@ -66,12 +68,16 @@ const loopCode = `evolve(
       To make a child, copy the parent and nudge <em>every</em> weight by a small random amount drawn from a bell curve of width
       <strong>σ</strong>. That's all of it:
     </p>
-    <CodeBlock :snippet="code.mutation" />
-    <p>
-      σ is the one knob that matters. Whether a mutation is useful depends on how big it is relative to how much the current network can
-      tolerate. The plot below mutates one nearly-solved XOR network 400 times and compares each child's fitness to its parent's:
-    </p>
-    <MutationMicroscope />
+    <MathScope>
+      <MathFormula :formula="math.mutation" />
+      <CodeBlock :snippet="code.mutation" />
+      <p>
+        <MathTerm id="sigma" symbol="sigma" /> is the one knob that matters. Whether a mutation is useful depends on how big it is relative to how
+        much the current network can tolerate. The plot below mutates one nearly-solved XOR network 400 times and compares each child's fitness to
+        its parent's:
+      </p>
+      <MutationMicroscope />
+    </MathScope>
     <Callout variant="note" title="This is Evolution Strategies">
       Keep the top few, add Gaussian noise, repeat -- that is an Evolution Strategy, decades older than deep RL. The connection to gradient
       methods is real: weight each noise direction by how much it helped and you get a stochastic estimate of the gradient of (smoothed)

@@ -119,6 +119,11 @@ const getitemCode = `def __getitem__(self, idx) -> Tensor:
       This project uses Adam, hand-written: plain gradient descent struggles on transformers, and Adam's
       per-weight step sizes are a few lines on top of the gradients:
     </p>
+    <MathScope>
+      <MathFormula :formula="math.adamMomentum" />
+      <MathFormula :formula="math.adamScale" />
+      <MathFormula :formula="math.adamStep" caption="Each weight's step is its momentum over the size of its own gradients: a weight with small, steady gradients still moves." />
+    </MathScope>
     <CodeBlock :snippet="code.adam" />
     <p>
       Evolution and gradients aren't rivals here, they're tools for different shapes of problem. Evolution
