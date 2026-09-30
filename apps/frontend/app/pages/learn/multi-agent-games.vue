@@ -3,6 +3,7 @@
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 // Round-robin numbers: jobs/checkers_round_robin.py (200 games per pairing, seats alternating).
 import * as code from "~/data/snippets/multi-agent-games"
+import * as math from "~/data/math/multi-agent-games"
 import { checkersSnapshot } from "~/data/checkersSnapshot"
 
 const protocolCode = `class MultiAgentEnvironment(Protocol):
@@ -72,6 +73,11 @@ const results = [
       move that leaves the best piece balance), and <strong>material-2</strong> (the same, but assuming the
       opponent then replies with its best capture -- a two-move lookahead):
     </p>
+    <MathScope>
+      <MathFormula :formula="math.material" />
+      <MathFormula :formula="math.material1" />
+      <MathFormula :formula="math.material2" caption="The min over the opponent's replies is the whole difference -- and, below, the whole result." />
+    </MathScope>
     <CodeBlock :snippet="code.material" />
     <div class="card my-6 overflow-x-auto">
       <table class="w-full text-sm">
@@ -121,10 +127,12 @@ const results = [
       from <em>both</em> seats, and returns one win/draw/loss per game -- the same per-test-case shape as
       every other evaluator, so lexicase selection works on it unchanged:
     </p>
+    <MathFormula :formula="math.matchFitness" />
     <CodeBlock :snippet="code.fitness" />
     <Callout variant="warning" title="Match outcomes are a noisy signal">
       A small weight-vector population evolved against a randomized opponent with this evaluator
-      <em>does</em> improve -- mean fitness about 0.09 → 0.21 over 40 generations. But the first attempt,
+      <em>does</em> improve -- mean fitness about 0.09 → 0.21 over 40 generations:
+      <MathFormula :formula="math.improvement" :values="{ 'f-end': 0.21, 'f-start': 0.09 }" bare /> But the first attempt,
       with only 4 matches per genome, showed no clean trend at all: a single match's result says as much
       about the random opponent's luck as about the genome. Repeating that opponent six times in the pool
       (more independent samples, same kind of opponent) made the trend clear. If evolution against match
