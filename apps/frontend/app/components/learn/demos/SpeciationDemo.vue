@@ -7,6 +7,7 @@
 // new species. Slide δₜ and watch the population split and merge.
 import { compatibility, Rng, type Genome, type Gene } from "~/utils/neat"
 import { INNOVATION_EDGES, PARENT_A, PARENT_B } from "~/utils/neatExamples"
+import * as F from "~/data/math/neat"
 
 const c1 = ref(1)
 const c2 = ref(1)
@@ -17,10 +18,10 @@ const seed = ref(7)
 // Built here, not inline in the template: the template auto-unwraps top-level refs, so an inline list would hand
 // each slider a plain number instead of the ref it needs to write to.
 const sliders = [
-  { name: "c₁ excess", model: c1, max: 3 },
-  { name: "c₂ disjoint", model: c2, max: 3 },
-  { name: "c₃ weights", model: c3, max: 3 },
-  { name: "δₜ threshold", model: threshold, max: 10 },
+  { id: "c1", name: "c₁ excess", model: c1, max: 3 },
+  { id: "c2", name: "c₂ disjoint", model: c2, max: 3 },
+  { id: "c3", name: "c₃ weights", model: c3, max: 3 },
+  { id: "threshold", name: "δₜ threshold", model: threshold, max: 10 },
 ]
 
 const coefficients = computed(() => ({ excessCoefficient: c1.value, disjointCoefficient: c2.value, weightCoefficient: c3.value }))
@@ -30,6 +31,18 @@ const terms = computed(() => [
   { label: `c₂·D/N = ${c2.value.toFixed(1)}·${parts.value.disjoint}/${parts.value.n}`, value: (c2.value * parts.value.disjoint) / parts.value.n, color: "bg-gold-400" },
   { label: `c₃·W̄ = ${c3.value.toFixed(1)}·${parts.value.meanWeightDiff.toFixed(2)}`, value: c3.value * parts.value.meanWeightDiff, color: "bg-life-400" },
 ])
+// The distance as a formula (docs/design/0012), worked from the sliders and the parents' genes and checked in
+// development against the demo's own; the sliders and the bar's three parts are the formula's terms.
+const scope = useOrProvideTermScope()
+const PART_TERMS = ["excess-part", "disjoint-part", "weight-part"]
+watch(
+  [coefficients, parts, threshold],
+  ([c, p, t]) => {
+    scope.values.value = { c1: c.excessCoefficient, c2: c.disjointCoefficient, c3: c.weightCoefficient, excess: p.excess, disjoint: p.disjoint, n: p.n, wbar: p.meanWeightDiff, threshold: t }
+    scope.expected.value = { delta: p.distance }
+  },
+  { immediate: true },
+)
 const scaleMax = computed(() => Math.max(parts.value.distance, threshold.value) * 1.15 || 1)
 
 // A population of possible genomes: A and B, then random subsets of the ten genes with random weights.
@@ -69,15 +82,20 @@ const label = (i: number) => (i === 0 ? "A" : i === 1 ? "B" : `g${i - 1}`)
   <UiFigure title="Compatibility distance · parents A and B from the crossover demo">
 
     <div class="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-      <UiRange v-for="s in sliders" :key="s.name" v-model="s.model.value" :label="s.name" :min="0" :max="s.max" :step="0.1" :display="(v) => v.toFixed(1)" />
+      <UiRange v-for="s in sliders" :key="s.name" v-bind="scope.target(s.id)" v-model="s.model.value" :label="s.name" :min="0" :max="s.max" :step="0.1" :display="(v) => v.toFixed(1)" />
+    </div>
+
+    <div class="math-panel mt-4">
+      <MathFormula :formula="F.distance" bare />
+      <MathFormula class="mt-1" :formula="F.sameSpecies" bare />
     </div>
 
     <div class="mt-4 well p-4">
       <div class="relative h-6 overflow-hidden rounded-md bg-line/60">
         <div class="flex h-full">
-          <div v-for="t in terms" :key="t.label" class="h-full" :class="t.color" :style="{ width: `${(t.value / scaleMax) * 100}%` }" :title="t.label" />
+          <div v-for="(t, i) in terms" :key="t.label" v-bind="scope.target(PART_TERMS[i]!)" class="h-full" :class="t.color" :style="{ width: `${(t.value / scaleMax) * 100}%` }" :title="t.label" />
         </div>
-        <div class="absolute inset-y-0 w-0.5 bg-fg" :style="{ left: `${(threshold / scaleMax) * 100}%` }" title="threshold δₜ" />
+        <div v-bind="scope.target('threshold')" class="absolute inset-y-0 w-0.5 bg-fg" :style="{ left: `${(threshold / scaleMax) * 100}%` }" title="threshold δₜ" />
       </div>
       <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-fg-muted">
         <span v-for="t in terms" :key="t.label" class="flex items-center gap-1.5"><span class="size-2 rounded-sm" :class="t.color" />{{ t.label }} = <span class="num text-fg">{{ t.value.toFixed(2) }}</span></span>
