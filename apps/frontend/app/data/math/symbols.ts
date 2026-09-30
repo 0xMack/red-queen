@@ -214,6 +214,20 @@ export const SYMBOLS = {
     meaning: "How much more (or less) likely a move is now than when it was played: 1 means unchanged.",
     chapters: ["policy-gradients"],
   },
+  sigma: {
+    tex: "\\sigma",
+    plain: "σ",
+    name: "mutation step size",
+    meaning: "The width of the bell curve every weight's nudge is drawn from. Too small and children are copies; too large and they're random networks.",
+    chapters: ["neuroevolution", "teaching-a-snake"],
+  },
+  fitness: {
+    tex: "F",
+    plain: "F",
+    name: "fitness",
+    meaning: "How good a genome is, as the evolutionary algorithm scores it: the one number selection compares. Higher is better.",
+    chapters: ["genetic-algorithms", "selection-strategies", "neuroevolution", "neat", "multi-agent-games"],
+  },
 } satisfies Record<string, MathSymbol>
 
 export type SymbolId = keyof typeof SYMBOLS
