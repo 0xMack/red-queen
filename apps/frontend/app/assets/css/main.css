@@ -392,6 +392,10 @@ svg .term-target.term-on {
   stroke: var(--term-color);
   stroke-width: 2px;
 }
+svg text.term-target.term-on {
+  fill: var(--term-color);
+  stroke: none;
+}
 
 /* Figures number themselves: "Fig. 3 · Interactive". Each page (a <main>, or a chapter's body) restarts the count. */
 main,

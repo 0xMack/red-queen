@@ -2,6 +2,7 @@
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
 import * as code from "~/data/snippets/autodiff"
+import * as math from "~/data/math/autodiff"
 
 const unbroadcastCode = `def _unbroadcast(grad, shape):
     """Forward broadcasting silently reused a value at many positions; the gradient
@@ -99,6 +100,7 @@ const getitemCode = `def __getitem__(self, idx) -> Tensor:
       is tested against a <strong>numerical gradient</strong>: nudge each input by ±ε, see how the output
       moves, and compare. The playground above does the same check live for <code>w</code>.
     </p>
+    <MathFormula :formula="math.finiteDifference" caption="The definition of a derivative, with a small but finite ε: slow, simple, and hard to get wrong." />
     <CodeBlock :snippet="code.gradCheck" />
     <Callout variant="finding" title="The most important tests in the language-model work">
       Everything in the transformers chapter -- attention, layer norm, a 78,795-parameter model learning English

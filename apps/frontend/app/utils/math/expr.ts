@@ -21,6 +21,7 @@ export type Expr =
   | { k: "ops"; first: Expr; rest: { op: Op; e: Expr }[] }
   | { k: "mul"; parts: Expr[] }
   | { k: "fn"; name: string; tex: string; arg: Expr }
+  | { k: "pow"; base: Expr; exp: Expr }
   | { k: "term"; term: TermDef }
   | { k: "frac"; num: Expr; den: Expr; size: "t" | "d" | "" }
   | { k: "sqrt"; body: Expr }
@@ -81,6 +82,10 @@ export const mul = (...parts: Part[]): Expr => ({ k: "mul", parts: parts.map(toE
 export const frac = (num: Part, den: Part, size: "t" | "d" | "" = ""): Expr => ({ k: "frac", num: toExpr(num), den: toExpr(den), size })
 export const sqrt = (body: Part): Expr => ({ k: "sqrt", body: toExpr(body) })
 export const ln = (arg: Part): Expr => ({ k: "fn", name: "ln", tex: "\\ln", arg: toExpr(arg) })
+export const tanh = (arg: Part): Expr => ({ k: "fn", name: "tanh", tex: "\\tanh", arg: toExpr(arg) })
+export const exp = (arg: Part): Expr => ({ k: "fn", name: "exp", tex: "\\exp", arg: toExpr(arg) })
+/** A power: `pow(e, "2")` is e². The base is bracketed when it's compound. */
+export const pow = (base: Part, exponent: Part): Expr => ({ k: "pow", base: toExpr(base), exp: toExpr(exponent) })
 export const paren = (body: Part, open = "(", close = ")"): Expr => ({ k: "paren", body: toExpr(body), open, close })
 export const bracket = (body: Part): Expr => paren(body, "[", "]")
 export const cases = (...rows: [Part, Part][]): Expr => ({ k: "cases", rows: rows.map(([value, when]) => ({ value: toExpr(value), when: toExpr(when) })) })
@@ -110,6 +115,9 @@ export interface Formula {
   workedLhs?: Expr
   /** The term the worked row ends on (`… = 0.52`): evaluated from `worked`, unless supplied. */
   result?: string
+  /** Terms the worked row shows as plain numbers, not opened up into their parts -- when their parts are another
+   *  formula's business (the chain rule shows `e` and `a` as values; the forward pass works them out). */
+  atoms?: string[]
 }
 
 /** Every part of a formula, for finding and registering its terms. */
@@ -129,6 +137,8 @@ export interface FormulaView {
   /** Number formats by term id, for this instance -- the lab knows ranges the formula can't (this game's budget, its
    *  largest payout). Merged over each term's own `num`. */
   formats?: Record<string, NumFormat>
+  /** Terms shown as their bound value even where they could open up (see `Formula.atoms`). */
+  atoms?: string[]
 }
 
 // Compiling state that isn't part of the view: whether the expression being compiled follows an operator (a negative
@@ -181,12 +191,24 @@ function formatValue(v: BoundValue, def: TermDef, ctx: Ctx): string {
   return `${pad}${sign}${digits}`
 }
 
+/** An argument or a base that must be bracketed: a sum, a product, or a signed number once bound. */
+function needsParens(e: Expr, view: FormulaView): boolean {
+  if (isSum(e, view)) return true
+  if (e.k === "mul") return true
+  if (e.k === "term") {
+    const bound = view.bind ? view.values?.[e.term.id] : undefined
+    if (typeof bound === "number") return bound < 0
+    return needsParens(shownForm(e.term, view), view)
+  }
+  return false
+}
+
 /** A sum or difference as shown (a term showing one counts): it needs brackets as a factor. */
 function isSum(e: Expr, view: FormulaView): boolean {
   if (e.k === "ops") return e.rest.length > 0
   if (e.k === "term") {
     const bound = view.bind ? view.values?.[e.term.id] : undefined
-    if (bound !== undefined && !hasTerms(shownForm(e.term, view))) return false
+    if (bound !== undefined && (!hasTerms(shownForm(e.term, view)) || view.atoms?.includes(e.term.id))) return false
     return isSum(shownForm(e.term, view), view)
   }
   return false
@@ -216,7 +238,12 @@ function compileIn(e: Expr, ctx: Ctx): string {
         })
         .join(ctx.view.bind ? " \\cdot " : " \\, ")
     case "fn":
-      return `${e.tex} ${c(e.arg)}`
+      // `\ln t` for a single symbol or number, `\tanh(x w + b)` for anything compound or negative.
+      return needsParens(e.arg, ctx.view) ? `${e.tex}\\left( ${c(e.arg)} \\right)` : `${e.tex} ${c(e.arg)}`
+    case "pow": {
+      const base = c(e.base)
+      return `${needsParens(e.base, ctx.view) || e.base.k === "frac" ? `\\left( ${base} \\right)` : `{${base}}`}^{${c(e.exp)}}`
+    }
     case "frac":
       return `\\${e.size}frac{${c(e.num)}}{${c(e.den)}}`
     case "sqrt":
@@ -233,7 +260,8 @@ function compileIn(e: Expr, ctx: Ctx): string {
       // (1/5, 1 − 0.40). A form that can't be worked out here (Q_n as an average of payouts the page doesn't have)
       // shows the number instead of a half-filled expression.
       const bound = ctx.view.bind ? ctx.view.values?.[def.id] : undefined
-      const opensUp = hasTerms(shown) && evaluate(shown, ctx.view.values ?? {}, ctx.view.forms) !== undefined
+      const opensUp =
+        !ctx.view.atoms?.includes(def.id) && hasTerms(shown) && evaluate(shown, ctx.view.values ?? {}, ctx.view.forms) !== undefined
       const inner = bound !== undefined && !opensUp ? formatValue(bound, def, ctx) : compileIn(shown, ctx)
       return `\\htmlData{term=${def.id}}{${inner}}`
     }
@@ -278,7 +306,13 @@ export function evaluate(e: Expr, inputs: Record<string, BoundValue | undefined>
     }
     case "fn": {
       const v = ev(e.arg)
-      return v === undefined ? undefined : e.name === "ln" ? Math.log(v) : undefined
+      if (v === undefined) return undefined
+      return e.name === "ln" ? Math.log(v) : e.name === "tanh" ? Math.tanh(v) : e.name === "exp" ? Math.exp(v) : undefined
+    }
+    case "pow": {
+      const b = ev(e.base)
+      const x = ev(e.exp)
+      return b === undefined || x === undefined ? undefined : b ** x
     }
     case "frac": {
       const a = ev(e.num)
@@ -345,7 +379,7 @@ export function compileFormula(f: Formula, view: FormulaView, worked: boolean): 
   const rel = f.rel ?? "="
   if (!worked || !f.worked) return f.lhs ? `${compile(f.lhs, symbolic)} ${rel} ${compile(f.body, symbolic)}` : compile(f.body, symbolic)
 
-  const ctx: Ctx = { view: { ...view, bind: true }, operand: false, rounded: { any: false } }
+  const ctx: Ctx = { view: { ...view, bind: true, atoms: f.atoms }, operand: false, rounded: { any: false } }
   let rhs = compileIn(f.worked, ctx)
   if (f.result) {
     const def = termsOfFormula(f).find((t) => t.id === f.result)
@@ -375,6 +409,8 @@ function childrenOf(e: Expr): Expr[] {
       return [e.first, ...e.rest.map((r) => r.e)]
     case "fn":
       return [e.arg]
+    case "pow":
+      return [e.base, e.exp]
     case "frac":
       return [e.num, e.den]
     case "sqrt":
