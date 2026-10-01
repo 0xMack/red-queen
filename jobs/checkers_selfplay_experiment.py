@@ -28,6 +28,10 @@ variation's leaves.
 and `g-pool-80` (80% of games against the pool). Report it with `h2h --full`. `g-pbt` is population-based training
 (jobs/checkers_pbt_run.py: 8 members, the settings evolving), `g-rs` the same population with nothing copied.
 
+`selfplay-v5` asks whether TD-Leaf should train from the start (docs/design/0015): `s-leaf2` / `s-leaf2-40k` (equal games /
+equal compute against plain TD, `s-td`), and `s-leaf2-80k` against the fine-tuning recipe `s-td-ft2` (TD, then TD-Leaf)
+at about equal total compute. `s-td-ft2` continues each seed's `s-td`, so run `s-td` first.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
   uv run python jobs/checkers_selfplay_experiment.py h2h    --name NAME [--arms ft-leaf3] [--elo1 50] [--full]
@@ -114,6 +118,15 @@ ARMS: dict[str, Arm] = {
     # with nothing copied -- random search over the same settings, equal compute, best member kept.
     "g-rs": Arm(population=8, exploit=False, baseline="g-pool"),
     "g-pbt": Arm(population=8, baseline="g-rs"),
+    # selfplay-v5: TD-Leaf from the start, not just as a finishing step (2 x 64, the pool). TD-Leaf at 2 plies costs about
+    # 5x a plain-TD game, so each from-scratch arm is matched to a TD arm on games *or* on compute:
+    "s-td": Arm(BIG, baseline=None),  # plain TD, 200k games (the selfplay-v4 recipe)
+    # TD-Leaf from scratch, the same 200k games (~5x compute)
+    "s-leaf2": Arm({**BIG, "search_depth": 2}, baseline="s-td"),
+    "s-leaf2-40k": Arm({**BIG, "search_depth": 2}, games=40_000, baseline="s-td"),  # ... the same compute as s-td
+    # the fine-tuning recipe (plain TD, then TD-Leaf), and from-scratch TD-Leaf at about the same total compute
+    "s-td-ft2": Arm({**BIG, "search_depth": 2}, games=40_000, baseline="s-td", init=("selfplay-v5", "s-td")),
+    "s-leaf2-80k": Arm({**BIG, "search_depth": 2}, games=80_000, baseline="s-td-ft2"),
 }
 GAMES_PER_ITERATION = 1000
 
