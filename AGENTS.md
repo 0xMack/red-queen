@@ -12,7 +12,8 @@ games, ONNX Runtime Web, model packages; 0010: reinforcement learning — the Q-
 self-play plan; 0011: multi-armed bandits — a game and chapter for exploration vs. exploitation, the rung under
 Q-learning; 0012: interactive maths notation — formulas as expression trees with addressable terms, linked
 both ways to the demos; 0013: measuring two-player strength — ballot openings, game pairs, Elo, SPRT; 0014: two-player
-training regimes — opponent pools, leagues, PFSP, population-based training) — read the relevant one before an
+training regimes — opponent pools, leagues, PFSP, population-based training; 0015: TD-Leaf from the start vs. as a
+fine-tune) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
