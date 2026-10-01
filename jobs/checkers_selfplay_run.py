@@ -86,6 +86,7 @@ def main(
         "opponents": list(OPPONENTS),  # monitored against, never trained against
         "training": "self-play"
         + (", opponent pool" if params.get("pool_every") else "")
+        + (", prioritized opponents" if params.get("pfsp") else "")
         + (f", TD-Leaf searching {leaf} plies" if leaf > 1 else ""),
         "held_out_every": held_out_every,
         "rng_seed": rng_seed,
@@ -134,6 +135,8 @@ def main(
                         "draw_rate": stats["draws"] / stats["games"],
                         "epsilon": stats["epsilon"],
                         "pool_games": float(stats["pool_games"]),
+                        # how the network fares against its past selves (1 = beats them all): the pool's difficulty
+                        "pool_score": stats["pool_score"],
                         "value_start": start_value,
                         "value_king_up": king_up_value,
                     },

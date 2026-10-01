@@ -287,6 +287,20 @@ const attention = (() => {
       <text v-for="(v, i) in ['+0.41', '−0.38', '+0.52', '−0.49', '+1']" :key="`v${i}`" :x="40 + i * 66" y="232" :fill="i % 2 ? palette.fg : palette.queen400">{{ v }}</text>
     </g>
 
+    <!-- Who to play: the current network, its frozen past selves in a row, games drawn to the ones it can't beat yet -->
+    <g v-else-if="kind === 'league'" font-family="Geist Mono, monospace" font-size="10">
+      <g v-for="(w, i) in [0.04, 0.06, 0.3, 0.08, 0.12, 0.2, 0.45, 0.7, 0.9, 1]" :key="`p${i}`">
+        <line :x1="44 + i * 34" y1="92" x2="200" y2="176" :stroke="palette.queen400" :stroke-opacity="(0.1 + w * 0.6).toFixed(2)" :stroke-width="(0.5 + w * 3).toFixed(2)" />
+        <circle :cx="44 + i * 34" cy="80" :r="(6 + w * 6).toFixed(1)" :fill="palette.raised" :stroke="palette.lineStrong" />
+        <circle :cx="44 + i * 34" cy="80" r="3" :fill="palette.fgMuted" :fill-opacity="(0.25 + (i / 9) * 0.75).toFixed(2)" />
+      </g>
+      <text x="44" y="56" :fill="palette.fgSubtle">oldest</text>
+      <text x="350" y="56" text-anchor="end" :fill="palette.fgSubtle">newest past self</text>
+      <circle cx="200" cy="190" r="18" fill="#2a1119" :stroke="palette.queen400" stroke-width="2" />
+      <text x="200" y="194" text-anchor="middle" :fill="palette.queen300">now</text>
+      <text x="200" y="236" text-anchor="middle" :fill="palette.fgSubtle">games go where there's something left to learn</text>
+    </g>
+
     <!-- Measuring strength: a sequential test's LLR walking to a bound, over a rating ladder -->
     <g v-else-if="kind === 'strength'" font-family="Geist Mono, monospace" font-size="10">
       <line x1="40" x2="372" y1="58" y2="58" :stroke="palette.life400" stroke-dasharray="5 4" />

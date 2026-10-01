@@ -165,7 +165,7 @@ impl CheckersSelfPlay {
     }
 
     /// Play and learn from `games` games: {games, first_wins, second_wins, draws, mean_plies, loss, epsilon,
-    /// pool_games, total_games}.
+    /// pool_games, pool_score (the network's mean score in them), total_games}.
     fn train<'py>(&mut self, py: Python<'py>, games: u64) -> PyResult<Bound<'py, PyDict>> {
         let s = self.inner.train(games);
         let d = PyDict::new(py);
@@ -177,12 +177,24 @@ impl CheckersSelfPlay {
         d.set_item("loss", s.loss)?;
         d.set_item("epsilon", s.epsilon)?;
         d.set_item("pool_games", s.pool_games)?;
+        d.set_item("pool_score", s.pool_score)?;
         d.set_item("total_games", self.inner.games_played())?;
         Ok(d)
     }
 
     fn snapshot(&self) -> String {
         self.inner.snapshot()
+    }
+
+    /// Change a hyperparameter mid-run (learning_rate, lambda, pool_fraction, pfsp), keeping the network, optimizer,
+    /// pool and exploration schedule -- population-based training's "explore" step.
+    fn set_param(&mut self, name: &str, value: f64) -> PyResult<()> {
+        self.inner.set_param(name, value).map_err(value_error)
+    }
+
+    /// The network's running score against each opponent-pool member, oldest first (what `pfsp` weighs by).
+    fn pool_scores(&self) -> Vec<f64> {
+        self.inner.pool_scores().to_vec()
     }
 
     /// Replace the network's weights with a saved network's (same layer sizes) -- to continue training it, e.g.

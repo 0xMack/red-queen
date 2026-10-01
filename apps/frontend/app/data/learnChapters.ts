@@ -14,6 +14,7 @@ export type ChapterArtKind =
   | "self-play"
   | "bandit"
   | "strength"
+  | "league"
 
 export interface LearnChapter {
   slug: string
@@ -289,6 +290,30 @@ export const learnChapters: LearnChapter[] = [
     ],
   },
   {
+    slug: "training-regimes",
+    title: "Who to Play: Pools, Leagues and Populations",
+    short: "Who to play",
+    summary:
+      "A self-play learner's opponents are a choice: only itself, a pool of past selves, every past self, the ones it still can't beat -- or a population of learners whose settings evolve while their weights learn. Each measured head to head on Checkers, with the results that surprised.",
+    path: "/learn/training-regimes",
+    status: "available",
+    home: "rl",
+    readMinutes: 11,
+    tags: ["reinforcement learning", "self-play", "fictitious self-play", "PFSP", "league", "population-based training", "checkers"],
+    art: "league",
+    prerequisites: ["self-play", "measuring-strength"],
+    related: ["genetic-algorithms"],
+    sections: [
+      "Who does a self-play learner play?",
+      "A pool of past selves",
+      "Every past self: a league",
+      "Prioritized opponents",
+      "What the games said",
+      "Population-based training",
+      "Where this goes next",
+    ],
+  },
+  {
     slug: "teaching-a-snake",
     title: "Teaching a Snake to Play Itself",
     short: "Teaching a snake",
@@ -445,7 +470,7 @@ export const learnPaths: LearnPath[] = [
     summary:
       "Exploration vs. exploitation, then values, then values from a network, then the policy itself -- and finally two players, a strategy framework, and an agent with nobody to learn from but itself.",
     color: "signal400",
-    chapters: ["multi-armed-bandits", "q-learning", "autodiff", "dqn", "policy-gradients", "multi-agent-games", "self-play", "measuring-strength"],
+    chapters: ["multi-armed-bandits", "q-learning", "autodiff", "dqn", "policy-gradients", "multi-agent-games", "self-play", "measuring-strength", "training-regimes"],
     assumes: ["genetic-algorithms"],
   },
   {

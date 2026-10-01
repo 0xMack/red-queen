@@ -23,6 +23,11 @@ Report it with `--games 60`: 20 per opponent is too noisy to separate these arms
 (from `selfplay-v2`) for 50k games -- plain TD, or self-play searching 2 or 3 plies and learning at the principal
 variation's leaves.
 
+`selfplay-v4` compares opponent regimes (2 x 64, 200k games, `g-pool` the baseline): `g-sp` (itself only), `g-league`
+(every past self, one every 5k games), `g-pfsp` (the last 10, prioritized toward those it doesn't beat), `g-league-pfsp`,
+and `g-pool-80` (80% of games against the pool). Report it with `h2h --full`. `g-pbt` is population-based training
+(jobs/checkers_pbt_run.py: 8 members, the settings evolving), `g-rs` the same population with nothing copied.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
   uv run python jobs/checkers_selfplay_experiment.py h2h    --name NAME [--arms ft-leaf3] [--elo1 50] [--full]
@@ -43,6 +48,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+import checkers_pbt_run
 import checkers_selfplay_run
 from checkers_sprt import run_factory, sequential_match
 from evaluate_versus import play_pairing
@@ -69,6 +75,9 @@ class Arm:
     baseline: str | None = "sp"
     # Continue from the final network of this (experiment, arm)'s run with the same rng seed, instead of a fresh one.
     init: tuple[str, str] | None = None
+    # A population (jobs/checkers_pbt_run.py) of this many members instead of one learner: `games` per member.
+    population: int = 0
+    exploit: bool = True
 
 
 POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
@@ -92,6 +101,19 @@ ARMS: dict[str, Arm] = {
     "ft-td": Arm(BIG, games=50_000, baseline=None, init=("selfplay-v2", "pool-2x64-1m")),
     "ft-leaf2": Arm({**BIG, "search_depth": 2}, games=50_000, baseline="ft-td", init=("selfplay-v2", "pool-2x64-1m")),
     "ft-leaf3": Arm({**BIG, "search_depth": 3}, games=50_000, baseline="ft-td", init=("selfplay-v2", "pool-2x64-1m")),
+    # selfplay-v4, opponent regimes (2 x 64, 200k games; measured with `h2h`, docs/design/0013): who does the network
+    # play? Itself only, the last 10 selves (the recipe so far), every past self (a league: fictitious self-play), the
+    # past selves it still fails to beat (prioritized fictitious self-play, AlphaStar's PFSP), or mostly the pool.
+    "g-pool": Arm(BIG, baseline=None),
+    "g-sp": Arm({"hidden": 64, "hidden_layers": 2}, baseline="g-pool"),
+    "g-league": Arm({**BIG, "pool_size": 40}, baseline="g-pool"),
+    "g-pfsp": Arm({**BIG, "pfsp": 2}, baseline="g-pool"),
+    "g-league-pfsp": Arm({**BIG, "pool_size": 40, "pfsp": 2}, baseline="g-league"),
+    "g-pool-80": Arm({**BIG, "pool_fraction": 0.8}, baseline="g-pool"),
+    # Population-based training (8 members, 200k games each, settings sampled then evolved) against the same population
+    # with nothing copied -- random search over the same settings, equal compute, best member kept.
+    "g-rs": Arm(population=8, exploit=False, baseline="g-pool"),
+    "g-pbt": Arm(population=8, baseline="g-rs"),
 }
 GAMES_PER_ITERATION = 1000
 
@@ -121,8 +143,18 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
                 if not parents:
                     sys.exit(f"{arm_name} seed {seed} continues {arm.init}, which has no completed run for that seed")
                 init_run = parents[0].run_id
-            iterations = max(1, arm.games // GAMES_PER_ITERATION)
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.games:,} games)", flush=True)
+            if arm.population:
+                checkers_pbt_run.main(
+                    members=arm.population,
+                    games=arm.games,
+                    depth=DEPTH,
+                    exploit=arm.exploit,
+                    rng_seed=seed,
+                    tags={"experiment": name, "arm": arm_name},
+                )
+                continue
+            iterations = max(1, arm.games // GAMES_PER_ITERATION)
             checkers_selfplay_run.main(
                 iterations=iterations,
                 games_per_iteration=GAMES_PER_ITERATION,

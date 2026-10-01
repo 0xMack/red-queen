@@ -11,7 +11,8 @@ and measuring cost/tradeoffs, 0008: NEAT and tracked algorithm comparisons, 0009
 games, ONNX Runtime Web, model packages; 0010: reinforcement learning — the Q-table → DQN → policy-gradient →
 self-play plan; 0011: multi-armed bandits — a game and chapter for exploration vs. exploitation, the rung under
 Q-learning; 0012: interactive maths notation — formulas as expression trees with addressable terms, linked
-both ways to the demos; 0013: measuring two-player strength — ballot openings, game pairs, Elo, SPRT) — read the relevant one before an
+both ways to the demos; 0013: measuring two-player strength — ballot openings, game pairs, Elo, SPRT; 0014: two-player
+training regimes — opponent pools, leagues, PFSP, population-based training) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -222,6 +223,10 @@ architectural change that might conflict with a decision already made.
     plateaus), champions saved as `evolve.WeightVector` JSON so they *are* Checkers evaluators (versus leaderboard,
     packaging, page: unchanged); `rl.CheckersSelfPlay`, WASM `SelfPlayTrainer`. `search_depth` > 1 is TD-Leaf(λ):
     self-play searches and learns at the principal variation's leaf; `set_weights` / `--init-run` continue a network.
+    Opponent regimes (docs/design/0014): `pool_*` (a pool of past selves; a large `pool_size` is a league), `pfsp`
+    (prioritized toward past selves it doesn't beat, per-member running scores; 0 draws exactly the old random numbers,
+    so the determinism fixture holds), and `set_param` changes settings mid-run for `jobs/checkers_pbt_run.py`
+    (population-based training). Measured: the default 10-member, 50% pool beat every alternative and PBT.
     Bandits (docs/design/0011): `rust/core/src/bandit.rs` is *online* strategies (greedy, ε-greedy, optimistic, UCB1,
     Thompson, gradient, and `QTableAgent` itself with γ 0) over a `rows x arms` table -- they learn within one game, so
     they don't use the `Trainer`; `rust/envs/src/bandit.rs`'s `BanditRun` couples one to one game through the
@@ -250,7 +255,10 @@ architectural change that might conflict with a decision already made.
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
   `checkers_selfplay_run.py` trains a Checkers evaluator by TD(λ) self-play and records it as an ordinary Checkers run
   (`representation: td_lambda`); `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
-  field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by.
+  field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by -- and,
+  better, `h2h [--full]` (each arm against its baseline arm, head to head, docs/design/0013). `checkers_pbt_run.py` is a
+  population of self-play learners whose settings evolve (PBT; `--no-exploit` is its random-search control), with
+  `export_pbt_history.py` writing one run's population history for the Learn chapter `/learn/training-regimes`.
   `rl_run.py` runs an `libs/rl` algorithm one *iteration* (a budget of env steps) per call and records it in the
   same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
   "reinforcement_learning"`; the frontend's `runMeta` relabels them); `rl_benchmark.py` is the native half of
