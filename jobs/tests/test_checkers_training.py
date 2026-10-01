@@ -167,3 +167,14 @@ def test_resampling_plays_different_games_each_generation_but_the_same_ones_for_
         resampled.on_generation(Summary(g))
     assert fixed.evaluate(genome) == baseline  # not resampling: every generation replays the same games
     assert resampled.evaluate(genome) != first  # resampling: new games
+
+
+def test_opening_plies_survive_the_reset_play_match_does():
+    # play_match resets its env before the first move; the opening must be where the game starts, not thrown away.
+    pool = training.OpponentPool(["material-2"], depth=1, opening_plies=6, resample=True)
+    make = pool._env_factory()
+    first, second, third = make(), make(), make()
+    first.reset()
+    assert first.board != Checkers().board and len(first.opening) == 6
+    assert first.opening == second.opening  # both seats of an opponent share one opening
+    assert third.opening != first.opening

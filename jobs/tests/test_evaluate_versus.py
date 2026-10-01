@@ -17,39 +17,58 @@ def _entrants():
     return [*evaluate_versus.baseline_entrants(), trained]
 
 
-def test_round_robin_is_zero_sum_and_symmetric():
+def test_round_robin_plays_game_pairs_on_ballot_openings_and_is_zero_sum():
     entrants = _entrants()
-    results = evaluate_versus.round_robin(entrants, games=4)
+    results = evaluate_versus.round_robin(entrants, per_pair=2)
 
     for a in entrants:
         assert set(results[a["entrant_id"]]) == {e["entrant_id"] for e in entrants if e is not a}
     # Every game hands out exactly one point, and one side's points are the other's mirror image.
     total = sum(p for by in results.values() for games in by.values() for p, _ in games)
     pairs = len(entrants) * (len(entrants) - 1) // 2
-    assert total == pairs * 4 * 1.0 * 1.0
+    assert total == pairs * 2 * 2
     a, b = entrants[0]["entrant_id"], entrants[1]["entrant_id"]
     assert [p for p, _ in results[a][b]] == [1.0 - p for p, _ in results[b][a]]
+    # Pairings take successive slices of the ballot, wrapping round it.
+    ballot = evaluate_versus.ballot()
+    assert evaluate_versus.openings_for(0, 2) == [ballot[0], ballot[1]]
+    assert evaluate_versus.openings_for(len(ballot) // 2, 2) == [ballot[0], ballot[1]]
 
 
-def test_records_carry_points_per_game_and_head_to_head(monkeypatch):
+def test_a_game_pair_is_one_opening_from_both_seats():
+    first = evaluate_versus.STRATEGIES["first-legal"]
+    material = evaluate_versus.STRATEGIES["material-2"]
+    opening = evaluate_versus.ballot()[5]
+    games = evaluate_versus.play_pairing(material, first, [opening], seed_base=0)
+    assert len(games) == 2
+    assert games == [
+        evaluate_versus.play_game(material, first, opening, 0, 0),
+        evaluate_versus.play_game(material, first, opening, 1, 1),
+    ]
+    assert evaluate_versus.pair_points(games) == [games[0][0] + games[1][0]]
+
+
+def test_records_carry_an_elo_rating_points_and_head_to_head(monkeypatch):
     monkeypatch.setattr(
         evaluate_versus, "measure_inference", lambda factory: {"encode_us": 0.0, "decide_us": 1.0, "total_us": 1.0}
     )
     entrants = _entrants()
 
-    records = evaluate_versus.evaluate_all(entrants, None, {"cpu": "test"}, games=4)
+    records = evaluate_versus.evaluate_all(entrants, None, {"cpu": "test"}, per_pair=2, replicates=10)
 
     assert {r.entrant_id for r in records} == {e["entrant_id"] for e in entrants}
     for record in records:
         quality, versus = record.metrics["quality"], record.metrics["versus"]
-        assert record.protocol == "checkers.versus.v1" and record.game == "checkers"
-        assert quality["n"] == 4 * (len(entrants) - 1)  # every other entrant, 4 games each
-        assert 0.0 <= quality["mean"] <= 1.0
+        assert record.protocol == "checkers.versus.v2" and record.game == "checkers"
+        assert quality["n"] == 4 * (len(entrants) - 1)  # every other entrant, 2 game pairs each
         assert versus["wins"] + versus["draws"] + versus["losses"] == quality["n"]
-        assert quality["mean"] == round((versus["wins"] + 0.5 * versus["draws"]) / quality["n"], 4)
+        assert versus["points"] == round((versus["wins"] + 0.5 * versus["draws"]) / quality["n"], 4)
+        assert sum(versus["pentanomial"]) == quality["n"] // 2
+        assert quality["min"] <= quality["mean"] <= quality["max"] and quality["mean"] == versus["rating"]["elo"]
         assert set(versus["by_opponent"]) == {e["entrant_id"] for e in entrants if e["entrant_id"] != record.entrant_id}
-    # 4 games per pair is far too few to order the weak baselines, but not to see the strong one.
     by_id = {r.entrant_id: r.metrics["quality"]["mean"] for r in records}
+    assert by_id["baseline:random"] == 0.0  # the anchor
+    # 2 pairs per pairing is far too few to order the weak baselines, but not to see the strong one.
     assert by_id["baseline:material-2"] > max(by_id["baseline:random"], by_id["baseline:first-legal"])
 
 

@@ -25,6 +25,13 @@ variation's leaves.
 
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
+  uv run python jobs/checkers_selfplay_experiment.py h2h    --name NAME [--arms ft-leaf3] [--elo1 50] [--full]
+
+`h2h` is the comparison that doesn't run out of opponents (docs/design/0013): each arm's final network plays its
+baseline arm's network from the same rng seed, head to head, both searching `DEPTH` plies, in game pairs over the
+ballot -- every seed's couple plays each opening before the next -- feeding one SPRT (jobs/checkers_sprt.py) that
+stops once the arm is shown `elo1` stronger (H1) or no stronger (H0). `--full` plays the whole ballot regardless, for
+the tightest estimate. Reported per arm: the verdict, the pooled Elo difference with its interval, and each seed's.
 """
 
 from __future__ import annotations
@@ -37,15 +44,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import checkers_selfplay_run
+from checkers_sprt import run_factory, sequential_match
 from evaluate_versus import play_pairing
 from evolve import WeightVector, network_from_json
+from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator
 from rl_experiment import EXPERIMENTS_DIR, paired_permutation_p
 from run_context import TelemetryStores
 from snake_experiment import _stats, experiment_runs, parse_seeds
+from versus_stats import Sprt, pair_elo
 
 DEPTH = 3
-GAMES_PER_OPPONENT = 20
+GAMES_PER_OPPONENT = 20  # games (so GAMES_PER_OPPONENT / 2 ballot openings, a game pair each) per field opponent
 SEED_BASE = 40_000  # disjoint from training (self-play draws its own), monitoring (20k) and the leaderboard (30k)
 FIELD = ("material-2", "material-3", "material-4")
 # The versus leaderboard's best evolved evaluator (0.757 points per game there): the benchmark from the other paradigm.
@@ -143,8 +153,10 @@ def score_run(snapshot: str, field_: dict[str, Any], games: int = GAMES_PER_OPPO
     network = WeightVector.from_json(snapshot)
     me = evaluator(network.weights, network.layer_sizes, DEPTH)
     by_opponent = {}
+    openings = list(ballot())
     for i, (name, opponent) in enumerate(field_.items()):
-        played = play_pairing(me, opponent, games, SEED_BASE + 1000 * i)
+        chosen = [openings[(i * 37 + k) % len(openings)] for k in range(max(1, games // 2))]
+        played = play_pairing(me, opponent, chosen, SEED_BASE + 1000 * i)
         by_opponent[name] = statistics.fmean(points for points, _ in played)
     return {"overall": statistics.fmean(by_opponent.values()), **by_opponent}
 
@@ -206,6 +218,72 @@ def build_report(name: str, games: int = GAMES_PER_OPPONENT) -> dict[str, Any]:
     }
 
 
+def across_seeds(per_seed: dict[int, dict[str, float]]) -> dict[str, Any]:
+    """The regime-level view of a head-to-head. The pooled interval counts every game pair, so it answers "are these
+    networks stronger than those" -- but a regime is a distribution over training seeds, and seeds differ. Here each
+    seed's Elo difference is one sample: their mean and an exact sign-flip permutation test against 0 (with 5 seeds the
+    smallest possible p is 0.0625, whatever the games say)."""
+    elos = [e["elo"] for e in per_seed.values()]
+    return {
+        "mean": round(statistics.fmean(elos), 1),
+        "sd": round(statistics.stdev(elos), 1) if len(elos) > 1 else 0.0,
+        "positive": sum(1 for e in elos if e > 0),
+        "seeds": len(elos),
+        "sign_flip_p": round(paired_permutation_p(elos, [0.0] * len(elos)), 4) if len(elos) > 1 else None,
+    }
+
+
+def build_h2h(name: str, arms: list[str] | None = None, elo1: float = 50.0, full: bool = False) -> dict[str, Any]:
+    """Each arm (with a baseline) against its baseline arm, seed for seed, head to head (see the module docs)."""
+    registry, metrics, artifacts = TelemetryStores.open()
+    runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
+    by_arm: dict[str, dict[int, Any]] = {}
+    for run in runs:
+        by_arm.setdefault(run.config["arm"], {})[run.config["rng_seed"]] = run
+    out = {}
+    for arm in arms or sorted(by_arm):
+        baseline = ARMS[arm].baseline if arm in ARMS else None
+        if baseline is None or baseline not in by_arm or arm not in by_arm:
+            continue
+        seeds = sorted(set(by_arm[arm]) & set(by_arm[baseline]))
+        if not seeds:
+            continue
+        couples = [
+            (
+                run_factory(by_arm[arm][s], metrics, artifacts, DEPTH),
+                run_factory(by_arm[baseline][s], metrics, artifacts, DEPTH),
+            )
+            for s in seeds
+        ]
+        # --full: bounds no finite LLR reaches, so the whole ballot is played
+        test = Sprt(elo0=0.0, elo1=elo1, alpha=1e-300, beta=1e-300) if full else Sprt(elo0=0.0, elo1=elo1)
+        print(f"=== {arm} vs {baseline}: {len(seeds)} seeds, {len(ballot())} openings available", flush=True)
+        result = sequential_match(couples, test)
+        per_seed = {seed: pair_elo(pairs) for seed, pairs in zip(seeds, result.pop("per_couple"), strict=True)}
+        if full:
+            result["verdict"] = "full ballot"
+            result["alpha"] = result["beta"] = None
+        out[arm] = {
+            "baseline": baseline,
+            "seeds": seeds,
+            **result,
+            "per_seed": per_seed,
+            "across_seeds": across_seeds(per_seed),
+        }
+        print(
+            f"{arm} vs {baseline}: {result['verdict']} after {result['openings_played']} openings x {len(seeds)} seeds "
+            f"-- Elo {result['elo']:+.0f} [{result['lo']:+.0f}, {result['hi']:+.0f}]  "
+            + "  ".join(f"s{s} {e['elo']:+.0f}" for s, e in per_seed.items()),
+            flush=True,
+        )
+    return {
+        "name": name,
+        "protocol": f"head to head at {DEPTH}-ply, game pairs over the {len(ballot())}-opening ballot, "
+        + ("the whole ballot" if full else f"SPRT elo0 0, elo1 {elo1}, alpha = beta = 0.05"),
+        "arms": out,
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tracked Checkers self-play comparisons (docs/design/0010).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -216,7 +294,18 @@ def main(argv: list[str] | None = None) -> None:
     report = sub.add_parser("report")
     report.add_argument("--name", required=True)
     report.add_argument("--games", type=int, default=GAMES_PER_OPPONENT, help="games per field opponent")
+    h2h = sub.add_parser("h2h")
+    h2h.add_argument("--name", required=True)
+    h2h.add_argument("--arms", default=None, help="comma list (default: every arm with a baseline)")
+    h2h.add_argument("--elo1", type=float, default=50.0)
+    h2h.add_argument("--full", action="store_true", help="play the whole ballot instead of stopping early")
     args = parser.parse_args(argv)
+    if args.command == "h2h":
+        result = build_h2h(args.name, args.arms.split(",") if args.arms else None, args.elo1, args.full)
+        EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
+        suffix = "-h2h-full" if args.full else "-h2h"
+        (EXPERIMENTS_DIR / f"{args.name}{suffix}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        return
     if args.command == "run":
         arms = args.arms.split(",")
         unknown = [a for a in arms if a not in ARMS]

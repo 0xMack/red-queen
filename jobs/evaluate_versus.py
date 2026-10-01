@@ -7,18 +7,20 @@ Entrants for Checkers:
 - the fixed baselines (random, first-legal, 1-ply and 2-ply material) -- always included, since a ranking
   says nothing without them.
 
-Protocol `checkers.versus.v1`: a round robin. Every pair of entrants plays GAMES_PER_PAIR games, seats
-alternating so first-move advantage cancels, each game seeded (random tie-breaks reproduce), capped at
-MAX_PLIES. An entrant's **score is points per game** against every *other* entrant -- win 1, draw ½,
-loss 0 -- with a 95% interval over those games; per-opponent win/draw/loss is kept beside it
-(`metrics.versus`) for the head-to-head matrix. Rank by points per game; overlapping intervals show as
-ties, exactly as for Snake.
+Protocol `checkers.versus.v2` (docs/design/0013): a round robin over the **ballot** (games.checkers_openings: 174
+level three-ply openings). Every pair of entrants plays OPENINGS_PER_PAIR openings, each as a **game pair** -- once
+from each seat -- so opening luck cancels; each pairing takes the next openings in the ballot, so the round robin
+covers all of it. Games are seeded (random tie-breaks reproduce) and capped at MAX_PLIES.
 
-Two properties a versus score has that Snake's doesn't, and the page says so:
-- it is *relative to the field*: adding an entrant changes every score, so records are only comparable
-  within one evaluation run. Re-run this job whenever entrants change (it replaces the old records);
-- draws are real (40 moves without a capture), so a score of 0.5 is "even", not "no information".
-Glicko-2 (docs/design/0007) is the planned rating; points per game is the honest first version.
+An entrant's **score is an Elo rating**: Bradley-Terry fitted to every game of the round robin (jobs/versus_stats.py),
+anchored so Random is 0, with a bootstrap 95% interval over game pairs. `quality.mean` holds the rating, so every
+leaderboard component ranks by it unchanged; points per game, the pentanomial pair counts and the per-opponent
+win/draw/loss (the head-to-head matrix) are in `metrics.versus`. Overlapping intervals show as ties.
+
+Why a rating rather than points per game (v1): points against the field saturate -- a leader that beats a field of
+much weaker entrants scores ~0.94 whatever it is -- while a rating is set by the games it played against opponents
+near its strength. It is still relative to the field (re-run this job whenever entrants change; it replaces the old
+records), and draws are real (40 moves without a capture), counting half a win each way.
 
 Run with: uv run python jobs/evaluate_versus.py
 """
@@ -39,6 +41,7 @@ from evolve import NeatGenome, network_from_json, play_match
 from evolve.networks import describe, parameter_count
 from games import interfaces
 from games.checkers import Checkers
+from games.checkers_openings import Opening, ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
 from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
@@ -48,13 +51,15 @@ from telemetry import (
     SqliteEvaluationStore,
     SqliteRunRegistry,
 )
+from versus_stats import pentanomial, rate
 
 GAME = "checkers"
-PROTOCOL = "checkers.versus.v1"
+PROTOCOL = "checkers.versus.v2"
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
-GAMES_PER_PAIR = 20  # 10 per seat
+OPENINGS_PER_PAIR = 12  # 24 games per pairing, one game pair per opening
 MAX_PLIES = 300
 SEED_BASE = 30_000  # game seeds; disjoint from training's (jobs/checkers_neuro_run.py) and monitoring's
+ANCHOR = "baseline:random"  # rated 0
 
 # Human names and one-line descriptions for the fixed baselines (the strategies themselves are Rust). The deeper
 # material searches are the *fair* opponents for a trained evaluator that searches as deep: beating a shallower
@@ -146,46 +151,75 @@ def champion_entrants(
 # --- Measurement -------------------------------------------------------------------------------------
 
 
-def play_pairing(a: Factory, b: Factory, games: int, seed_base: int) -> list[tuple[float, int]]:
-    """`games` games between `a` and `b`, seats alternating: (a's points, plies) per game."""
+def play_game(a: Factory, b: Factory, opening: Opening, seat_a: int, seed: int) -> tuple[float, int]:
+    """One game from `opening`, `a` in `seat_a` (0 moves first from the standard start): (a's points, plies)."""
+    env = Checkers(opening=opening)
+    strategies = {
+        seat_a: a(env, random.Random(seed)),
+        1 - seat_a: b(env, random.Random(seed + 7919)),
+    }
+    match = play_match(env, strategies, max_moves=MAX_PLIES)
+    points = 0.5 if match.winner is None else 1.0 if match.winner == seat_a else 0.0
+    return points, match.moves_played
+
+
+def play_pairing(a: Factory, b: Factory, openings: list[Opening], seed_base: int) -> list[tuple[float, int]]:
+    """A game pair per opening -- `a` from seat 0, then from seat 1 -- as a flat list of (a's points, plies): games
+    2k and 2k + 1 are opening k's pair."""
     results = []
-    for game in range(games):
-        seed = seed_base + game
-        env = Checkers()
-        seat_a = game % 2
-        strategies = {
-            seat_a: a(env, random.Random(seed)),
-            1 - seat_a: b(env, random.Random(seed + 7919)),
-        }
-        match = play_match(env, strategies, max_moves=MAX_PLIES)
-        points = 0.5 if match.winner is None else 1.0 if match.winner == seat_a else 0.0
-        results.append((points, match.moves_played))
+    for k, opening in enumerate(openings):
+        for seat_a in (0, 1):
+            results.append(play_game(a, b, opening, seat_a, seed_base + 2 * k + seat_a))
     return results
 
 
+def pair_points(games: list[tuple[float, int]]) -> list[float]:
+    """The points of each game pair in `play_pairing`'s output (0 ... 2)."""
+    return [games[i][0] + games[i + 1][0] for i in range(0, len(games) - 1, 2)]
+
+
+def openings_for(index: int, per_pair: int) -> list[Opening]:
+    """The openings pairing `index` plays: the next `per_pair` of the ballot, wrapping, so a round robin covers it."""
+    openings = ballot()
+    return [openings[(index * per_pair + k) % len(openings)] for k in range(per_pair)]
+
+
 def round_robin(
-    entrants: list[dict[str, Any]], games: int = GAMES_PER_PAIR
+    entrants: list[dict[str, Any]], per_pair: int = OPENINGS_PER_PAIR
 ) -> dict[str, dict[str, list[tuple[float, int]]]]:
-    """results[a][b] = a's (points, plies) games against b (b's are the mirror image)."""
+    """results[a][b] = a's (points, plies) games against b, in game pairs (b's are the mirror image)."""
     results: dict[str, dict[str, list[tuple[float, int]]]] = {e["entrant_id"]: {} for e in entrants}
     for index, (a, b) in enumerate(itertools.combinations(entrants, 2)):
-        played = play_pairing(a["factory"], b["factory"], games, SEED_BASE + index * games)
+        played = play_pairing(
+            a["factory"], b["factory"], openings_for(index, per_pair), SEED_BASE + index * 2 * per_pair
+        )
         results[a["entrant_id"]][b["entrant_id"]] = played
         results[b["entrant_id"]][a["entrant_id"]] = [(1.0 - points, plies) for points, plies in played]
     return results
 
 
-def quality_of(games: list[tuple[float, int]]) -> dict[str, Any]:
+def ratings(results: dict[str, dict[str, list[tuple[float, int]]]], replicates: int = 200) -> dict[str, dict]:
+    """Bradley-Terry Elo for every entrant (ANCHOR = 0) with bootstrap intervals over game pairs."""
+    pairings = {}
+    for a, by_opponent in results.items():
+        for b, games in by_opponent.items():
+            if (b, a) not in pairings:
+                pairings[(a, b)] = pair_points(games)
+    return rate(pairings, anchor=ANCHOR, replicates=replicates)
+
+
+def quality_of(games: list[tuple[float, int]], rating: dict[str, float]) -> dict[str, Any]:
+    """The score block every leaderboard reads: here the Elo rating (`mean`), its interval's half-width (`ci95`) and
+    ends (`min`/`max`); `scores` stays the per-game points."""
     points = [p for p, _ in games]
     n = len(points)
-    stdev = statistics.stdev(points) if n > 1 else 0.0
     return {
         "n": n,
-        "mean": round(statistics.fmean(points), 4),
-        "ci95": round(1.96 * stdev / n**0.5, 4) if n > 1 else 0.0,
-        "median": statistics.median(points),
-        "min": min(points),
-        "max": max(points),
+        "mean": rating["elo"],
+        "ci95": round((rating["hi"] - rating["lo"]) / 2, 1),
+        "median": rating["elo"],
+        "min": rating["lo"],
+        "max": rating["hi"],
         "zero_rate": round(sum(1 for p in points if p == 0.0) / n, 4),  # the loss rate
         "mean_steps": round(statistics.fmean(plies for _, plies in games), 2),
         "train_mean": None,  # no training-seed benchmark to compare with: the opponents *are* the benchmark
@@ -194,7 +228,7 @@ def quality_of(games: list[tuple[float, int]]) -> dict[str, Any]:
     }
 
 
-def versus_of(by_opponent: dict[str, list[tuple[float, int]]]) -> dict[str, Any]:
+def versus_of(by_opponent: dict[str, list[tuple[float, int]]], rating: dict[str, float]) -> dict[str, Any]:
     def wdl(games: list[tuple[float, int]]) -> dict[str, int]:
         return {
             "wins": sum(1 for p, _ in games if p == 1.0),
@@ -205,6 +239,9 @@ def versus_of(by_opponent: dict[str, list[tuple[float, int]]]) -> dict[str, Any]
     everything = [g for games in by_opponent.values() for g in games]
     return {
         **wdl(everything),
+        "points": round(statistics.fmean(p for p, _ in everything), 4),
+        "pentanomial": pentanomial([p for games in by_opponent.values() for p in pair_points(games)]),
+        "rating": {**rating, "anchor": ANCHOR, "scale": "Elo (Bradley-Terry)"},
         "games_per_pair": len(next(iter(by_opponent.values()))),
         "by_opponent": {k: wdl(v) for k, v in by_opponent.items()},
     }
@@ -244,14 +281,18 @@ def evaluate_all(
     entrants: list[dict[str, Any]],
     metrics: FileMetricsStore | None,
     hardware: dict[str, Any],
-    games: int = GAMES_PER_PAIR,
+    per_pair: int = OPENINGS_PER_PAIR,
+    replicates: int = 200,
 ) -> list[EvaluationRecord]:
-    results = round_robin(entrants, games)
+    results = round_robin(entrants, per_pair)
+    rated = ratings(results, replicates)
     interface = interfaces.get(INTERFACE)
+    pairings = len(entrants) * (len(entrants) - 1) // 2
     records = []
     for entrant in entrants:
         by_opponent = results[entrant["entrant_id"]]
         all_games = [g for played in by_opponent.values() for g in played]
+        rating = rated[entrant["entrant_id"]]
         inference = measure_inference(entrant["factory"])
         inference["parameters"] = entrant["parameters"]
         inference["artifact_bytes"] = entrant["artifact_bytes"]
@@ -268,8 +309,8 @@ def evaluate_all(
                 champion_ref=entrant.get("champion_ref"),
                 created_at=time.time(),
                 metrics={
-                    "quality": quality_of(all_games),
-                    "versus": versus_of(by_opponent),
+                    "quality": quality_of(all_games, rating),
+                    "versus": versus_of(by_opponent, rating),
                     "inference": inference,
                     "training": training_cost(run, metrics) if run and metrics else {"measured": True, "none": True},
                     "model": {
@@ -280,11 +321,13 @@ def evaluate_all(
                         "note": entrant.get("note"),
                     },
                     "protocol": {
-                        "held_out_seeds": [SEED_BASE, SEED_BASE + games * len(entrants) * (len(entrants) - 1) // 2 - 1],
+                        "held_out_seeds": [SEED_BASE, SEED_BASE + 2 * per_pair * pairings - 1],
                         "episodes": len(all_games),
                         "max_steps": MAX_PLIES,
                         "board": {"width": 8, "height": 8},
-                        "metric": "points per game (win 1, draw ½, loss 0) against every other entrant, both seats",
+                        "openings": {"ballot": len(ballot()), "per_pair": per_pair},
+                        "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings "
+                        "against every other entrant",
                     },
                 },
                 hardware=hardware,
@@ -304,7 +347,7 @@ def main() -> None:
         store.put(record)
         q, v = record.metrics["quality"], record.metrics["versus"]
         print(
-            f"{record.label:<44} {q['mean']:.3f} ±{q['ci95']:.3f}  "
+            f"{record.label:<52} Elo {q['mean']:>6.0f} [{q['min']:.0f}, {q['max']:.0f}]  {v['points']:.3f} pts/game  "
             f"{v['wins']}W {v['draws']}D {v['losses']}L over {q['n']} games  "
             f"{record.metrics['inference']['total_us']:>8.1f} µs/decision"
         )

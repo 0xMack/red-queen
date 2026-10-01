@@ -42,7 +42,9 @@ export function useCheckersEntrants(entries: MaybeRefOrGetter<EvaluationRecord[]
     if (!list.length) return STATIC_STRATEGIES
     return list.flatMap((r) => {
       const depth = r.metrics.model.search_depth ?? 1
-      const description = `${r.metrics.model.description}${depth > 1 ? `, searching ${depth} plies` : ""}. ${r.metrics.quality.mean.toFixed(2)} points per game.`
+      // Since checkers.versus.v2 the score is an Elo rating (docs/design/0013); older records held points per game.
+      const score = r.metrics.versus?.rating ? `Rated ${r.metrics.quality.mean.toFixed(0)} Elo` : `${r.metrics.quality.mean.toFixed(2)} points per game`
+      const description = `${r.metrics.model.description}${depth > 1 ? `, searching ${depth} plies` : ""}. ${score}.`
       if (r.entrant_kind === "baseline") {
         return [wasmStrategy({ id: r.entrant_id, kind: r.entrant_id.replace(/^baseline:/, ""), label: r.label, description })]
       }

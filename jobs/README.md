@@ -75,13 +75,20 @@ themselves — see docs/design/0001) get wired to it for a real run.
   in Python), fitness is `MatchFitnessEvaluator(env_aware=True)`
   against the static strategies (one value per opponent per seat, lexicase selection), and the
   held-out score is win/draw/loss on games with opponent seeds training never used.
-- `evaluate_versus.py` — the two-player leaderboard (docs/design/0007's "Versus"): protocol
-  `checkers.versus.v1`, a round robin over every finished checkers champion plus the fixed baselines,
-  20 games per pair with seats alternating. An entrant's score is **points per game** (win 1, draw ½)
-  against every *other* entrant, with a 95% interval, and per-opponent W/D/L beside it
-  (`metrics.versus`, for the head-to-head matrix). Same `EvaluationRecord`s as `evaluate.py`, so the game
-  page's leaderboard components need nothing game-specific. Scores are relative to the field: re-run it
-  whenever entrants change (it replaces the old records).
+- `evaluate_versus.py` — the two-player leaderboard (docs/design/0007's "Versus", 0013): protocol
+  `checkers.versus.v2`, a round robin over every finished checkers champion plus the fixed baselines, 12 ballot
+  openings (`games.checkers_openings`) per pairing, each a **game pair** (both seats). An entrant's score
+  (`quality.mean`) is an **Elo rating**: Bradley–Terry over every game, Random = 0, bootstrap 95% interval
+  (`versus_stats.py`); points per game, pentanomial pair counts and per-opponent W/D/L are in `metrics.versus`. Same
+  `EvaluationRecord`s as `evaluate.py`, so the game page's leaderboard components need nothing game-specific. Ratings
+  are relative to the field: re-run it whenever entrants change (it replaces the old records).
+- `versus_stats.py` — the statistics of two-player strength, game-agnostic: Elo ↔ expected score, pentanomial counts,
+  Bradley–Terry ratings (Newton's method) with bootstrap intervals, and `Sprt`, the pentanomial sequential test.
+- `checkers_sprt.py` — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
+  decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `checkers_selfplay_experiment.py
+  h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
+- `export_ballot.py` — writes the ballot (every 3-ply opening, its board and verdict) as
+  `apps/frontend/app/data/checkersBallot.ts` for the Learn chapter.
 - `parallel.py` — `ProcessPoolEvaluator(inner, workers)`: scores a generation's genomes across processes
   (`evolve.fitness.evaluate_all` calls its `evaluate_many`). Fitness evaluators here are deterministic, so a parallel
   run reproduces a serial one; used by `checkers_neuro_run.py --workers N` and `checkers_distill_run.py`. Cost meters

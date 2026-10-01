@@ -57,15 +57,30 @@ const stats = computed(() => {
 })
 const lead = computed(() => stats.value.material[0]! - stats.value.material[1]!)
 
-// Play mode: report the human's points per game (win 1, draw ½) so the side leaderboard can slot "You" in.
-// It's *this browser's session* record against whoever was on the other side, not a leaderboard entry.
+// Play mode: rate the human so the side leaderboard can slot "You" in. The leaderboard ranks by Elo
+// (docs/design/0013), so the human's number is a *performance rating*: the Elo at which their expected points against
+// the entrants they actually played equal the points they scored (utils/versusStats.ts). It's this browser session's
+// games, not a leaderboard entry. Each finished game is attributed to whoever was in the other seat when it ended.
+const played: { opponentElo: number; points: number }[] = []
+let counted = { wins: [0, 0], draws: 0 }
 watch(
   record,
   (r) => {
     const humanSeat = seats.value.indexOf("human")
-    const games = r.wins[0] + r.wins[1] + r.draws
-    if (props.mode !== "play" || humanSeat < 0 || games === 0) return
-    emit("score", (r.wins[humanSeat]! + 0.5 * r.draws) / games, false, `You · ${games} game${games === 1 ? "" : "s"}`)
+    const before = counted
+    counted = { wins: [...r.wins], draws: r.draws }
+    if (props.mode !== "play" || humanSeat < 0) return
+    const opponent = props.entries.find((e) => e.entrant_id === seats.value[1 - humanSeat])
+    if (!opponent?.metrics.versus?.rating) return
+    const won = r.wins[humanSeat]! - before.wins[humanSeat]!
+    const lost = r.wins[1 - humanSeat]! - before.wins[1 - humanSeat]!
+    const drawn = r.draws - before.draws
+    for (const [n, points] of [[won, 1], [lost, 0], [drawn, 0.5]] as const) {
+      for (let i = 0; i < n; i++) played.push({ opponentElo: opponent.metrics.quality.mean, points })
+    }
+    const rating = performanceRating(played)
+    if (rating === null || won + lost + drawn === 0) return
+    emit("score", rating, false, `You · ${played.length} game${played.length === 1 ? "" : "s"}`)
   },
   { deep: true },
 )

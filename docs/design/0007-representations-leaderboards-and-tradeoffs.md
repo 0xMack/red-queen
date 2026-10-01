@@ -123,9 +123,10 @@ versioned **protocol** and stores the results. Training fitness is never used fo
   seats, 20 games per pair, reusing `evolve.play_match()`; every finished champion plus the fixed
   baselines. Score = points per game against every other entrant (win 1, draw ½) with a 95% interval, and
   per-opponent W/D/L kept for a head-to-head matrix. It is *relative to the field* (adding an entrant
-  shifts every score), which is the drawback of this first version. Still planned: ratings via Glicko-2
-  (tracks uncertainty, which suits few-game entrants such as humans), anchored by fixed baselines so the
-  scale doesn't drift.
+  shifts every score), which is the drawback of this first version. **Superseded by `checkers.versus.v2`
+  ([0013](0013-measuring-two-player-strength.md))**: game pairs over a ballot of level openings, ranked by a
+  Bradley–Terry Elo rating anchored at Random = 0 (a static fit with bootstrap intervals rather than Glicko-2: every
+  entrant plays every other, so there are no few-game entrants to track; a human's row is a performance rating).
 - **Humans, later**: for Snake, a short fixed "challenge" seed set, compared on those same seeds;
   for Checkers, a human is just another `Strategy` behind a UI. Humans always play L0 visual with
   absolute controls, and are labelled that way.

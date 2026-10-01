@@ -64,6 +64,22 @@ const qnetEdges = qnet.edges
 // A mid-game position for the self-play cover: (column, row) per piece.
 const selfPlayPieces: [number, number][] = [[1, 0], [3, 0], [0, 1], [4, 1], [3, 2], [5, 2], [2, 3], [4, 5], [1, 6], [3, 6], [6, 5], [7, 6], [0, 7]]
 
+// Measuring strength: an LLR walk (a seeded SPRT run, drifting up) until it crosses the upper bound.
+const strengthWalk = (() => {
+  const r = rand(29)
+  const points: string[] = []
+  let v = 125
+  for (let i = 0; i <= 38; i++) {
+    points.push(`${40 + i * 8},${v.toFixed(1)}`)
+    v -= (r() - 0.36) * 14
+    if (v <= 58) {
+      points.push(`${48 + i * 8},58`)
+      break
+    }
+  }
+  return points.join(" ")
+})()
+
 // A normal density across the art's bottom strip (mean at x = 232), for the policy cover.
 const policyBell = Array.from({ length: 65 }, (_, i) => {
   const x = 40 + i * 5
@@ -269,6 +285,18 @@ const attention = (() => {
       <text x="335" y="118" text-anchor="middle" :fill="palette.fgMuted">V(s)</text>
       <text x="335" y="132" text-anchor="middle" :fill="palette.fgSubtle" font-size="8">one network</text>
       <text v-for="(v, i) in ['+0.41', '−0.38', '+0.52', '−0.49', '+1']" :key="`v${i}`" :x="40 + i * 66" y="232" :fill="i % 2 ? palette.fg : palette.queen400">{{ v }}</text>
+    </g>
+
+    <!-- Measuring strength: a sequential test's LLR walking to a bound, over a rating ladder -->
+    <g v-else-if="kind === 'strength'" font-family="Geist Mono, monospace" font-size="10">
+      <line x1="40" x2="372" y1="58" y2="58" :stroke="palette.life400" stroke-dasharray="5 4" />
+      <line x1="40" x2="372" y1="192" y2="192" :stroke="palette.queen400" stroke-dasharray="5 4" />
+      <line x1="40" x2="372" y1="125" y2="125" :stroke="palette.line" />
+      <text x="372" y="50" text-anchor="end" :fill="palette.life300">H1 · stronger</text>
+      <text x="372" y="208" text-anchor="end" :fill="palette.queen300">H0 · no stronger</text>
+      <polyline :points="strengthWalk" fill="none" :stroke="palette.fg" stroke-width="2" />
+      <text x="40" y="236" :fill="palette.fgSubtle">game pairs →</text>
+      <text x="40" y="30" :fill="palette.fgSubtle">log-likelihood ratio</text>
     </g>
 
     <!-- A policy: observation -> network -> move probabilities (sampled), and a Gaussian for a continuous action -->

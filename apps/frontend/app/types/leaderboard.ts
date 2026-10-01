@@ -51,13 +51,18 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
     quality: QualityMetrics
     inference: InferenceMetrics
     training: TrainingMetrics
-    // Two-player games only (jobs/evaluate_versus.py): the record behind the points-per-game score, and
-    // against each other entrant, for the head-to-head matrix.
+    // Two-player games only (jobs/evaluate_versus.py): the record behind the score, and against each other entrant,
+    // for the head-to-head matrix. Since `checkers.versus.v2` (docs/design/0013) the score (`quality.mean`) is an Elo
+    // rating; points per game, the game-pair counts and the rating's interval are here.
     versus?: {
       wins: number
       draws: number
       losses: number
       games_per_pair: number
+      points?: number
+      // game pairs (one opening, both seats) scoring 0, ½, 1, 1½ and 2 points
+      pentanomial?: [number, number, number, number, number]
+      rating?: { elo: number; lo: number; hi: number; anchor: string; scale: string }
       by_opponent: Record<string, { wins: number; draws: number; losses: number }>
     }
     model: {
