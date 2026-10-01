@@ -20,6 +20,8 @@ what belongs here and how to add to it). Read before writing code, not after.
   sensibly a `RunStatus` value — so it's implemented entirely API-side instead (resume, wait for one
   new `GenerationStats` via the existing `MetricsSource`, re-pause), keeping the job-side callback a
   two-state check rather than growing a third state for one caller's benefit.
+  Call the control callback at least every few seconds of work, not once per "generation": a population job that
+  checked only after each 80k-game round kept 8 cores busy for half an hour after being paused.
 - **Formatting is enforced, so just run it**: `uv run ruff format . && uv run ruff check --fix .` and `cargo fmt`
   (in `libs/games`) before committing -- CI fails otherwise. One config at 120 columns (root `pyproject.toml`,
   `libs/games/rustfmt.toml`); every package's `[tool.ruff]` must `extend` the root, because ruff uses the

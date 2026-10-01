@@ -5,18 +5,18 @@
 // "Field" is what the old report said (points per game against material-2/3/4 and an evolved network, the variant's
 // mean minus its baseline's, exact paired p over seeds). "SPRT" is the sequential test (elo0 0, elo1 50, α = β = 0.05,
 // pairs pooled over the seeds). "Head to head" plays the whole ballot: the Elo difference over 870 pairs, and each seed's.
-interface Row {
+export interface H2hRow {
   arm: string
   vs: string
   what: string
-  field: { diff: number; p: number }
-  sprt: { verdict: "H1" | "H0"; pairs: number }
+  field?: { diff: number; p: number }
+  sprt?: { verdict: "H1" | "H0"; pairs: number }
   elo: number
   lo: number
   hi: number
   seeds: number[]
 }
-const ROWS: Row[] = [
+const SELFPLAY_ROWS: H2hRow[] = [
   { arm: "TD-Leaf, 3 plies", vs: "plain TD", what: "train through a 3-ply search", field: { diff: 0.104, p: 0.125 }, sprt: { verdict: "H1", pairs: 25 }, elo: 120, lo: 108, hi: 132, seeds: [103, 124, 127, 120, 126] },
   { arm: "TD-Leaf, 2 plies", vs: "plain TD", what: "train through a 2-ply search", field: { diff: 0.067, p: 0.125 }, sprt: { verdict: "H1", pairs: 40 }, elo: 81, lo: 70, hi: 93, seeds: [82, 71, 81, 54, 119] },
   { arm: "2 × 64", vs: "1 × 64", what: "a second hidden layer, 1M games", field: { diff: 0.162, p: 0.0625 }, sprt: { verdict: "H1", pairs: 20 }, elo: 143, lo: 131, hi: 156, seeds: [152, 135, 114, 173, 146] },
@@ -30,6 +30,11 @@ const ROWS: Row[] = [
   { arm: "λ 1", vs: "λ 0.7", what: "Monte-Carlo: the result only", field: { diff: -0.253, p: 0.0625 }, sprt: { verdict: "H0", pairs: 20 }, elo: -148, lo: -161, hi: -136, seeds: [-186, -150, -152, -117, -140] },
 ]
 
+// Rows default to every self-play comparison above; another chapter passes its own (no field or SPRT columns needed).
+// (A default can't name a local constant -- defineProps is hoisted out of setup -- hence the computed.)
+const props = withDefaults(defineProps<{ rows?: H2hRow[]; title?: string }>(), { rows: undefined, title: "Head to head, against the old yardstick" })
+const rows = computed(() => props.rows ?? SELFPLAY_ROWS)
+
 // The strip's axis: -200 ... +200 Elo, as a CSS position (HTML, so the dots stay round at any width).
 const R = 200
 const pos = (e: number) => `${(((Math.max(-R, Math.min(R, e)) + R) / (2 * R)) * 100).toFixed(2)}%`
@@ -37,19 +42,19 @@ const signed = (v: number, d = 0) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.
 </script>
 
 <template>
-  <UiFigure title="Head to head, against the old yardstick" kind="Result">
+  <UiFigure :title="props.title" kind="Result">
     <div class="hidden grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-4 pb-2 sm:grid">
-      <span class="label">variant vs baseline · head to head · SPRT · old field report</span>
+      <span class="label">variant vs baseline · head to head{{ rows.some((r) => r.sprt) ? " · SPRT · old field report" : "" }}</span>
       <span class="label flex justify-between"><span>−200</span><span>each seed's Elo difference</span><span>+200</span></span>
     </div>
     <ul class="divide-y divide-line">
-      <li v-for="r in ROWS" :key="r.arm + r.vs" class="grid gap-x-4 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] sm:items-center">
+      <li v-for="r in rows" :key="r.arm + r.vs" class="grid gap-x-4 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] sm:items-center">
         <div class="min-w-0 text-xs">
           <p><span class="text-fg">{{ r.arm }}</span> <span class="text-fg-subtle">vs {{ r.vs }}</span> <span class="text-[11px] text-fg-subtle">· {{ r.what }}</span></p>
           <p class="num mt-0.5 flex flex-wrap gap-x-3">
             <span class="text-fg" title="Elo difference over the whole ballot, five seeds pooled (870 pairs), 95% interval">{{ signed(r.elo) }} Elo <span class="text-fg-subtle">[{{ signed(r.lo) }}, {{ signed(r.hi) }}]</span></span>
-            <span :class="r.sprt.verdict === 'H1' ? 'text-life-300' : 'text-queen-300'" title="Sequential test (elo0 0, elo1 50): verdict, and the pairs it took">{{ r.sprt.verdict === 'H1' ? 'stronger' : 'no stronger' }} · {{ r.sprt.pairs }} pairs</span>
-            <span class="text-fg-subtle" title="The old report: points per game against the field, mean difference and exact paired p">field {{ signed(r.field.diff, 3) }}, p {{ r.field.p < 0.1 ? r.field.p.toFixed(4) : r.field.p.toFixed(2) }}</span>
+            <span v-if="r.sprt" :class="r.sprt.verdict === 'H1' ? 'text-life-300' : 'text-queen-300'" title="Sequential test (elo0 0, elo1 50): verdict, and the pairs it took">{{ r.sprt.verdict === 'H1' ? 'stronger' : 'no stronger' }} · {{ r.sprt.pairs }} pairs</span>
+            <span v-if="r.field" class="text-fg-subtle" title="The old report: points per game against the field, mean difference and exact paired p">field {{ signed(r.field.diff, 3) }}, p {{ r.field.p < 0.1 ? r.field.p.toFixed(4) : r.field.p.toFixed(2) }}</span>
           </p>
         </div>
         <div class="relative h-[26px]" role="img" :aria-label="`Per-seed Elo differences: ${r.seeds.join(', ')}`">
@@ -70,11 +75,13 @@ const signed = (v: number, d = 0) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.
       </li>
     </ul>
     <template #caption>
+      <slot name="caption">
       Every self-play variant from the previous chapter against the arm it changes one thing from, same training seed on both sides, both
       searching 3 plies. <em>Elo</em>: all 174 ballot openings × 5 seeds, the pooled difference with its interval (the shaded bar), and each
       seed's (the dots). <em>Stronger / no stronger</em>: the sequential test's verdict and the game pairs it needed, seeds pooled.
       <em>Field</em>: what the old report said (points per game against material search and an evolved network, and its p over five seeds).
       <code>jobs/checkers_selfplay_experiment.py h2h</code>.
+      </slot>
     </template>
   </UiFigure>
 </template>

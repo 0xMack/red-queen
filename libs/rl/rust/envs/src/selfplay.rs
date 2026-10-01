@@ -18,6 +18,11 @@
 //! - **Opponent pool** (`pool_every` > 0): every `pool_every` games the current network is frozen into a pool of
 //!   the last `pool_size`, and a `pool_fraction` of games are played against a random pool member instead of
 //!   itself -- the hall-of-fame idea from the evolved runs. Every position still trains the current network.
+//!   A large `pool_size` keeps the whole history (fictitious self-play: a league of every past self).
+//! - **Prioritized opponents** (`pfsp` > 0; AlphaStar's prioritized fictitious self-play): instead of uniformly, a
+//!   pool member is drawn with weight `(1 - score)^pfsp + 0.01`, where `score` is the current network's running score
+//!   against it (win 1, draw 1/2; an exponential average over its games against that member, starting at 1/2) -- so
+//!   games go to the past selves the network still fails to beat, not the ones it has long since left behind.
 //! - **TD-Leaf(λ)** (`search_depth` > 1; Baxter, Tridgell and Weaver's KnightCap): the network plays the way the
 //!   leaderboard plays it -- alpha-beta, `search_depth` plies deep -- and learns *through* that search. A position's
 //!   value is its searched value, and its gradient goes to the leaf of the principal variation (the position whose
@@ -31,6 +36,13 @@ use redqueen_rl::rng::{Rng, Stream};
 
 /// The 32 playable squares.
 pub const INPUTS: usize = 32;
+
+/// How fast a pool member's running score follows new results (`pfsp`): an exponential average over roughly the
+/// last 1 / PFSP_RATE games against it.
+const PFSP_RATE: f64 = 0.05;
+
+/// A game's opponent from the pool, if it had one: (its index in the pool, the seat it took).
+type PoolOpponent = Option<(usize, u8)>;
 
 pub struct SelfPlay {
     net: Mlp,
@@ -46,6 +58,9 @@ pub struct SelfPlay {
     pool_size: usize,
     pool_fraction: f64,
     pool: Vec<Mlp>,
+    /// The current network's running score against each pool member (`pfsp`), in pool order.
+    pool_scores: Vec<f64>,
+    pfsp: f64,
     search_depth: u32,
     explore: Rng,
     games: u64,
@@ -72,10 +87,12 @@ pub struct TrainStats {
     pub loss: f64,
     pub epsilon: f64,
     pub pool_games: u64,
+    /// The current network's mean score (win 1, draw 1/2) in this call's pool games; 0 without any.
+    pub pool_score: f64,
 }
 
 impl SelfPlay {
-    pub const PARAMS: [&'static str; 12] = [
+    pub const PARAMS: [&'static str; 13] = [
         "hidden",
         "hidden_layers",
         "learning_rate",
@@ -88,6 +105,7 @@ impl SelfPlay {
         "pool_size",
         "pool_fraction",
         "search_depth",
+        "pfsp",
     ];
 
     pub fn new(seed: u64, params: &Params, max_moves_without_capture: u32, max_plies: u32) -> Result<SelfPlay, String> {
@@ -124,6 +142,11 @@ impl SelfPlay {
             pool_size: whole("pool_size", 10.0, 1.0)?,
             pool_fraction: params.get("pool_fraction", 0.5),
             pool: Vec::new(),
+            pool_scores: Vec::new(),
+            pfsp: match params.get("pfsp", 0.0) {
+                p if p >= 0.0 => p,
+                p => return Err(format!("pfsp must be >= 0, got {p}")),
+            },
             search_depth: whole("search_depth", 1.0, 1.0)? as u32,
             explore: Rng::new(seed, Stream::Explore),
             games: 0,
@@ -132,6 +155,21 @@ impl SelfPlay {
 
     pub fn network(&self) -> &Mlp {
         &self.net
+    }
+
+    /// Change a hyperparameter mid-run, keeping everything else (network, optimizer state, pool, the exploration
+    /// schedule) -- what population-based training's "explore" step does. Only the ones that make sense to move:
+    /// `learning_rate`, `lambda`, `pool_fraction`, `pfsp`.
+    pub fn set_param(&mut self, name: &str, value: f64) -> Result<(), String> {
+        match name {
+            "learning_rate" if value > 0.0 => self.adam.learning_rate = value,
+            "lambda" if (0.0..=1.0).contains(&value) => self.lambda = value,
+            "pool_fraction" if (0.0..=1.0).contains(&value) => self.pool_fraction = value,
+            "pfsp" if value >= 0.0 => self.pfsp = value,
+            "learning_rate" | "lambda" | "pool_fraction" | "pfsp" => return Err(format!("{name} can't be {value}")),
+            other => return Err(format!("{other} can't be changed mid-run")),
+        }
+        Ok(())
     }
 
     /// Replace the network's weights (same shape), to continue training a saved one -- e.g. fine-tuning a plain TD
@@ -242,17 +280,43 @@ impl SelfPlay {
         best
     }
 
+    /// Whether this game is against a pool member, and if so which one and the seat it takes. Uniform (`pfsp` 0)
+    /// draws exactly the random numbers it always has, so older runs and the determinism fixture replay unchanged.
+    fn pick_opponent(&mut self) -> PoolOpponent {
+        if self.pool.is_empty() || self.explore.uniform() >= self.pool_fraction {
+            return None;
+        }
+        let pick = if self.pfsp > 0.0 {
+            let weights: Vec<f64> = self
+                .pool_scores
+                .iter()
+                .map(|s| (1.0 - s).powf(self.pfsp) + 0.01)
+                .collect();
+            let mut target = self.explore.uniform() * weights.iter().sum::<f64>();
+            let mut index = weights.len() - 1;
+            for (i, w) in weights.iter().enumerate() {
+                if target < *w {
+                    index = i;
+                    break;
+                }
+                target -= w;
+            }
+            index
+        } else {
+            self.explore.below(self.pool.len() as u32) as usize
+        };
+        Some((pick, self.explore.below(2) as u8))
+    }
+
     /// One TD-Leaf game: every position's searched value (by the current network), the outcome for the last mover,
     /// the winner, and whether a pool opponent played. Moves: random in the opening and with probability ε, else the
     /// search's choice -- the pool opponent's own search when it's on move.
-    fn play_searched(&mut self) -> (Vec<Searched>, f64, Option<u8>, bool) {
+    fn play_searched(&mut self) -> (Vec<Searched>, f64, Option<u8>, PoolOpponent) {
         let mut game = Checkers::new(self.max_moves_without_capture);
         let epsilon = self.epsilon();
         let depth = self.search_depth;
-        let opponent = (!self.pool.is_empty() && self.explore.uniform() < self.pool_fraction).then(|| {
-            let pick = self.explore.below(self.pool.len() as u32) as usize;
-            (self.pool[pick].clone(), self.explore.below(2) as u8)
-        });
+        let chosen = self.pick_opponent();
+        let opponent = chosen.map(|(pick, seat)| (self.pool[pick].clone(), seat));
         let mut positions = Vec::new();
         let mut plies = 0;
         while !game.done && plies < self.max_plies {
@@ -278,7 +342,7 @@ impl SelfPlay {
             Some(_) => -1.0,
             None => 0.0,
         };
-        (positions, outcome, winner, opponent.is_some())
+        (positions, outcome, winner, chosen)
     }
 
     /// TD-Leaf's update: λ-returns over the searched values, each position's error applied at its leaf.
@@ -318,13 +382,11 @@ impl SelfPlay {
 
     /// One game; returns the positions it passed through (each from its mover's side), the outcome for the player
     /// who moved last (+1 / 0 / -1), which side won (None = draw), and whether a pool opponent played.
-    fn play(&mut self) -> (Vec<Vec<f64>>, f64, Option<u8>, bool) {
+    fn play(&mut self) -> (Vec<Vec<f64>>, f64, Option<u8>, PoolOpponent) {
         let mut game = Checkers::new(self.max_moves_without_capture);
         let epsilon = self.epsilon();
-        let opponent = (!self.pool.is_empty() && self.explore.uniform() < self.pool_fraction).then(|| {
-            let pick = self.explore.below(self.pool.len() as u32) as usize;
-            (self.pool[pick].clone(), self.explore.below(2) as u8) // the frozen net, and the seat it takes
-        });
+        let chosen = self.pick_opponent(); // a frozen past self, and the seat it takes
+        let opponent = chosen.map(|(pick, seat)| (self.pool[pick].clone(), seat));
         let mut positions = Vec::new();
         let mut plies = 0;
         while !game.done && plies < self.max_plies {
@@ -350,7 +412,7 @@ impl SelfPlay {
             Some(_) => -1.0,
             None => 0.0,
         };
-        (positions, outcome, winner, opponent.is_some())
+        (positions, outcome, winner, chosen)
     }
 
     /// λ-return targets for one game's positions, given the network's values of them and the outcome for the last
@@ -389,7 +451,7 @@ impl SelfPlay {
     /// Play and learn from `games` games.
     pub fn train(&mut self, games: u64) -> TrainStats {
         let mut stats = TrainStats::default();
-        let (mut plies, mut loss) = (0usize, 0.0);
+        let (mut plies, mut loss, mut pool_points) = (0usize, 0.0, 0.0);
         for _ in 0..games {
             let (n, game_loss, winner, pooled) = if self.search_depth > 1 {
                 let (positions, outcome, winner, pooled) = self.play_searched();
@@ -410,12 +472,24 @@ impl SelfPlay {
                 Some(_) => stats.second_wins += 1,
                 None => stats.draws += 1,
             }
-            stats.pool_games += pooled as u64;
+            if let Some((pick, seat)) = pooled {
+                // the current network's result against that past self, which sat in `seat`
+                let points = match winner {
+                    Some(w) if w == seat => 0.0,
+                    Some(_) => 1.0,
+                    None => 0.5,
+                };
+                self.pool_scores[pick] += PFSP_RATE * (points - self.pool_scores[pick]);
+                pool_points += points;
+                stats.pool_games += 1;
+            }
             self.games += 1;
             if self.pool_every > 0 && self.games.is_multiple_of(self.pool_every) {
                 self.pool.push(self.net.clone());
+                self.pool_scores.push(0.5);
                 if self.pool.len() > self.pool_size {
                     self.pool.remove(0);
+                    self.pool_scores.remove(0);
                 }
             }
         }
@@ -423,7 +497,17 @@ impl SelfPlay {
         stats.mean_plies = plies as f64 / games.max(1) as f64;
         stats.loss = loss / games.max(1) as f64;
         stats.epsilon = self.epsilon();
+        stats.pool_score = if stats.pool_games > 0 {
+            pool_points / stats.pool_games as f64
+        } else {
+            0.0
+        };
         stats
+    }
+
+    /// The current network's running score against each pool member, oldest first (what `pfsp` weighs by).
+    pub fn pool_scores(&self) -> &[f64] {
+        &self.pool_scores
     }
 
     /// The network as `evolve.WeightVector` JSON: what the Checkers evaluator strategy, the versus leaderboard and the
@@ -629,6 +713,40 @@ mod tests {
     }
 
     #[test]
+    fn prioritized_opponents_go_to_the_ones_it_cannot_beat() {
+        let mut trainer = SelfPlay::new(
+            6,
+            &params(&[
+                ("pool_every", 10.0),
+                ("pool_size", 4.0),
+                ("pool_fraction", 1.0),
+                ("pfsp", 2.0),
+            ]),
+            40,
+            200,
+        )
+        .unwrap();
+        trainer.train(40); // four members, all at the starting score of 1/2
+                           // Rig the scores: one member the network always loses to, three it always beats.
+        trainer.pool_scores = vec![1.0, 1.0, 0.0, 1.0];
+        let mut picks = [0u32; 4];
+        for _ in 0..2000 {
+            if let Some((pick, _)) = trainer.pick_opponent() {
+                picks[pick] += 1;
+            }
+        }
+        // weights 0.01, 0.01, 1.01, 0.01: the hard one gets ~97% of the games
+        assert!(picks[2] > 1850, "{picks:?}");
+        // and uniform sampling (pfsp 0) spreads them
+        trainer.pfsp = 0.0;
+        let mut uniform = [0u32; 4];
+        for _ in 0..2000 {
+            uniform[trainer.pick_opponent().unwrap().0] += 1;
+        }
+        assert!(uniform.iter().all(|&n| n > 400), "{uniform:?}");
+    }
+
+    #[test]
     fn pools_fill_and_bad_params_are_rejected() {
         let mut trainer = SelfPlay::new(
             2,
@@ -644,7 +762,15 @@ mod tests {
             "every game after the first snapshot is a pool game: {}",
             stats.pool_games
         );
+        assert_eq!(trainer.pool_scores().len(), 3);
+        assert!(stats.pool_score > 0.0 && stats.pool_score <= 1.0);
         assert!(SelfPlay::new(0, &params(&[("lambda", 1.5)]), 40, 200).is_err());
+        assert!(SelfPlay::new(0, &params(&[("pfsp", -1.0)]), 40, 200).is_err());
+        // mid-run changes: allowed ones take, others and bad values are refused
+        trainer.set_param("lambda", 0.5).unwrap();
+        trainer.set_param("learning_rate", 3e-4).unwrap();
+        assert!(trainer.lambda == 0.5 && trainer.adam.learning_rate == 3e-4);
+        assert!(trainer.set_param("lambda", 2.0).is_err() && trainer.set_param("hidden", 8.0).is_err());
         assert!(SelfPlay::new(0, &params(&[("alpha", 0.1)]), 40, 200).is_err());
     }
 }
