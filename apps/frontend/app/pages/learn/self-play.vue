@@ -144,6 +144,28 @@ import * as math from "~/data/math/self-play"
         (docs/design/0015).
       </template>
     </H2hResults>
+    <p>
+      Was 2 × 64 then the network's ceiling, given that 50,000 more games of plain TD did nothing? It wasn't. Two layers of
+      <strong>128</strong>, trained the same million games of plain TD, beat two layers of 64 by 100 Elo on every seed. A third layer of 64
+      added only 36. Both bigger networks kept most of their lead through the TD-Leaf fine-tune, and the long TD phase was worth keeping too:
+      the same fine-tune from a million games of plain TD beat it from 200,000 by 64. The network had plateaued for its size, not at the most
+      a network could learn here.
+    </p>
+    <H2hResults
+      :rows="[
+        { arm: '1M games of TD, then TD-Leaf', vs: '200k games of TD, then TD-Leaf', what: '2 × 64 · 2.4× the compute', elo: 64, lo: 51, hi: 76, seeds: [92, 73, 64, 18, 73] },
+        { arm: '2 × 128', vs: '2 × 64', what: '1M games of plain TD each · 2.7× the compute', elo: 100, lo: 87, hi: 112, seeds: [84, 107, 134, 84, 89] },
+        { arm: '3 × 64', vs: '2 × 64', what: '1M games of plain TD each · 1.4× the compute', elo: 36, lo: 24, hi: 47, seeds: [-10, 46, 57, 33, 51] },
+        { arm: '2 × 128, fine-tuned', vs: '2 × 64, fine-tuned', what: '1M + 40k games each · 2.6× the compute', elo: 68, lo: 56, hi: 80, seeds: [41, 81, 57, 54, 107] },
+        { arm: '3 × 64, fine-tuned', vs: '2 × 64, fine-tuned', what: '1M + 40k games each · 1.4× the compute', elo: 20, lo: 8, hi: 31, seeds: [-9, 43, 22, -1, 43] },
+      ]"
+      title="A longer TD phase, or a bigger network"
+    >
+      <template #caption>
+        The opponent pool; fine-tunes are 40,000 games of TD-Leaf at 2 plies; measured as above.
+        <code>jobs/checkers_selfplay_experiment.py h2h --name selfplay-v6 --full</code> (docs/design/0016).
+      </template>
+    </H2hResults>
     <Callout variant="finding" title="Learned knowledge beats deeper search">
       On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the TD-Leaf network is <strong>first, rated 927 Elo</strong>
       searching 4 plies (389 wins, 64 draws and 3 losses in 456 games, and 14 wins and 10 draws against material-4), and

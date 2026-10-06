@@ -32,6 +32,12 @@ and `g-pool-80` (80% of games against the pool). Report it with `h2h --full`. `g
 equal compute against plain TD, `s-td`), and `s-leaf2-80k` against the fine-tuning recipe `s-td-ft2` (TD, then TD-Leaf)
 at about equal total compute. `s-td-ft2` continues each seed's `s-td`, so run `s-td` first.
 
+`selfplay-v6` asks what limits the full recipe (plain TD, then 40k games of TD-Leaf at 2 plies): the length of the TD
+phase, or the network. `l-1m-ft2` fine-tunes `selfplay-v2`'s 1M-game 2 x 64 networks (against `selfplay-v5`'s
+`s-td-ft2`, the same fine-tune after 200k); `l-3x64-1m` and `l-2x128-1m` are deeper and wider networks trained 1M games
+of plain TD (against `pool-2x64-1m`), and `l-3x64-ft2` / `l-2x128-ft2` their fine-tunes (against `l-1m-ft2`). A
+baseline in another experiment is an `(experiment, arm)` pair.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
   uv run python jobs/checkers_selfplay_experiment.py h2h    --name NAME [--arms ft-leaf3] [--elo1 50] [--full]
@@ -76,7 +82,7 @@ EVOLVED_RUN = "802e1c7624ae402595d5384aaa1da2e8"
 class Arm:
     params: dict[str, float] = field(default_factory=dict)
     games: int = 200_000
-    baseline: str | None = "sp"
+    baseline: str | tuple[str, str] | None = "sp"  # an arm of this experiment, or (experiment, arm)
     # Continue from the final network of this (experiment, arm)'s run with the same rng seed, instead of a fresh one.
     init: tuple[str, str] | None = None
     # A population (jobs/checkers_pbt_run.py) of this many members instead of one learner: `games` per member.
@@ -127,8 +133,47 @@ ARMS: dict[str, Arm] = {
     # the fine-tuning recipe (plain TD, then TD-Leaf), and from-scratch TD-Leaf at about the same total compute
     "s-td-ft2": Arm({**BIG, "search_depth": 2}, games=40_000, baseline="s-td", init=("selfplay-v5", "s-td")),
     "s-leaf2-80k": Arm({**BIG, "search_depth": 2}, games=80_000, baseline="s-td-ft2"),
+    # selfplay-v6: what limits the recipe -- the TD phase's length, or the network? (each fine-tune: 40k games, 2 plies)
+    "l-1m-ft2": Arm(
+        {**BIG, "search_depth": 2},
+        games=40_000,
+        baseline=("selfplay-v5", "s-td-ft2"),
+        init=("selfplay-v2", "pool-2x64-1m"),
+    ),
+    # 32 -> 64 -> 64 -> 64 -> 1 (10.5k weights) and 32 -> 128 -> 128 -> 1 (20.7k), against 2 x 64 (6.3k)
+    "l-3x64-1m": Arm({**BIG, "hidden_layers": 3}, games=1_000_000, baseline=("selfplay-v2", "pool-2x64-1m")),
+    "l-2x128-1m": Arm({**BIG, "hidden": 128}, games=1_000_000, baseline=("selfplay-v2", "pool-2x64-1m")),
+    "l-3x64-ft2": Arm(
+        {**BIG, "hidden_layers": 3, "search_depth": 2},
+        games=40_000,
+        baseline="l-1m-ft2",
+        init=("selfplay-v6", "l-3x64-1m"),
+    ),
+    "l-2x128-ft2": Arm(
+        {**BIG, "hidden": 128, "search_depth": 2},
+        games=40_000,
+        baseline="l-1m-ft2",
+        init=("selfplay-v6", "l-2x128-1m"),
+    ),
 }
 GAMES_PER_ITERATION = 1000
+
+
+def completed_by_seed(registry: Any, experiment: str, arm: str) -> dict[int, Any]:
+    """An arm's completed runs, by rng seed."""
+    return {
+        r.config["rng_seed"]: r
+        for r in experiment_runs(registry, experiment)
+        if r.config.get("arm") == arm and r.status == "completed"
+    }
+
+
+def resolve_baseline(name: str, arm: str) -> tuple[str, str] | None:
+    """An arm's baseline as (experiment, arm): a bare arm name is in this experiment."""
+    baseline = ARMS[arm].baseline if arm in ARMS else None
+    if baseline is None or isinstance(baseline, tuple):
+        return baseline
+    return (name, baseline)
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
@@ -146,16 +191,10 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
             arm = ARMS[arm_name]
             init_run = None
             if arm.init:
-                parents = [
-                    r
-                    for r in experiment_runs(registry, arm.init[0])
-                    if r.config.get("arm") == arm.init[1]
-                    and r.config.get("rng_seed") == seed
-                    and r.status == "completed"
-                ]
-                if not parents:
+                parent = completed_by_seed(registry, *arm.init).get(seed)
+                if parent is None:
                     sys.exit(f"{arm_name} seed {seed} continues {arm.init}, which has no completed run for that seed")
-                init_run = parents[0].run_id
+                init_run = parent.run_id
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.games:,} games)", flush=True)
             if arm.population:
                 checkers_pbt_run.main(
@@ -241,7 +280,9 @@ def build_report(name: str, games: int = GAMES_PER_OPPONENT) -> dict[str, Any]:
             "by_opponent": {name: round(statistics.fmean(row["points"][name] for row in mine), 3) for name in field_},
             "active_s": _stats([row["active_s"] for row in mine if row["active_s"] is not None]),
         }
-        baseline = ARMS[arm].baseline if arm in ARMS else None
+        resolved = resolve_baseline(name, arm)
+        # the field score is only computed for this experiment's runs
+        baseline = resolved[1] if resolved and resolved[0] == name else None
         reference = {row["rng_seed"]: row["points"]["overall"] for row in by_arm.get(baseline or "", [])}
         paired = [
             (row["points"]["overall"], reference[row["rng_seed"]]) for row in mine if row["rng_seed"] in reference
@@ -287,16 +328,18 @@ def build_h2h(name: str, arms: list[str] | None = None, elo1: float = 50.0, full
         by_arm.setdefault(run.config["arm"], {})[run.config["rng_seed"]] = run
     out = {}
     for arm in arms or sorted(by_arm):
-        baseline = ARMS[arm].baseline if arm in ARMS else None
-        if baseline is None or baseline not in by_arm or arm not in by_arm:
+        resolved = resolve_baseline(name, arm)
+        if resolved is None or arm not in by_arm:
             continue
-        seeds = sorted(set(by_arm[arm]) & set(by_arm[baseline]))
+        theirs = by_arm.get(resolved[1], {}) if resolved[0] == name else completed_by_seed(registry, *resolved)
+        baseline = resolved[1] if resolved[0] == name else f"{resolved[0]}/{resolved[1]}"
+        seeds = sorted(set(by_arm[arm]) & set(theirs))
         if not seeds:
             continue
         couples = [
             (
                 run_factory(by_arm[arm][s], metrics, artifacts, DEPTH),
-                run_factory(by_arm[baseline][s], metrics, artifacts, DEPTH),
+                run_factory(theirs[s], metrics, artifacts, DEPTH),
             )
             for s in seeds
         ]
