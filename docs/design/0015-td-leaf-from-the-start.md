@@ -60,3 +60,7 @@ search contributes: TD-Leaf only uses the search to choose *which* position to l
 search results (MCTS visit counts) as *targets* for a policy as well as a value -- a larger build (a policy head over
 Checkers moves, MCTS in the Rust core, a WASM path for the page). Before that, a cheaper probe: does a longer schedule
 (TD to 1M games, then TD-Leaf 3 plies) keep scaling, or has the 2 x 64 network's capacity become the ceiling?
+
+**Answered by [0016](0016-selfplay-scaling.md)**: it keeps scaling -- the 1M-game TD phase beats 200k by +64 before the
+same fine-tune, and a 2 x 128 network beats 2 x 64 by +100 (+68 after the fine-tune). Both the TD
+phase's length and the network's capacity were limits.

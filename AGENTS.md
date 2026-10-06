@@ -13,7 +13,7 @@ self-play plan; 0011: multi-armed bandits — a game and chapter for exploration
 Q-learning; 0012: interactive maths notation — formulas as expression trees with addressable terms, linked
 both ways to the demos; 0013: measuring two-player strength — ballot openings, game pairs, Elo, SPRT; 0014: two-player
 training regimes — opponent pools, leagues, PFSP, population-based training; 0015: TD-Leaf from the start vs. as a
-fine-tune) — read the relevant one before an
+fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider network) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
