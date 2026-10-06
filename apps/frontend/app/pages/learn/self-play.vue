@@ -120,10 +120,34 @@ import * as math from "~/data/math/self-play"
       games this way lifted every seed by about 0.10 points. The same 50,000 games of plain TD did nothing, because the network had already
       plateaued.
     </p>
+    <p>
+      Should it then train through the search from the very first game? Measured head to head (2 × 64 networks, five seeds, every ballot
+      opening from both sides; see <NuxtLink to="/learn/measuring-strength">Measuring Strength</NuxtLink>), the answer depends on what
+      you count. Per game, yes: 200,000 games of TD-Leaf at 2 plies beat 200,000 of plain TD by 57 Elo on every seed. Per second of
+      compute, no. A TD-Leaf game costs four to seven plain ones (its games also run longer), and at equal compute TD-Leaf from scratch only drew. The
+      cheapest strength came from the order that had already been used: plain TD first, then 40,000 games of TD-Leaf. That beat plain TD by
+      74, matched 200,000 games of TD-Leaf from scratch at a third of the compute, and beat TD-Leaf from scratch given slightly more compute
+      by 54. Cheap one-ply games teach the basics. Searching is worth its cost once there is a decent evaluator to search with.
+    </p>
+    <H2hResults
+      :rows="[
+        { arm: 'TD-Leaf from scratch', vs: 'plain TD', what: '200k games each · TD-Leaf costs 6.9× the compute', elo: 57, lo: 45, hi: 69, seeds: [26, 34, 71, 79, 76] },
+        { arm: 'TD-Leaf from scratch', vs: 'plain TD', what: '40k vs 200k games · about the same compute', elo: -6, lo: -17, hi: 5, seeds: [-41, 25, 6, -44, 24] },
+        { arm: 'plain TD, then TD-Leaf', vs: 'plain TD', what: '200k + 40k games · 2.3× the compute', elo: 74, lo: 62, hi: 86, seeds: [42, 64, 48, 127, 92] },
+        { arm: 'TD-Leaf from scratch', vs: 'plain TD, then TD-Leaf', what: '80k games · 1.24× the compute', elo: -54, lo: -66, hi: -42, seeds: [-7, -46, -73, -89, -55] },
+      ]"
+      title="When to train through the search"
+    >
+      <template #caption>
+        2 × 64 networks, TD-Leaf searching 2 plies, the opponent pool; each arm's five final networks against the baseline's, seed for seed,
+        every ballot opening from both seats, both searching 3 plies. <code>jobs/checkers_selfplay_experiment.py h2h --name selfplay-v5 --full</code>
+        (docs/design/0015).
+      </template>
+    </H2hResults>
     <Callout variant="finding" title="Learned knowledge beats deeper search">
-      On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the TD-Leaf network is <strong>first at 0.94 points per
-      game, undefeated in 380 games</strong> searching 4 plies (13 wins and 7 draws against material-4), and <strong>second at 0.88</strong>
-      searching only 3. That's ahead of its own plain-TD parent searching 4. Material search, the baseline nothing trained had beaten, is
+      On the <NuxtLink to="/games/checkers">Checkers leaderboard</NuxtLink>, the TD-Leaf network is <strong>first, rated 927 Elo</strong>
+      searching 4 plies (389 wins, 64 draws and 3 losses in 456 games, and 14 wins and 10 draws against material-4), and
+      <strong>second at 828</strong> searching only 3. That's ahead of its own plain-TD parent searching 4 (797). Material search, the baseline nothing trained had beaten, is
       fifth. You can play all of them there.
     </Callout>
 
