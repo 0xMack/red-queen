@@ -38,6 +38,12 @@ phase, or the network. `l-1m-ft2` fine-tunes `selfplay-v2`'s 1M-game 2 x 64 netw
 of plain TD (against `pool-2x64-1m`), and `l-3x64-ft2` / `l-2x128-ft2` their fine-tunes (against `l-1m-ft2`). A
 baseline in another experiment is an `(experiment, arm)` pair.
 
+`selfplay-v7` (prepared) keeps scaling width: `w-2x256-1m` and its fine-tune `w-2x256-ft2`, and `w-2x64-2700k`, a 2 x 64
+network given 2 x 128's compute in games, to tell capacity from training time. `selfplay-v8` (prepared) is AlphaZero-style
+self-play (`algorithm="alphazero"`, docs/design/0017): `z-az-ft` / `z-az-ft-16k` fine-tune the 1M-game 2 x 64 networks
+with search targets (against `l-1m-ft2`, at equal games / about equal compute) and `z-az-200k` learns from scratch
+(against `s-leaf2`). An AlphaZero arm's network is its value head, so `h2h` compares evaluators under the same search.
+
   uv run python jobs/checkers_selfplay_experiment.py run    --name NAME --arms sp,sp-pool --seeds 0-4
   uv run python jobs/checkers_selfplay_experiment.py report --name NAME [--games 20]
   uv run python jobs/checkers_selfplay_experiment.py h2h    --name NAME [--arms ft-leaf3] [--elo1 50] [--full]
@@ -88,6 +94,7 @@ class Arm:
     # A population (jobs/checkers_pbt_run.py) of this many members instead of one learner: `games` per member.
     population: int = 0
     exploit: bool = True
+    algorithm: str = "td_lambda"  # or "alphazero" (jobs/checkers_selfplay_run.py)
 
 
 POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
@@ -155,6 +162,42 @@ ARMS: dict[str, Arm] = {
         baseline="l-1m-ft2",
         init=("selfplay-v6", "l-2x128-1m"),
     ),
+    # selfplay-v7 (prepared, not yet run; docs/design/0016's "next"): does width keep paying, and is 2 x 128's gain
+    # capacity or just compute? 32 -> 256 -> 256 -> 1 (74k weights, ~3.6x 2 x 128's) against 2 x 128, a 2 x 64 network
+    # given 2 x 128's compute in games (2.7M) against 2 x 128, and 2 x 256's fine-tune against 2 x 128's.
+    "w-2x256-1m": Arm({**BIG, "hidden": 256}, games=1_000_000, baseline=("selfplay-v6", "l-2x128-1m")),
+    "w-2x64-2700k": Arm(BIG, games=2_700_000, baseline=("selfplay-v6", "l-2x128-1m")),
+    "w-2x256-ft2": Arm(
+        {**BIG, "hidden": 256, "search_depth": 2},
+        games=40_000,
+        baseline=("selfplay-v6", "l-2x128-ft2"),
+        init=("selfplay-v7", "w-2x256-1m"),
+    ),
+    # selfplay-v8 (prepared, not yet run; docs/design/0017): AlphaZero-style search targets. Each value head is compared
+    # with the TD-trained network it would replace, both searched by alpha-beta at DEPTH plies -- the question is
+    # whether a value learned from MCTS self-play is a better *evaluator*. `z-az-ft` fine-tunes the same 1M-game 2 x 64
+    # TD networks TD-Leaf fine-tuned in `l-1m-ft2` (equal games: 40k; ~2.4x its compute at 50 simulations), and
+    # `z-az-ft-16k` matches that compute instead. `z-az-200k` learns from scratch, against TD-Leaf from scratch for the
+    # same 200k games (`s-leaf2`; ~1.75x its compute).
+    "z-az-ft": Arm(
+        {"hidden": 64, "hidden_layers": 2, "simulations": 50},
+        games=40_000,
+        baseline=("selfplay-v6", "l-1m-ft2"),
+        init=("selfplay-v2", "pool-2x64-1m"),
+        algorithm="alphazero",
+    ),
+    "z-az-ft-16k": Arm(
+        {"hidden": 64, "hidden_layers": 2, "simulations": 50},
+        games=16_000,
+        baseline=("selfplay-v6", "l-1m-ft2"),
+        init=("selfplay-v2", "pool-2x64-1m"),
+        algorithm="alphazero",
+    ),
+    "z-az-200k": Arm(
+        {"hidden": 64, "hidden_layers": 2, "simulations": 50},
+        baseline=("selfplay-v5", "s-leaf2"),
+        algorithm="alphazero",
+    ),
 }
 GAMES_PER_ITERATION = 1000
 
@@ -216,6 +259,7 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
                 held_out_every=max(1, iterations // 10),
                 tags={"experiment": name, "arm": arm_name},
                 init_run=init_run,
+                algorithm=arm.algorithm,
             )
 
 

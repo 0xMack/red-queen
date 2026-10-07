@@ -70,6 +70,16 @@
       "digest": "7e10324fe78dda06"
     }
   ],
+  "alphazero": [
+    {
+      "seed": 0,
+      "digest": "5a074ec549450b83"
+    },
+    {
+      "seed": 3,
+      "digest": "f669e9e26ebb02ab"
+    }
+  ],
   "bandit": [
     {
       "seed": 0,

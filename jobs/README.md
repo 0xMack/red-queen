@@ -98,6 +98,23 @@ themselves — see docs/design/0001) get wired to it for a real run.
   documented negative result (docs/design/0008): it never got near `Material 4-ply`.
 - `backfill_interfaces.py` — one-off: sets `config.interface` on game runs recorded before
   interfaces existed, resolved from each champion's own layer sizes (idempotent).
+- **Reinforcement learning** (`libs/rl`, docs/design/0010): `rl_run.py` trains one `rl.Trainer` algorithm, an
+  *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
+  budgeted in env steps, final policy on the 200 held-out games, a paired permutation test against each arm's baseline);
+  `rl_benchmark.py` is the native half of `/dev/rl`'s speed numbers; `export_rl_recording.py` / `export_rl_curves.py`
+  write real runs as the Learn chapters' recorded fallbacks.
+- **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): `checkers_selfplay_run.py` trains a position evaluator by
+  TD(λ), TD-Leaf(λ) (`--param search_depth=N`) or AlphaZero-style search targets (`--algorithm alphazero`) and records it
+  as an ordinary Checkers run; `checkers_selfplay_experiment.py` runs and compares the tracked arms (`selfplay-v1` ...
+  `v8`); `checkers_recipe_run.py` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one command, for leaderboard
+  entrants; `checkers_pbt_run.py` is population-based training over self-play learners, and `export_pbt_history.py` writes
+  one run's population history for the Learn chapter.
+- **Bandits** (docs/design/0011): `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`);
+  `bandit_evolve_run.py` evolves ε-greedy's settings as an ordinary run; `bandit_arm_sweep.py` is the pre-Rust sketch that
+  chose the default table size.
+- **Model packages and TinyLM** (docs/design/0004, 0009): `publish_models.py` exports leaderboard champions and TinyLM
+  checkpoints to the local model store and catalog, measuring each variant's agreement; `tinylm_run.py` trains TinyLM;
+  `scale_test_package.py` publishes a large random-weight model to exercise the big-model path.
 - `control.py` — `make_control_callback(registry, run_id)`, an `on_generation` callback that blocks
   while `RunRegistry` reports the run's status as `"paused"` (docs/design/0005's control API,
   step 7). This is the only coordination needed between `apis/backend`'s `POST

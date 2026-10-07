@@ -427,6 +427,7 @@ const CHAPTER_FOR_REPRESENTATION: Record<string, string> = {
   a2c: "policy-gradients",
   ppo: "policy-gradients",
   td_lambda: "self-play",
+  alphazero: "self-play",
 }
 
 export function chapterForRepresentation(representation: string): LearnChapter | null {

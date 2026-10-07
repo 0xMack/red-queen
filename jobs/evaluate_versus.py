@@ -116,14 +116,17 @@ def champion_entrants(
         neat = isinstance(champion, NeatGenome)
         # how it was trained: evolved (NEAT or a fixed network), or learned by self-play (docs/design/0010 Phase 4)
         # (TD-Leaf is TD(λ) trained through its own search: `search_depth` > 1 among the self-play params)
+        # (an AlphaZero run's champion is its value head: the trunk and value unit, docs/design/0017)
         leaf = int((run.config.get("params") or {}).get("search_depth", 1)) > 1
-        kind = (
-            "NEAT"
-            if neat
-            else ("TD-Leaf(λ) self-play" if leaf else "TD(λ) self-play")
-            if run.config.get("representation") == "td_lambda"
-            else "Neuroevolution"
-        )
+        representation = run.config.get("representation")
+        if neat:
+            kind = "NEAT"
+        elif representation == "td_lambda":
+            kind = "TD-Leaf(λ) self-play" if leaf else "TD(λ) self-play"
+        elif representation == "alphazero":
+            kind = "AlphaZero self-play"
+        else:
+            kind = "Neuroevolution"
         searching = f"{depth}-ply search" if depth > 1 else "one ply"
         entrants.append(
             {
@@ -137,7 +140,7 @@ def champion_entrants(
                 "run": run,
                 "champion_ref": champion_ref,
                 "model": f"{'evolved graph' if neat else 'MLP'} {network}, tanh: a position evaluator, {searching}"
-                + (f", trained by {kind}" if kind.startswith("TD") else ""),
+                + (f", trained by {kind}" if "self-play" in kind else ""),
                 "search_depth": depth,
                 "parameters": parameter_count(champion),
                 "artifact_bytes": len(raw),

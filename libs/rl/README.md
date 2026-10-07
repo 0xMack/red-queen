@@ -8,6 +8,14 @@ DQN → policy gradients → Checkers self-play; each rung lands with a tracked 
   random agent, and the checks that everything is deterministic across targets.
 - **Phase 1:** tabular **Q-learning** and **SARSA** with n-step returns (`tabular.rs`), exported as model packages
   (`modelpack.champions.QTable`), compared in `jobs/rl_experiment.py`.
+- **Phase 2:** **DQN** (`dqn.rs`): replay, target network, double, dueling, n-step and prioritized replay, each a
+  parameter. `td_gradients` is checked against `tests/reference_dqn.py`.
+- **Phase 3:** **policy gradients** (`pg.rs`): REINFORCE (with or without a baseline), A2C and PPO on one agent and one
+  GAE, with a softmax head for Snake and a Gaussian one for Reach1D. Checked against `tests/reference_pg.py`.
+- **Phase 4:** **Checkers self-play** (`rust/envs/src/selfplay.rs`): TD(λ) and TD-Leaf(λ) on a position-value network,
+  with opponent pools, PFSP and mid-run settings for PBT (docs/design/0014-0016). **AlphaZero-style** self-play
+  (`rust/envs/src/alphazero.rs`, docs/design/0017) adds a policy head and a PUCT search whose visit counts are the
+  policy's targets. Both export their value network as an `evolve.WeightVector` Checkers evaluator.
 
 ## Layout
 
@@ -33,8 +41,9 @@ A mixed Rust/Python package, like `libs/games`:
   - `digest.rs`: determinism digests and the benchmark kernels.
 - `rust/envs` (`redqueen-rl-envs`) — adapters from the games crate: Snake (any native observer, `relative3.v1`
   actions, the game's score; `shaped` or `sparse` reward; `features.v1` offers an 11-bit discretizer) and Reach1D
-  (continuous acceleration; game `seed` draws the target; 25 x 13 bins), plus the games' baselines as policies; and
-  `bandit.rs`'s `BanditRun`, a strategy playing one bandit game. Shared by both binding crates.
+  (continuous acceleration; game `seed` draws the target; 25 x 13 bins), plus the games' baselines as policies;
+  `bandit.rs`'s `BanditRun`, a strategy playing one bandit game; and the two-player loops for Checkers, `selfplay.rs`
+  (TD(λ) / TD-Leaf) and `alphazero.rs` (MCTS with a policy-and-value network). Shared by both binding crates.
 - `rust/python` → `rl._native` (PyO3). `rust/wasm` → `apps/frontend/app/wasm/rl` (built by `build-wasm.py`).
 - `src/rl` — the Python face.
 - `tests/` — parity against `libs/autodiff` (`reference_nn.py`), the adapters against `jobs/evaluate.py`'s scores,

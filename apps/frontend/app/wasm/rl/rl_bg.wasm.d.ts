@@ -30,6 +30,7 @@ export const __wbg_set_progress_total_episodes: (a: number, b: number) => void;
 export const __wbg_set_progress_total_steps: (a: number, b: number) => void;
 export const __wbg_set_progress_updates: (a: number, b: number) => void;
 export const __wbg_trainer_free: (a: number, b: number) => void;
+export const alphazeroDigest: (a: number) => [number, number];
 export const banditDigest: (a: number) => [number, number];
 export const banditEvaluate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
 export const banditrun_arms: (a: number) => number;

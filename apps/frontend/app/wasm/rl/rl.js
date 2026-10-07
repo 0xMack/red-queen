@@ -907,6 +907,24 @@ export class Trainer {
 if (Symbol.dispose) Trainer.prototype[Symbol.dispose] = Trainer.prototype.free;
 
 /**
+ * `alphazero_digest(seed)`: AlphaZero-style Checkers self-play (PUCT search, a policy and value network), hashed.
+ * @param {number} seed
+ * @returns {string}
+ */
+export function alphazeroDigest(seed) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.alphazeroDigest(seed);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * `bandit_digest(seed)`: every bandit strategy on every scenario, hashed.
  * @param {number} seed
  * @returns {string}

@@ -234,6 +234,11 @@ export class Trainer {
 }
 
 /**
+ * `alphazero_digest(seed)`: AlphaZero-style Checkers self-play (PUCT search, a policy and value network), hashed.
+ */
+export function alphazeroDigest(seed: number): string;
+
+/**
  * `bandit_digest(seed)`: every bandit strategy on every scenario, hashed.
  */
 export function banditDigest(seed: number): string;
@@ -318,6 +323,7 @@ export interface InitOutput {
     readonly __wbg_set_progress_total_steps: (a: number, b: number) => void;
     readonly __wbg_set_progress_updates: (a: number, b: number) => void;
     readonly __wbg_trainer_free: (a: number, b: number) => void;
+    readonly alphazeroDigest: (a: number) => [number, number];
     readonly banditDigest: (a: number) => [number, number];
     readonly banditEvaluate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
     readonly banditrun_arms: (a: number) => number;

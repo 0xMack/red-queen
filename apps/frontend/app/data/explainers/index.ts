@@ -86,6 +86,7 @@ export function algorithmIdFor(r: EvaluationRecord): string | null {
   if (algorithm === "q-learning" || algorithm === "sarsa") return "q-learning"
   if (algorithm.startsWith("td(")) return "td-lambda"
   if (algorithm.startsWith("td-leaf")) return "td-leaf"
+  if (algorithm.startsWith("alphazero")) return "alphazero"
   return null
 }
 

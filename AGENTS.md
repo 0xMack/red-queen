@@ -13,7 +13,8 @@ self-play plan; 0011: multi-armed bandits — a game and chapter for exploration
 Q-learning; 0012: interactive maths notation — formulas as expression trees with addressable terms, linked
 both ways to the demos; 0013: measuring two-player strength — ballot openings, game pairs, Elo, SPRT; 0014: two-player
 training regimes — opponent pools, leagues, PFSP, population-based training; 0015: TD-Leaf from the start vs. as a
-fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider network) — read the relevant one before an
+fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider network; 0017: AlphaZero-style self-play --
+MCTS visit counts as policy targets) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -228,6 +229,12 @@ architectural change that might conflict with a decision already made.
     (prioritized toward past selves it doesn't beat, per-member running scores; 0 draws exactly the old random numbers,
     so the determinism fixture holds), and `set_param` changes settings mid-run for `jobs/checkers_pbt_run.py`
     (population-based training). Measured: the default 10-member, 50% pool beat every alternative and PBT.
+    `rust/envs/src/alphazero.rs` (docs/design/0017, built, not yet trained) is AlphaZero-style self-play: one MLP with a
+    value unit and 128 move logits (start square x first-step direction), PUCT search with root Dirichlet noise on every
+    move, visit counts and outcomes as targets from a replay buffer; `rl.CheckersAlphaZero`. Its `snapshot()` is the
+    trunk + value unit as a `WeightVector` evaluator, so it ranks like any TD champion; `set_value_network` seeds it from
+    a TD network; an `alphazero` digest is in the fixture. The MCTS *player* isn't in the games crate (no leaderboard or
+    page entrant yet).
     Bandits (docs/design/0011): `rust/core/src/bandit.rs` is *online* strategies (greedy, ε-greedy, optimistic, UCB1,
     Thompson, gradient, and `QTableAgent` itself with γ 0) over a `rows x arms` table -- they learn within one game, so
     they don't use the `Trainer`; `rust/envs/src/bandit.rs`'s `BanditRun` couples one to one game through the
@@ -255,7 +262,8 @@ architectural change that might conflict with a decision already made.
   tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
   `checkers_selfplay_run.py` trains a Checkers evaluator by TD(λ) self-play and records it as an ordinary Checkers run
-  (`representation: td_lambda`); `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
+  (`representation: td_lambda`; `--algorithm alphazero` for 0017's learner, `representation: alphazero`), and
+  `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
   field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by -- and,
   better, `h2h [--full]` (each arm against its baseline arm, head to head, docs/design/0013). `checkers_pbt_run.py` is a
   population of self-play learners whose settings evolve (PBT; `--no-exploit` is its random-search control), with
