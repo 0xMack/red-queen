@@ -4,7 +4,7 @@
 // The digests come from libs/rl/tests/determinism.json, copied next to the module by libs/rl/build-wasm.py.
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { banditDigest, dqnDigest, initSync, learningDigest, pgDigest, selfplayDigest, rolloutDigest, trainingDigest } from "../app/wasm/rl/rl.js"
+import { alphazeroDigest, banditDigest, dqnDigest, initSync, learningDigest, pgDigest, selfplayDigest, rolloutDigest, trainingDigest } from "../app/wasm/rl/rl.js"
 
 const dir = new URL("../app/wasm/rl/", import.meta.url)
 initSync({ module: readFileSync(fileURLToPath(new URL("rl_bg.wasm", dir))) })
@@ -17,6 +17,7 @@ const results = [
   ...fixture.dqn.map((d) => [`dqn(seed ${d.seed})`, d.digest, dqnDigest(d.seed)]),
   ...fixture.pg.map((d) => [`pg(seed ${d.seed})`, d.digest, pgDigest(d.seed)]),
   ...fixture.selfplay.map((d) => [`selfplay(seed ${d.seed})`, d.digest, selfplayDigest(d.seed)]),
+  ...fixture.alphazero.map((d) => [`alphazero(seed ${d.seed})`, d.digest, alphazeroDigest(d.seed)]),
   ...fixture.bandit.map((d) => [`bandit(seed ${d.seed})`, d.digest, banditDigest(d.seed)]),
 ]
 let failed = 0

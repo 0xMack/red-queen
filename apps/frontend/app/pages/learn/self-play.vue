@@ -176,9 +176,18 @@ import * as math from "~/data/math/self-play"
     <h2>Where this goes next</h2>
     <p>
       This closes the ladder this part of the project set out to climb: a table, a network of values, a policy learned directly, and a player that
-      learns from itself. The Checkers evaluator here only ever learned values of positions and borrowed its lookahead from a fixed search. The
-      natural next steps are to let the network guide the search as well as learn from it -- the combination behind AlphaZero --
-      and to bring the two paradigms together, evolving the hyperparameters or the architectures that the gradient methods train.
+      learns from itself. The Checkers evaluator here only ever learned values of positions and borrowed its lookahead from a fixed search. Even
+      TD-Leaf, which learns through that search, uses it only to choose <em>which</em> position to learn from. The target is still built from the
+      network's own estimates.
+    </p>
+    <p>
+      The next step makes the search the teacher, as in AlphaZero. One network gives a value and a probability for every legal move, and a tree
+      search guided by both plays each self-play move. The share of the search's visits each move received becomes the target for those
+      probabilities, and the game's result becomes the target for the value. A better network makes a better search, which makes better targets.
+      That learner is now built (docs/design/0017) but not yet trained, so there is no result to show here yet. Its first experiment asks whether a
+      value learned this way makes a better evaluator than TD-Leaf's, given the same parent network and the same games. Evolving the settings the
+      gradient methods train with has already been tried, in <NuxtLink to="/learn/training-regimes">who to play</NuxtLink>: it didn't beat the
+      plain recipe.
     </p>
   </article>
 </template>

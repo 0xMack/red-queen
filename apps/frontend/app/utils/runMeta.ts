@@ -65,6 +65,7 @@ const REPRESENTATION_LABELS: Record<string, string> = {
   a2c: "A2C",
   ppo: "PPO",
   td_lambda: "TD(λ)",
+  alphazero: "AlphaZero",
   // bandits (docs/design/0011)
   evolved_bandit: "Evolved strategy",
 }

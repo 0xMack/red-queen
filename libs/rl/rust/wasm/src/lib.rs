@@ -59,6 +59,12 @@ pub fn selfplay_digest(seed: u32) -> String {
     envs::selfplay_digest(seed as u64)
 }
 
+/// `alphazero_digest(seed)`: AlphaZero-style Checkers self-play (PUCT search, a policy and value network), hashed.
+#[wasm_bindgen(js_name = alphazeroDigest)]
+pub fn alphazero_digest(seed: u32) -> String {
+    envs::alphazero_digest(seed as u64)
+}
+
 /// `iterations` training updates (forward + backward + Adam) on a batch. `activations`: comma-separated, one per
 /// layer after the input (`"relu,relu,linear"`). Returns a checksum; time the call.
 #[wasm_bindgen(js_name = benchUpdates)]

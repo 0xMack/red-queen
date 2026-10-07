@@ -12,6 +12,7 @@
 //! Also here: the games' fixed baselines as policies, so `tests/test_envs.py` can check that an episode through an
 //! adapter scores exactly what `jobs/evaluate.py` records for the same seed.
 
+pub mod alphazero;
 pub mod bandit;
 pub mod selfplay;
 
@@ -377,6 +378,43 @@ pub fn pg_digest(seed: u64) -> String {
             hash.f64(byte as f64);
         }
     }
+    hash.hex()
+}
+
+/// The AlphaZero digest: Checkers self-play by PUCT search with a policy and value network (docs/design/0017), trained
+/// from `seed` -- the per-call stats, the final two-headed network and a noiseless search, hashed. Covers the move
+/// encoding, Dirichlet noise (Gamma draws), the tree search and the two-headed update across targets.
+pub fn alphazero_digest(seed: u64) -> String {
+    let mut hash = Fnv::default();
+    let params = Params::new(
+        [
+            ("hidden", 16.0),
+            ("hidden_layers", 1.0),
+            ("simulations", 8.0),
+            ("buffer_size", 2000.0),
+        ]
+        .map(|(k, v)| (k.to_string(), v)),
+    );
+    let mut trainer = alphazero::AlphaZero::new(seed, &params, 40, 200).unwrap();
+    for _ in 0..2 {
+        let s = trainer.train(10);
+        for v in [
+            s.first_wins as f64,
+            s.second_wins as f64,
+            s.draws as f64,
+            s.mean_plies,
+            s.value_loss,
+            s.policy_loss,
+            s.search_shift,
+        ] {
+            hash.f64(v);
+        }
+    }
+    hash.all(&trainer.network().params);
+    let game = redqueen_games::checkers::Checkers::new(40);
+    let result = alphazero::search(trainer.network(), &game, 40, 1.5, None);
+    result.visits.iter().for_each(|&v| hash.f64(v as f64));
+    hash.f64(result.value);
     hash.hex()
 }
 

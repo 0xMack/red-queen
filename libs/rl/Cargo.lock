@@ -136,6 +136,7 @@ dependencies = [
 name = "redqueen-rl-envs"
 version = "0.1.0"
 dependencies = [
+ "libm",
  "redqueen-games",
  "redqueen-rl",
 ]

@@ -20,6 +20,14 @@ Each iteration trains `games_per_iteration` games and records, in the fields eve
 
 `--param search_depth=N` (N > 1) trains by TD-Leaf(λ): self-play searches N plies and each position learns at its
 principal variation's leaf (libs/rl/rust/envs/src/selfplay.rs).
+
+`--algorithm alphazero` trains AlphaZero-style instead (`rl.CheckersAlphaZero`, libs/rl/rust/envs/src/alphazero.rs,
+docs/design/0017): a policy-and-value network, PUCT search on every move, the search's visit counts and the game's
+outcome as the targets. Its champion is still the trunk and value unit as a `WeightVector` -- an evaluator, recorded and
+ranked exactly as above -- and the final iteration also stores the whole two-headed network (`<champion_ref>-net`).
+Extras add the value and policy losses, how far search moved the root's value (`search_shift`), the policy's entropy
+at the start, and, at held-out iterations, the network playing *by search* against material-2 (`mcts_points`).
+`--init-run` then starts the trunk and value unit from a TD run's network, with a uniform policy.
 """
 
 from __future__ import annotations
@@ -29,7 +37,7 @@ import time
 from typing import Any
 
 import rl
-from checkers_training import MAX_MOVES, MONITOR_GAMES, monitor_score
+from checkers_training import MAX_MOVES, MONITOR_GAMES, MONITOR_SEED_BASE, monitor_score
 from costs import TrainingCostMeter
 from evolve import WeightVector
 from rl_run import parse_params
@@ -37,6 +45,8 @@ from run_context import TelemetryStores, recorded_run
 from telemetry import GenerationStats
 
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
+ALGORITHMS = {"td_lambda": rl.CheckersSelfPlay, "alphazero": rl.CheckersAlphaZero}
+MCTS_OPPONENT, MCTS_GAMES = "material-2", 20  # AlphaZero's own player (search + policy), monitored at held-out points
 OPPONENTS = ("random", "material-1", "material-2")  # the evolved runs' monitor set (checkers_neuro_run.py)
 MAX_MOVES_WITHOUT_CAPTURE = 40  # games.checkers.Checkers' default: the draw rule every Checkers game here uses
 
@@ -58,21 +68,37 @@ def main(
     held_out_every: int = 10,
     tags: dict[str, Any] | None = None,
     init_run: str | None = None,
+    algorithm: str = "td_lambda",
 ) -> str:
     """Trains one run, records it to telemetry, and returns its run_id. `init_run` continues from that run's final
-    network (same layer sizes) instead of a fresh one -- e.g. TD-Leaf fine-tuning a plain TD champion."""
+    network (same layer sizes) instead of a fresh one -- e.g. TD-Leaf fine-tuning a plain TD champion. `algorithm` is
+    `td_lambda` (TD(λ) / TD-Leaf) or `alphazero`."""
     params = params or {}
-    trainer = rl.CheckersSelfPlay(
+    alphazero = algorithm == "alphazero"
+    trainer = ALGORITHMS[algorithm](
         rng_seed, params=params, max_moves_without_capture=MAX_MOVES_WITHOUT_CAPTURE, max_plies=MAX_MOVES
     )
     if init_run:
         _, metrics, artifacts = TelemetryStores.open()
         parent = WeightVector.from_json(artifacts.get_program(metrics.history(init_run)[-1].champion_ref).decode())
-        trainer.set_weights(list(parent.weights))
+        if alphazero:
+            trainer.set_value_network(list(parent.weights), list(parent.layer_sizes))
+        else:
+            trainer.set_weights(list(parent.weights))
     layer_sizes = WeightVector.from_json(trainer.snapshot()).layer_sizes
     leaf = int(params.get("search_depth", 1))
+    simulations = int(params.get("simulations", 50))
+    if alphazero:
+        training = f"AlphaZero-style self-play, {simulations} search simulations per move"
+    else:
+        training = (
+            "self-play"
+            + (", opponent pool" if params.get("pool_every") else "")
+            + (", prioritized opponents" if params.get("pfsp") else "")
+            + (f", TD-Leaf searching {leaf} plies" if leaf > 1 else "")
+        )
     config = {
-        "representation": "td_lambda",
+        "representation": algorithm,
         "game": "checkers",
         # a position evaluator, searched `search_depth` plies -- the interface the evolved evaluators use
         "interface": INTERFACE,
@@ -84,10 +110,7 @@ def main(
         "games_per_iteration": games_per_iteration,
         "max_moves": MAX_MOVES,
         "opponents": list(OPPONENTS),  # monitored against, never trained against
-        "training": "self-play"
-        + (", opponent pool" if params.get("pool_every") else "")
-        + (", prioritized opponents" if params.get("pfsp") else "")
-        + (f", TD-Leaf searching {leaf} plies" if leaf > 1 else ""),
+        "training": training,
         "held_out_every": held_out_every,
         "rng_seed": rng_seed,
         **(tags or {}),
@@ -111,10 +134,34 @@ def main(
             champion_ref = f"{run.run_id}-gen{iteration}"
             snapshot = trainer.snapshot()
             run.artifacts.put_program(champion_ref, snapshot.encode("utf-8"))
+            last = iteration == iterations - 1
+            if alphazero and last:
+                run.artifacts.put_program(f"{champion_ref}-net", trainer.network_json().encode("utf-8"))
             held_out = None
-            if iteration % held_out_every == 0 or iteration == iterations - 1:
+            extras: dict[str, float] = {}
+            if iteration % held_out_every == 0 or last:
                 held_out = monitor_score(WeightVector.from_json(snapshot), OPPONENTS, games=MONITOR_GAMES, depth=depth)
-            start_value, king_up_value = trainer.probe()
+                if alphazero:
+                    extras["mcts_points"] = trainer.points_against(
+                        MCTS_OPPONENT, simulations, MCTS_GAMES, MONITOR_SEED_BASE + iteration
+                    )
+            if alphazero:
+                start_value, king_up_value, start_entropy = trainer.probe()
+                extras |= {
+                    "value_loss": stats["value_loss"],
+                    "policy_loss": stats["policy_loss"],
+                    # how far the search's value of a position moved from the network's own: what search adds
+                    "search_shift": stats["search_shift"],
+                    "policy_entropy_start": start_entropy,
+                }
+            else:
+                start_value, king_up_value = trainer.probe()
+                extras |= {
+                    "epsilon": stats["epsilon"],
+                    "pool_games": float(stats["pool_games"]),
+                    # how the network fares against its past selves (1 = beats them all): the pool's difficulty
+                    "pool_score": stats["pool_score"],
+                }
             run.metrics.record_generation(
                 GenerationStats(
                     run_id=run.run_id,
@@ -133,12 +180,9 @@ def main(
                         "td_loss": stats["loss"],
                         "mean_game_plies": stats["mean_plies"],
                         "draw_rate": stats["draws"] / stats["games"],
-                        "epsilon": stats["epsilon"],
-                        "pool_games": float(stats["pool_games"]),
-                        # how the network fares against its past selves (1 = beats them all): the pool's difficulty
-                        "pool_score": stats["pool_score"],
                         "value_start": start_value,
                         "value_king_up": king_up_value,
+                        **extras,
                     },
                 )
             )
@@ -167,6 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("--param", action="append", default=[], metavar="NAME=VALUE", help="a self-play parameter")
     parser.add_argument("--experiment", default=None, help="tag recorded in the run config (kept off the leaderboard)")
     parser.add_argument("--init-run", default=None, help="continue from this run's final network (same layer sizes)")
+    parser.add_argument("--algorithm", choices=sorted(ALGORITHMS), default="td_lambda")
     args = parser.parse_args()
     main(
         iterations=args.iterations,
@@ -177,4 +222,5 @@ if __name__ == "__main__":
         held_out_every=args.held_out_every,
         tags={"experiment": args.experiment} if args.experiment else None,
         init_run=args.init_run,
+        algorithm=args.algorithm,
     )

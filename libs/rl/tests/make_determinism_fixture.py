@@ -17,6 +17,7 @@ LEARNING = [0, 5]
 DQN = [0, 3]
 PG = [0, 2]
 SELFPLAY = [0, 1]
+ALPHAZERO = [0, 3]
 BANDIT = [0, 4]
 
 
@@ -28,6 +29,7 @@ def digests() -> dict:
         "dqn": [{"seed": s, "digest": _native.dqn_digest(s)} for s in DQN],
         "pg": [{"seed": s, "digest": _native.pg_digest(s)} for s in PG],
         "selfplay": [{"seed": s, "digest": _native.selfplay_digest(s)} for s in SELFPLAY],
+        "alphazero": [{"seed": s, "digest": _native.alphazero_digest(s)} for s in ALPHAZERO],
         "bandit": [{"seed": s, "digest": _native.bandit_digest(s)} for s in BANDIT],
     }
 

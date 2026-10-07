@@ -209,6 +209,81 @@ impl CheckersSelfPlay {
     }
 }
 
+/// Checkers by AlphaZero-style self-play (`envs::alphazero`, docs/design/0017): a policy-and-value network, PUCT
+/// search guided by it, and the search's visit counts and the game's outcome as its targets. `snapshot()` is the trunk
+/// and value unit as `evolve.WeightVector` JSON -- a Checkers evaluator, like `CheckersSelfPlay`'s; `network_json()` is
+/// the whole two-headed network.
+#[pyclass(module = "rl._native", unsendable)]
+struct CheckersAlphaZero {
+    inner: envs::alphazero::AlphaZero,
+}
+
+#[pymethods]
+impl CheckersAlphaZero {
+    #[new]
+    #[pyo3(signature = (seed, params=None, max_moves_without_capture=40, max_plies=200))]
+    fn new(
+        seed: u64,
+        params: Option<HashMap<String, f64>>,
+        max_moves_without_capture: u32,
+        max_plies: u32,
+    ) -> PyResult<Self> {
+        let params = Params::new(params.unwrap_or_default());
+        let inner = envs::alphazero::AlphaZero::new(seed, &params, max_moves_without_capture, max_plies)
+            .map_err(value_error)?;
+        Ok(CheckersAlphaZero { inner })
+    }
+
+    /// Play and learn from `games` games: {games, first_wins, second_wins, draws, mean_plies, value_loss, policy_loss,
+    /// loss (their sum), updates, searched, search_shift, total_games}.
+    fn train<'py>(&mut self, py: Python<'py>, games: u64) -> PyResult<Bound<'py, PyDict>> {
+        let s = self.inner.train(games);
+        let d = PyDict::new(py);
+        d.set_item("games", s.games)?;
+        d.set_item("first_wins", s.first_wins)?;
+        d.set_item("second_wins", s.second_wins)?;
+        d.set_item("draws", s.draws)?;
+        d.set_item("mean_plies", s.mean_plies)?;
+        d.set_item("value_loss", s.value_loss)?;
+        d.set_item("policy_loss", s.policy_loss)?;
+        d.set_item("loss", s.value_loss + s.policy_loss)?;
+        d.set_item("updates", s.updates)?;
+        d.set_item("searched", s.searched)?;
+        d.set_item("search_shift", s.search_shift)?;
+        d.set_item("total_games", self.inner.games_played())?;
+        Ok(d)
+    }
+
+    fn snapshot(&self) -> String {
+        self.inner.snapshot()
+    }
+
+    fn network_json(&self) -> String {
+        self.inner.network_json()
+    }
+
+    /// Start from a trained value network (an `evolve.WeightVector` with this run's hidden sizes and one output): its
+    /// layers become the trunk and the value unit, the policy starts uniform. The optimizer starts fresh.
+    fn set_value_network(&mut self, weights: Vec<f64>, layer_sizes: Vec<usize>) -> PyResult<()> {
+        self.inner
+            .set_value_network(&weights, &layer_sizes)
+            .map_err(value_error)
+    }
+
+    /// Points per game for the network playing by search (`simulations` descents, no noise) against a games-crate
+    /// strategy (`material-2`, ...), seats alternating, two seeded random opening plies per game.
+    fn points_against(&self, opponent: &str, simulations: u32, games: u32, seed: u64) -> PyResult<f64> {
+        self.inner
+            .points_against(opponent, simulations, games, seed)
+            .map_err(value_error)
+    }
+
+    /// The value of the starting position, of the same position a king up, and the policy's entropy at the start.
+    fn probe(&self) -> (f64, f64, f64) {
+        self.inner.probe()
+    }
+}
+
 /// A `games.baselines` policy through the Snake adapter, one {seed, total_reward, steps, score} per game.
 #[pyfunction]
 #[pyo3(signature = (name, env_id, seeds, max_steps, width=10, height=10))]
@@ -268,6 +343,11 @@ fn pg_digest(seed: u64) -> String {
 #[pyfunction]
 fn selfplay_digest(seed: u64) -> String {
     envs::selfplay_digest(seed)
+}
+
+#[pyfunction]
+fn alphazero_digest(seed: u64) -> String {
+    envs::alphazero_digest(seed)
 }
 
 /// Initial parameters (He-uniform weights, zero biases) for a network, from the run's `Init` stream.
@@ -565,6 +645,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tabular_replay, m)?)?;
     m.add_class::<Trainer>()?;
     m.add_class::<CheckersSelfPlay>()?;
+    m.add_class::<CheckersAlphaZero>()?;
     m.add_function(wrap_pyfunction!(evaluate_baseline, m)?)?;
     m.add_function(wrap_pyfunction!(env_info, m)?)?;
     m.add_function(wrap_pyfunction!(training_digest, m)?)?;
@@ -573,6 +654,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(dqn_digest, m)?)?;
     m.add_function(wrap_pyfunction!(pg_digest, m)?)?;
     m.add_function(wrap_pyfunction!(selfplay_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(alphazero_digest, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_init, m)?)?;
     m.add_function(wrap_pyfunction!(mlp_forward_backward, m)?)?;
     m.add_function(wrap_pyfunction!(adam_steps, m)?)?;
