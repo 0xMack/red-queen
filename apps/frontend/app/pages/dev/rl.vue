@@ -67,11 +67,13 @@ const format = (n: number) => Math.round(n).toLocaleString()
       </div>
       <p class="mt-1 text-fg-subtle">Digests of fixed training runs, against <code>libs/rl/tests/determinism.json</code> (computed natively).</p>
       <table v-if="digests.length" class="mt-3 w-full font-mono text-xs">
-        <tr v-for="d in digests" :key="d.name" class="border-t border-line">
-          <td class="py-1.5 font-sans">{{ d.name }}</td>
-          <td>{{ d.expected }}</td>
-          <td :class="d.expected === d.actual ? 'text-life-300' : 'text-queen-300'">{{ d.actual }}</td>
-        </tr>
+        <tbody>
+          <tr v-for="d in digests" :key="d.name" class="border-t border-line">
+            <td class="py-1.5 font-sans">{{ d.name }}</td>
+            <td>{{ d.expected }}</td>
+            <td :class="d.expected === d.actual ? 'text-life-300' : 'text-queen-300'">{{ d.actual }}</td>
+          </tr>
+        </tbody>
       </table>
       <p v-else-if="status === 'running'" class="mt-3 text-fg-subtle">Computing…</p>
     </section>
@@ -82,18 +84,22 @@ const format = (n: number) => Math.round(n).toLocaleString()
         <button class="btn-ghost btn-sm" :disabled="status === 'running'" @click="run">Run again</button>
       </div>
       <table class="mt-3 w-full text-xs">
-        <tr class="text-left text-fg-subtle">
-          <th class="py-1.5 font-normal">Case</th>
-          <th class="text-right font-normal">This browser</th>
-          <th class="text-right font-normal">Native</th>
-          <th class="text-right font-normal">Browser / native</th>
-        </tr>
-        <tr v-for="b in bench" :key="b.name" class="border-t border-line">
-          <td class="py-1.5">{{ b.name }}</td>
-          <td class="num text-right">{{ format(b.perSecond) }}</td>
-          <td class="num text-right text-fg-subtle">{{ NATIVE[b.name] ? format(NATIVE[b.name]!) : "--" }}</td>
-          <td class="num text-right">{{ NATIVE[b.name] ? `${((b.perSecond / NATIVE[b.name]!) * 100).toFixed(0)}%` : "--" }}</td>
-        </tr>
+        <thead>
+          <tr class="text-left text-fg-subtle">
+            <th class="py-1.5 font-normal">Case</th>
+            <th class="text-right font-normal">This browser</th>
+            <th class="text-right font-normal">Native</th>
+            <th class="text-right font-normal">Browser / native</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="b in bench" :key="b.name" class="border-t border-line">
+            <td class="py-1.5">{{ b.name }}</td>
+            <td class="num text-right">{{ format(b.perSecond) }}</td>
+            <td class="num text-right text-fg-subtle">{{ NATIVE[b.name] ? format(NATIVE[b.name]!) : "--" }}</td>
+            <td class="num text-right">{{ NATIVE[b.name] ? `${((b.perSecond / NATIVE[b.name]!) * 100).toFixed(0)}%` : "--" }}</td>
+          </tr>
+        </tbody>
       </table>
       <p v-if="status === 'running'" class="mt-3 text-fg-subtle">Measuring… ({{ bench.length }} of 5)</p>
       <p v-if="error" class="mt-3 text-queen-300">{{ error }}</p>

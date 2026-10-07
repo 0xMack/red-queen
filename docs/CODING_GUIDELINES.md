@@ -263,6 +263,8 @@ what belongs here and how to add to it). Read before writing code, not after.
   aren't auto-imported (`app/games/*`): import them explicitly; (4) `nuxt.config.ts` is serialized into the
   build, so a *function* in `app.head` (a `titleTemplate` callback) is silently dropped -- every page's title
   lost its " · Red Queen" suffix until `pnpm typecheck` flagged it. Put it in `app.vue`'s `useHead()`.
+  (5) `<tr>` directly inside `<table>`: the browser's parser inserts a `<tbody>` into the server HTML and hydration
+  reports a node mismatch (seen on `/dev/rl` for months). Always write `<thead>`/`<tbody>`.
 - **Never fill a reactive collection one response at a time, and don't make bulk data deeply reactive.** The runs page
   fetched 115 histories in parallel and did `histories.value = { ...histories.value, [id]: h }` per response into a
   deep `ref`: every response re-ran the page's row computation and re-rendered the table (115 x 115), and Vue proxied
