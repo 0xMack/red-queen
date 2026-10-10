@@ -1,0 +1,1765 @@
+{
+ "bandit-evolve": {
+  "runs": [
+   {
+    "champion_sha256": "b202504e60a220fd9a170ca1de894abeac31b51d368ad4098af2ae3b44acf201",
+    "config": {
+     "game": "bandit",
+     "generations": 3,
+     "genome": "epsilon, decay, alpha, initial (4 numbers, squashed)",
+     "held_out_every": 5,
+     "interface": "bandit/none.v1+arm.v1",
+     "monitor_seeds": [
+      20000,
+      20199
+     ],
+     "population_size": 6,
+     "representation": "evolved_bandit",
+     "rng_seed": 0,
+     "scenarios": [
+      "classic",
+      "two-lamps"
+     ],
+     "seed_strategy": "resample:10",
+     "selection": "tournament(k=3)",
+     "strategy": "epsilon_greedy",
+     "variation": "gaussian_mutation(sigma=0.4)"
+    },
+    "curve_sha256": "5296d5b41bf4321d5148b6d91c7816d7fee3fbf11a5fba4d1312b582e651654e",
+    "final": {
+     "best_fitness": 40.311205052985784,
+     "champion_ref": "<run0>-gen2",
+     "diversity": 3.270725311389841,
+     "extras": {
+      "alpha": 0.085,
+      "decay": 88.0,
+      "epsilon": 0.079,
+      "initial": 0.471
+     },
+     "generation": 2,
+     "held_out_score": 38.31134032346992,
+     "island_id": null,
+     "mean_fitness": 35.67009255243352,
+     "worst_fitness": 30.06473380744863
+    },
+    "generations": 3,
+    "status": "completed"
+   }
+  ]
+ },
+ "checkers-distill": {
+  "runs": [
+   {
+    "champion_sha256": "a1469628b5cdd037eb8569fffdc08c064750b100c6e7d87c22c8a09d9cd2acd2",
+    "config": {
+     "fitness": "distillation: predict a material-2 search's value of sampled positions",
+     "game": "checkers",
+     "generations": 2,
+     "held_out_every": 1,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "label_depth": 2,
+     "label_kind": "search",
+     "layer_sizes": [
+      32,
+      4,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random"
+     ],
+     "pool_positions": 438,
+     "population_size": 6,
+     "representation": "neuroevolution",
+     "rng_seed": 0,
+     "sample_per_generation": 20,
+     "search_depth": 1,
+     "selection": "tournament(k=4)",
+     "variation": "gaussian_mutation(sigma=0.1, rate=0.1)"
+    },
+    "curve_sha256": "08b84ffa1c23b274139755decff8b665f04096ac709fd449fb277e8d30a256bc",
+    "final": {
+     "best_fitness": -0.31054900798287,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.10719813769092731,
+     "extras": null,
+     "generation": 1,
+     "held_out_score": 0.0,
+     "island_id": null,
+     "mean_fitness": -0.4587527719948527,
+     "worst_fitness": -0.6325949917318672
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "checkers-neat": {
+  "runs": [
+   {
+    "champion_sha256": "c0ea3adf578f503fd851c4fad5ed3448662c1edeb56f6011d701d789cbec6fd3",
+    "config": {
+     "fitness": "match outcomes, both seats per opponent",
+     "game": "checkers",
+     "games_per_opponent": 1,
+     "generations": 2,
+     "hall_of_fame": 2,
+     "held_out_every": 1,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "max_moves": 200,
+     "neat": {
+      "add_connection_rate": 0.08,
+      "add_node_rate": 0.04,
+      "compatibility_threshold": 3.0,
+      "crossover_rate": 0.75,
+      "disabled_inherit_rate": 0.75,
+      "disjoint_coefficient": 1.0,
+      "excess_coefficient": 1.0,
+      "initial_weight_scale": 0.5,
+      "interspecies_rate": 0.001,
+      "max_hidden_nodes": 40,
+      "min_species_kept": 2,
+      "min_threshold": 0.05,
+      "speciation": true,
+      "species_elitism_size": 5,
+      "stagnation_limit": 15,
+      "survival_threshold": 0.2,
+      "target_species": 5,
+      "threshold_step": 0.1,
+      "toggle_rate": 0.01,
+      "weight_coefficient": 0.4,
+      "weight_mutation_rate": 0.8,
+      "weight_perturb_sigma": 0.04,
+      "weight_replace_rate": 0.01,
+      "weight_replace_scale": 1.0
+     },
+     "num_inputs": 32,
+     "num_outputs": 1,
+     "opponents": [
+      "random",
+      "material-2"
+     ],
+     "population_size": 8,
+     "representation": "neat",
+     "resampled_opponents": false,
+     "rng_seed": 0,
+     "search_depth": 2,
+     "seeded_fraction": 0.5,
+     "selection": "speciation",
+     "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)"
+    },
+    "curve_sha256": "af127012bdea34d49af3fdb39553b7c4ed598911355aa2086b4978c7eb668223",
+    "final": {
+     "best_fitness": 0.3333333333333333,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.30900827029565264,
+     "extras": {
+      "champion_connections": 33.0,
+      "champion_hidden_nodes": 0.0,
+      "compatibility_threshold": 2.9,
+      "innovations": 33.0,
+      "mean_connections": 33.0,
+      "species": 1.0
+     },
+     "generation": 1,
+     "held_out_score": 0.0,
+     "island_id": null,
+     "mean_fitness": -0.20833333333333334,
+     "worst_fitness": -0.8333333333333334
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "checkers-neuro": {
+  "runs": [
+   {
+    "champion_sha256": "6bc87289fb632053804acb42104c7344f854b433dc1db4f81b71771bb66e8768",
+    "config": {
+     "fitness": "match outcomes, both seats per opponent",
+     "game": "checkers",
+     "games_per_opponent": 1,
+     "generations": 2,
+     "hall_of_fame": 0,
+     "held_out_every": 1,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "layer_sizes": [
+      32,
+      4,
+      1
+     ],
+     "max_moves": 200,
+     "opening_plies": 0,
+     "opponents": [
+      "random",
+      "material-1"
+     ],
+     "population_size": 6,
+     "representation": "neuroevolution",
+     "resampled_opponents": false,
+     "rng_seed": 0,
+     "search_depth": 1,
+     "seeded_fraction": 0.0,
+     "selection": "lexicase",
+     "variation": "gaussian_mutation(sigma=0.2, rate=1.0)"
+    },
+    "curve_sha256": "98447a27aa47a4189415968d1614a818a1391f21ac827ba19828453e110f2660",
+    "final": {
+     "best_fitness": 0.25,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.28867513459481287,
+     "extras": null,
+     "generation": 1,
+     "held_out_score": 0.75,
+     "island_id": null,
+     "mean_fitness": -0.25,
+     "worst_fitness": -0.75
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "checkers-neuro-hall-depth2": {
+  "runs": [
+   {
+    "champion_sha256": "4a6c26a4faa4af060ffd0c85413075f69fcc8badd236efdd2d5ac2c08a907176",
+    "config": {
+     "fitness": "match outcomes + material margin on draws, both seats per opponent",
+     "game": "checkers",
+     "games_per_opponent": 1,
+     "generations": 2,
+     "hall_of_fame": 2,
+     "held_out_every": 1,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "layer_sizes": [
+      32,
+      4,
+      1
+     ],
+     "max_moves": 200,
+     "opening_plies": 0,
+     "opponents": [
+      "random",
+      "material-1"
+     ],
+     "population_size": 6,
+     "representation": "neuroevolution",
+     "resampled_opponents": true,
+     "rng_seed": 0,
+     "search_depth": 2,
+     "seeded_fraction": 0.5,
+     "selection": "lexicase",
+     "variation": "gaussian_mutation(sigma=0.2, rate=1.0)"
+    },
+    "curve_sha256": "ac46210114f8891fbd6efc7d52bacbb5b6638c18f37fd27813cb2d2d5b8b7d3e",
+    "final": {
+     "best_fitness": 0.6666666666666666,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.5021312221569917,
+     "extras": null,
+     "generation": 1,
+     "held_out_score": 1.0,
+     "island_id": null,
+     "mean_fitness": -0.39057993988853984,
+     "worst_fitness": -0.8287829717821403
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "gp": {
+  "runs": [
+   {
+    "champion_sha256": "a54f61ce9f40b9e7042c79659c93a8b185b0f69382124f620f7a7dd174cb7aa4",
+    "config": {
+     "benchmark": "x**2",
+     "generations": 8,
+     "num_instructions": 12,
+     "num_registers": 4,
+     "population_size": 60,
+     "representation": "linear_gp",
+     "selection": "tournament(k=3)",
+     "variation": "linear_crossover_mutation(rate=0.1)"
+    },
+    "curve_sha256": "192feb9ea5b997b721a10a28ffce9f3db3d183e3183627809a8c3568e5036751",
+    "final": {
+     "best_fitness": -0.42506658909090905,
+     "champion_ref": "<run0>-gen7",
+     "diversity": 2.2879987333663747,
+     "extras": null,
+     "generation": 7,
+     "held_out_score": null,
+     "island_id": null,
+     "mean_fitness": -1.2580726496969696,
+     "worst_fitness": -15.837575680000002
+    },
+    "generations": 8,
+    "status": "completed"
+   }
+  ]
+ },
+ "pbt": {
+  "runs": [
+   {
+    "champion_sha256": "b94e29405fac239002b70806f5ece45e2787ff4e40a269a5676fc55782f97fc8",
+    "config": {
+     "exploit": true,
+     "game": "checkers",
+     "games_per_member": 40,
+     "initial_settings": [
+      {
+       "lambda": 0.7176916901183807,
+       "learning_rate": 0.0005189026418740879,
+       "pfsp": 2.0,
+       "pool_fraction": 0.4219730999288476
+      },
+      {
+       "lambda": 0.5262115436959253,
+       "learning_rate": 0.0012671894800267162,
+       "pfsp": 2.0,
+       "pool_fraction": 0.2079007949329245
+      },
+      {
+       "lambda": 0.5937323844186786,
+       "learning_rate": 0.0005450988540842447,
+       "pfsp": 2.0,
+       "pool_fraction": 0.7973869013062778
+      },
+      {
+       "lambda": 0.7198524668108022,
+       "learning_rate": 0.001042545793581085,
+       "pfsp": 0.0,
+       "pool_fraction": 0.4382807462173766
+      }
+     ],
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "interval": 20,
+     "layer_sizes": [
+      32,
+      4,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 4,
+      "pool_every": 20,
+      "pool_size": 2
+     },
+     "population": 4,
+     "representation": "td_lambda",
+     "rng_seed": 3,
+     "search_depth": 1,
+     "training": "population-based self-play (4 members)"
+    },
+    "curve_sha256": "7acaa2e608356b3f31f30db17b0bc1477ea31f9ecd2f8af8762242840bc2456a",
+    "final": {
+     "best_fitness": 0.6666666666666666,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.11967499819904044,
+     "extras": {
+      "best_lambda": 0.7176916901183807,
+      "best_learning_rate": 0.0005189026418740879,
+      "best_member": 0.0,
+      "best_pfsp": 2.0,
+      "best_pool_fraction": 0.4219730999288476,
+      "env_steps": 11450.0,
+      "games": 160.0,
+      "replaced": 0.0
+     },
+     "generation": 1,
+     "held_out_score": -0.36666666666666664,
+     "island_id": null,
+     "mean_fitness": 0.5,
+     "worst_fitness": 0.16666666666666666
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "recipe": {
+  "runs": [
+   {
+    "champion_sha256": "a50f9818d9cee231fee4587ec130f6939ebd45facc620a96493cb564b6c6fc5f",
+    "config": {
+     "game": "checkers",
+     "games_per_iteration": 20,
+     "held_out_every": 1,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "iterations": 2,
+     "layer_sizes": [
+      32,
+      8,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 8,
+      "hidden_layers": 1,
+      "pool_every": 5000,
+      "pool_fraction": 0.5,
+      "pool_size": 10
+     },
+     "representation": "td_lambda",
+     "rng_seed": 0,
+     "search_depth": 1,
+     "training": "self-play, opponent pool"
+    },
+    "curve_sha256": "4c503f4897c788319d124e42d8c3b8e030dda1239fad43c9aedfe899fd1a9e48",
+    "final": {
+     "best_fitness": 0.15,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.0,
+     "extras": {
+      "draw_rate": 0.45,
+      "env_steps": 2806.0,
+      "epsilon": 0.09968,
+      "games": 40.0,
+      "mean_game_plies": 67.35,
+      "pool_games": 0.0,
+      "pool_score": 0.0,
+      "td_loss": 0.033649258340419846,
+      "value_king_up": 0.2946383654989897,
+      "value_start": 0.22864414224534835
+     },
+     "generation": 1,
+     "held_out_score": 0.3333333333333333,
+     "island_id": null,
+     "mean_fitness": 0.15,
+     "worst_fitness": 0.15
+    },
+    "generations": 2,
+    "status": "completed"
+   },
+   {
+    "champion_sha256": "0164af72caafb0be398c5d0db37e4cd1bb895cbf823a3e69876138716cbe9185",
+    "config": {
+     "game": "checkers",
+     "games_per_iteration": 20,
+     "held_out_every": 1,
+     "init_run": "<run0>",
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "iterations": 1,
+     "layer_sizes": [
+      32,
+      8,
+      1
+     ],
+     "max_moves": 200,
+     "note": "continued from run <run0>",
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 8,
+      "hidden_layers": 1,
+      "pool_every": 5000,
+      "pool_fraction": 0.5,
+      "pool_size": 10,
+      "search_depth": 2
+     },
+     "representation": "td_lambda",
+     "rng_seed": 0,
+     "search_depth": 1,
+     "training": "self-play, opponent pool, TD-Leaf searching 2 plies"
+    },
+    "curve_sha256": "72f7c9e5a61a9746075937311573578d3e3abd127590ecd5edac1ccc407ef4b8",
+    "final": {
+     "best_fitness": 0.3,
+     "champion_ref": "<run1>-gen0",
+     "diversity": 0.0,
+     "extras": {
+      "draw_rate": 0.4,
+      "env_steps": 1414.0,
+      "epsilon": 0.09984000000000001,
+      "games": 20.0,
+      "mean_game_plies": 70.7,
+      "pool_games": 0.0,
+      "pool_score": 0.0,
+      "td_loss": 0.03743883513527816,
+      "value_king_up": 0.29410249136050737,
+      "value_start": 0.22802169956350182
+     },
+     "generation": 0,
+     "held_out_score": 0.3333333333333333,
+     "island_id": null,
+     "mean_fitness": 0.3,
+     "worst_fitness": 0.3
+    },
+    "generations": 1,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-a2c": {
+  "runs": [
+   {
+    "champion_sha256": "d3ad32db19316219b94bd5cd770e1ae37c1f0da8d259d14fc751e37e1e5e960b",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "a2c",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "5c96b9692521f6c38e88c7ef89b9205688cd8d53aeea53dfb770323e8bff34fb",
+    "final": {
+     "best_fitness": 1.0,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.8667191380070784,
+     "extras": {
+      "clip_fraction": 0.0,
+      "env_steps": 6000.0,
+      "episodes": 63.0,
+      "grad_norm": 0.11018434902686439,
+      "kl": 0.0,
+      "mean_episode_length": 47.23809523809524,
+      "policy_entropy": 0.8635451765388347,
+      "policy_loss": -0.026132530000034807,
+      "updates": 46.0,
+      "value_loss": 0.03771240827063547
+     },
+     "generation": 1,
+     "held_out_score": 1.0,
+     "island_id": null,
+     "mean_fitness": -0.8790476190476191,
+     "worst_fitness": -1.4900000000000002
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-dqn": {
+  "runs": [
+   {
+    "champion_sha256": "a7182917589df4aa762ee4851c899b777e5ffff786217cb8dd1abcf6dbd51966",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "dqn",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "fb8436c438d6a977550579444d165b72b70e3f021c63da811a8bd14f43f3c74a",
+    "final": {
+     "best_fitness": 1.959999999999999,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 1.095420019160422,
+     "extras": {
+      "env_steps": 6000.0,
+      "episodes": 144.0,
+      "epsilon": 0.9430000000000001,
+      "mean_episode_length": 20.79861111111111,
+      "q_mean": 0.9654095844544067,
+      "replay_size": 6000.0,
+      "td_loss": 0.00995838483573902,
+      "updates": 1251.0
+     },
+     "generation": 1,
+     "held_out_score": 3.0,
+     "island_id": null,
+     "mean_fitness": -0.9163888888888889,
+     "worst_fitness": -1.4100000000000001
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-ppo": {
+  "runs": [
+   {
+    "champion_sha256": "eaaaf9e696cf576f85e9bb03819938fd2b38f226377cc207a58a06dc8bf81133",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "ppo",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "3633a3f4574c9cfb83f479a3702021066f25e6f42f4e494131dc3df5045eee67",
+    "final": {
+     "best_fitness": 1.0300000000000002,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.8459173099267677,
+     "extras": {
+      "clip_fraction": 0.1387939453125,
+      "env_steps": 6000.0,
+      "episodes": 78.0,
+      "grad_norm": 0.592223091055633,
+      "kl": 0.00663709439959059,
+      "mean_episode_length": 39.11538461538461,
+      "policy_entropy": 0.8523277360238466,
+      "policy_loss": -0.02494021504764136,
+      "updates": 256.0,
+      "value_loss": 0.04523037904011739
+     },
+     "generation": 1,
+     "held_out_score": 1.0,
+     "island_id": null,
+     "mean_fitness": -0.6392307692307693,
+     "worst_fitness": -1.47
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-ppo-reach1d": {
+  "runs": [
+   {
+    "champion_sha256": "846fb052f79d2c009286311de75bb20f1576985c01436deab7934fea690e0d0b",
+    "config": {
+     "action_space": {
+      "kind": "continuous",
+      "values": [
+       -1.0,
+       1.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "reach1d",
+     "held_out_every": 5,
+     "interface": null,
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20099
+     ],
+     "observation_size": 2,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "ppo",
+     "reward": "shaped",
+     "rng_seed": 0,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "579de1acaaa234f8190fb3bd0247ec8beaaa9e36e65eee6291071f6d06851de4",
+    "final": {
+     "best_fitness": -2665.623291685256,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.9107310516660623,
+     "extras": {
+      "action_std": 0.6015675194723805,
+      "clip_fraction": 0.112548828125,
+      "env_steps": 6000.0,
+      "episodes": 3.0,
+      "grad_norm": 1.668787023683729,
+      "kl": 0.0035620551115300436,
+      "mean_episode_length": 1000.0,
+      "policy_entropy": 0.9125154452159436,
+      "policy_loss": -0.013476760749367645,
+      "updates": 256.0,
+      "value_loss": 1056.0117963158207
+     },
+     "generation": 1,
+     "held_out_score": null,
+     "island_id": null,
+     "mean_fitness": -2830.599628742137,
+     "worst_fitness": -2981.8019815959756
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-q_learning": {
+  "runs": [
+   {
+    "champion_sha256": "2ab08253115b5a8fdf15da598e4d11c4106c814425e1231d9e0cb086fb696ddf",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "q_learning",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "0a8531acc2e8693b0a3f59d6212dfd47d3585a5b173d622c121d190ddbb7fb1e",
+    "final": {
+     "best_fitness": 0.9799999999999993,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 1.095420019160422,
+     "extras": {
+      "env_steps": 6000.0,
+      "episodes": 146.0,
+      "epsilon": 0.9430000000000001,
+      "mean_abs_td_error": 0.07898071059541358,
+      "mean_episode_length": 20.58219178082192,
+      "state_coverage": 0.05224609375,
+      "states_visited": 107.0
+     },
+     "generation": 1,
+     "held_out_score": 5.0,
+     "island_id": null,
+     "mean_fitness": -0.922945205479452,
+     "worst_fitness": -1.38
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-random": {
+  "runs": [
+   {
+    "champion_sha256": "76e75897f7900c270798c21b7328be7482bd858af6db4061b80de8e9c47636dd",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "random",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "9a260ba62759549697683a414329df7b9fc19a383a0481815926bcbf3a07323b",
+    "final": {
+     "best_fitness": 0.9899999999999998,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 1.0986122886681096,
+     "extras": {
+      "env_steps": 6000.0,
+      "episodes": 139.0,
+      "mean_episode_length": 21.56115107913669
+     },
+     "generation": 1,
+     "held_out_score": 1.0,
+     "island_id": null,
+     "mean_fitness": -0.921726618705036,
+     "worst_fitness": -1.41
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-reinforce": {
+  "runs": [
+   {
+    "champion_sha256": "4be0ea81ad9faab9a5e8d69d93c5275b7b92d652b276f92290990dfa820ceee3",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "reinforce",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "fd8dc824b139d92d065a04daf41e8eab57763abe0b51929de918d69817cd0d97",
+    "final": {
+     "best_fitness": 0.8699999999999988,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.9366194659250591,
+     "extras": {
+      "clip_fraction": 0.0,
+      "env_steps": 6000.0,
+      "episodes": 92.0,
+      "grad_norm": 0.13888567576850322,
+      "kl": 0.0,
+      "mean_episode_length": 32.141304347826086,
+      "policy_entropy": 0.9366194659250591,
+      "policy_loss": -0.7807302210118982,
+      "updates": 2.0,
+      "value_loss": 0.0
+     },
+     "generation": 1,
+     "held_out_score": 0.5,
+     "island_id": null,
+     "mean_fitness": -0.9830434782608696,
+     "worst_fitness": -1.47
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "rl-sarsa": {
+  "runs": [
+   {
+    "champion_sha256": "adabb993978f466c8f6b07805d54307f487160dc2f2cecf9b37695c5c46cbaad",
+    "config": {
+     "action_space": {
+      "kind": "discrete",
+      "values": [
+       3.0
+      ]
+     },
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "game": "snake",
+     "held_out_every": 1,
+     "interface": "snake/features.v1+relative3.v1",
+     "iterations": 2,
+     "max_episode_steps": 1000,
+     "monitor_seeds": [
+      20000,
+      20001
+     ],
+     "observation_size": 11,
+     "paradigm": "reinforcement_learning",
+     "params": {},
+     "representation": "sarsa",
+     "reward": "shaped",
+     "rng_seed": 2,
+     "snapshot_every": 1,
+     "steps_per_iteration": 3000,
+     "training_seed_pool": [
+      100000,
+      999999
+     ]
+    },
+    "curve_sha256": "987ab4818da2b89ce7272168dcb08d11cdec46835b6c720f8315819e183af8b6",
+    "final": {
+     "best_fitness": 1.0499999999999998,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 1.095420019160422,
+     "extras": {
+      "env_steps": 6000.0,
+      "episodes": 153.0,
+      "epsilon": 0.9430000000000001,
+      "mean_abs_td_error": 0.09640978368406163,
+      "mean_episode_length": 19.58169934640523,
+      "state_coverage": 0.052734375,
+      "states_visited": 108.0
+     },
+     "generation": 1,
+     "held_out_score": 10.0,
+     "island_id": null,
+     "mean_fitness": -0.9037908496732027,
+     "worst_fitness": -1.38
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "selfplay-alphazero": {
+  "runs": [
+   {
+    "champion_sha256": "21e2bfbf596f5ee501cd6ea8ba4b6ad7d30b7eabeb2a93262dd5a9b73ec8772d",
+    "config": {
+     "game": "checkers",
+     "games_per_iteration": 2,
+     "held_out_every": 2,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "iterations": 2,
+     "layer_sizes": [
+      32,
+      8,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 8,
+      "hidden_layers": 1,
+      "simulations": 4
+     },
+     "representation": "alphazero",
+     "rng_seed": 3,
+     "search_depth": 1,
+     "training": "AlphaZero-style self-play, 4 search simulations per move"
+    },
+    "curve_sha256": "074bef90bdb13422748910b3b203748de130f315bae4d258dcb41472edfcacb8",
+    "final": {
+     "best_fitness": 0.0,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.0,
+     "extras": {
+      "draw_rate": 0.0,
+      "env_steps": 289.0,
+      "games": 4.0,
+      "mcts_points": 0.0,
+      "mean_game_plies": 42.5,
+      "policy_entropy_start": 1.601462265398023,
+      "policy_loss": 1.5956590977954073,
+      "search_shift": 0.1744268808138984,
+      "td_loss": 2.783261332277509,
+      "value_king_up": -0.8469227424667191,
+      "value_loss": 1.187602234482102,
+      "value_start": -0.8634370743054911
+     },
+     "generation": 1,
+     "held_out_score": -0.16666666666666666,
+     "island_id": null,
+     "mean_fitness": 0.0,
+     "worst_fitness": 0.0
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "selfplay-td": {
+  "runs": [
+   {
+    "champion_sha256": "407c8a06eb6d3ef0f60cc358069c0b33f3939acb0dc7acea73b0ed0754e32244",
+    "config": {
+     "game": "checkers",
+     "games_per_iteration": 10,
+     "held_out_every": 2,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "iterations": 3,
+     "layer_sizes": [
+      32,
+      8,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 8,
+      "hidden_layers": 1
+     },
+     "representation": "td_lambda",
+     "rng_seed": 3,
+     "search_depth": 1,
+     "training": "self-play"
+    },
+    "curve_sha256": "9ddcaba80dfcb683e74888465b217cf07ddca942493d1c292c6a53127054bfae",
+    "final": {
+     "best_fitness": 0.2,
+     "champion_ref": "<run0>-gen2",
+     "diversity": 0.0,
+     "extras": {
+      "draw_rate": 0.2,
+      "env_steps": 1903.0,
+      "epsilon": 0.09976,
+      "games": 30.0,
+      "mean_game_plies": 68.2,
+      "pool_games": 0.0,
+      "pool_score": 0.0,
+      "td_loss": 0.04774149400175354,
+      "value_king_up": -0.8755186062430733,
+      "value_start": -0.8910818027379471
+     },
+     "generation": 2,
+     "held_out_score": -0.16666666666666666,
+     "island_id": null,
+     "mean_fitness": 0.2,
+     "worst_fitness": 0.2
+    },
+    "generations": 3,
+    "status": "completed"
+   }
+  ]
+ },
+ "selfplay-td-leaf": {
+  "runs": [
+   {
+    "champion_sha256": "fd5510fbd12812fdfabfb55596d75037c41e049199dee51961092279346ce49e",
+    "config": {
+     "game": "checkers",
+     "games_per_iteration": 4,
+     "held_out_every": 2,
+     "interface": "checkers/board32.v1+evaluate1ply.v1",
+     "iterations": 2,
+     "layer_sizes": [
+      32,
+      8,
+      1
+     ],
+     "max_moves": 200,
+     "opponents": [
+      "random",
+      "material-1",
+      "material-2"
+     ],
+     "paradigm": "reinforcement_learning",
+     "params": {
+      "hidden": 8,
+      "hidden_layers": 1,
+      "search_depth": 2
+     },
+     "representation": "td_lambda",
+     "rng_seed": 3,
+     "search_depth": 1,
+     "training": "self-play, TD-Leaf searching 2 plies"
+    },
+    "curve_sha256": "fb641a2288e80ec55e51ad762805d9c1fcbb2fb342e5caa186b62976534827a7",
+    "final": {
+     "best_fitness": -0.75,
+     "champion_ref": "<run0>-gen1",
+     "diversity": 0.0,
+     "extras": {
+      "draw_rate": 0.25,
+      "env_steps": 474.0,
+      "epsilon": 0.09993600000000001,
+      "games": 8.0,
+      "mean_game_plies": 57.25,
+      "pool_games": 0.0,
+      "pool_score": 0.0,
+      "td_loss": 0.0731870404955706,
+      "value_king_up": -0.8679905273215132,
+      "value_start": -0.8815839086013119
+     },
+     "generation": 1,
+     "held_out_score": -0.16666666666666666,
+     "island_id": null,
+     "mean_fitness": -0.75,
+     "worst_fitness": -0.75
+    },
+    "generations": 2,
+    "status": "completed"
+   }
+  ]
+ },
+ "snake-neat": {
+  "runs": [
+   {
+    "champion_sha256": "99080236013dda5dd2048c80824731d1db7f3de8d1cf8520aad20e44959915d7",
+    "config": {
+     "benchmark": "games.snake (10x10)",
+     "game": "snake",
+     "generations": 3,
+     "held_out_every": 2,
+     "interface": "snake/features.v1+relative3.v1",
+     "max_steps": 200,
+     "monitor_seeds": [
+      20000,
+      20099
+     ],
+     "neat": {
+      "add_connection_rate": 0.08,
+      "add_node_rate": 0.04,
+      "compatibility_threshold": 3.0,
+      "crossover_rate": 0.75,
+      "disabled_inherit_rate": 0.75,
+      "disjoint_coefficient": 1.0,
+      "excess_coefficient": 1.0,
+      "initial_weight_scale": 1.0,
+      "interspecies_rate": 0.001,
+      "max_hidden_nodes": 40,
+      "min_species_kept": 2,
+      "min_threshold": 0.05,
+      "speciation": true,
+      "species_elitism_size": 5,
+      "stagnation_limit": 15,
+      "survival_threshold": 0.2,
+      "target_species": 6,
+      "threshold_step": 0.1,
+      "toggle_rate": 0.01,
+      "weight_coefficient": 0.4,
+      "weight_mutation_rate": 0.8,
+      "weight_perturb_sigma": 0.2,
+      "weight_replace_rate": 0.1,
+      "weight_replace_scale": 1.0
+     },
+     "num_inputs": 11,
+     "num_outputs": 3,
+     "population_size": 12,
+     "representation": "neat",
+     "rng_seed": 0,
+     "seed_strategy": "fixed:5",
+     "selection": "speciation",
+     "training_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "variation": "neat(add_node, add_connection, weight mutation, innovation-aligned crossover)"
+    },
+    "curve_sha256": "3d28c82cdffe5056225a146b81d48be79ed1047d487dfb018f35c6ecf1464e2d",
+    "final": {
+     "best_fitness": -0.22200000000000003,
+     "champion_ref": "<run0>-gen2",
+     "diversity": 0.36944955301397,
+     "extras": {
+      "champion_connections": 36.0,
+      "champion_hidden_nodes": 0.0,
+      "compatibility_threshold": 2.8,
+      "innovations": 36.0,
+      "mean_connections": 36.0,
+      "species": 1.0
+     },
+     "generation": 2,
+     "held_out_score": 0.47,
+     "island_id": null,
+     "mean_fitness": -0.8201666666666667,
+     "worst_fitness": -1.3379999999999999
+    },
+    "generations": 3,
+    "status": "completed"
+   }
+  ]
+ },
+ "snake-neuro-lexicase": {
+  "runs": [
+   {
+    "champion_sha256": "b42e260b7ce2e6901c14b04b74efaf35a092d0d73a8e9137de6b1feaa1f7edf4",
+    "config": {
+     "benchmark": "games.snake (10x10)",
+     "game": "snake",
+     "generations": 3,
+     "held_out_every": 2,
+     "interface": "snake/features.v1+relative3.v1",
+     "layer_sizes": [
+      11,
+      16,
+      3
+     ],
+     "max_steps": 200,
+     "monitor_seeds": [
+      20000,
+      20099
+     ],
+     "population_size": 8,
+     "representation": "neuroevolution",
+     "rng_seed": 0,
+     "seed_strategy": "fixed:5",
+     "selection": "lexicase",
+     "training_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "variation": "gaussian_mutation(sigma=0.2)"
+    },
+    "curve_sha256": "b65b5b5aa94c8101bb3e655ebbd6e569b065ba5ed6586751f87c0f9edee8c9eb",
+    "final": {
+     "best_fitness": -0.704,
+     "champion_ref": "<run0>-gen2",
+     "diversity": 0.23697455032133724,
+     "extras": null,
+     "generation": 2,
+     "held_out_score": 0.11,
+     "island_id": null,
+     "mean_fitness": -1.19875,
+     "worst_fitness": -1.458
+    },
+    "generations": 3,
+    "status": "completed"
+   }
+  ]
+ },
+ "snake-neuro-tournament-egocentric": {
+  "runs": [
+   {
+    "champion_sha256": "46333b287cdd59ddc42d58b5f7d0f983affb1bba268a132fefe5a7e884983732",
+    "config": {
+     "benchmark": "games.snake (10x10)",
+     "game": "snake",
+     "generations": 3,
+     "held_out_every": 2,
+     "interface": "snake/egocentric.v1+relative3.v1",
+     "layer_sizes": [
+      27,
+      16,
+      3
+     ],
+     "max_steps": 200,
+     "monitor_seeds": [
+      20000,
+      20099
+     ],
+     "population_size": 8,
+     "representation": "neuroevolution",
+     "rng_seed": 5,
+     "seed_rng": 5,
+     "seed_strategy": "resample:3",
+     "selection": "tournament(k=4)",
+     "training_seed_pool": [
+      100000,
+      999999
+     ],
+     "training_seeds": null,
+     "variation": "gaussian_mutation(sigma=0.2)"
+    },
+    "curve_sha256": "a8509abf0e143869754c1a0470cfbc26e8700579736ce6d668bc9118264631a5",
+    "final": {
+     "best_fitness": -1.0866666666666667,
+     "champion_ref": "<run0>-gen2",
+     "diversity": 0.138584110039916,
+     "extras": null,
+     "generation": 2,
+     "held_out_score": 0.01,
+     "island_id": null,
+     "mean_fitness": -1.27,
+     "worst_fitness": -1.43
+    },
+    "generations": 3,
+    "status": "completed"
+   }
+  ]
+ },
+ "tinylm": {
+  "meta": {
+   "config": {
+    "d_hidden": 128,
+    "d_model": 64,
+    "max_seq_len": 32,
+    "n_heads": 4,
+    "n_layers": 2,
+    "vocab_size": 75
+   },
+   "corpus": "libs/tinylm/data/alice.txt",
+   "held_out_fraction": 0.05,
+   "held_out_loss": 3.4398,
+   "name": "golden",
+   "parameters": 78795,
+   "train_loss": 3.9232,
+   "training": {
+    "batch_size": 32,
+    "lr": 0.003,
+    "steps": 3
+   },
+   "vocab": [
+    "\n",
+    " ",
+    "!",
+    "(",
+    ")",
+    "*",
+    ",",
+    "-",
+    ".",
+    "0",
+    "3",
+    ":",
+    ";",
+    "?",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "[",
+    "]",
+    "_",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "\u00f9",
+    "\u2014",
+    "\u2018",
+    "\u2019",
+    "\u201c",
+    "\u201d"
+   ]
+  },
+  "weights": {
+   "blocks.0.attn.key.bias": {
+    "shape": [
+     64
+    ],
+    "sum": -4.576689784775227e-13,
+    "sumsq": 2.1852901402344583e-24
+   },
+   "blocks.0.attn.key.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 9.11257734520536,
+    "sumsq": 21.29865878637823
+   },
+   "blocks.0.attn.out_proj.bias": {
+    "shape": [
+     64
+    ],
+    "sum": 0.03446382724384466,
+    "sumsq": 0.002617262775174318
+   },
+   "blocks.0.attn.out_proj.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": -2.8852074899654836,
+    "sumsq": 20.708146734410683
+   },
+   "blocks.0.attn.query.bias": {
+    "shape": [
+     64
+    ],
+    "sum": 0.00468701462254862,
+    "sumsq": 0.002301045677226574
+   },
+   "blocks.0.attn.query.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 3.0745281608833857,
+    "sumsq": 21.142264120569983
+   },
+   "blocks.0.attn.value.bias": {
+    "shape": [
+     64
+    ],
+    "sum": -0.01232537128832343,
+    "sumsq": 0.0024144318013839786
+   },
+   "blocks.0.attn.value.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 4.293745278108874,
+    "sumsq": 21.000261439756176
+   },
+   "blocks.0.ln1.beta": {
+    "shape": [
+     64
+    ],
+    "sum": -0.05493337012877987,
+    "sumsq": 0.002644493891894268
+   },
+   "blocks.0.ln1.gamma": {
+    "shape": [
+     64
+    ],
+    "sum": 63.92920813901411,
+    "sumsq": 63.861022564161146
+   },
+   "blocks.0.ln2.beta": {
+    "shape": [
+     64
+    ],
+    "sum": 0.023624982974312668,
+    "sumsq": 0.0025611711365671848
+   },
+   "blocks.0.ln2.gamma": {
+    "shape": [
+     64
+    ],
+    "sum": 63.99408958511898,
+    "sumsq": 63.99067265490791
+   },
+   "blocks.0.mlp.fc1.bias": {
+    "shape": [
+     128
+    ],
+    "sum": -0.012956748873618026,
+    "sumsq": 0.005106657218920108
+   },
+   "blocks.0.mlp.fc1.weight": {
+    "shape": [
+     64,
+     128
+    ],
+    "sum": -4.782103307819546,
+    "sumsq": 43.16158287374184
+   },
+   "blocks.0.mlp.fc2.bias": {
+    "shape": [
+     64
+    ],
+    "sum": -0.013067453384303297,
+    "sumsq": 0.002725869924502199
+   },
+   "blocks.0.mlp.fc2.weight": {
+    "shape": [
+     128,
+     64
+    ],
+    "sum": 3.722261404888185,
+    "sumsq": 21.544928222844366
+   },
+   "blocks.1.attn.key.bias": {
+    "shape": [
+     64
+    ],
+    "sum": 1.507433151072116e-14,
+    "sumsq": 1.9581561912015267e-24
+   },
+   "blocks.1.attn.key.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": -9.108819773734089,
+    "sumsq": 21.656804690324428
+   },
+   "blocks.1.attn.out_proj.bias": {
+    "shape": [
+     64
+    ],
+    "sum": -0.007527269887528436,
+    "sumsq": 0.0029693169395256704
+   },
+   "blocks.1.attn.out_proj.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 1.1313850521918623,
+    "sumsq": 21.140457480593692
+   },
+   "blocks.1.attn.query.bias": {
+    "shape": [
+     64
+    ],
+    "sum": 0.06184905918854967,
+    "sumsq": 0.0026078964110721557
+   },
+   "blocks.1.attn.query.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 3.016620272260031,
+    "sumsq": 21.645467970609896
+   },
+   "blocks.1.attn.value.bias": {
+    "shape": [
+     64
+    ],
+    "sum": 0.015604854909813228,
+    "sumsq": 0.0029041359115665644
+   },
+   "blocks.1.attn.value.weight": {
+    "shape": [
+     64,
+     64
+    ],
+    "sum": 3.173611024562107,
+    "sumsq": 21.731040875358275
+   },
+   "blocks.1.ln1.beta": {
+    "shape": [
+     64
+    ],
+    "sum": -0.08089568601357958,
+    "sumsq": 0.003059221731753036
+   },
+   "blocks.1.ln1.gamma": {
+    "shape": [
+     64
+    ],
+    "sum": 64.02286780894815,
+    "sumsq": 64.04830828852582
+   },
+   "blocks.1.ln2.beta": {
+    "shape": [
+     64
+    ],
+    "sum": -0.07664789000056252,
+    "sumsq": 0.0034252682878379683
+   },
+   "blocks.1.ln2.gamma": {
+    "shape": [
+     64
+    ],
+    "sum": 64.05838389545737,
+    "sumsq": 64.11948246413
+   },
+   "blocks.1.mlp.fc1.bias": {
+    "shape": [
+     128
+    ],
+    "sum": 0.025244967787461596,
+    "sumsq": 0.005862764270942879
+   },
+   "blocks.1.mlp.fc1.weight": {
+    "shape": [
+     64,
+     128
+    ],
+    "sum": -8.895189370412396,
+    "sumsq": 43.16496315886933
+   },
+   "blocks.1.mlp.fc2.bias": {
+    "shape": [
+     64
+    ],
+    "sum": -0.01668651999227016,
+    "sumsq": 0.0029713579868702743
+   },
+   "blocks.1.mlp.fc2.weight": {
+    "shape": [
+     128,
+     64
+    ],
+    "sum": -0.6111863659774182,
+    "sumsq": 21.25575838305899
+   },
+   "head.bias": {
+    "shape": [
+     75
+    ],
+    "sum": -0.29669252982538086,
+    "sumsq": 0.004892767493553461
+   },
+   "head.weight": {
+    "shape": [
+     64,
+     75
+    ],
+    "sum": 1.5735178156740135,
+    "sumsq": 25.087957205732515
+   },
+   "ln_final.beta": {
+    "shape": [
+     64
+    ],
+    "sum": 0.028964017585303314,
+    "sumsq": 0.003499535539177232
+   },
+   "ln_final.gamma": {
+    "shape": [
+     64
+    ],
+    "sum": 63.89297292523358,
+    "sumsq": 63.78861769019788
+   },
+   "position_embedding.weight": {
+    "shape": [
+     32,
+     64
+    ],
+    "sum": -0.07778728554705061,
+    "sumsq": 0.8934737050308464
+   },
+   "token_embedding.weight": {
+    "shape": [
+     75,
+     64
+    ],
+    "sum": -1.3247333995920818,
+    "sumsq": 2.054127463097117
+   }
+  }
+ }
+}
