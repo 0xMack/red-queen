@@ -1,7 +1,8 @@
 import pytest
 from arena.costs import TrainingCostMeter
-from run_context import recorded_run
 from telemetry import GenerationStats, open_stores
+
+from jobcore.lifecycle import recorded_run
 
 
 def _stats(run_id: str, generation: int) -> GenerationStats:
@@ -42,7 +43,7 @@ def test_a_run_that_dies_is_marked_failed_and_the_error_propagates(tmp_path, err
     assert stores.registry.get_run(run.run_id).status == "failed"
 
 
-def test_stores_default_to_the_data_dir(tmp_path):
+def test_the_sink_defaults_to_the_local_data_dir(tmp_path):
     with recorded_run({}) as run:
         pass
     assert open_stores(tmp_path).registry.get_run(run.run_id).status == "completed"

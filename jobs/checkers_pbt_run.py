@@ -34,18 +34,17 @@ import time
 from typing import Any
 
 import rl
-from arena.checkers import pair_points, play_pairing
+from arena.checkers import PBT_SEED_BASE, pair_points, play_pairing
 from arena.costs import TrainingCostMeter
 from checkers_selfplay_run import INTERFACE, MAX_MOVES, MAX_MOVES_WITHOUT_CAPTURE, OPPONENTS
 from checkers_training import MONITOR_GAMES, monitor_score
 from evolve import WeightVector
 from games.checkers_openings import ballot
 from games.checkers_strategies import evaluator
-from run_context import recorded_run
+from jobcore import recorded_run
 from telemetry import GenerationStats
 
 BASE = {"hidden": 64, "hidden_layers": 2, "pool_every": 5000, "pool_size": 10}
-SEED_BASE = 60_000  # round-robin game seeds; disjoint from every other measurement's
 PAUSE_CHECK_GAMES = 1000  # a paused run stops within this many games of one member
 
 
@@ -156,7 +155,7 @@ def main(
                     control(None)
             snapshots = [t.snapshot() for t in trainers]
             openings = rng.sample(all_openings, openings_per_pair)
-            scores = round_robin(snapshots, openings, depth, SEED_BASE + generation * 100_000)
+            scores = round_robin(snapshots, openings, depth, PBT_SEED_BASE + generation * 100_000)
             ranked = sorted(range(members), key=lambda i: -scores[i])
             best = ranked[0]
             replaced = []

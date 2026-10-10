@@ -15,7 +15,7 @@ what belongs here and how to add to it). Read before writing code, not after.
   needed the API process and a separate training-job process to agree on "should this run keep
   going right now?" — `telemetry.RunStatus` already had a `"paused"` value from docs/design/0002,
   unused until then, so pausing became `registry.update_status(run_id, "paused")` and the job's
-  `on_generation` callback (`jobs/control.py`) just blocks while that's true. No new IPC primitive,
+  `on_generation` callback (`jobcore.control`) just blocks while that's true. No new IPC primitive,
   no new column. "Step" (advance exactly one generation) resisted the same trick — it's not
   sensibly a `RunStatus` value — so it's implemented entirely API-side instead (resume, wait for one
   new `GenerationStats` via the existing `MetricsSource`, re-pause), keeping the job-side callback a

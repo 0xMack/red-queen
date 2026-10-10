@@ -1,4 +1,4 @@
-"""Tests for jobs/control.py's pause/resume mechanism -- exercised against a real evolve() run in a
+"""Tests for jobcore.control's pause/resume mechanism -- exercised against a real evolve() run in a
 background thread, not mocked, matching this repo's "verify by running it" norm (see
 docs/CODING_GUIDELINES.md's "Lessons")."""
 
@@ -6,7 +6,6 @@ import random
 import threading
 import time
 
-from control import make_control_callback
 from evolve import (
     GenerationSummary,
     LinearCrossoverMutation,
@@ -15,6 +14,8 @@ from evolve import (
     random_program,
 )
 from telemetry import SqliteRunRegistry
+
+from jobcore.control import make_control_callback
 
 
 class SlowFitness:

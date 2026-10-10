@@ -28,8 +28,8 @@ from arena.versus_stats import Sprt
 from evolve import NeatGenome, network_from_json
 from games.checkers_openings import Opening, ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator, strategy
-from run_context import experiments_dir
-from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry, open_stores
+from jobcore import experiments_dir, open_sink
+from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
 
 
 def sprt_order() -> list[Opening]:
@@ -105,8 +105,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--out", default=None, help="write the result as JSON under data/experiments/")
     args = parser.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     a = resolve(args.a, registry, metrics, artifacts)
     b = resolve(args.b, registry, metrics, artifacts)
     test = Sprt(elo0=args.elo0, elo1=args.elo1, alpha=args.alpha, beta=args.beta)

@@ -60,10 +60,10 @@ from typing import Any
 import rl_run
 from arena.snake import PROTOCOL, measure_quality
 from games import interfaces
+from jobcore import experiments_dir, open_sink
 from modelpack import QTable, champion_parameters, load_champion
-from run_context import experiments_dir
 from snake_experiment import _stats, experiment_runs, parse_seeds
-from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, open_stores
+from telemetry import FileArtifactStore, FileMetricsStore, RunInfo
 
 INTERFACE = "snake/features.v1+relative3.v1"
 EGOCENTRIC = "snake/egocentric.v1+relative3.v1"
@@ -139,7 +139,7 @@ ARMS.update(PG_ARMS)
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
-    registry = open_stores().registry
+    registry = open_sink().registry
     for seed in seeds:
         for arm_name in arms:
             done = [
@@ -216,8 +216,8 @@ def summarize_run(run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifa
 
 
 def build_report(name: str) -> dict[str, Any]:
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     rows = sorted((summarize_run(r, metrics, artifacts) for r in runs), key=lambda row: (row["arm"], row["rng_seed"]))
     by_arm = {arm: [row for row in rows if row["arm"] == arm] for arm in sorted({row["arm"] for row in rows})}

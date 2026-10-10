@@ -11,3 +11,5 @@ PROTOCOL = "bandit.skill.v1"
 HELD_OUT = 500
 SEED_BASE = 10_000
 RANKED = "classic"
+# Training runs' held-out curve (an evolved strategy, every few generations): kept apart from the leaderboard's games.
+MONITOR_SEEDS: tuple[int, ...] = tuple(range(20_000, 20_200))

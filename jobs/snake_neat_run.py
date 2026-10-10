@@ -37,7 +37,7 @@ from evolve import (
     network_from_json,
 )
 from games import interfaces
-from run_context import recorded_run
+from jobcore import recorded_run
 from snake_neuro_run import (
     BOARD,
     DEFAULT_INTERFACE,

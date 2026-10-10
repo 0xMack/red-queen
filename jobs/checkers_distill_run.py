@@ -36,8 +36,7 @@ from evolve import (
 )
 from games import _native
 from games.checkers import Checkers
-from parallel import ProcessPoolEvaluator
-from run_context import recorded_run
+from jobcore import ProcessPoolEvaluator, recorded_run
 from telemetry import data_dir
 
 LABEL_SCALE = 4.0  # material units at which a label reaches ~76% of the network's range (tanh)

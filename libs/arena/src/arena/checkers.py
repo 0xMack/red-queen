@@ -8,7 +8,8 @@ are seeded (random tie-breaks reproduce) and capped at MAX_PLIES. An entrant's s
 
 Every use of seeded Checkers games owns a seed range, listed here so they stay disjoint: training opponents draw by
 opponent index, monitoring from MONITOR_SEED_BASE, the leaderboard from VERSUS_SEED_BASE, the self-play experiment
-report from REPORT_SEED_BASE, head-to-head SPRTs from SPRT_SEED_BASE. Changing any protocol constant means a new
+report from REPORT_SEED_BASE, head-to-head SPRTs from SPRT_SEED_BASE, population-based training's member round robins
+from PBT_SEED_BASE (plus 100,000 per generation). Changing any protocol constant means a new
 protocol version, not an edit.
 """
 
@@ -32,6 +33,7 @@ MONITOR_SEED_BASE = 20_000
 VERSUS_SEED_BASE = 30_000
 REPORT_SEED_BASE = 40_000
 SPRT_SEED_BASE = 50_000
+PBT_SEED_BASE = 60_000
 SPRT_ORDER_SEED = 0  # the fixed shuffle of the ballot a sequential test plays through
 
 # (env, rng) -> Strategy

@@ -98,7 +98,7 @@ architectural change that might conflict with a decision already made.
     server-side: every game is played in the browser (docs/design/0009), so the old server-side session
     API (`routers/games.py`) is gone. `POST
     /runs/{id}/control` (pause/resume/step) reuses `telemetry.RunStatus`'s existing `"paused"`
-    value as the only coordination with a training job's `jobs/control.py` callback — see
+    value as the only coordination with a training job's `jobcore.control` callback — see
     `docs/CODING_GUIDELINES.md`'s "before adding new shared state" entry for why, and why `step`
     is implemented entirely API-side instead of as a third status value. `routers/models.py` serves
     the local model store in development (immutable blobs/manifests, `GET /games/{game}/models`
@@ -287,15 +287,17 @@ architectural change that might conflict with a decision already made.
   records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
   pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
   evolved run's champion; it runs in a second).
-  `run_context.py`'s `recorded_run()` is every training job's lifecycle (create the run, then `completed` or
-  `failed`). Every job and the backend open their stores with `telemetry.open_stores()` under `telemetry.data_dir()`
-  (`REDQUEEN_DATA_DIR`, default `<repo>/data`; point both at a scratch directory for smoke runs).
-  `control.py`'s `make_control_callback`
-  (an `on_generation` entry) is the job-side half of the pause/resume control API — see the
-  `apis/backend` bullet above. Not a `uv` workspace package (no `pyproject.toml`) — scripts here
-  import each other as plain sibling modules, which works because `uv run python jobs/<script>.py`
-  puts the script's own directory on `sys.path`; `jobs/tests/conftest.py` does the same explicitly
-  so `uv run pytest jobs/tests` can too.
+  **`jobs/core` (`jobcore`, a workspace package) is what every job shares**: `open_sink()` (where a job writes:
+  telemetry's Protocol-typed `Stores`, local file/SQLite by default, `REDQUEEN_SINK`), `recorded_run()` (every
+  training job's lifecycle: create the run, then `completed` or `failed`), `make_control_callback` (the job-side half
+  of the pause/resume control API — see the `apis/backend` bullet above), `ProcessPoolEvaluator`, and `specs`
+  (`TrainSpec` + the algorithm registry the trainer workload will be driven by). Data lives under
+  `telemetry.data_dir()` (`REDQUEEN_DATA_DIR`, default `<repo>/data`; point jobs and the backend at a scratch directory
+  for smoke runs). **`jobs/tests/test_golden.py` pins every training job's config, curve and champion bytes**
+  (`golden_cases.py`, recorded before any porting): a port must reproduce them exactly. The scripts themselves are
+  still loose (no `pyproject.toml`) — they import each other as plain sibling modules, which works because
+  `uv run python jobs/<script>.py` puts the script's own directory on `sys.path`; `jobs/tests/conftest.py` does the
+  same explicitly so `uv run pytest jobs/tests` can too.
 - `docs/` — `design/000N-*.md` (numbered, one per major decision) and
   [CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) (standards + accumulated lessons)
 

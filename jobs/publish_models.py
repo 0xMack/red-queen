@@ -30,6 +30,7 @@ from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL
 from evaluate import champion_entrants
 from games import interfaces
 from games.observation import Interface
+from jobcore import open_sink
 from modelpack import (
     CatalogEntry,
     LocalModelStore,
@@ -39,7 +40,7 @@ from modelpack import (
     export_network_json,
     with_parity,
 )
-from telemetry import data_dir, models_dir, open_stores
+from telemetry import data_dir, models_dir
 
 PARITY_SAMPLES = 256
 
@@ -182,8 +183,8 @@ def publish(
 
 
 def main(game: str = "snake") -> None:
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     store = LocalModelStore(models_dir())
     catalog = store.catalog(game)
     entrants = champion_entrants(registry, metrics, artifacts, game)

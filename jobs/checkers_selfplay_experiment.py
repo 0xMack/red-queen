@@ -72,10 +72,9 @@ from checkers_sprt import run_factory, sequential_match
 from evolve import WeightVector, network_from_json
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator
+from jobcore import experiments_dir, open_sink
 from rl_experiment import paired_permutation_p
-from run_context import experiments_dir
 from snake_experiment import _stats, experiment_runs, parse_seeds
-from telemetry import open_stores
 
 DEPTH = 3
 GAMES_PER_OPPONENT = 20  # games (so GAMES_PER_OPPONENT / 2 ballot openings, a game pair each) per field opponent
@@ -220,7 +219,7 @@ def resolve_baseline(name: str, arm: str) -> tuple[str, str] | None:
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
-    registry = open_stores().registry
+    registry = open_sink().registry
     for seed in seeds:
         for arm_name in arms:
             done = [
@@ -266,8 +265,8 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
 def field_factories() -> dict[str, Any]:
     """The fixed opponents: material search, and the best evolved evaluator (if this machine has its run)."""
     factories = {name: STRATEGIES[name] for name in FIELD}
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     if EVOLVED_RUN not in {r.run_id for r in registry.list_runs()}:
         return factories
     history = metrics.history(EVOLVED_RUN)
@@ -291,8 +290,8 @@ def score_run(snapshot: str, field_: dict[str, Any], games: int = GAMES_PER_OPPO
 
 
 def build_report(name: str, games: int = GAMES_PER_OPPONENT) -> dict[str, Any]:
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     field_ = field_factories()
     rows = []
     for run in sorted(experiment_runs(registry, name), key=lambda r: (r.config["arm"], r.config["rng_seed"])):
@@ -367,8 +366,8 @@ def across_seeds(per_seed: dict[int, dict[str, float]]) -> dict[str, Any]:
 
 def build_h2h(name: str, arms: list[str] | None = None, elo1: float = 50.0, full: bool = False) -> dict[str, Any]:
     """Each arm (with a baseline) against its baseline arm, seed for seed, head to head (see the module docs)."""
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     by_arm: dict[str, dict[int, Any]] = {}
     for run in runs:

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-# jobs/ isn't a uv workspace package (see AGENTS.md) -- baseline_gp_run.py can import control.py
+# jobs/ isn't a uv workspace package (see AGENTS.md) -- e.g. checkers_neuro_run.py can import checkers_training.py
 # because `uv run python jobs/<script>.py` puts the script's own directory on sys.path
 # automatically. Tests need the same thing done explicitly.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -15,4 +15,5 @@ def data_dir(tmp_path, monkeypatch):
     reads REDQUEEN_DATA_DIR at call time) -- never in the real data directory."""
     monkeypatch.setenv("REDQUEEN_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("REDQUEEN_MODELS_DIR", raising=False)
+    monkeypatch.delenv("REDQUEEN_SINK", raising=False)
     return tmp_path

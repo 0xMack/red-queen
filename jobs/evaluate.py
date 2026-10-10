@@ -27,6 +27,7 @@ from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, Policy, Poli
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
+from jobcore import open_sink
 from modelpack import (
     LocalModelStore,
     MlpPolicy,
@@ -45,7 +46,6 @@ from telemetry import (
     RunInfo,
     SqliteRunRegistry,
     models_dir,
-    open_stores,
 )
 
 # --- Baselines ---------------------------------------------------------------------------------------
@@ -326,9 +326,9 @@ def evaluate_entrant(
 
 
 def main() -> None:
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
-    store = stores.evaluations
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
+    store = sink.evaluations
     hardware = hardware_fingerprint()
 
     models = LocalModelStore(models_dir())
