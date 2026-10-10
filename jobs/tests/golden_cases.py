@@ -9,7 +9,7 @@ Exact *per operating system*, not across them: `math.tanh`/`exp` (Python) and Ru
 platform's libm, and MSVC's and glibc's can differ in the last bit -- which a few generations of selection turn into
 different champions. So there is one fixture per platform (`golden/champions.<sys.platform>.json`). TinyLM is the one
 tolerance: its matrix products go through numpy's BLAS, whose kernels (so whose rounding) depend on the CPU, so its
-weights are compared as per-array sums to 1e-9.
+weights are compared as per-array sums to 1e-9 (relative, or absolute near zero).
 
 Re-record (only for a deliberate behaviour change, which then needs saying in the commit):
     uv run python jobs/tests/golden_cases.py --record [case ...]
@@ -271,14 +271,18 @@ def digest_tinylm(name: str) -> dict[str, Any]:
     return {"weights": weights, "meta": meta}
 
 
-def close(actual: Any, expected: Any, rel: float = 1e-9) -> bool:
-    """Equal, except that floats need only agree to `rel` (TOLERANT cases)."""
+def close(actual: Any, expected: Any, rel: float = 1e-9, abs_tol: float = 1e-9) -> bool:
+    """Equal, except that floats need only agree to `rel` -- or to `abs_tol` near zero, where a relative tolerance means
+    nothing: an attention key bias's gradient is exactly zero in theory (softmax ignores a constant shift), so its sum
+    is ~1e-13 of pure rounding noise that differs from CPU to CPU (TOLERANT cases)."""
     if isinstance(expected, float) and isinstance(actual, float):
-        return abs(actual - expected) <= rel * max(abs(expected), 1e-12)
+        return abs(actual - expected) <= max(rel * abs(expected), abs_tol)
     if isinstance(expected, dict) and isinstance(actual, dict):
-        return actual.keys() == expected.keys() and all(close(actual[k], expected[k], rel) for k in expected)
+        return actual.keys() == expected.keys() and all(close(actual[k], expected[k], rel, abs_tol) for k in expected)
     if isinstance(expected, list) and isinstance(actual, list):
-        return len(actual) == len(expected) and all(close(a, e, rel) for a, e in zip(actual, expected, strict=True))
+        return len(actual) == len(expected) and all(
+            close(a, e, rel, abs_tol) for a, e in zip(actual, expected, strict=True)
+        )
     return actual == expected
 
 
