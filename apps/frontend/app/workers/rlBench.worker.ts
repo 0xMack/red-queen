@@ -1,6 +1,6 @@
 // Device check for reinforcement learning in the browser (docs/design/0010 Phase 0): does this browser's build of the
 // RL core train bit-for-bit like the native one (the determinism digests), and how fast does it run? The cases match
-// jobs/rl_benchmark.py, which measures the same things natively. Runs in a worker so timing never blocks the page.
+// libs/rl/scripts/benchmark.py, which measures the same things natively. Runs in a worker so timing never blocks the page.
 import init, { alphazeroDigest, banditDigest, benchForwards, benchUpdates, dqnDigest, learningDigest, pgDigest, selfplayDigest, rolloutDigest, Trainer, trainingDigest } from "~/wasm/rl/rl.js"
 import rlWasmUrl from "~/wasm/rl/rl_bg.wasm?url"
 import fixture from "~/wasm/rl/determinism.json"

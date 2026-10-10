@@ -6,7 +6,7 @@ import type { BenchResult, DigestResult, RlBenchMessage } from "~/workers/rlBenc
 
 useHead({ title: "Reinforcement learning (dev)" })
 
-// jobs/rl_benchmark.py on the development machine (Windows, x86-64, release build), 2026-09-23 -- for comparison.
+// libs/rl/scripts/benchmark.py on the development machine (Windows, x86-64, release build), 2026-09-23 -- for comparison.
 const NATIVE: Record<string, number> = {
   "env steps/s (Snake, random agent)": 7_054_437,
   "act/s (11-64-64-3)": 530_294,

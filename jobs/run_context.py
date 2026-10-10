@@ -8,46 +8,35 @@ used to repeat all of it, and only some remembered `failed`; `recorded_run()` do
 
 A hard kill can't be caught -- a run killed that way still needs marking by hand.
 
-Tests point jobs at a temporary directory with `monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)`;
-`TelemetryStores.open()` reads it at call time for exactly that reason.
+Where the data lives is `telemetry.data_dir()` (`REDQUEEN_DATA_DIR`), read at call time: jobs/tests/conftest.py points
+every test at a temporary directory that way.
 """
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
+from arena.costs import TrainingCostMeter
 from control import make_control_callback
-from costs import TrainingCostMeter
 from evolve import GenerationCallback
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
     GenerationStats,
     SqliteRunRegistry,
+    Stores,
+    data_dir,
+    open_stores,
 )
 
-# The same override apis/backend honours (settings.py), so a job and the API can agree on a scratch directory.
-RUN_DATA_DIR = Path(os.environ.get("REDQUEEN_RUN_DATA_DIR") or Path(__file__).parent / "run-data")
 
-
-class TelemetryStores(NamedTuple):
-    registry: SqliteRunRegistry
-    metrics: FileMetricsStore
-    artifacts: FileArtifactStore
-
-    @classmethod
-    def open(cls, data_dir: Path | None = None) -> TelemetryStores:
-        data_dir = RUN_DATA_DIR if data_dir is None else data_dir
-        return cls(
-            registry=SqliteRunRegistry(data_dir / "runs.db"),
-            metrics=FileMetricsStore(data_dir / "metrics"),
-            artifacts=FileArtifactStore(data_dir / "artifacts"),
-        )
+def experiments_dir() -> Path:
+    """Where experiment reports are written (gitignored data, not results: those are cited in docs/design)."""
+    return data_dir() / "experiments"
 
 
 @dataclass(frozen=True)
@@ -55,7 +44,7 @@ class RecordedRun:
     """A run in progress: its id, its stores, and the pieces every job wires the same way."""
 
     run_id: str
-    stores: TelemetryStores
+    stores: Stores
 
     @property
     def registry(self) -> SqliteRunRegistry:
@@ -95,10 +84,10 @@ class RecordedRun:
 
 
 @contextmanager
-def recorded_run(config: dict[str, Any], stores: TelemetryStores | None = None) -> Iterator[RecordedRun]:
+def recorded_run(config: dict[str, Any], stores: Stores | None = None) -> Iterator[RecordedRun]:
     """Creates a run with `config`, yields it, and marks it `completed` when the block finishes or
     `failed` if it raises (including Ctrl-C), re-raising."""
-    stores = stores or TelemetryStores.open()
+    stores = stores or open_stores()
     run = RecordedRun(run_id=stores.registry.create_run(config=config), stores=stores)
     print(f"run_id={run.run_id}", flush=True)
     try:

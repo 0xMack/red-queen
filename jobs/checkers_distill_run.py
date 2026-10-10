@@ -10,7 +10,7 @@ plies (default 3): a good evaluator makes a shallow search behave like a deeper 
 plain `material-4`. The champion is scored, as in the other Checkers jobs, on games it never trained on.
 
 Every generation fits a fresh sample from the labelled pool (`--sample`), split into groups so lexicase selection
-still has cases to work with; the pool is cached under run-data/ so runs are comparable.
+still has cases to work with; the pool is cached under data/distill/ so runs are comparable.
 
   uv run python jobs/checkers_distill_run.py [--generations 300] [--population 100] [--hidden 16] [--depth 3]
                                              [--label-depth 6] [--workers 8] [--experiment NAME --arm ARM]
@@ -25,8 +25,8 @@ import random
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
+from arena.costs import TrainingCostMeter
 from checkers_training import INPUTS, MAX_MOVES, MONITOR_GAMES, make_telemetry_callback
-from costs import TrainingCostMeter
 from evolve import (
     GaussianMutation,
     TournamentSelection,
@@ -37,9 +37,9 @@ from evolve import (
 from games import _native
 from games.checkers import Checkers
 from parallel import ProcessPoolEvaluator
-from run_context import RUN_DATA_DIR, recorded_run
+from run_context import recorded_run
+from telemetry import data_dir
 
-POOL_DIR = RUN_DATA_DIR / "distill"
 LABEL_SCALE = 4.0  # material units at which a label reaches ~76% of the network's range (tanh)
 GROUPS = 10  # fitness cases per genome: the sample split into this many groups (negative mean squared error each)
 DEFAULT_OPPONENTS = ("material-3", "material-4")
@@ -106,8 +106,8 @@ def build_pool(
     label_depth: int, games: int, workers: int, seed: int = 0, kind: str = "search"
 ) -> tuple[list[list[float]], list[float]]:
     """The labelled positions, generated once and cached (the labels cost a deep search each)."""
-    POOL_DIR.mkdir(parents=True, exist_ok=True)
-    path = POOL_DIR / f"pool-{kind}-k{label_depth}-g{games}-s{seed}.json"
+    (data_dir() / "distill").mkdir(parents=True, exist_ok=True)
+    path = (data_dir() / "distill") / f"pool-{kind}-k{label_depth}-g{games}-s{seed}.json"
     if path.exists():
         data = json.loads(path.read_text())
         return data["observations"], data["labels"]

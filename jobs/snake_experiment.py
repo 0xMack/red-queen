@@ -17,10 +17,10 @@ Runs are resumable (a finished (arm, seed) is skipped), and independent arms can
 separate processes -- they only share the SQLite run registry, which serializes its own writes.
 
   uv run python jobs/snake_experiment.py run    --name NAME --arms neat,neuro-lexicase --seeds 0-4
-  uv run python jobs/snake_experiment.py report --name NAME     # aggregates + writes run-data/experiments/NAME.json
+  uv run python jobs/snake_experiment.py report --name NAME     # aggregates + writes data/experiments/NAME.json
 
-The report scores each run's *final* champion on the 200 leaderboard games (jobs/evaluate.py's
-HELD_OUT_SEEDS, protocol evaluate.PROTOCOL) -- never the best-looking generation, which would be
+The report scores each run's *final* champion on the 200 leaderboard games (arena.snake's
+HELD_OUT_SEEDS, protocol arena.snake.PROTOCOL) -- never the best-looking generation, which would be
 selecting on the test set.
 """
 
@@ -36,14 +36,13 @@ from typing import Any
 
 import snake_neat_run
 import snake_neuro_run
-from evaluate import PROTOCOL, measure_quality
+from arena.snake import PROTOCOL, measure_quality
 from evolve import NeatConfig, network_from_json
 from evolve.networks import parameter_count
 from games import interfaces
-from run_context import RUN_DATA_DIR, TelemetryStores
-from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
+from run_context import experiments_dir
+from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry, open_stores
 
-EXPERIMENTS_DIR = RUN_DATA_DIR / "experiments"
 INTERFACE = snake_neuro_run.DEFAULT_INTERFACE
 SEED_STRATEGY = "resample:5"
 HELD_OUT_EVERY = 10
@@ -150,7 +149,7 @@ def experiment_runs(registry: SqliteRunRegistry, name: str) -> list[RunInfo]:
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int], generations: int) -> None:
-    registry = TelemetryStores.open().registry
+    registry = open_stores().registry
     for seed in seeds:
         for arm in arms:
             done = [
@@ -212,7 +211,8 @@ def _stats(values: list[float]) -> dict[str, float]:
 
 
 def build_report(name: str) -> dict[str, Any]:
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     rows = sorted(
         (summarize_run(r, metrics, artifacts) for r in runs),
@@ -296,10 +296,10 @@ def main(argv: list[str] | None = None) -> None:
         run_experiment(args.name, arms, parse_seeds(args.seeds), args.generations)
     else:
         result = build_report(args.name)
-        EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        (EXPERIMENTS_DIR / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        experiments_dir().mkdir(parents=True, exist_ok=True)
+        (experiments_dir() / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print_report(result)
-        print(f"\nwrote {EXPERIMENTS_DIR / (args.name + '.json')}")
+        print(f"\nwrote {experiments_dir() / (args.name + '.json')}")
 
 
 if __name__ == "__main__":

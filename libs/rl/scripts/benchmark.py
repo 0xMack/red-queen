@@ -7,7 +7,7 @@ Cases (keep in sync with apps/frontend/app/workers/rlBench.worker.ts):
 - updates/s: forward + backward + Adam on a batch of 32, for three network sizes (features.v1, egocentric.v1 and
   grid-flat.v1 inputs).
 
-Run with: uv run python jobs/rl_benchmark.py
+Run with: uv run python libs/rl/scripts/benchmark.py
 """
 
 from __future__ import annotations

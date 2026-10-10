@@ -1,7 +1,8 @@
 import random
 
 import pytest
-from versus_stats import (
+
+from arena.versus_stats import (
     Sprt,
     bradley_terry,
     elo_of,

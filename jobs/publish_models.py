@@ -8,11 +8,11 @@ leaderboard scored, so it is published as its own entrant (`run:<id>@<variant>`)
 own right. (fp64 is WASM-only and agrees exactly; fp32 is what WebGPU can run, and for some champions
 it flips a handful of near-tie decisions -- docs/design/0009.)
 
-Writes to a `LocalModelStore` at jobs/run-data/models (served by apis/backend in development); the
+Writes to a `LocalModelStore` at data/models (served by apis/backend in development); the
 game's catalog maps each entrant to its package. Re-running is idempotent: identical exports are
 identical packages.
 
-Also publishes every TinyLM checkpoint under jobs/run-data/tinylm (jobs/tinylm_run.py) to the
+Also publishes every TinyLM checkpoint under data/tinylm (jobs/tinylm_run.py) to the
 `tinylm` catalog: fp32 and int8 variants, checked on the corpus's held-out text (modelpack.lm).
 
 Run with: uv run python jobs/publish_models.py [snake|tinylm]   (then re-run jobs/evaluate.py)
@@ -26,7 +26,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from evaluate import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, champion_entrants
+from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL
+from evaluate import champion_entrants
 from games import interfaces
 from games.observation import Interface
 from modelpack import (
@@ -38,9 +39,8 @@ from modelpack import (
     export_network_json,
     with_parity,
 )
-from run_context import RUN_DATA_DIR, TelemetryStores
+from telemetry import data_dir, models_dir, open_stores
 
-MODELS_DIR = RUN_DATA_DIR / "models"
 PARITY_SAMPLES = 256
 
 
@@ -182,8 +182,9 @@ def publish(
 
 
 def main(game: str = "snake") -> None:
-    registry, metrics, artifacts = TelemetryStores.open()
-    store = LocalModelStore(MODELS_DIR)
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    store = LocalModelStore(models_dir())
     catalog = store.catalog(game)
     entrants = champion_entrants(registry, metrics, artifacts, game)
     # Only current entrants stay listed: a run that stopped qualifying (failed, deleted) drops out of the catalog too.
@@ -215,7 +216,7 @@ def publish_tinylm(store: LocalModelStore) -> None:
     from tinylm_run import SEQ_LEN, split_corpus
 
     catalog = store.catalog("tinylm")
-    for checkpoint in sorted((RUN_DATA_DIR / "tinylm").glob("*.npz")):
+    for checkpoint in sorted((data_dir() / "tinylm").glob("*.npz")):
         started = time.perf_counter()
         model, tokenizer, meta = tinylm.load(checkpoint.with_suffix(""))
         _, _, held_out = split_corpus()
@@ -264,6 +265,6 @@ if __name__ == "__main__":
     if "snake" in which:
         main()
     if "tinylm" in which:
-        publish_tinylm(LocalModelStore(MODELS_DIR))
-    removed, freed = LocalModelStore(MODELS_DIR).collect_garbage()
+        publish_tinylm(LocalModelStore(models_dir()))
+    removed, freed = LocalModelStore(models_dir()).collect_garbage()
     print(f"garbage collected {removed} superseded files ({freed / 1e6:.1f} MB)")

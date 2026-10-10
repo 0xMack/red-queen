@@ -50,9 +50,8 @@ _ALL: list[Interface] = [
 ]
 _BY_ID: dict[str, Interface] = {i.id: i for i in _ALL}
 
-# What a Snake run recorded before interfaces existed was trained against -- see
-# jobs/backfill_interfaces.py, which resolves each legacy run properly from its champion's layer
-# sizes rather than assuming this.
+# What a Snake run recorded before interfaces existed was trained against. Those runs had their
+# interface backfilled once (resolved from each champion's layer sizes, not assumed from this).
 SNAKE_DEFAULT = "snake/features.v1+relative3.v1"
 
 

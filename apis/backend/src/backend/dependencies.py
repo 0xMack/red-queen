@@ -19,29 +19,32 @@ from telemetry import (
     RunRegistry,
     SqliteEvaluationStore,
     SqliteRunRegistry,
+    Stores,
+    models_dir,
+    open_stores,
 )
 
-from backend.settings import models_dir, run_data_dir
-
 
 @lru_cache
+def _stores() -> Stores:
+    return open_stores()
+
+
+# One provider per store, so a test overrides just the store it fakes.
 def _run_registry() -> SqliteRunRegistry:
-    return SqliteRunRegistry(run_data_dir() / "runs.db")
+    return _stores().registry
 
 
-@lru_cache
 def _metrics_source() -> FileMetricsStore:
-    return FileMetricsStore(run_data_dir() / "metrics")
+    return _stores().metrics
 
 
-@lru_cache
 def _artifact_store() -> FileArtifactStore:
-    return FileArtifactStore(run_data_dir() / "artifacts")
+    return _stores().artifacts
 
 
-@lru_cache
 def _evaluation_store() -> SqliteEvaluationStore:
-    return SqliteEvaluationStore(run_data_dir() / "evaluations.db")
+    return _stores().evaluations
 
 
 @lru_cache

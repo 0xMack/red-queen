@@ -33,6 +33,7 @@ import random
 from collections.abc import Sequence
 from typing import Any
 
+from arena.costs import TrainingCostMeter
 from checkers_training import (
     INPUTS,
     MAX_MOVES,
@@ -46,7 +47,6 @@ from checkers_training import (
     opponent_pool,
     strategy_factory,
 )
-from costs import TrainingCostMeter
 from evolve import GaussianMutation, LexicaseSelection, evolve, random_weight_vector
 from games.checkers_strategies import STRATEGIES
 from parallel import ProcessPoolEvaluator

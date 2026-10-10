@@ -9,7 +9,7 @@ environment steps -- and records each iteration the way every other run is recor
   seeds, every --held-out-every iterations and on the last one;
 - extras: env_steps, episodes, mean episode length, plus whatever the algorithm reports (epsilon, td_loss, ...).
 
-Training games are drawn from jobs/seeding.py's TRAINING_POOL, disjoint from the leaderboard's held-out games and
+Training games are drawn from arena.seeding's TRAINING_POOL, disjoint from the leaderboard's held-out games and
 the monitor's. Algorithms: `random` (learns nothing: the pipeline's smoke test), `q_learning` and `sarsa` (tabular,
 Phase 1; `--param n_step=3`, `--param epsilon_decay_steps=200000`, ... -- libs/rl/rust/core/src/tabular.rs), `dqn`
 (Phase 2; `--param double=1 --param dueling=1`, ... -- dqn.rs), `reinforce` / `a2c` / `ppo` (Phase 3; `--param
@@ -29,10 +29,10 @@ import time
 from typing import Any
 
 import rl
-from costs import TrainingCostMeter
-from evaluate import BOARD, MAX_STEPS, MONITOR_SEEDS
+from arena.costs import TrainingCostMeter
+from arena.seeding import TRAINING_POOL
+from arena.snake import BOARD, MAX_STEPS, MONITOR_SEEDS
 from run_context import recorded_run
-from seeding import TRAINING_POOL
 from telemetry import GenerationStats
 
 

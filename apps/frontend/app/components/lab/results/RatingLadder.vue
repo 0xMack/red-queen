@@ -47,7 +47,7 @@ const colour = (r: Row, i: number) => (hovered.value === i ? palette.queen300 : 
 const labelled = (i: number) => (hovered.value === null ? [0, 4, 18].includes(i) : hovered.value === i)
 
 // The field test: the leader's numbers fitted to the whole round robin, and again with only the 11 entrants rated 400
-// or more (the same games, the others' dropped; jobs/versus_stats.bradley_terry on the records' per-opponent results).
+// or more (the same games, the others' dropped; arena.versus_stats.bradley_terry on the records' per-opponent results).
 const FIELDS = [
   { label: "All 20 entrants", points: 0.923, aboveMaterial4: 265 },
   { label: "Only the 11 rated 400+", points: 0.858, aboveMaterial4: 264 },

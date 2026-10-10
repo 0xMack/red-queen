@@ -29,6 +29,7 @@ from collections.abc import Callable, Sequence
 from itertools import pairwise
 from typing import Any
 
+from arena.checkers import MONITOR_SEED_BASE
 from evolve import (
     MatchFitnessEvaluator,
     NeatGenome,
@@ -44,7 +45,6 @@ from telemetry import FileArtifactStore, FileMetricsStore, GenerationStats
 INPUTS = 32  # games.checkers' observation: the 32 playable squares from the mover's perspective
 MAX_MOVES = 200  # plies per match (a draw beyond that), the same cap jobs/checkers_round_robin.py uses
 MONITOR_GAMES = 10  # per opponent, alternating seats
-MONITOR_SEED_BASE = 20_000  # opponent rng seeds; training seeds by opponent index, never these
 
 Genome = WeightVector | NeatGenome
 

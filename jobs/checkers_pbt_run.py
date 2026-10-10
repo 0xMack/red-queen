@@ -34,10 +34,10 @@ import time
 from typing import Any
 
 import rl
+from arena.checkers import pair_points, play_pairing
+from arena.costs import TrainingCostMeter
 from checkers_selfplay_run import INTERFACE, MAX_MOVES, MAX_MOVES_WITHOUT_CAPTURE, OPPONENTS
 from checkers_training import MONITOR_GAMES, monitor_score
-from costs import TrainingCostMeter
-from evaluate_versus import pair_points, play_pairing
 from evolve import WeightVector
 from games.checkers_openings import ballot
 from games.checkers_strategies import evaluator

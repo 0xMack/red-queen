@@ -29,23 +29,6 @@ def test_round_robin_plays_game_pairs_on_ballot_openings_and_is_zero_sum():
     assert total == pairs * 2 * 2
     a, b = entrants[0]["entrant_id"], entrants[1]["entrant_id"]
     assert [p for p, _ in results[a][b]] == [1.0 - p for p, _ in results[b][a]]
-    # Pairings take successive slices of the ballot, wrapping round it.
-    ballot = evaluate_versus.ballot()
-    assert evaluate_versus.openings_for(0, 2) == [ballot[0], ballot[1]]
-    assert evaluate_versus.openings_for(len(ballot) // 2, 2) == [ballot[0], ballot[1]]
-
-
-def test_a_game_pair_is_one_opening_from_both_seats():
-    first = evaluate_versus.STRATEGIES["first-legal"]
-    material = evaluate_versus.STRATEGIES["material-2"]
-    opening = evaluate_versus.ballot()[5]
-    games = evaluate_versus.play_pairing(material, first, [opening], seed_base=0)
-    assert len(games) == 2
-    assert games == [
-        evaluate_versus.play_game(material, first, opening, 0, 0),
-        evaluate_versus.play_game(material, first, opening, 1, 1),
-    ]
-    assert evaluate_versus.pair_points(games) == [games[0][0] + games[1][0]]
 
 
 def test_records_carry_an_elo_rating_points_and_head_to_head(monkeypatch):

@@ -37,9 +37,10 @@ for the full contract and the incremental plan this implements.
   compiled to WebAssembly), so the server-side sessions docs/design/0005 step 4 started with were removed.
 - `dependencies.py` — FastAPI providers. Telemetry-backed ones use the **Protocols**
   (`RunRegistry`/`MetricsSource`/`ArtifactStore`), backed by the `Sqlite*`/`File*` implementations
-  pointed at `settings.run_data_dir()`, so a storage backend swap never touches router code.
-- `settings.py` — locates the run-data directory (`jobs/run-data` by default, matching
-  `jobs/run_context.py`'s `RUN_DATA_DIR`; override with `REDQUEEN_RUN_DATA_DIR`).
+  opened once by `telemetry.open_stores()`, so a storage backend swap never touches router code.
+- `settings.py` — the backend's own settings (`REDQUEEN_MODELS_BASE_URL`). Where the data lives is not one of them:
+  `dependencies.py` opens the stores with `telemetry.open_stores()`, the same call every job makes, so the data
+  directory (`REDQUEEN_DATA_DIR`, default `<repo>/data`) is defined once (docs/design/0018).
 
 ## Running it
 
@@ -59,4 +60,4 @@ uv run pytest apis/backend/tests
 ```
 
 Tests override the `dependencies.py` providers with `tmp_path`-backed telemetry instances (same
-pattern as `libs/telemetry/tests`), so they don't touch `jobs/run-data`.
+pattern as `libs/telemetry/tests`), so they don't touch `data/`.

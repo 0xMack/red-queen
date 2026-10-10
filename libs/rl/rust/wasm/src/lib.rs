@@ -4,7 +4,7 @@
 //! and looks inside (a tabular agent's Q-table and visits), a `DemoGame` to watch the greedy policy play Snake, and a
 //! `DemoEnv` for any other environment (Reach1D's continuous control).
 //!
-//! Built by `libs/rl/build-wasm.py` into `apps/frontend/app/wasm/rl/`.
+//! Built by `libs/rl/scripts/build_wasm.py` into `apps/frontend/app/wasm/rl/`.
 
 use redqueen_games::snake::{Label, Observer, Snake};
 use redqueen_rl::agent::{Params, Trainer as CoreTrainer, TrainerConfig};

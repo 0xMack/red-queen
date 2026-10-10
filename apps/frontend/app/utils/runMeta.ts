@@ -17,7 +17,7 @@ export interface RunMeta {
   network: string | null
   parameterCount: number | null
   note: string | null
-  seedStrategy: string | null // "fixed:5" / "resample:5" (jobs/seeding.py); null for runs before it existed
+  seedStrategy: string | null // "fixed:5" / "resample:5" (arena.seeding); null for runs before it existed
   paradigm: "evolution" | "reinforcement_learning"
   terms: RunTerms
   watchable: boolean

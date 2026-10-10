@@ -23,17 +23,11 @@ import sys
 import time
 from typing import Any
 
-from costs import hardware_fingerprint
+from arena.bandit import GAME, HELD_OUT, PROTOCOL, RANKED, SEED_BASE
+from arena.costs import hardware_fingerprint
 from games.bandit import SCENARIOS
 from rl import _native
-from run_context import RUN_DATA_DIR, TelemetryStores
-from telemetry import EvaluationRecord, SqliteEvaluationStore
-
-GAME = "bandit"
-PROTOCOL = "bandit.skill.v1"
-HELD_OUT = 500
-SEED_BASE = 10_000
-RANKED = "classic"
+from telemetry import EvaluationRecord, open_stores
 
 # (key, strategy, params, label, description, baseline?) -- the params are what the game page runs the entrant with.
 ENTRANTS: list[tuple[str, str, dict[str, float], str, str, bool]] = [
@@ -215,7 +209,7 @@ def record_for(
 def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
     """Every completed bandit evolution run's final champion (jobs/bandit_evolve_run.py): its evolved settings, as an
     entrant linked to the run that produced it."""
-    stores = TelemetryStores.open()
+    stores = open_stores()
     out = []
     for run in stores.registry.list_runs():
         config = run.config or {}
@@ -242,7 +236,7 @@ def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
-    store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
+    store = open_stores().evaluations
     hardware = hardware_fingerprint()
     records = [record_for(e, hardware) for e in ENTRANTS]
     records += [record_for(e, hardware, run) for e, run in evolved_entrants()]

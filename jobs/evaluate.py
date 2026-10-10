@@ -3,17 +3,14 @@ record a vector of measurements -- quality, inference cost, training cost -- not
 
 Entrants for Snake today:
 - every Snake run's final champion, under the interface recorded in its config (see
-  jobs/backfill_interfaces.py for pre-0007 runs). Once published (jobs/publish_models.py), a champion
+  pre-0007 runs, which had it backfilled once). Once published (jobs/publish_models.py), a champion
   is evaluated *as its model package*, run by ONNX Runtime -- the exact bytes a visitor's browser
   downloads (docs/design/0009) -- and each package variant that plays differently from the champion
   is an entrant of its own (`run:<id>@fp32`);
 - fixed baselines (random, greedy) -- always included, since a ranking says nothing without them.
 
-Protocol `snake.score.v2`: HELD_OUT_SEEDS (disjoint from training's games.snake.BENCHMARK_SEEDS),
-10x10 board, MAX_STEPS cap, metric = game score (food eaten), never training fitness. Changing any of
-that means a new protocol version, not an edit. v2 is v1's definition unchanged, played by the Rust
-game core (docs/design/0009): its PCG32 food placement turns each seed into a different game than
-v1's Mersenne Twister did, so v1 and v2 scores are not comparable.
+The protocol itself (`snake.score.v2`: seeds, board, step cap, scoring) is defined in `arena.snake`; this job
+enumerates the entrants, measures them under it, and writes the records.
 
 Run with: uv run python jobs/evaluate.py
 """
@@ -22,10 +19,11 @@ from __future__ import annotations
 
 import statistics
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any
 
-from costs import hardware_fingerprint
+from arena.costs import hardware_fingerprint
+from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, Policy, PolicyFactory, measure_quality
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
@@ -40,30 +38,15 @@ from modelpack import (
     describe_champion,
     load_champion,
 )
-from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
     FileMetricsStore,
     RunInfo,
-    SqliteEvaluationStore,
     SqliteRunRegistry,
+    models_dir,
+    open_stores,
 )
-
-PROTOCOL = "snake.score.v2"
-HELD_OUT_SEEDS: tuple[int, ...] = tuple(range(10_000, 10_200))
-# A second, separate unseen set for *monitoring* training runs (snake_neuro_run.py's held-out score
-# every N generations). Kept apart from HELD_OUT_SEEDS so the leaderboard's games stay untouched even
-# if a run's monitoring curve is ever used to choose a champion (early stopping).
-MONITOR_SEEDS: tuple[int, ...] = tuple(range(20_000, 20_100))
-BOARD = {"width": 10, "height": 10}
-MAX_STEPS = 1000
-
-# A decision policy: observation -> action. Built per episode so stateful/random policies get a
-# deterministic, per-seed rng.
-Policy = Callable[[list[float]], Any]
-PolicyFactory = Callable[[int], Policy]
-
 
 # --- Baselines ---------------------------------------------------------------------------------------
 
@@ -88,55 +71,6 @@ def baseline_entrants(game: str) -> list[dict[str, Any]]:
 
 
 # --- Measurement -------------------------------------------------------------------------------------
-
-
-def play_episode(interface: Interface, policy: Policy, seed: int) -> tuple[int, int]:
-    game = interface.make_game(seed=seed, **BOARD)
-    observation = game.reset()
-    steps = 0
-    for _ in range(MAX_STEPS):
-        observation, _reward, done = game.step(policy(observation))
-        steps += 1
-        if done:
-            break
-    return game.score, steps
-
-
-def monitor_score(interface: Interface, policy: Policy, seeds: Sequence[int] = MONITOR_SEEDS) -> float:
-    """Mean game score over `seeds` -- the cheap held-out check a training job records per N
-    generations (GenerationStats.held_out_score). Same rules as the leaderboard protocol."""
-    return statistics.fmean(play_episode(interface, policy, seed)[0] for seed in seeds)
-
-
-def score_stats(scores: Sequence[int]) -> dict[str, Any]:
-    n = len(scores)
-    mean = statistics.fmean(scores)
-    stdev = statistics.stdev(scores) if n > 1 else 0.0
-    return {
-        "n": n,
-        "mean": round(mean, 4),
-        "ci95": round(1.96 * stdev / n**0.5, 4) if n > 1 else 0.0,
-        "median": statistics.median(scores),
-        "min": min(scores),
-        "max": max(scores),
-        "zero_rate": round(sum(1 for s in scores if s == 0) / n, 4),
-    }
-
-
-def measure_quality(interface: Interface, factory: PolicyFactory, training_seeds: Sequence[int]) -> dict[str, Any]:
-    held_out = [play_episode(interface, factory(seed), seed) for seed in HELD_OUT_SEEDS]
-    scores = [score for score, _ in held_out]
-    quality = score_stats(scores)
-    # Every held-out game's score, in seed order -- small (one int per game), and what lets a UI
-    # say "you beat this model in X% of its games" rather than only comparing to its mean.
-    quality["scores"] = scores
-    quality["mean_steps"] = round(statistics.fmean(steps for _, steps in held_out), 2)
-    train_scores = [play_episode(interface, factory(seed), seed)[0] for seed in training_seeds]
-    quality["train_mean"] = round(statistics.fmean(train_scores), 4) if train_scores else None
-    quality["generalization_gap"] = (
-        round(quality["train_mean"] - quality["mean"], 4) if quality["train_mean"] is not None else None
-    )
-    return quality
 
 
 def measure_inference(
@@ -177,7 +111,7 @@ def measure_inference(
 
 
 def training_cost(run: RunInfo, metrics: FileMetricsStore) -> dict[str, Any]:
-    """The run's measured cost block (jobs/costs.py) if it has one; otherwise an estimate from its
+    """The run's measured cost block (arena.costs) if it has one; otherwise an estimate from its
     config + metrics timestamps, labelled as such (docs/design/0007: legacy runs)."""
     measured = (run.summary or {}).get("cost")
     if measured:
@@ -392,11 +326,12 @@ def evaluate_entrant(
 
 
 def main() -> None:
-    registry, metrics, artifacts = TelemetryStores.open()
-    store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    store = stores.evaluations
     hardware = hardware_fingerprint()
 
-    models = LocalModelStore(RUN_DATA_DIR / "models")
+    models = LocalModelStore(models_dir())
     champions = packaged_entrants(champion_entrants(registry, metrics, artifacts, "snake"), models, "snake")
     entrants = [*baseline_entrants("snake"), *champions]
     evaluated = set()

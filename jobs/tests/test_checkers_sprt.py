@@ -1,7 +1,7 @@
 import checkers_sprt
+from arena.versus_stats import Sprt
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, strategy
-from versus_stats import Sprt
 
 
 def test_the_order_is_the_whole_ballot_shuffled_and_fixed():

@@ -12,7 +12,7 @@ removes anything to memorize at the same per-generation cost.
 - `resample:N` -- N fresh seeds each generation, drawn from TRAINING_POOL with a seeded rng, so a run
                   is still reproducible.
 
-TRAINING_POOL is disjoint from both evaluation seed ranges (jobs/evaluate.py's leaderboard
+TRAINING_POOL is disjoint from both evaluation seed ranges (`arena.snake`'s leaderboard
 HELD_OUT_SEEDS and MONITOR_SEEDS), so neither is ever trained on.
 """
 

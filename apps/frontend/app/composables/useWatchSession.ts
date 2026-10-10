@@ -160,8 +160,8 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
     const model: ModelSpec = { baseUrl: available.baseUrl, manifest, variantId: match.variant.id, backend: match.backend }
 
     lastLoadedRef.value = target.champion_ref
-    // docs/design/0007: run the champion under the interface its run recorded (backfilled for
-    // pre-0007 runs by jobs/backfill_interfaces.py). Absent -> the worker's default.
+    // docs/design/0007: run the champion under the interface its run recorded (backfilled once
+    // for pre-0007 runs). Absent -> the worker's default.
     const interfaceId = typeof run.value?.config?.interface === "string" ? run.value.config.interface : undefined
 
     // The trained network itself, only to *draw* it (its live activations): the package is what plays.

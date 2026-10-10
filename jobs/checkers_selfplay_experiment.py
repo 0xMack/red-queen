@@ -66,19 +66,19 @@ from typing import Any
 
 import checkers_pbt_run
 import checkers_selfplay_run
+from arena.checkers import REPORT_SEED_BASE, play_pairing
+from arena.versus_stats import Sprt, pair_elo
 from checkers_sprt import run_factory, sequential_match
-from evaluate_versus import play_pairing
 from evolve import WeightVector, network_from_json
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator
-from rl_experiment import EXPERIMENTS_DIR, paired_permutation_p
-from run_context import TelemetryStores
+from rl_experiment import paired_permutation_p
+from run_context import experiments_dir
 from snake_experiment import _stats, experiment_runs, parse_seeds
-from versus_stats import Sprt, pair_elo
+from telemetry import open_stores
 
 DEPTH = 3
 GAMES_PER_OPPONENT = 20  # games (so GAMES_PER_OPPONENT / 2 ballot openings, a game pair each) per field opponent
-SEED_BASE = 40_000  # disjoint from training (self-play draws its own), monitoring (20k) and the leaderboard (30k)
 FIELD = ("material-2", "material-3", "material-4")
 # The versus leaderboard's best evolved evaluator (0.757 points per game there): the benchmark from the other paradigm.
 EVOLVED_RUN = "802e1c7624ae402595d5384aaa1da2e8"
@@ -220,7 +220,7 @@ def resolve_baseline(name: str, arm: str) -> tuple[str, str] | None:
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
-    registry = TelemetryStores.open().registry
+    registry = open_stores().registry
     for seed in seeds:
         for arm_name in arms:
             done = [
@@ -266,7 +266,8 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
 def field_factories() -> dict[str, Any]:
     """The fixed opponents: material search, and the best evolved evaluator (if this machine has its run)."""
     factories = {name: STRATEGIES[name] for name in FIELD}
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     if EVOLVED_RUN not in {r.run_id for r in registry.list_runs()}:
         return factories
     history = metrics.history(EVOLVED_RUN)
@@ -284,13 +285,14 @@ def score_run(snapshot: str, field_: dict[str, Any], games: int = GAMES_PER_OPPO
     openings = list(ballot())
     for i, (name, opponent) in enumerate(field_.items()):
         chosen = [openings[(i * 37 + k) % len(openings)] for k in range(max(1, games // 2))]
-        played = play_pairing(me, opponent, chosen, SEED_BASE + 1000 * i)
+        played = play_pairing(me, opponent, chosen, REPORT_SEED_BASE + 1000 * i)
         by_opponent[name] = statistics.fmean(points for points, _ in played)
     return {"overall": statistics.fmean(by_opponent.values()), **by_opponent}
 
 
 def build_report(name: str, games: int = GAMES_PER_OPPONENT) -> dict[str, Any]:
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     field_ = field_factories()
     rows = []
     for run in sorted(experiment_runs(registry, name), key=lambda r: (r.config["arm"], r.config["rng_seed"])):
@@ -365,7 +367,8 @@ def across_seeds(per_seed: dict[int, dict[str, float]]) -> dict[str, Any]:
 
 def build_h2h(name: str, arms: list[str] | None = None, elo1: float = 50.0, full: bool = False) -> dict[str, Any]:
     """Each arm (with a baseline) against its baseline arm, seed for seed, head to head (see the module docs)."""
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     by_arm: dict[str, dict[int, Any]] = {}
     for run in runs:
@@ -434,9 +437,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.command == "h2h":
         result = build_h2h(args.name, args.arms.split(",") if args.arms else None, args.elo1, args.full)
-        EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
+        experiments_dir().mkdir(parents=True, exist_ok=True)
         suffix = "-h2h-full" if args.full else "-h2h"
-        (EXPERIMENTS_DIR / f"{args.name}{suffix}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        (experiments_dir() / f"{args.name}{suffix}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         return
     if args.command == "run":
         arms = args.arms.split(",")
@@ -446,8 +449,8 @@ def main(argv: list[str] | None = None) -> None:
         run_experiment(args.name, arms, parse_seeds(args.seeds))
     else:
         result = build_report(args.name, args.games)
-        EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        (EXPERIMENTS_DIR / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        experiments_dir().mkdir(parents=True, exist_ok=True)
+        (experiments_dir() / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(f"\n## {result['name']} -- {result['protocol']}\n")
         for arm, a in result["arms"].items():
             vs = a.get("vs_baseline")

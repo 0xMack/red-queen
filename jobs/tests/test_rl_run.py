@@ -3,12 +3,10 @@ import math
 import evaluate
 import pytest
 import rl_run
-import run_context
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
 
 
 def test_an_rl_run_records_iterations_like_any_other_run(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001, 20_002))
 
     run_id = rl_run.main(algorithm="random", iterations=3, steps_per_iteration=2000, held_out_every=2, rng_seed=4)
@@ -36,7 +34,6 @@ def test_an_rl_run_records_iterations_like_any_other_run(tmp_path, monkeypatch):
 
 
 def test_reach1d_runs_have_no_interface_or_held_out_score(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     run_id = rl_run.main(env_id="reach1d", iterations=2, steps_per_iteration=1000)
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)
     run = SqliteRunRegistry(tmp_path / "runs.db").get_run(run_id)
@@ -46,14 +43,12 @@ def test_reach1d_runs_have_no_interface_or_held_out_score(tmp_path, monkeypatch)
 
 
 def test_an_unknown_algorithm_fails_before_a_run_exists(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     with pytest.raises(ValueError, match="unknown algorithm"):
         rl_run.main(algorithm="alphazero")
     assert SqliteRunRegistry(tmp_path / "runs.db").list_runs() == []
 
 
 def test_a_q_learning_run_is_a_leaderboard_entrant_with_a_table_label(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001))
     run_id = rl_run.main(
         algorithm="q_learning", iterations=2, steps_per_iteration=5_000, params={"epsilon_decay_steps": 5_000}
@@ -73,7 +68,6 @@ def test_a_q_learning_run_is_a_leaderboard_entrant_with_a_table_label(tmp_path, 
 
 
 def test_snapshot_every_stores_fewer_tables_and_points_between_ones_at_the_latest(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000,))
     run_id = rl_run.main(algorithm="q_learning", iterations=5, steps_per_iteration=1_000, snapshot_every=3)
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)

@@ -25,7 +25,7 @@ Every game's rules, observers, action adapters and baselines are implemented onc
 (`rust/core`), and reach Python through PyO3 (`rust/python` → the `games._native` extension; the
 modules in `src/games/` wrap it in the Python API everything already used) and the browser through
 WebAssembly (`rust/wasm` → `apps/frontend/app/wasm/games/`, regenerated with
-`uv run python libs/games/build-wasm.py`). Randomness is a specified PCG32 (`rust/core/src/pcg.rs`),
+`uv run python libs/games/scripts/build_wasm.py`). Randomness is a specified PCG32 (`rust/core/src/pcg.rs`),
 so a seed is the same game in training, evaluation and a visitor's browser.
 
 - Installing needs cargo (maturin builds the extension during `uv sync`; `[tool.uv] cache-keys`

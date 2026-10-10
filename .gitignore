@@ -50,7 +50,9 @@ dist/
 # IDE
 .idea/
 
-# job run output (telemetry-store data written by running jobs/ scripts)
+# The data directory (telemetry.data_dir(), docs/design/0018): runs, metrics, artifacts, evaluations, models.
+# run-data/ was its location before 0018 (jobs/run-data); still ignored so an unmoved one is never committed.
+/data/
 run-data/
 # Claude Code's project-scope MCP config. Only commit one for servers every contributor should get (with
 # secrets as ${ENV_VAR}); an IDE's localhost MCP endpoint (e.g. PyCharm's, on a port it picks) is per-machine --

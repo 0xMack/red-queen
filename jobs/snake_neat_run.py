@@ -25,8 +25,9 @@ import dataclasses
 import random
 from typing import Any
 
-from costs import TrainingCostMeter
-from evaluate import MONITOR_SEEDS
+from arena.costs import TrainingCostMeter
+from arena.seeding import SeedStrategy
+from arena.snake import MONITOR_SEEDS
 from evolve import (
     InnovationTracker,
     NeatConfig,
@@ -37,7 +38,6 @@ from evolve import (
 )
 from games import interfaces
 from run_context import recorded_run
-from seeding import SeedStrategy
 from snake_neuro_run import (
     BOARD,
     DEFAULT_INTERFACE,
@@ -149,7 +149,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NEAT vs. Snake, recorded to telemetry.")
     parser.add_argument("interface", nargs="?", default=DEFAULT_INTERFACE, help="games.interfaces id")
-    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)")
+    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (arena.seeding)")
     parser.add_argument("--held-out-every", type=int, default=10)
     parser.add_argument("--generations", type=int, default=GENERATIONS)
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)

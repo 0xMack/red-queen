@@ -2,7 +2,6 @@ import evaluate
 import pytest
 import rl_experiment
 import rl_run
-import run_context
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
 
 
@@ -15,8 +14,6 @@ def test_paired_permutation_p_is_exact():
 
 
 def test_an_experiment_runs_arms_by_seed_skips_what_is_done_and_reports_pairs(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
-    monkeypatch.setattr(rl_experiment, "EXPERIMENTS_DIR", tmp_path / "experiments")
     monkeypatch.setattr(rl_experiment, "STEPS_PER_ITERATION", 5_000)
     monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001))
     monkeypatch.setattr(evaluate, "HELD_OUT_SEEDS", tuple(range(10_000, 10_010)))
