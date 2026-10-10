@@ -1,0 +1,6 @@
+# Search distillation for Checkers -- a documented negative result (docs/design/0008). Use workers for the pool.
+game: checkers
+algorithm: distill
+budget: {generations: 300}
+held_out_every: 10
+params: {label_depth: 6, depth: 3, workers: 1}

@@ -45,7 +45,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `forward()` returns every output, for multi-output policies that pick a discrete action via
   argmax (e.g. `games.snake`'s left/straight/right). `to_json()`/`from_json()` are the real
   (round-trippable) wire format -- unlike `LinearProgram`'s `repr()`-based prototype serialization
-  in `jobs/baseline_gp_run.py`, these are read back by `jobs/evaluate.py`,
+  in the trainer's `gp` adapter (`jobs/trainer`), these are read back by `jobs/evaluate.py`,
   `apis/backend`'s on-demand export and `libs/modelpack`, which turns a champion into the ONNX package
   a browser actually runs (docs/design/0009).
 - `neat.py` — `NeatGenome`: the fourth representation (docs/design/0008), and the first whose
@@ -93,7 +93,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `Environment`/`games`.
 
 `evolve()` has **no import of and no dependency on `libs/telemetry`**. Wiring a run to telemetry is
-an adapter that lives outside this package — see `jobs/baseline_gp_run.py`.
+an adapter that lives outside this package — see `jobs/trainer/src/trainer/algorithms/gp.py`.
 
 See `notebooks/0004-neuroevolution-reach1d.ipynb` for `WeightVector` +
 `SimulationFitnessEvaluator` actually solving a toy environment end to end.
@@ -119,7 +119,7 @@ population = [
 
 final = evolve(
     population,
-    # same fixed benchmark as jobs/baseline_gp_run.py -- see docs/design/0003 "fixed benchmark
+    # same fixed benchmark as the trainer's gp adapter -- see docs/design/0003 "fixed benchmark
     # problems as an anchor"
     fitness=SymbolicRegressionFitness(
         target=lambda x: x**4 - 3 * x**2 + 2, inputs=[i / 5 for i in range(-5, 6)]

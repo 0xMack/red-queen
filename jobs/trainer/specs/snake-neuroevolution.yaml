@@ -1,0 +1,8 @@
+# Neuroevolution vs. Snake: a 16-hidden-unit policy under features.v1, lexicase over the training games.
+# e.g. --set interface=snake/egocentric.v2+relative3.v1 --set params.seeds=resample:5
+game: snake
+algorithm: neuroevolution
+interface: snake/features.v1+relative3.v1
+budget: {generations: 250}
+held_out_every: 10
+params: {seeds: "fixed:5", selection: lexicase}

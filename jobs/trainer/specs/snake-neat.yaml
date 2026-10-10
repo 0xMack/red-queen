@@ -1,0 +1,7 @@
+# NEAT vs. Snake (docs/design/0008). --set params.neat.speciation=false for the no-speciation ablation.
+game: snake
+algorithm: neat
+interface: snake/features.v1+relative3.v1
+budget: {generations: 250}
+held_out_every: 10
+params: {seeds: "fixed:5"}

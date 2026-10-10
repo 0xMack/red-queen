@@ -1,0 +1,4 @@
+# Linear GP on the fixed symbolic-regression benchmark (docs/design/0003 phase 1).
+game: symbolic-regression
+algorithm: gp
+budget: {generations: 60}

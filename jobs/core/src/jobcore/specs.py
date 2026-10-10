@@ -12,9 +12,12 @@ Pure pydantic: the backend and the CLI import this to validate a spec without im
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 BudgetUnit = Literal["generations", "iterations", "games", "env_steps", "steps"]
@@ -73,54 +76,95 @@ class TrainSpec(BaseModel):
 
     def resolve(self) -> tuple[Algorithm, BaseModel]:
         """The registered algorithm and this spec's params validated against it; raises ValueError if either is wrong."""
-        algorithm = get_algorithm(self.algorithm)
+        algorithm = get_algorithm(self.algorithm, self.game)
         if self.budget_unit not in algorithm.budget_units:
             raise ValueError(
                 f"{self.algorithm} is budgeted in {' or '.join(sorted(algorithm.budget_units))}, not {self.budget_unit}"
             )
-        if algorithm.games is not None and self.game not in algorithm.games:
-            raise ValueError(f"{self.algorithm} trains {', '.join(sorted(algorithm.games))}, not {self.game}")
+        if algorithm.interfaces is not None and self.interface not in (None, *algorithm.interfaces):
+            raise ValueError(
+                f"{self.algorithm} on {self.game} trains under {' or '.join(sorted(algorithm.interfaces))}, "
+                f"not {self.interface}"
+            )
         return algorithm, algorithm.params.model_validate(self.params)
 
 
 @dataclass(frozen=True)
 class Algorithm:
+    """One algorithm for some games. A name can be registered more than once for disjoint games -- neuroevolution on
+    Snake and on Checkers share the idea and the name, not their settings."""
+
     name: str
     params: type[BaseModel]
     budget_units: frozenset[str]
-    games: frozenset[str] | None = None  # None: any game with an interface it can use
+    games: frozenset[str] | None = None  # None: any game
     summary: str = ""
+    interfaces: frozenset[str] | None = None  # None: any of the game's interfaces
+
+    def trains(self, game: str) -> bool:
+        return self.games is None or game in self.games
 
 
-_ALGORITHMS: dict[str, Algorithm] = {}
+_ALGORITHMS: dict[str, list[Algorithm]] = {}
 
 
 def register_algorithm(algorithm: Algorithm) -> Algorithm:
-    existing = _ALGORITHMS.get(algorithm.name)
-    if existing is not None and existing != algorithm:
-        raise ValueError(f"algorithm {algorithm.name!r} is already registered differently")
-    _ALGORITHMS[algorithm.name] = algorithm
+    registered = _ALGORITHMS.setdefault(algorithm.name, [])
+    if algorithm in registered:
+        return algorithm  # the same registration again (a re-import) is fine
+    for other in registered:
+        if other.games is None or algorithm.games is None or other.games & algorithm.games:
+            raise ValueError(f"algorithm {algorithm.name!r} is already registered differently for these games")
+    registered.append(algorithm)
     return algorithm
 
 
-def get_algorithm(name: str) -> Algorithm:
-    try:
-        return _ALGORITHMS[name]
-    except KeyError:
+def _load_builtin() -> None:
+    import jobcore.algorithms  # noqa: F401 -- registers every built-in algorithm's params
+
+
+def get_algorithm(name: str, game: str | None = None) -> Algorithm:
+    """The registration of `name` for `game` (or its only registration, when `game` is None)."""
+    _load_builtin()
+    registered = _ALGORITHMS.get(name)
+    if not registered:
         known = ", ".join(sorted(_ALGORITHMS)) or "none registered yet"
-        raise ValueError(f"unknown algorithm {name!r} (known: {known})") from None
+        raise ValueError(f"unknown algorithm {name!r} (known: {known})")
+    if game is None:
+        if len(registered) > 1:
+            raise ValueError(f"algorithm {name!r} is registered for several games; say which")
+        return registered[0]
+    for algorithm in registered:
+        if algorithm.trains(game):
+            return algorithm
+    games = sorted(g for a in registered for g in (a.games or ()))
+    raise ValueError(f"{name} trains {', '.join(games)}, not {game}")
 
 
 def algorithms() -> list[Algorithm]:
-    return [_ALGORITHMS[name] for name in sorted(_ALGORITHMS)]
+    _load_builtin()
+    return [a for name in sorted(_ALGORITHMS) for a in _ALGORITHMS[name]]
+
+
+def load_spec(source: str | Path) -> TrainSpec:
+    """A spec from a .yaml/.yml or .json file."""
+    path = Path(source)
+    text = path.read_text(encoding="utf-8")
+    data = yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
+    return TrainSpec.model_validate(data)
 
 
 def schemas() -> dict[str, Any]:
-    """JSON Schema for every payload kind and every registered algorithm's params."""
+    """JSON Schema for every payload kind and every registered algorithm's params (keyed `name` or `name@game`)."""
+
+    def key(a: Algorithm) -> str:
+        return a.name if len(_ALGORITHMS[a.name]) == 1 else f"{a.name}@{','.join(sorted(a.games or ()))}"
+
     return {
         "kinds": {"train": TrainSpec.model_json_schema()},
         "algorithms": {
-            a.name: {
+            key(a): {
+                "name": a.name,
                 "summary": a.summary,
                 "budget_units": sorted(a.budget_units),
                 "games": sorted(a.games) if a.games is not None else None,

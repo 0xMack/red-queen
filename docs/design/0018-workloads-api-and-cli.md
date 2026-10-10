@@ -1,9 +1,9 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1-2 built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the decisions
-below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`, the
-deletions and moves) and stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs). Stages 3-8
-are not.
+Status: **Accepted; stages 1, 2 and 3a built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the
+decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
+the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stage 3a
+(the trainer, with the evolution family). Stages 3b-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -250,9 +250,11 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    the sink, `ProcessPoolEvaluator`; golden runs recorded from the *old* scripts before anything is ported (recording
    them found an `rl_run` crash: a policy-gradient iteration shorter than its first update). The other payload models
    (EvalSpec, PublishSpec, ExperimentSpec, Job) land with the stages that consume them.
-3. **trainer** in three PRs: (a) evolution family: gp, neuroevolution, neat, bandit_evolve, distill; (b) rl, selfplay,
-   alphazero, pbt; (c) tinylm. Each deletes the scripts it replaces, once its golden tests pass. Interim invocation:
-   `uv run --package trainer python -m trainer spec.yaml`.
+3. **trainer** in three PRs: (a) evolution family: gp, neuroevolution, neat, bandit_evolve, distill -- *built*; (b)
+   rl, selfplay, alphazero, pbt; (c) tinylm. Each deletes the scripts it replaces, once its golden tests pass. Interim
+   invocation: `uv run python -m trainer jobs/trainer/specs/<algorithm>.yaml [--set key=value ...]`. Built with 3a: an
+   algorithm name registers once *per game* (`neuroevolution` on Snake and on Checkers have different params and
+   adapters), `jobcore.specs.load_spec()`, and one example spec per (algorithm, game) at the old defaults.
 4. **evaluator + publisher**, with the same golden approach (identical `EvaluationRecord`s on a small field).
 5. **backend:** services layer, write endpoints + `HttpSink` (with `RunRegistry.update_config`), `JobStore`, `/jobs`,
    `/experiments`, `/specs`. OpenAPI snapshot and frontend types regenerated.

@@ -134,7 +134,7 @@ const { rows, kinds, query, statusFilter, kindFilter, sortKey, sortDesc, sortBy,
             <tr v-if="matching.length === 0">
               <td colspan="12" class="px-4 py-14 text-center text-fg-subtle">
                 <template v-if="rows.length === 0">
-                  No runs yet -- start one with <code class="chip">uv run python jobs/baseline_gp_run.py</code>.
+                  No runs yet -- start one with <code class="chip">uv run python -m trainer jobs/trainer/specs/gp.yaml</code>.
                 </template>
                 <template v-else>No runs match these filters.</template>
               </td>

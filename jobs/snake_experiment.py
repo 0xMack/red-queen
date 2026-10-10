@@ -27,25 +27,25 @@ selecting on the test set.
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 import statistics
 import sys
 from collections.abc import Callable
 from typing import Any
 
-import snake_neat_run
-import snake_neuro_run
 from arena.snake import PROTOCOL, measure_quality
-from evolve import NeatConfig, network_from_json
+from evolve import network_from_json
 from evolve.networks import parameter_count
 from games import interfaces
 from jobcore import experiments_dir, open_sink
 from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
+from trainer import train
 
-INTERFACE = snake_neuro_run.DEFAULT_INTERFACE
+INTERFACE = "snake/features.v1+relative3.v1"
 SEED_STRATEGY = "resample:5"
 HELD_OUT_EVERY = 10
+GENERATIONS = 250
+POPULATION_SIZE = 100  # the trainer's default for both algorithms (jobcore.algorithms.evolution)
 # Where the report samples each arm's held-out monitor curve.
 CURVE_GENERATIONS = (0, 50, 100, 150, 200, 249, 500, 599, 999)
 
@@ -53,82 +53,55 @@ CURVE_GENERATIONS = (0, 50, 100, 150, 200, 249, 500, 599, 999)
 Trainer = Callable[[int, int, dict[str, Any]], str]
 
 
-def _train_neuro(selection: str) -> Trainer:
-    def train(rng_seed: int, generations: int, tags: dict[str, Any]) -> str:
-        return snake_neuro_run.main(
-            INTERFACE,
-            SEED_STRATEGY,
-            HELD_OUT_EVERY,
-            generations,
-            rng_seed,
-            selection,
-            tags,
+def _arm(algorithm: str, *, generations: int | None = None, interface: str = INTERFACE, **params: Any) -> Trainer:
+    """An arm as a partial TrainSpec (docs/design/0018: experiments become spec files the scheduler fans out).
+    `generations` (when given) overrides the experiment-wide budget: the long-run arms *are* a bigger budget."""
+
+    def run(rng_seed: int, default_generations: int, tags: dict[str, Any]) -> str:
+        return train(
+            {
+                "game": "snake",
+                "algorithm": algorithm,
+                "interface": interface,
+                "budget": {"generations": generations or default_generations},
+                "seed": rng_seed,
+                "held_out_every": HELD_OUT_EVERY,
+                "params": {"seeds": SEED_STRATEGY, **params},
+                "tags": tags,
+            }
         )
 
-    return train
-
-
-def _train_neat(
-    config: NeatConfig,
-    *,
-    generations: int | None = None,
-    population: int = snake_neuro_run.POPULATION_SIZE,
-    max_steps: int = snake_neuro_run.MAX_STEPS,
-    seeds: str = SEED_STRATEGY,
-    interface: str = INTERFACE,
-) -> Trainer:
-    """`generations` (when given) overrides the experiment-wide budget: the long-run arms *are* a bigger budget."""
-
-    def train(rng_seed: int, default_generations: int, tags: dict[str, Any]) -> str:
-        return snake_neat_run.main(
-            interface,
-            seeds,
-            HELD_OUT_EVERY,
-            generations or default_generations,
-            rng_seed,
-            tags,
-            config,
-            population,
-            max_steps,
-        )
-
-    return train
+    return run
 
 
 ARMS: dict[str, Trainer] = {
-    "neuro-lexicase": _train_neuro("lexicase"),
-    "neuro-tournament": _train_neuro("tournament"),
-    "neat": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG),
-    "neat-no-speciation": _train_neat(dataclasses.replace(snake_neat_run.SNAKE_NEAT_CONFIG, speciation=False)),
+    "neuro-lexicase": _arm("neuroevolution", selection="lexicase"),
+    "neuro-tournament": _arm("neuroevolution", selection="tournament"),
+    "neat": _arm("neat"),
+    "neat-no-speciation": _arm("neat", neat={"speciation": False}),
     # docs/design/0008 "Longer runs": one change at a time from `neat`, then everything together. Training
     # games were capped at 200 steps while the leaderboard scores 1000-step games, so `h1000` trains on the
     # horizon it is judged on.
-    "neat-long": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, generations=1000),
-    "neat-pop400": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, population=400),
-    "neat-h1000": _train_neat(snake_neat_run.SNAKE_NEAT_CONFIG, max_steps=1000),
-    "neat-max": _train_neat(
-        snake_neat_run.SNAKE_NEAT_CONFIG,
-        generations=600,
-        population=300,
-        max_steps=1000,
-        seeds="resample:10",
-    ),
+    "neat-long": _arm("neat", generations=1000),
+    "neat-pop400": _arm("neat", population_size=400),
+    "neat-h1000": _arm("neat", max_steps=1000),
+    "neat-max": _arm("neat", generations=600, population_size=300, max_steps=1000, seeds="resample:10"),
     # docs/design/0007's L2 observer: the same budget as `neat-max`, only the observation differs, so a seed-for-seed
     # comparison with `neat-max` (snake-long-v1, same rng seeds) isolates the representation.
-    "neat-max-ego": _train_neat(
-        snake_neat_run.SNAKE_NEAT_CONFIG,
+    "neat-max-ego": _arm(
+        "neat",
         generations=600,
-        population=300,
+        population_size=300,
         max_steps=1000,
         seeds="resample:10",
         interface="snake/egocentric.v1+relative3.v1",
     ),
     # egocentric.v2 = egocentric.v1 + reachable space per move (docs/design/0010): what the NEAT deaths analysis said
     # the rays were missing. Same budget again, paired with `neat-max-ego` (snake-ego-v1, same rng seeds).
-    "neat-max-ego2": _train_neat(
-        snake_neat_run.SNAKE_NEAT_CONFIG,
+    "neat-max-ego2": _arm(
+        "neat",
         generations=600,
-        population=300,
+        population_size=300,
         max_steps=1000,
         seeds="resample:10",
         interface="snake/egocentric.v2+relative3.v1",
@@ -247,7 +220,7 @@ def build_report(name: str) -> dict[str, Any]:
         "setup": {
             "interface": INTERFACE,
             "training": SEED_STRATEGY,
-            "population": snake_neuro_run.POPULATION_SIZE,
+            "population": POPULATION_SIZE,
         },
         "arms": arms,
         "runs": rows,
@@ -283,7 +256,7 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--name", required=True)
     run.add_argument("--arms", default=",".join(ARMS), help=f"comma list of {sorted(ARMS)}")
     run.add_argument("--seeds", default="0-4")
-    run.add_argument("--generations", type=int, default=snake_neuro_run.GENERATIONS)
+    run.add_argument("--generations", type=int, default=GENERATIONS)
     report = sub.add_parser("report", help="aggregate finished runs")
     report.add_argument("--name", required=True)
     args = parser.parse_args(argv)

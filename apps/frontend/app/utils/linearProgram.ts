@@ -1,5 +1,5 @@
 // Parses a linear-GP champion artifact -- the Python repr() of evolve.genome.LinearProgram that
-// jobs/baseline_gp_run.py stores -- into readable register-machine instructions, with structural
+// the trainer's gp adapter stores -- into readable register-machine instructions, with structural
 // introns marked. Mirrors LinearProgram.run()/effective_instruction_count() in
 // libs/evolve/src/evolve/genome.py exactly (the same modulo indexing), so what's displayed is what
 // actually executes. Returns null for anything that doesn't look like that repr.

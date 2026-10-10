@@ -1,6 +1,6 @@
 """Static Checkers strategies -- the fixed opponents every Checkers experiment measures against
 (docs/design/0006): a round robin (jobs/checkers_round_robin.py), evolution's fitness opponents
-(jobs/checkers_neuro_run.py), the leaderboard's baselines.
+(the trainer's Checkers neuroevolution), the leaderboard's baselines.
 
 Beyond the fixed players, a *trained evaluator* can search: `evaluator(weights, layer_sizes, depth=...)` for
 an `evolve.WeightVector`, `graph_evaluator(encoding, depth=...)` for a NEAT genome

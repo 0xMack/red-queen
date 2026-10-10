@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "jobcore"
+name = "trainer"
 version = "0.1.0"
-description = "What every workload shares: the run sink, run lifecycle and control, job payload specs (docs/design/0018)."
+description = "The trainer workload: one TrainSpec in, one recorded training run out (docs/design/0018)."
 authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
 readme = "README.md"
 license = { text = "MIT" }
@@ -13,18 +13,23 @@ requires-python = ">=3.11"
 dependencies = [
     "arena",
     "evolve",
-    "pydantic>=2",
+    "games",
+    "jobcore",
     "pyyaml>=6",
+    "rl",
     "telemetry",
 ]
 
 [tool.uv.sources]
 arena = { workspace = true }
 evolve = { workspace = true }
+games = { workspace = true }
+jobcore = { workspace = true }
+rl = { workspace = true }
 telemetry = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/jobcore"]
+packages = ["src/trainer"]
 
 [tool.ruff]
 # One config for the whole repo (line length, rules, excludes) -- ruff uses the nearest pyproject.toml

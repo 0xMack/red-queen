@@ -38,7 +38,7 @@ class SimulationFitnessEvaluator:
     `act` is injected `(genome, observation) -> action`, the same pattern as
     SymbolicRegressionFitness's `run` -- this evaluator never touches genome internals. `rollout`, if
     given, plays the episodes instead (e.g. the game core running the whole episode natively, see
-    jobs/snake_neuro_run.py's `make_rollout`); it must return exactly what this loop would.
+    the trainer's `trainer.snake.make_rollout`); it must return exactly what this loop would.
 
     `episodes`/`steps` count everything this evaluator has simulated -- exact, hardware-independent
     training-cost counters (docs/design/0007), cheap enough to always keep.

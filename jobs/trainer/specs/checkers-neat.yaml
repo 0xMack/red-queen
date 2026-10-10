@@ -1,0 +1,6 @@
+# NEAT vs. Checkers: an evaluator graph growing from a linear start, by match fitness.
+game: checkers
+algorithm: neat
+budget: {generations: 60}
+held_out_every: 5
+params: {opponents: [random, material-1, material-2], depth: 1}

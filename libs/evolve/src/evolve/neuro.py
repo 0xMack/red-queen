@@ -61,7 +61,7 @@ class WeightVector:
 
     def to_json(self) -> str:
         """The real (round-trippable) wire format for a WeightVector -- unlike LinearProgram's
-        repr()-based serialize_program() in jobs/baseline_gp_run.py (explicitly a prototype, never
+        repr()-based serialize_program() in the trainer's gp adapter (explicitly a prototype, never
         read back), this one is read back: training jobs write champions to ArtifactStore, and
         evaluation, model publishing and the backend's on-demand export load them (a browser plays
         the `modelpack` export, docs/design/0009). JSON, not pickle/numpy."""

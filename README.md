@@ -141,9 +141,9 @@ The Learn chapters and every game's *Play* mode work with no trained runs. To fi
 leaderboards, train something and evaluate it. For example:
 
 ```bash
-uv run python jobs/rl_run.py --help          # Q-learning / DQN / PPO on Snake
-uv run python jobs/snake_neat_run.py         # NEAT on Snake
-uv run python jobs/evaluate.py               # rank every finished Snake run
+uv run python jobs/rl_run.py --help                          # Q-learning / DQN / PPO on Snake
+uv run python -m trainer jobs/trainer/specs/snake-neat.yaml  # NEAT on Snake
+uv run python jobs/evaluate.py                               # rank every finished Snake run
 ```
 
 Runs land in `data/`, which is gitignored. The same checks CI runs are listed in

@@ -29,5 +29,5 @@ onMounted(async () => {
       their activation on the current board.
     </template>
   </UiFigure>
-  <p v-else class="text-sm text-fg-subtle">(Start the backend, and run <code>jobs/snake_neat_run.py</code>, to see a real NEAT champion play here.)</p>
+  <p v-else class="text-sm text-fg-subtle">(Start the backend, and run <code>uv run python -m trainer jobs/trainer/specs/snake-neat.yaml</code>, to see a real NEAT champion play here.)</p>
 </template>

@@ -1,5 +1,5 @@
-"""What the Checkers training jobs share (jobs/checkers_neuro_run.py: fixed-topology networks;
-jobs/checkers_neat_run.py: NEAT graphs): docs/design/0006, 0008.
+"""What the Checkers training algorithms share (neuroevolution: fixed-topology networks; NEAT: graphs; distillation;
+and the self-play jobs' held-out monitor): docs/design/0006, 0008.
 
 A genome is a *position evaluator* -- a network scoring a board from the mover's side -- and a player is that
 evaluator plus a search (`depth` plies of alpha-beta, in the Rust core; depth 1 is one ply of lookahead).
@@ -40,7 +40,7 @@ from evolve import (
 from evolve.neat import InnovationTracker
 from games.checkers import Checkers
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
-from telemetry import FileArtifactStore, FileMetricsStore, GenerationStats
+from telemetry import ArtifactStore, GenerationStats, MetricsSink
 
 INPUTS = 32  # games.checkers' observation: the 32 playable squares from the mover's perspective
 MAX_MOVES = 200  # plies per match (a draw beyond that), the same cap jobs/checkers_round_robin.py uses
@@ -217,8 +217,8 @@ def monitor_score(
 
 
 def make_telemetry_callback(
-    metrics: FileMetricsStore,
-    artifacts: FileArtifactStore,
+    metrics: MetricsSink,
+    artifacts: ArtifactStore,
     run_id: str,
     opponents: Sequence[str],
     depth: int,
@@ -227,7 +227,7 @@ def make_telemetry_callback(
     monitor_games: int = MONITOR_GAMES,
 ) -> Callable[[Any], None]:
     """An `on_generation` callback: store the champion, and every `held_out_every` generations score it on
-    games it never trained on (the overfitting curve, same idea as snake_neuro_run.py's)."""
+    games it never trained on (the overfitting curve, same idea as Snake's)."""
 
     def on_generation(summary: Any) -> None:
         champion_ref = f"{run_id}-gen{summary.generation}"
