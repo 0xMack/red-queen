@@ -1,8 +1,9 @@
+import arena.snake
 import evaluate
 import pytest
 import rl_experiment
-import rl_run
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
+from trainer.algorithms import reinforcement
 
 
 def test_paired_permutation_p_is_exact():
@@ -15,8 +16,9 @@ def test_paired_permutation_p_is_exact():
 
 def test_an_experiment_runs_arms_by_seed_skips_what_is_done_and_reports_pairs(tmp_path, monkeypatch):
     monkeypatch.setattr(rl_experiment, "STEPS_PER_ITERATION", 5_000)
-    monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001))
-    monkeypatch.setattr(evaluate, "HELD_OUT_SEEDS", tuple(range(10_000, 10_010)))
+    monkeypatch.setattr(reinforcement, "MONITOR_SEEDS", (20_000, 20_001))
+    # measure_quality reads arena.snake.HELD_OUT_SEEDS (patching evaluate.HELD_OUT_SEEDS stopped reaching it in 0018)
+    monkeypatch.setattr(arena.snake, "HELD_OUT_SEEDS", tuple(range(10_000, 10_010)))
     small = {
         "q-learning": rl_experiment.Arm("q_learning", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline=None),
         "sarsa": rl_experiment.Arm("sarsa", {"epsilon_decay_steps": 5_000}, steps=10_000),

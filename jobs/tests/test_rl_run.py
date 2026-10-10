@@ -1,15 +1,32 @@
+"""Reinforcement-learning runs (the trainer's `rl.*` algorithms, docs/design/0010) are recorded like any other run, and
+the ones with a loadable champion join the Snake leaderboard (jobs/evaluate.py)."""
+
 import math
 
 import evaluate
 import pytest
-import rl_run
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
+from trainer import train
+from trainer.algorithms import reinforcement
+
+
+def rl(algorithm: str, iterations: int, steps: int, game: str = "snake", **fields) -> str:
+    params = fields.pop("params", {})
+    return train(
+        {
+            "game": game,
+            "algorithm": f"rl.{algorithm}",
+            "budget": {"iterations": iterations},
+            "params": {"steps_per_iteration": steps, **params},
+            **fields,
+        }
+    )
 
 
 def test_an_rl_run_records_iterations_like_any_other_run(tmp_path, monkeypatch):
-    monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001, 20_002))
+    monkeypatch.setattr(reinforcement, "MONITOR_SEEDS", (20_000, 20_001, 20_002))
 
-    run_id = rl_run.main(algorithm="random", iterations=3, steps_per_iteration=2000, held_out_every=2, rng_seed=4)
+    run_id = rl("random", 3, 2000, held_out_every=2, seed=4)
 
     registry, metrics = SqliteRunRegistry(tmp_path / "runs.db"), FileMetricsStore(tmp_path / "metrics")
     run = registry.get_run(run_id)
@@ -33,8 +50,8 @@ def test_an_rl_run_records_iterations_like_any_other_run(tmp_path, monkeypatch):
     assert entrants == []
 
 
-def test_reach1d_runs_have_no_interface_or_held_out_score(tmp_path, monkeypatch):
-    run_id = rl_run.main(env_id="reach1d", iterations=2, steps_per_iteration=1000)
+def test_reach1d_runs_have_no_interface_or_held_out_score(tmp_path):
+    run_id = rl("random", 2, 1000, game="reach1d")
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)
     run = SqliteRunRegistry(tmp_path / "runs.db").get_run(run_id)
     assert run.config["game"] == "reach1d" and run.config["interface"] is None
@@ -42,19 +59,17 @@ def test_reach1d_runs_have_no_interface_or_held_out_score(tmp_path, monkeypatch)
     assert run.config["action_space"] == {"kind": "continuous", "values": [-1.0, 1.0]}
 
 
-def test_an_unknown_algorithm_fails_before_a_run_exists(tmp_path, monkeypatch):
+def test_an_unknown_algorithm_fails_before_a_run_exists(tmp_path):
     with pytest.raises(ValueError, match="unknown algorithm"):
-        rl_run.main(algorithm="alphazero")
+        rl("alphazero", 1, 1000)
     assert SqliteRunRegistry(tmp_path / "runs.db").list_runs() == []
 
 
 def test_a_q_learning_run_is_a_leaderboard_entrant_with_a_table_label(tmp_path, monkeypatch):
-    monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000, 20_001))
-    run_id = rl_run.main(
-        algorithm="q_learning", iterations=2, steps_per_iteration=5_000, params={"epsilon_decay_steps": 5_000}
-    )
+    monkeypatch.setattr(reinforcement, "MONITOR_SEEDS", (20_000, 20_001))
+    run_id = rl("q_learning", 2, 5_000, params={"agent": {"epsilon_decay_steps": 5_000}})
     registry, metrics = SqliteRunRegistry(tmp_path / "runs.db"), FileMetricsStore(tmp_path / "metrics")
-    assert registry.get_run(run_id).config["params"] == {"epsilon_decay_steps": 5000.0}
+    assert registry.get_run(run_id).config["params"] == {"epsilon_decay_steps": 5000}
     (entrant,) = evaluate.champion_entrants(registry, metrics, FileArtifactStore(tmp_path / "artifacts"), "snake")
     assert entrant["entrant_id"] == f"run:{run_id}" and entrant["label"].startswith("Q-learning table 2048 states")
     assert entrant["parameters"] == 2048 * 3
@@ -68,8 +83,8 @@ def test_a_q_learning_run_is_a_leaderboard_entrant_with_a_table_label(tmp_path, 
 
 
 def test_snapshot_every_stores_fewer_tables_and_points_between_ones_at_the_latest(tmp_path, monkeypatch):
-    monkeypatch.setattr(rl_run, "MONITOR_SEEDS", (20_000,))
-    run_id = rl_run.main(algorithm="q_learning", iterations=5, steps_per_iteration=1_000, snapshot_every=3)
+    monkeypatch.setattr(reinforcement, "MONITOR_SEEDS", (20_000,))
+    run_id = rl("q_learning", 5, 1_000, params={"snapshot_every": 3})
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)
     assert [h.champion_ref.rsplit("-gen", 1)[1] for h in history] == ["0", "0", "0", "3", "4"]
     stored = sorted(p.name for p in (tmp_path / "artifacts").rglob(f"{run_id}-gen*"))

@@ -1,6 +1,7 @@
 """The best Checkers self-play recipe as one command, for leaderboard entrants (docs/design/0016).
 
-Two ordinary self-play runs (jobs/checkers_selfplay_run.py), untagged, so both join the versus leaderboard:
+Two ordinary self-play runs (the trainer's `td_lambda`), untagged, so both join the versus leaderboard -- a
+two-stage pipeline the scheduler will run from a spec file (docs/design/0018 stage 6):
 
 1. plain TD(λ) with the opponent pool for `--td-games` games (the recipe's long, cheap phase), then
 2. a TD-Leaf(λ) fine-tune of that network, searching `--leaf-depth` plies, for `--leaf-games` games.
@@ -19,8 +20,9 @@ alone (0010's 4c), so expect roughly 1.5-3 hours. A 4-ply entrant of the same ne
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
-import checkers_selfplay_run
+from trainer import train
 
 POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
 
@@ -35,29 +37,33 @@ def main(
     rng_seed: int = 0,
     td_run: str | None = None,
     games_per_iteration: int = 1000,
+    monitor_games: int = 10,
 ) -> tuple[str, str]:
     """Runs the recipe; returns (TD run id, fine-tuned run id)."""
     network = {**POOL, "hidden": hidden, "hidden_layers": layers}
-    if td_run is None:
-        iterations = max(1, td_games // games_per_iteration)
-        td_run = checkers_selfplay_run.main(
-            iterations=iterations,
-            games_per_iteration=games_per_iteration,
-            depth=depth,
-            params=dict(network),
-            rng_seed=rng_seed,
-            held_out_every=max(1, iterations // 20),
+
+    def stage(games: int, agent: dict[str, Any], held_out_parts: int, **fields: Any) -> str:
+        iterations = max(1, games // games_per_iteration)
+        return train(
+            {
+                "game": "checkers",
+                "algorithm": "td_lambda",
+                "budget": {"iterations": iterations},
+                "seed": rng_seed,
+                "held_out_every": max(1, iterations // held_out_parts),
+                "params": {
+                    "games_per_iteration": games_per_iteration,
+                    "depth": depth,
+                    "monitor_games": monitor_games,
+                    "agent": agent,
+                },
+                **fields,
+            }
         )
-    iterations = max(1, leaf_games // games_per_iteration)
-    leaf_run = checkers_selfplay_run.main(
-        iterations=iterations,
-        games_per_iteration=games_per_iteration,
-        depth=depth,
-        params={**network, "search_depth": leaf_depth},
-        rng_seed=rng_seed,
-        held_out_every=max(1, iterations // 10),
-        init_run=td_run,
-    )
+
+    if td_run is None:
+        td_run = stage(td_games, dict(network), 20)
+    leaf_run = stage(leaf_games, {**network, "search_depth": leaf_depth}, 10, init_from={"run": td_run})
     print(f"recipe done: TD run {td_run}, TD-Leaf run {leaf_run}")
     return td_run, leaf_run
 

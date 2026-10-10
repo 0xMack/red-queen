@@ -1,0 +1,8 @@
+# libs/rl's random on Snake (docs/design/0010). Learner settings go in params.agent (the Rust core's names),
+# e.g. --set params.agent.n_step=3; --set game=reach1d --set interface=null for continuous control.
+game: snake
+algorithm: rl.random
+interface: snake/features.v1+relative3.v1
+budget: {iterations: 20}
+held_out_every: 5
+params: {steps_per_iteration: 10000, reward: shaped}

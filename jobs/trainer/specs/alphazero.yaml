@@ -1,0 +1,6 @@
+# AlphaZero-style self-play for Checkers (docs/design/0017): search visit counts as policy targets.
+game: checkers
+algorithm: alphazero
+budget: {iterations: 100}
+held_out_every: 10
+params: {games_per_iteration: 1000, depth: 3}

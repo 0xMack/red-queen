@@ -1,4 +1,4 @@
-"""Write one population-based training run's history (jobs/checkers_pbt_run.py's `<run_id>-population` artifact) as a
+"""Write one population-based training run's history (the trainer's `pbt` stores it as the `<run_id>-population` artifact) as a
 frontend data file, for the "Who to Play" chapter's figure: every member's round-robin score and settings each
 generation, and who copied whom (docs/design/0014).
 

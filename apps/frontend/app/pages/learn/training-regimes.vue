@@ -121,7 +121,7 @@ const REGIMES: H2hRow[] = [
     >
       <template #caption>
         Each population's champion (its last round robin's best member) against the baseline's network, same seed, 174 ballot openings × 5 seeds.
-        <code>jobs/checkers_pbt_run.py</code>, arms <code>g-rs</code> and <code>g-pbt</code> of <code>selfplay-v4</code>.
+        The trainer's <code>pbt</code>, arms <code>g-rs</code> and <code>g-pbt</code> of <code>selfplay-v4</code>.
       </template>
     </H2hResults>
     <p>

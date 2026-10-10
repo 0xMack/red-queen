@@ -96,7 +96,7 @@ const survivors = computed(() => new Set(lineage[G - 1]).size)
       <path v-for="m in members" :key="m" :d="lrPath(m - 1)" fill="none" :stroke="COLORS[lineage[G - 1]![m - 1]! % COLORS.length]" stroke-opacity="0.75" stroke-width="1.5" />
     </svg>
     <template #caption>
-      Run <code>{{ PBT_RUN }}</code> of <code>jobs/checkers_pbt_run.py</code> (<code>selfplay-v4</code>, arm <code>g-pbt</code>, seed 0): eight
+      Run <code>{{ PBT_RUN }}</code> of the trainer's <code>pbt</code> (<code>selfplay-v4</code>, arm <code>g-pbt</code>, seed 0): eight
       2 × 64 learners, {{ PBT_INTERVAL.toLocaleString() }} self-play games each between round robins. Dot size is the round-robin score (2
       ballot openings per pair, both seats -- a noisy ranking, which is part of why lineages can win by luck). Colour is lineage: whose weights
       a member carries. Learning-rate lines are coloured by the lineage each member ended in.

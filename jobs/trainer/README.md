@@ -41,7 +41,11 @@ returns the run id. Runs land in the data directory (`telemetry.data_dir()`) lik
 | `checkers-distill.yaml` | Search distillation: fit the evaluator to a deeper material search's values on a cached position pool (`data/distill/`). A documented negative result (docs/design/0008). The pool depends on `workers`. |
 | `bandit-evolve.yaml` | Evolves epsilon-greedy's four settings for the bandit (docs/design/0011) on fresh training games; `jobs/evaluate_bandit.py` ranks every completed run's champion. |
 
-Not yet ported (stage 3b/3c of docs/design/0018): RL (`jobs/rl_run.py`), Checkers self-play and PBT
-(`jobs/checkers_selfplay_run.py`, `checkers_pbt_run.py`), TinyLM (`jobs/tinylm_run.py`).
+| `rl-<algorithm>.yaml` | A `libs/rl` learner (docs/design/0010): `rl.random` (the smoke test), `rl.q_learning` / `rl.sarsa` (tabular), `rl.dqn`, `rl.reinforce` / `rl.a2c` / `rl.ppo`, on Snake (any interface; tabular needs one with a discretizer) or Reach1D (`--set game=reach1d --set interface=null`). Budgeted in iterations of `steps_per_iteration` env steps; `params.agent` is the learner's own settings, recorded as the run's `params`. |
+| `td-lambda.yaml` | A Checkers evaluator by TD(λ) self-play; `agent.search_depth` > 1 is TD-Leaf; `init_from` continues an earlier run's network (by id prefix, or an experiment's arm for a seed). |
+| `alphazero.yaml` | AlphaZero-style self-play (docs/design/0017); the champion is the trunk + value unit as an evaluator, the last iteration also stores the two-headed network. |
+| `pbt.yaml` | Population-based training over self-play learners (docs/design/0014); the budget is games per member; `exploit: false` is the random-search control. |
+
+Not yet ported (stage 3c of docs/design/0018): TinyLM (`jobs/tinylm_run.py`).
 
 Tests: `uv run pytest jobs/trainer` (and the golden runs, `uv run pytest jobs/tests/test_golden.py`).

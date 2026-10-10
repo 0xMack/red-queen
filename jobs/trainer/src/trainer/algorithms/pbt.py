@@ -18,14 +18,11 @@ Recorded as one run: each generation's best/mean/worst are the round robin's poi
 round's best member (so the leaderboard and the Checkers page take it like any other self-play champion), and extras
 carry the best member's settings and how many were replaced. The artifact `<run_id>-population` holds every member's
 score and settings each generation and who copied whom (note: the settings logged for generation g are the ones the
-members train with *next*, after that round's exploit/explore).
-
-  uv run python jobs/checkers_pbt_run.py [--members 8] [--games 200000] [--interval 10000] [--no-exploit]
+members train with *next*, after that round's exploit/explore). The budget is self-play games *per member*.
 """
 
 from __future__ import annotations
 
-import argparse
 import itertools
 import json
 import math
@@ -36,15 +33,18 @@ from typing import Any
 import rl
 from arena.checkers import PBT_SEED_BASE, pair_points, play_pairing
 from arena.costs import TrainingCostMeter
-from checkers_selfplay_run import INTERFACE, MAX_MOVES, MAX_MOVES_WITHOUT_CAPTURE, OPPONENTS
 from evolve import WeightVector
 from games.checkers_openings import ballot
 from games.checkers_strategies import evaluator
-from jobcore import recorded_run
+from jobcore import Sink, recorded_run
+from jobcore.algorithms.reinforcement import PbtParams
+from jobcore.specs import TrainSpec
 from telemetry import GenerationStats
-from trainer.checkers import MONITOR_GAMES, monitor_score
 
-BASE = {"hidden": 64, "hidden_layers": 2, "pool_every": 5000, "pool_size": 10}
+from trainer.algorithms.selfplay import INTERFACE, MAX_MOVES_WITHOUT_CAPTURE, OPPONENTS
+from trainer.checkers import MAX_MOVES, monitor_score
+from trainer.registry import adapter
+
 PAUSE_CHECK_GAMES = 1000  # a paused run stops within this many games of one member
 
 
@@ -88,16 +88,10 @@ def round_robin(snapshots: list[str], openings: list, depth: int, seed_base: int
     return [p / g for p, g in zip(points, games, strict=True)]
 
 
-def main(
-    members: int = 8,
-    games: int = 200_000,
-    interval: int = 10_000,
-    depth: int = 3,
-    openings_per_pair: int = 2,
-    exploit: bool = True,
-    rng_seed: int = 0,
-    tags: dict[str, Any] | None = None,
-) -> str:
+@adapter("pbt", "checkers")
+def train_pbt(spec: TrainSpec, params: PbtParams, sink: Sink) -> str:
+    members, games, interval, depth = params.members, spec.budget_amount, params.interval, params.depth
+    openings_per_pair, exploit, rng_seed, base = params.openings_per_pair, params.exploit, spec.seed, dict(params.base)
     rng = random.Random(rng_seed)
     settings = [sample_settings(rng) for _ in range(members)]
     trainers = []
@@ -105,7 +99,7 @@ def main(
         trainers.append(
             rl.CheckersSelfPlay(
                 rng_seed * 1000 + i,
-                params={**BASE, **s},
+                params={**base, **s},
                 max_moves_without_capture=MAX_MOVES_WITHOUT_CAPTURE,
                 max_plies=MAX_MOVES,
             )
@@ -119,7 +113,7 @@ def main(
         "search_depth": depth,
         "paradigm": "reinforcement_learning",
         "layer_sizes": list(layer_sizes),
-        "params": BASE,
+        "params": base,
         "population": members,
         "games_per_member": games,
         "interval": interval,
@@ -131,7 +125,7 @@ def main(
         "max_moves": MAX_MOVES,
         "opponents": list(OPPONENTS),
         "rng_seed": rng_seed,
-        **(tags or {}),
+        **spec.tags,
     }
 
     class Counters:
@@ -142,7 +136,7 @@ def main(
     cost = TrainingCostMeter(population_size=members, fitness=counters)
     all_openings = list(ballot())
     log: list[dict[str, Any]] = []
-    with recorded_run(config) as run:
+    with recorded_run(config, sink) as run:
         control = run.control_callback(cost)
         for generation in range(generations):
             for trainer in trainers:
@@ -183,7 +177,7 @@ def main(
             held_out = None
             if generation % 5 == 0 or generation == generations - 1:
                 held_out = monitor_score(
-                    WeightVector.from_json(snapshots[best]), OPPONENTS, games=MONITOR_GAMES, depth=depth
+                    WeightVector.from_json(snapshots[best]), OPPONENTS, games=params.monitor_games, depth=depth
                 )
             run.metrics.record_generation(
                 GenerationStats(
@@ -223,26 +217,3 @@ def _spread(settings: list[dict[str, float]]) -> float:
     logs = [math.log10(s["learning_rate"]) for s in settings]
     mean = sum(logs) / len(logs)
     return math.sqrt(sum((x - mean) ** 2 for x in logs) / len(logs))
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Population-based training for Checkers self-play.")
-    parser.add_argument("--members", type=int, default=8)
-    parser.add_argument("--games", type=int, default=200_000, help="self-play games per member")
-    parser.add_argument("--interval", type=int, default=10_000, help="games per member between round robins")
-    parser.add_argument("--depth", type=int, default=3)
-    parser.add_argument("--openings", type=int, default=2, help="ballot openings per pair in each round robin")
-    parser.add_argument("--no-exploit", action="store_true", help="the control: same population, nothing copied")
-    parser.add_argument("--rng-seed", type=int, default=0)
-    parser.add_argument("--experiment", default=None)
-    args = parser.parse_args()
-    main(
-        members=args.members,
-        games=args.games,
-        interval=args.interval,
-        depth=args.depth,
-        openings_per_pair=args.openings,
-        exploit=not args.no_exploit,
-        rng_seed=args.rng_seed,
-        tags={"experiment": args.experiment} if args.experiment else None,
-    )
