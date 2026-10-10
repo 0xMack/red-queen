@@ -1,7 +1,7 @@
 """Is Checkers player A stronger than player B? A head-to-head SPRT over the ballot (docs/design/0013).
 
 A and B play game pairs (one ballot opening, each from both seats; jobs/evaluate_versus.py's `play_pairing`) until
-Wald's sequential test is conclusive (jobs/versus_stats.py's `Sprt`): H1, A is at least `elo1` stronger, or H0, A is
+Wald's sequential test is conclusive (libs/arena/src/arena/versus_stats.py's `Sprt`): H1, A is at least `elo1` stronger, or H0, A is
 no stronger than `elo0`. The field doesn't enter into it, so it keeps working however strong the players get. The
 openings are played in a fixed shuffled order, so an early stop isn't a verdict on one family of openings. If the
 ballot runs out first (174 pairs) the answer is *inconclusive*: the difference is smaller than the test can resolve,
@@ -23,22 +23,19 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from evaluate_versus import Factory, pair_points, play_pairing
+from arena.checkers import SPRT_ORDER_SEED, SPRT_SEED_BASE, Factory, pair_points, play_pairing
+from arena.versus_stats import Sprt
 from evolve import NeatGenome, network_from_json
 from games.checkers_openings import Opening, ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator, strategy
-from run_context import RUN_DATA_DIR, TelemetryStores
-from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
-from versus_stats import Sprt
-
-SEED_BASE = 50_000  # disjoint from the leaderboard's (30k), the self-play report's (40k), monitoring's (20k)
-ORDER_SEED = 0
+from run_context import experiments_dir
+from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry, open_stores
 
 
 def sprt_order() -> list[Opening]:
     """The ballot in the fixed shuffled order a sequential test plays it."""
     openings = list(ballot())
-    random.Random(ORDER_SEED).shuffle(openings)
+    random.Random(SPRT_ORDER_SEED).shuffle(openings)
     return openings
 
 
@@ -68,7 +65,7 @@ def sequential_match(
     players: Sequence[tuple[Factory, Factory]],
     test: Sprt,
     openings: Sequence[Opening] | None = None,
-    seed_base: int = SEED_BASE,
+    seed_base: int = SPRT_SEED_BASE,
     on_pair: Callable[[int, list[float]], None] | None = None,
 ) -> dict[str, Any]:
     """Play `(a, b)` game pairs opening by opening until `test` decides or the openings run out. `players` may hold
@@ -105,10 +102,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--elo1", type=float, default=50.0)
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--beta", type=float, default=0.05)
-    parser.add_argument("--out", default=None, help="write the result as JSON under run-data/experiments/")
+    parser.add_argument("--out", default=None, help="write the result as JSON under data/experiments/")
     args = parser.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     a = resolve(args.a, registry, metrics, artifacts)
     b = resolve(args.b, registry, metrics, artifacts)
     test = Sprt(elo0=args.elo0, elo1=args.elo1, alpha=args.alpha, beta=args.beta)
@@ -125,7 +123,7 @@ def main(argv: list[str] | None = None) -> None:
         f"Elo {result['elo']:+.0f} [{result['lo']:+.0f}, {result['hi']:+.0f}], pentanomial {result['pentanomial']}"
     )
     if args.out:
-        path = RUN_DATA_DIR / "experiments" / f"{args.out}.json"
+        path = experiments_dir() / f"{args.out}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 

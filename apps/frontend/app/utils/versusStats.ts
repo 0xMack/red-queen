@@ -1,4 +1,4 @@
-// The statistics of two-player strength (docs/design/0013), the TypeScript side of jobs/versus_stats.py: Elo, game
+// The statistics of two-player strength (docs/design/0013), the TypeScript side of libs/arena/src/arena/versus_stats.py: Elo, game
 // pairs and the sequential probability ratio test. Used by the Checkers page (a human's performance rating) and the
 // "Measuring Strength" chapter's demos. Keep the formulas in step with the Python.
 

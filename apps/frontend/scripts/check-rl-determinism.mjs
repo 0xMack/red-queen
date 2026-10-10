@@ -1,7 +1,7 @@
 // The WASM build of the RL core must reproduce the native build's determinism digests bit for bit
 // (docs/design/0010 Decision 2): one seed, one training run, in a job and in a browser. Run in CI (frontend job):
 //   node scripts/check-rl-determinism.mjs
-// The digests come from libs/rl/tests/determinism.json, copied next to the module by libs/rl/build-wasm.py.
+// The digests come from libs/rl/tests/determinism.json, copied next to the module by libs/rl/scripts/build_wasm.py.
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { alphazeroDigest, banditDigest, dqnDigest, initSync, learningDigest, pgDigest, selfplayDigest, rolloutDigest, trainingDigest } from "../app/wasm/rl/rl.js"

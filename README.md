@@ -146,7 +146,7 @@ uv run python jobs/snake_neat_run.py         # NEAT on Snake
 uv run python jobs/evaluate.py               # rank every finished Snake run
 ```
 
-Runs land in `jobs/run-data/`, which is gitignored. The same checks CI runs are listed in
+Runs land in `data/`, which is gitignored. The same checks CI runs are listed in
 [AGENTS.md](AGENTS.md#working-in-this-repo).
 
 ## Repository map

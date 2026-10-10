@@ -3,7 +3,7 @@
 Like jobs/snake_experiment.py, but budgeted in *environment steps* rather than generations: every arm trains from
 the same rng seeds for the same number of steps, every run is recorded to telemetry tagged `config.experiment` /
 `config.arm`, and the report scores each run's *final* champion on the leaderboard's 200 held-out games
-(evaluate.HELD_OUT_SEEDS) -- never the best-looking iteration. Every arm names the arm it differs from in exactly one
+(arena.snake.HELD_OUT_SEEDS) -- never the best-looking iteration. Every arm names the arm it differs from in exactly one
 thing (its `baseline`), so each comparison isolates one idea; the report tests every arm against its baseline with an
 exact paired permutation test over the seeds (runs with the same seed are paired).
 
@@ -44,7 +44,7 @@ Phase 3 arms (policy gradients, 2M steps, egocentric.v1 unless noted; each teste
                             evolution on the same architecture (compare with snake_experiment's neuro arms)
 
   uv run python jobs/rl_experiment.py run    --name NAME --arms q-learning,sarsa --seeds 0-4
-  uv run python jobs/rl_experiment.py report --name NAME     # writes run-data/experiments/NAME.json
+  uv run python jobs/rl_experiment.py report --name NAME     # writes data/experiments/NAME.json
 """
 
 from __future__ import annotations
@@ -58,14 +58,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import rl_run
-from evaluate import PROTOCOL, measure_quality
+from arena.snake import PROTOCOL, measure_quality
 from games import interfaces
 from modelpack import QTable, champion_parameters, load_champion
-from run_context import RUN_DATA_DIR, TelemetryStores
+from run_context import experiments_dir
 from snake_experiment import _stats, experiment_runs, parse_seeds
-from telemetry import FileArtifactStore, FileMetricsStore, RunInfo
+from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, open_stores
 
-EXPERIMENTS_DIR = RUN_DATA_DIR / "experiments"
 INTERFACE = "snake/features.v1+relative3.v1"
 EGOCENTRIC = "snake/egocentric.v1+relative3.v1"
 STEPS_PER_ITERATION = 50_000
@@ -140,7 +139,7 @@ ARMS.update(PG_ARMS)
 
 
 def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
-    registry = TelemetryStores.open().registry
+    registry = open_stores().registry
     for seed in seeds:
         for arm_name in arms:
             done = [
@@ -217,7 +216,8 @@ def summarize_run(run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifa
 
 
 def build_report(name: str) -> dict[str, Any]:
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     runs = [r for r in experiment_runs(registry, name) if r.status == "completed"]
     rows = sorted((summarize_run(r, metrics, artifacts) for r in runs), key=lambda row: (row["arm"], row["rng_seed"]))
     by_arm = {arm: [row for row in rows if row["arm"] == arm] for arm in sorted({row["arm"] for row in rows})}
@@ -299,10 +299,10 @@ def main(argv: list[str] | None = None) -> None:
         run_experiment(args.name, arms, parse_seeds(args.seeds))
     else:
         result = build_report(args.name)
-        EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        (EXPERIMENTS_DIR / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        experiments_dir().mkdir(parents=True, exist_ok=True)
+        (experiments_dir() / f"{args.name}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print_report(result)
-        print(f"\nwrote {EXPERIMENTS_DIR / (args.name + '.json')}")
+        print(f"\nwrote {experiments_dir() / (args.name + '.json')}")
 
 
 if __name__ == "__main__":

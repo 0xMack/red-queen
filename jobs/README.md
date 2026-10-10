@@ -1,5 +1,9 @@
 # jobs
 
+> **Being restructured (docs/design/0018).** These scripts are becoming workloads — a trainer, an evaluator, a
+> publisher and a scheduler — behind a job API and the `redqueen` CLI. Shared measurement code (protocols, seed sets,
+> `versus_stats`, the cost meter, seed strategies) has already moved to `libs/arena`.
+
 Short- or long-running jobs, tasks, and workers — e.g. training runs, batch evaluations, or
 background simulation workers. This is where algorithm libs (which never import `telemetry`
 themselves — see docs/design/0001) get wired to it for a real run.
@@ -8,7 +12,7 @@ themselves — see docs/design/0001) get wired to it for a real run.
 
 - `baseline_gp_run.py` — runs `libs/evolve`'s baseline GA loop against the fixed benchmark problem
   (docs/design/0003 phase 1), recording every generation to a local `telemetry` store
-  (`run-data/`, gitignored) and reading it back to prove the whole evolve → metrics → replay
+  (`data/`, gitignored) and reading it back to prove the whole evolve → metrics → replay
   pipeline works. Run with `uv run python jobs/baseline_gp_run.py` from the repo root.
 - `snake_neuro_run.py` — the same neuroevolution-against-`games.snake` setup already validated in
   `notebooks/0005-neuroevolution-snake.ipynb`, wired to `telemetry` end to end instead of collecting
@@ -37,18 +41,9 @@ themselves — see docs/design/0001) get wired to it for a real run.
   `neat-no-speciation`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/
   `arm`/`rng_seed`, resumable, arms parallelizable as separate processes. `report --name NAME`
   scores each run's *final* champion on the 200 leaderboard games and writes per-arm aggregates to
-  `run-data/experiments/NAME.json` (gitignored — the durable record of a result is
+  `data/experiments/NAME.json` (gitignored — the durable record of a result is
   docs/design/0008 and the Learn chapter). Experiment-tagged runs are deliberately kept off the
   leaderboard (`evaluate.py` skips them) so 20 seeds don't bury every other entrant.
-- `seeding.py` — training-seed strategies: `fixed:N` (the same N games every generation; `fixed:5`
-  is the original behavior) or `resample:N` (fresh games every generation from a pool disjoint from
-  every evaluation seed range, via a seeded rng). With `fixed:5` the Snake champion memorizes its 5
-  games: its unseen-game score peaks around generation 20-25 and then declines while training
-  fitness keeps rising.
-- `costs.py` — `TrainingCostMeter` (an `on_generation` callback; wrap the control callback with
-  `excluding_pauses()` so paused time isn't counted) records exact counters (fitness evaluations,
-  episodes, env steps — hardware-independent) plus active/CPU time, peak memory, and a
-  `hardware_fingerprint()` (docs/design/0007: counters first, clocks second).
 - `evaluate.py` — the leaderboard job (docs/design/0007). Runs every *finished* game run's final
   champion (under its recorded interface) and fixed baselines (random, greedy) on held-out seeds
   under protocol `snake.score.v1`, and writes an `EvaluationRecord` per entrant: score
@@ -79,11 +74,9 @@ themselves — see docs/design/0001) get wired to it for a real run.
   `checkers.versus.v2`, a round robin over every finished checkers champion plus the fixed baselines, 12 ballot
   openings (`games.checkers_openings`) per pairing, each a **game pair** (both seats). An entrant's score
   (`quality.mean`) is an **Elo rating**: Bradley–Terry over every game, Random = 0, bootstrap 95% interval
-  (`versus_stats.py`); points per game, pentanomial pair counts and per-opponent W/D/L are in `metrics.versus`. Same
+  (`arena.versus_stats`); points per game, pentanomial pair counts and per-opponent W/D/L are in `metrics.versus`. Same
   `EvaluationRecord`s as `evaluate.py`, so the game page's leaderboard components need nothing game-specific. Ratings
   are relative to the field: re-run it whenever entrants change (it replaces the old records).
-- `versus_stats.py` — the statistics of two-player strength, game-agnostic: Elo ↔ expected score, pentanomial counts,
-  Bradley–Terry ratings (Newton's method) with bootstrap intervals, and `Sprt`, the pentanomial sequential test.
 - `checkers_sprt.py` — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
   decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `checkers_selfplay_experiment.py
   h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
@@ -94,14 +87,12 @@ themselves — see docs/design/0001) get wired to it for a real run.
   run reproduces a serial one; used by `checkers_neuro_run.py --workers N` and `checkers_distill_run.py`. Cost meters
   then report wall time, not summed CPU time of the workers.
 - `checkers_distill_run.py` — search distillation for Checkers: evolve an evaluator to predict labelled positions
-  (`--label-kind search|rollout|blend`; pools are cached under `run-data/distill/`), played `--depth` plies. A
+  (`--label-kind search|rollout|blend`; pools are cached under `data/distill/`), played `--depth` plies. A
   documented negative result (docs/design/0008): it never got near `Material 4-ply`.
-- `backfill_interfaces.py` — one-off: sets `config.interface` on game runs recorded before
-  interfaces existed, resolved from each champion's own layer sizes (idempotent).
 - **Reinforcement learning** (`libs/rl`, docs/design/0010): `rl_run.py` trains one `rl.Trainer` algorithm, an
   *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
   budgeted in env steps, final policy on the 200 held-out games, a paired permutation test against each arm's baseline);
-  `rl_benchmark.py` is the native half of `/dev/rl`'s speed numbers; `export_rl_recording.py` / `export_rl_curves.py`
+  `export_rl_recording.py` / `export_rl_curves.py`
   write real runs as the Learn chapters' recorded fallbacks.
 - **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): `checkers_selfplay_run.py` trains a position evaluator by
   TD(λ), TD-Leaf(λ) (`--param search_depth=N`) or AlphaZero-style search targets (`--algorithm alphazero`) and records it
@@ -110,8 +101,7 @@ themselves — see docs/design/0001) get wired to it for a real run.
   entrants; `checkers_pbt_run.py` is population-based training over self-play learners, and `export_pbt_history.py` writes
   one run's population history for the Learn chapter.
 - **Bandits** (docs/design/0011): `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`);
-  `bandit_evolve_run.py` evolves ε-greedy's settings as an ordinary run; `bandit_arm_sweep.py` is the pre-Rust sketch that
-  chose the default table size.
+  `bandit_evolve_run.py` evolves ε-greedy's settings as an ordinary run.
 - **Model packages and TinyLM** (docs/design/0004, 0009): `publish_models.py` exports leaderboard champions and TinyLM
   checkpoints to the local model store and catalog, measuring each variant's agreement; `tinylm_run.py` trains TinyLM;
   `scale_test_package.py` publishes a large random-weight model to exercise the big-model path.
@@ -124,9 +114,10 @@ themselves — see docs/design/0001) get wired to it for a real run.
 - `run_context.py` — the lifecycle every training job shares: `with recorded_run(config) as run:` creates
   the run, and marks it `completed` when the block ends or `failed` if it raises (a crashed run used to stay
   `running` — live-looking — forever). `run.control_callback(cost)` wires pause/resume without counting paused
-  time, and `run.set_training_summary(cost)` writes the standard summary. `RUN_DATA_DIR` lives here, honouring
-  `REDQUEEN_RUN_DATA_DIR` like the backend does — point both at a scratch directory for smoke runs, so they
-  don't land on the real runs list. Tests patch `run_context.RUN_DATA_DIR`.
+  time, and `run.set_training_summary(cost)` writes the standard summary. Stores come from `telemetry.open_stores()` under
+  `telemetry.data_dir()` (`REDQUEEN_DATA_DIR`, default `<repo>/data`), exactly as the backend opens them — point both at
+  a scratch directory for smoke runs, so they don't land on the real runs list. `jobs/tests/conftest.py` points every
+  test at its own temporary directory that way.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on

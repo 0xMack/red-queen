@@ -11,13 +11,14 @@ import argparse
 import json
 from pathlib import Path
 
-from run_context import TelemetryStores
+from telemetry import open_stores
 
 OUT = Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "pbtHistory.ts"
 
 
 def main(experiment: str = "selfplay-v4", arm: str = "g-pbt", seed: int = 0) -> None:
-    registry, _, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, artifacts = stores.registry, stores.artifacts
     (run,) = [
         r
         for r in registry.list_runs()

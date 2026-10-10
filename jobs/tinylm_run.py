@@ -5,7 +5,7 @@ Learn chapter cites), except that the last 5% of the corpus is held out: never t
 validation loss here and, by jobs/publish_models.py, as the text an exported package is checked on
 (top-1 next-character agreement with this checkpoint).
 
-Writes jobs/run-data/tinylm/<name>.npz + .json. Not a telemetry run (tinylm isn't wired into
+Writes data/tinylm/<name>.npz + .json. Not a telemetry run (tinylm isn't wired into
 telemetry, doc 0004); the model store's catalog is what makes it visible to the site.
 
 Run with: uv run python jobs/tinylm_run.py [name]
@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 import numpy as np
-from run_context import RUN_DATA_DIR
+from telemetry import data_dir
 from tinylm import Adam, CharTokenizer, TinyLM, cross_entropy, save
 
 CORPUS = Path(__file__).parents[1] / "libs" / "tinylm" / "data" / "alice.txt"
@@ -72,7 +72,7 @@ def main(name: str = "alice-v1") -> None:
     x, y = windows(held_out, 256, np.random.default_rng(1))
     val_loss = float(cross_entropy(model(x), y).data)
     print(f"trained in {train_s:.0f}s; train loss (last 50) {np.mean(losses[-50:]):.3f}, held-out loss {val_loss:.3f}")
-    path = RUN_DATA_DIR / "tinylm" / name
+    path = data_dir() / "tinylm" / name
     save(
         model,
         tokenizer,

@@ -37,12 +37,12 @@ import time
 from typing import Any
 
 import rl
+from arena.costs import TrainingCostMeter
 from checkers_training import MAX_MOVES, MONITOR_GAMES, MONITOR_SEED_BASE, monitor_score
-from costs import TrainingCostMeter
 from evolve import WeightVector
 from rl_run import parse_params
-from run_context import TelemetryStores, recorded_run
-from telemetry import GenerationStats
+from run_context import recorded_run
+from telemetry import GenerationStats, open_stores
 
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
 ALGORITHMS = {"td_lambda": rl.CheckersSelfPlay, "alphazero": rl.CheckersAlphaZero}
@@ -79,7 +79,8 @@ def main(
         rng_seed, params=params, max_moves_without_capture=MAX_MOVES_WITHOUT_CAPTURE, max_plies=MAX_MOVES
     )
     if init_run:
-        _, metrics, artifacts = TelemetryStores.open()
+        stores = open_stores()
+        metrics, artifacts = stores.metrics, stores.artifacts
         parent = WeightVector.from_json(artifacts.get_program(metrics.history(init_run)[-1].champion_ref).decode())
         if alphazero:
             trainer.set_value_network(list(parent.weights), list(parent.layer_sizes))

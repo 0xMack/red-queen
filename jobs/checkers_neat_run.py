@@ -27,6 +27,7 @@ import dataclasses
 import random
 from collections.abc import Sequence
 
+from arena.costs import TrainingCostMeter
 from checkers_training import (
     INPUTS,
     MAX_MOVES,
@@ -35,7 +36,6 @@ from checkers_training import (
     make_telemetry_callback,
     material_seed_neat,
 )
-from costs import TrainingCostMeter
 from evolve import InnovationTracker, NeatConfig, evolve_neat, initial_genome
 from games.checkers_strategies import STRATEGIES
 from run_context import recorded_run

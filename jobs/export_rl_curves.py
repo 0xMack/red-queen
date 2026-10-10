@@ -14,8 +14,8 @@ import argparse
 import json
 from pathlib import Path
 
-from run_context import TelemetryStores
 from snake_experiment import experiment_runs
+from telemetry import open_stores
 
 RECORDINGS_DIR = Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "recordings"
 
@@ -51,7 +51,8 @@ RECORDINGS: dict[str, tuple[str, list[str], list[tuple[str, str, int, str]]]] = 
 
 def recording(name: str) -> dict:
     experiment, extras, picks = RECORDINGS[name]
-    registry, metrics, _ = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics = stores.registry, stores.metrics
     runs = {(r.config["arm"], r.config["rng_seed"]): r for r in experiment_runs(registry, experiment)}
     out = {}
     for key, arm, seed, label in picks:

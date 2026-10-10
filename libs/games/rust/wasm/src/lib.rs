@@ -2,7 +2,7 @@
 //! through PyO3, compiled to WebAssembly for apps/frontend's session worker. Plain numbers and typed
 //! arrays across the boundary -- observations go straight from here into ONNX Runtime.
 //!
-//! Built by `libs/games/build-wasm.py` into `apps/frontend/app/wasm/games/`.
+//! Built by `libs/games/scripts/build_wasm.py` into `apps/frontend/app/wasm/games/`.
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::snake::{decode_relative3, Observer, Snake};

@@ -2,7 +2,6 @@ import random
 
 import checkers_neat_run
 import checkers_training as training
-import run_context
 from evolve import InnovationTracker, NeatGenome, WeightVector, initial_genome
 from evolve.neat import ConnectionGene
 from evolve.networks import compiled
@@ -106,7 +105,6 @@ def test_hall_of_fame_grows_with_champions_and_widens_the_fitness_vector():
 
 
 def test_neat_run_records_structure_curves_and_a_searching_champion(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_neat_run, "MONITOR_GAMES", 2)
 
     run_id = checkers_neat_run.main(

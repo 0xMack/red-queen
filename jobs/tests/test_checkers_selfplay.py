@@ -1,12 +1,10 @@
 import checkers_selfplay_run
 import evaluate_versus
-import run_context
 from evolve import WeightVector
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
 
 
 def test_a_self_play_run_is_recorded_and_joins_the_versus_leaderboard(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_selfplay_run, "MONITOR_GAMES", 2)
 
     run_id = checkers_selfplay_run.main(
@@ -32,7 +30,6 @@ def test_a_self_play_run_is_recorded_and_joins_the_versus_leaderboard(tmp_path, 
 
 
 def test_an_alphazero_run_is_recorded_and_its_value_head_joins_the_leaderboard(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_selfplay_run, "MONITOR_GAMES", 2)
     monkeypatch.setattr(checkers_selfplay_run, "MCTS_GAMES", 2)
     params = {"hidden": 8, "hidden_layers": 1, "simulations": 4}
@@ -74,7 +71,6 @@ def test_an_alphazero_run_is_recorded_and_its_value_head_joins_the_leaderboard(t
 def test_the_recipe_trains_td_then_fine_tunes_it(tmp_path, monkeypatch):
     import checkers_recipe_run
 
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(checkers_selfplay_run, "MONITOR_GAMES", 2)
     td, leaf = checkers_recipe_run.main(
         hidden=8, layers=1, td_games=40, leaf_games=4, leaf_depth=2, depth=1, games_per_iteration=20

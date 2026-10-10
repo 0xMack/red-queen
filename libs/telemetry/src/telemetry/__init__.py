@@ -1,4 +1,5 @@
 from telemetry.artifacts import ArtifactStore, FileArtifactStore
+from telemetry.config import Stores, data_dir, models_dir, open_stores, workspace_root
 from telemetry.evaluations import (
     EntrantKind,
     EvaluationRecord,
@@ -24,4 +25,9 @@ __all__ = [
     "RunStatus",
     "SqliteEvaluationStore",
     "SqliteRunRegistry",
+    "Stores",
+    "data_dir",
+    "models_dir",
+    "open_stores",
+    "workspace_root",
 ]

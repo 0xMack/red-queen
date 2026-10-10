@@ -24,7 +24,7 @@ import statistics
 import time
 from typing import Any
 
-from costs import TrainingCostMeter
+from arena.costs import TrainingCostMeter
 from evolve import GaussianMutation, GenerationSummary, TournamentSelection, WeightVector, evolve
 from rl import _native
 from run_context import recorded_run

@@ -2,7 +2,6 @@ import random
 
 import checkers_pbt_run as pbt
 import rl
-import run_context
 from games.checkers_openings import ballot
 from telemetry import FileMetricsStore, SqliteRunRegistry
 
@@ -27,7 +26,6 @@ def test_the_round_robin_ranks_a_trained_member_above_an_untrained_one():
 
 
 def test_a_tiny_population_runs_exploits_and_records(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(pbt, "BASE", {"hidden": 4, "pool_every": 20, "pool_size": 2})
     run_id = pbt.main(members=4, games=40, interval=20, depth=1, openings_per_pair=1, rng_seed=3)
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)

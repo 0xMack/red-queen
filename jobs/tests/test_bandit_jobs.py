@@ -3,9 +3,8 @@ evaluation enters its champion beside the hand-set strategies."""
 
 import bandit_evolve_run
 import evaluate_bandit
-import run_context
 from evolve import WeightVector
-from telemetry import SqliteEvaluationStore
+from telemetry import SqliteEvaluationStore, open_stores
 
 
 def test_decoded_settings_stay_in_range():
@@ -15,14 +14,12 @@ def test_decoded_settings_stay_in_range():
 
 
 def test_an_evolved_strategy_is_recorded_and_ranked(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_context, "RUN_DATA_DIR", tmp_path)
-    monkeypatch.setattr(evaluate_bandit, "RUN_DATA_DIR", tmp_path)
     monkeypatch.setattr(bandit_evolve_run, "POPULATION", 6)
     monkeypatch.setattr(bandit_evolve_run, "GAMES_PER_SCENARIO", 10)
     monkeypatch.setattr(evaluate_bandit, "HELD_OUT", 20)
 
     run_id = bandit_evolve_run.main(["classic"], generations=3)
-    stores = run_context.TelemetryStores.open()
+    stores = open_stores()
     run = stores.registry.get_run(run_id)
     assert run.status == "completed" and run.config["representation"] == "evolved_bandit"
     history = stores.metrics.history(run_id)

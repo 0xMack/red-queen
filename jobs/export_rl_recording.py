@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 from modelpack import QTable, load_champion
-from run_context import TelemetryStores
+from telemetry import open_stores
 
 OUT = (
     Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "recordings" / "q-learning-snake.json"
@@ -24,7 +24,8 @@ OUT = (
 
 
 def recording(run_id: str, label: str | None = None) -> dict:
-    registry, metrics, artifacts = TelemetryStores.open()
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
     run = registry.get_run(run_id)
     history = metrics.history(run_id)
     table = load_champion(artifacts.get_program(history[-1].champion_ref).decode("utf-8"))

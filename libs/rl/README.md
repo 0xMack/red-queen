@@ -44,7 +44,7 @@ A mixed Rust/Python package, like `libs/games`:
   (continuous acceleration; game `seed` draws the target; 25 x 13 bins), plus the games' baselines as policies;
   `bandit.rs`'s `BanditRun`, a strategy playing one bandit game; and the two-player loops for Checkers, `selfplay.rs`
   (TD(λ) / TD-Leaf) and `alphazero.rs` (MCTS with a policy-and-value network). Shared by both binding crates.
-- `rust/python` → `rl._native` (PyO3). `rust/wasm` → `apps/frontend/app/wasm/rl` (built by `build-wasm.py`).
+- `rust/python` → `rl._native` (PyO3). `rust/wasm` → `apps/frontend/app/wasm/rl` (built by `scripts/build_wasm.py`).
 - `src/rl` — the Python face.
 - `tests/` — parity against `libs/autodiff` (`reference_nn.py`), the adapters against `jobs/evaluate.py`'s scores,
   and the determinism fixture (`determinism.json`) that the native build, Node and the browser all check against.
@@ -71,5 +71,5 @@ A run: `uv run python jobs/rl_run.py --algo q_learning --param n_step=3 --iterat
 every job; its champion is a model package on the leaderboard like any other). A comparison:
 `uv run python jobs/rl_experiment.py run --name NAME --arms q-learning,sarsa --seeds 0-4`, then `report`.
 
-After changing `rust/`, rebuild the browser copy: `uv run python libs/rl/build-wasm.py`
+After changing `rust/`, rebuild the browser copy: `uv run python libs/rl/scripts/build_wasm.py`
 (`tests/test_wasm_build.py` fails until you do).

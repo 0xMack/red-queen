@@ -15,14 +15,12 @@ from __future__ import annotations
 
 import sys
 import time
-from pathlib import Path
 
 from modelpack import CatalogEntry, LocalModelStore
 from modelpack.lm import LMConfig, build_lm_package
+from telemetry import models_dir
 from tinylm.checkpoint import TinyLMConfig, build, named_parameters
 from tinylm_run import split_corpus
-
-MODELS_DIR = Path(__file__).parent / "run-data" / "models"
 
 
 def main(d_model: int = 768, n_layers: int = 12) -> None:
@@ -57,7 +55,7 @@ def main(d_model: int = 768, n_layers: int = 12) -> None:
         ),
         provenance={"champion_ref": "scale-test"},
     )
-    store = LocalModelStore(MODELS_DIR)
+    store = LocalModelStore(models_dir())
     store.put(package)
     manifest = package.manifest
     catalog = store.catalog("scale-test")

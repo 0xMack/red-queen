@@ -19,11 +19,11 @@ plays one through the backend's on-demand model-package export (docs/design/0009
 
 Trains under a named interface (docs/design/0007: game + observer + action adapter), recorded in
 the run config so the champion is always run under the observation it was trained for, plus the
-training seeds and a measured training-cost block in the run summary (jobs/costs.py).
+training seeds and a measured training-cost block in the run summary (arena.costs).
 
 Also records how the champion does on games it never trained on (GenerationStats.held_out_score,
-every --held-out-every generations, on jobs/evaluate.py's MONITOR_SEEDS) -- the curve that shows
-overfitting -- and takes a --seeds strategy (jobs/seeding.py): `fixed:5` (the original 5 benchmark
+every --held-out-every generations, on arena.snake's MONITOR_SEEDS) -- the curve that shows
+overfitting -- and takes a --seeds strategy (arena.seeding): `fixed:5` (the original 5 benchmark
 seeds, default) or e.g. `resample:5` (fresh seeds every generation, nothing to memorize).
 
 Run with:
@@ -40,8 +40,9 @@ import random
 import time
 from typing import Any
 
-from costs import TrainingCostMeter
-from evaluate import MONITOR_SEEDS, monitor_score
+from arena.costs import TrainingCostMeter
+from arena.seeding import SeedStrategy
+from arena.snake import MONITOR_SEEDS, monitor_score
 from evolve import (
     GaussianMutation,
     GenerationSummary,
@@ -55,7 +56,6 @@ from evolve.networks import compiled
 from games import interfaces
 from games.nets import native_policy
 from run_context import recorded_run
-from seeding import SeedStrategy
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
@@ -229,7 +229,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Neuroevolution vs. Snake, recorded to telemetry.")
     parser.add_argument("interface", nargs="?", default=DEFAULT_INTERFACE, help="games.interfaces id")
-    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (jobs/seeding.py)")
+    parser.add_argument("--seeds", default="fixed:5", help="fixed:N or resample:N (arena.seeding)")
     parser.add_argument("--held-out-every", type=int, default=10, help="generations between held-out checks")
     parser.add_argument("--generations", type=int, default=GENERATIONS)
     parser.add_argument("--rng-seed", type=int, default=RNG_SEED)

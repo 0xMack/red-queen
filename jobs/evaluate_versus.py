@@ -12,7 +12,7 @@ level three-ply openings). Every pair of entrants plays OPENINGS_PER_PAIR openin
 from each seat -- so opening luck cancels; each pairing takes the next openings in the ballot, so the round robin
 covers all of it. Games are seeded (random tie-breaks reproduce) and capped at MAX_PLIES.
 
-An entrant's **score is an Elo rating**: Bradley-Terry fitted to every game of the round robin (jobs/versus_stats.py),
+An entrant's **score is an Elo rating**: Bradley-Terry fitted to every game of the round robin (arena.versus_stats),
 anchored so Random is 0, with a bootstrap 95% interval over game pairs. `quality.mean` holds the rating, so every
 leaderboard component ranks by it unchanged; points per game, the pentanomial pair counts and the per-opponent
 win/draw/loss (the head-to-head matrix) are in `metrics.versus`. Overlapping intervals show as ties.
@@ -32,34 +32,37 @@ import random
 import statistics
 import sys
 import time
-from collections.abc import Callable
 from typing import Any
 
-from costs import hardware_fingerprint
+from arena.checkers import (
+    ANCHOR,
+    GAME,
+    INTERFACE,
+    MAX_PLIES,
+    OPENINGS_PER_PAIR,
+    PROTOCOL,
+    VERSUS_SEED_BASE,
+    Factory,
+    openings_for,
+    pair_points,
+    play_pairing,
+)
+from arena.costs import hardware_fingerprint
+from arena.versus_stats import pentanomial, rate
 from evaluate import model_shape, training_cost
-from evolve import NeatGenome, network_from_json, play_match
+from evolve import NeatGenome, network_from_json
 from evolve.networks import describe, parameter_count
 from games import interfaces
 from games.checkers import Checkers
-from games.checkers_openings import Opening, ballot
+from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
-from run_context import RUN_DATA_DIR, TelemetryStores
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
     FileMetricsStore,
-    SqliteEvaluationStore,
     SqliteRunRegistry,
+    open_stores,
 )
-from versus_stats import pentanomial, rate
-
-GAME = "checkers"
-PROTOCOL = "checkers.versus.v2"
-INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
-OPENINGS_PER_PAIR = 12  # 24 games per pairing, one game pair per opening
-MAX_PLIES = 300
-SEED_BASE = 30_000  # game seeds; disjoint from training's (jobs/checkers_neuro_run.py) and monitoring's
-ANCHOR = "baseline:random"  # rated 0
 
 # Human names and one-line descriptions for the fixed baselines (the strategies themselves are Rust). The deeper
 # material searches are the *fair* opponents for a trained evaluator that searches as deep: beating a shallower
@@ -75,9 +78,6 @@ BASELINES: dict[str, tuple[str, str]] = {
 
 # A run shorter than this is a smoke test, not an entrant: its "champion" is the first generation's best.
 MIN_GENERATIONS = 10
-
-# (env, rng) -> Strategy
-Factory = Callable[[Checkers, random.Random], Callable]
 
 
 def baseline_entrants() -> list[dict[str, Any]]:
@@ -154,39 +154,6 @@ def champion_entrants(
 # --- Measurement -------------------------------------------------------------------------------------
 
 
-def play_game(a: Factory, b: Factory, opening: Opening, seat_a: int, seed: int) -> tuple[float, int]:
-    """One game from `opening`, `a` in `seat_a` (0 moves first from the standard start): (a's points, plies)."""
-    env = Checkers(opening=opening)
-    strategies = {
-        seat_a: a(env, random.Random(seed)),
-        1 - seat_a: b(env, random.Random(seed + 7919)),
-    }
-    match = play_match(env, strategies, max_moves=MAX_PLIES)
-    points = 0.5 if match.winner is None else 1.0 if match.winner == seat_a else 0.0
-    return points, match.moves_played
-
-
-def play_pairing(a: Factory, b: Factory, openings: list[Opening], seed_base: int) -> list[tuple[float, int]]:
-    """A game pair per opening -- `a` from seat 0, then from seat 1 -- as a flat list of (a's points, plies): games
-    2k and 2k + 1 are opening k's pair."""
-    results = []
-    for k, opening in enumerate(openings):
-        for seat_a in (0, 1):
-            results.append(play_game(a, b, opening, seat_a, seed_base + 2 * k + seat_a))
-    return results
-
-
-def pair_points(games: list[tuple[float, int]]) -> list[float]:
-    """The points of each game pair in `play_pairing`'s output (0 ... 2)."""
-    return [games[i][0] + games[i + 1][0] for i in range(0, len(games) - 1, 2)]
-
-
-def openings_for(index: int, per_pair: int) -> list[Opening]:
-    """The openings pairing `index` plays: the next `per_pair` of the ballot, wrapping, so a round robin covers it."""
-    openings = ballot()
-    return [openings[(index * per_pair + k) % len(openings)] for k in range(per_pair)]
-
-
 def round_robin(
     entrants: list[dict[str, Any]], per_pair: int = OPENINGS_PER_PAIR
 ) -> dict[str, dict[str, list[tuple[float, int]]]]:
@@ -194,7 +161,7 @@ def round_robin(
     results: dict[str, dict[str, list[tuple[float, int]]]] = {e["entrant_id"]: {} for e in entrants}
     for index, (a, b) in enumerate(itertools.combinations(entrants, 2)):
         played = play_pairing(
-            a["factory"], b["factory"], openings_for(index, per_pair), SEED_BASE + index * 2 * per_pair
+            a["factory"], b["factory"], openings_for(index, per_pair), VERSUS_SEED_BASE + index * 2 * per_pair
         )
         results[a["entrant_id"]][b["entrant_id"]] = played
         results[b["entrant_id"]][a["entrant_id"]] = [(1.0 - points, plies) for points, plies in played]
@@ -324,7 +291,7 @@ def evaluate_all(
                         "note": entrant.get("note"),
                     },
                     "protocol": {
-                        "held_out_seeds": [SEED_BASE, SEED_BASE + 2 * per_pair * pairings - 1],
+                        "held_out_seeds": [VERSUS_SEED_BASE, VERSUS_SEED_BASE + 2 * per_pair * pairings - 1],
                         "episodes": len(all_games),
                         "max_steps": MAX_PLIES,
                         "board": {"width": 8, "height": 8},
@@ -341,8 +308,9 @@ def evaluate_all(
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # labels contain arrows; the Windows console default can't print them
-    registry, metrics, artifacts = TelemetryStores.open()
-    store = SqliteEvaluationStore(RUN_DATA_DIR / "evaluations.db")
+    stores = open_stores()
+    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    store = stores.evaluations
 
     entrants = [*baseline_entrants(), *champion_entrants(registry, metrics, artifacts)]
     records = evaluate_all(entrants, metrics, hardware_fingerprint())

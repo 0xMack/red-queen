@@ -108,7 +108,7 @@ what belongs here and how to add to it). Read before writing code, not after.
 - A fixed handful of training seeds is a dataset of that size, and evolution overfits it like any
   learner: with Snake's 5 fixed seeds the champion's unseen-game score peaked by generation ~20 and
   then *fell* while training fitness kept climbing. Record a held-out curve during training
-  (`--held-out-every`) and prefer fresh seeds per generation (`--seeds resample:N`, jobs/seeding.py).
+  (`--held-out-every`) and prefer fresh seeds per generation (`--seeds resample:N`, arena.seeding).
 - One training run is an anecdote; comparing algorithms takes seeds. Snake runs that differ only in rng seed
   span several points of held-out score, so "A beat B" from one run each means little. Use
   `jobs/snake_experiment.py` (arms × >=5 seeds, identical budgets, tagged runs, final champion scored on the
@@ -204,7 +204,7 @@ what belongs here and how to add to it). Read before writing code, not after.
   and assert on the first position a player sees, not on the env you built.
 - **Measure two-player strength in game pairs, by rating, head to head** (docs/design/0013). Points per game against a
   field saturates once the leader outclasses it (TD-Leaf's +120 Elo on every seed read as p = 0.125 there). Play ballot
-  openings from both seats, rank by Bradley–Terry Elo (`jobs/versus_stats.py`), and compare two players with the SPRT
+  openings from both seats, rank by Bradley–Terry Elo (`arena.versus_stats`), and compare two players with the SPRT
   (`jobs/checkers_sprt.py`). Check the test's own error rates by simulation before trusting its defaults: with a first
   look at 10 pairs it said "stronger" for equal players 8% of the time (5% promised); from 20 pairs, 6%. A pooled
   interval over seeds counts pairs, so it compares *these* networks; a regime needs the per-seed results to agree.
