@@ -76,7 +76,7 @@ def make_telemetry_callback(
     return on_generation
 
 
-def main() -> None:
+def main() -> str:
     config = {
         "representation": "linear_gp",
         "population_size": POPULATION_SIZE,
@@ -119,6 +119,7 @@ def main() -> None:
     champion_bytes = run.artifacts.get_program(final_history[-1].champion_ref)
     print(f"final champion ({len(champion_bytes)} bytes stored):")
     print(champion_bytes.decode("utf-8"))
+    return run.run_id
 
 
 if __name__ == "__main__":

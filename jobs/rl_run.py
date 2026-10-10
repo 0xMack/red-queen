@@ -24,6 +24,7 @@ Run with:
 from __future__ import annotations
 
 import argparse
+import math
 import statistics
 import time
 from typing import Any
@@ -135,7 +136,9 @@ def main(
                     best_fitness=best,
                     mean_fitness=mean,
                     worst_fitness=worst,
-                    diversity=max(stats["entropy"], 0.0),
+                    # A policy-gradient agent reports NaN until its first update (an iteration shorter than its first
+                    # batch of episodes); that crashed the run. No update yet: no entropy to report.
+                    diversity=max(stats["entropy"], 0.0) if math.isfinite(stats["entropy"]) else 0.0,
                     champion_ref=champion_ref,
                     held_out_score=held_out_score,
                     extras={
