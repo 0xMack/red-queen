@@ -13,9 +13,10 @@ themselves — see docs/design/0001) get wired to it for a real run.
 - **`trainer/` — the trainer workload** (`trainer` package): one `TrainSpec` in, one recorded run out.
   `uv run python -m trainer trainer/specs/<algorithm>.yaml [--set key=value ...]` (paths from `jobs/`), one example
   spec per algorithm at the original scripts' defaults. Built: `gp`, `neuroevolution` and `neat` (Snake and Checkers),
-  `distill`, `bandit_evolve` -- they replaced `baseline_gp_run.py`, `snake_neuro_run.py`, `snake_neat_run.py`,
-  `checkers_neuro_run.py`, `checkers_neat_run.py`, `checkers_distill_run.py` and `bandit_evolve_run.py`, reproducing
-  each one's golden runs exactly. See `trainer/README.md` for what each algorithm does and records.
+  `distill`, `bandit_evolve`, `rl.<algorithm>`, `td_lambda`, `alphazero`, `pbt` -- they replaced `baseline_gp_run.py`,
+  `snake_neuro_run.py`, `snake_neat_run.py`, `checkers_neuro_run.py`, `checkers_neat_run.py`, `checkers_distill_run.py`,
+  `bandit_evolve_run.py`, `rl_run.py`, `checkers_selfplay_run.py` and `checkers_pbt_run.py`, reproducing each one's
+  golden runs exactly. See `trainer/README.md` for what each algorithm does and records.
 - `snake_experiment.py` — a tracked *comparison*, each arm a partial `TrainSpec` run by the trainer: arms
   (`neuro-lexicase`, `neuro-tournament`, `neat`,
   `neat-no-speciation`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/
@@ -47,16 +48,17 @@ themselves — see docs/design/0001) get wired to it for a real run.
   h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
 - `export_ballot.py` — writes the ballot (every 3-ply opening, its board and verdict) as
   `apps/frontend/app/data/checkersBallot.ts` for the Learn chapter.
-- **Reinforcement learning** (`libs/rl`, docs/design/0010): `rl_run.py` trains one `rl.Trainer` algorithm, an
-  *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
+- **Reinforcement learning** (`libs/rl`, docs/design/0010): the trainer's `rl.<algorithm>` trains one `rl.Trainer`
+  algorithm, an *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
   budgeted in env steps, final policy on the 200 held-out games, a paired permutation test against each arm's baseline);
   `export_rl_recording.py` / `export_rl_curves.py`
   write real runs as the Learn chapters' recorded fallbacks.
-- **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): `checkers_selfplay_run.py` trains a position evaluator by
-  TD(λ), TD-Leaf(λ) (`--param search_depth=N`) or AlphaZero-style search targets (`--algorithm alphazero`) and records it
+- **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): the trainer's `td_lambda` trains a position evaluator
+  by TD(λ) or TD-Leaf(λ) (`params.agent.search_depth: N`), `alphazero` by AlphaZero-style search targets, each recorded
   as an ordinary Checkers run; `checkers_selfplay_experiment.py` runs and compares the tracked arms (`selfplay-v1` ...
   `v8`); `checkers_recipe_run.py` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one command, for leaderboard
-  entrants; `checkers_pbt_run.py` is population-based training over self-play learners, and `export_pbt_history.py` writes
+  entrants (a pipeline of two trainer runs); the trainer's `pbt` is population-based training over self-play learners,
+  and `export_pbt_history.py` writes
   one run's population history for the Learn chapter.
 - **Bandits** (docs/design/0011): `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`);
   the trainer's `bandit_evolve` evolves ε-greedy's settings as an ordinary run.
@@ -74,6 +76,6 @@ themselves — see docs/design/0001) get wired to it for a real run.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on
-`sys.path` automatically, which is how e.g. `checkers_pbt_run.py` imports `checkers_selfplay_run.py` as
-a plain sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
+`sys.path` automatically, which is how e.g. `rl_experiment.py` imports `snake_experiment.py` as a plain
+sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
 jobs/tests`.

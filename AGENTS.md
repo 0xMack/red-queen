@@ -233,7 +233,7 @@ architectural change that might conflict with a decision already made.
     self-play searches and learns at the principal variation's leaf; `set_weights` / `--init-run` continue a network.
     Opponent regimes (docs/design/0014): `pool_*` (a pool of past selves; a large `pool_size` is a league), `pfsp`
     (prioritized toward past selves it doesn't beat, per-member running scores; 0 draws exactly the old random numbers,
-    so the determinism fixture holds), and `set_param` changes settings mid-run for `jobs/checkers_pbt_run.py`
+    so the determinism fixture holds), and `set_param` changes settings mid-run for the trainer's `pbt`
     (population-based training). Measured: the default 10-member, 50% pool beat every alternative and PBT.
     `rust/envs/src/alphazero.rs` (docs/design/0017, built, not yet trained) is AlphaZero-style self-play: one MLP with a
     value unit and 128 move logits (start square x first-step direction), PUCT search with root Dirichlet noise on every
@@ -252,8 +252,8 @@ architectural change that might conflict with a decision already made.
   Owns wiring a specific algorithm to `telemetry` (algorithm libs never import `telemetry` directly).
   **`jobs/trainer` (the `trainer` package) runs one `TrainSpec`**: `uv run python -m trainer
   jobs/trainer/specs/<algorithm>.yaml [--set budget.generations=20 --set params.hidden=32 ...]`, or `trainer.train(spec)`
-  from Python. Built so far: `gp` (the reference example), `neuroevolution` and `neat` (Snake and Checkers), `distill`
-  and `bandit_evolve`; the params models (defaults = the original scripts') are `jobcore.algorithms`, the adapters
+  from Python. Built so far: `gp` (the reference example), `neuroevolution` and `neat` (Snake and Checkers), `distill`,
+  `bandit_evolve`, `rl.<algorithm>` (Snake, Reach1D), `td_lambda`, `alphazero` and `pbt` (Checkers); the params models (defaults = the original scripts') are `jobcore.algorithms`, the adapters
   `trainer.algorithms`, and one algorithm name can be registered per game. An adapter writes exactly the run config
   the original script did (the frontend reads it), and `jobs/tests/test_golden.py` holds it to that. Snake training
   takes an interface and a training-seed strategy (`arena.seeding`), records a measured training-cost block
@@ -271,18 +271,19 @@ architectural change that might conflict with a decision already made.
   `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
   partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
-  `checkers_selfplay_run.py` trains a Checkers evaluator by TD(λ) self-play and records it as an ordinary Checkers run
-  (`representation: td_lambda`; `--algorithm alphazero` for 0017's learner, `representation: alphazero`), and
-  `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
+  The trainer's `td_lambda` trains a Checkers evaluator by TD(λ) self-play (`params.agent.search_depth` > 1: TD-Leaf;
+  `init_from` continues a network) and records it as an ordinary Checkers run (`representation: td_lambda`;
+  `alphazero` for 0017's learner), and `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
   field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by -- and,
-  better, `h2h [--full]` (each arm against its baseline arm, head to head, docs/design/0013). `checkers_pbt_run.py` is a
-  population of self-play learners whose settings evolve (PBT; `--no-exploit` is its random-search control), with
+  better, `h2h [--full]` (each arm against its baseline arm, head to head, docs/design/0013). The trainer's `pbt` is a
+  population of self-play learners whose settings evolve (`params.exploit: false` is its random-search control), with
   `export_pbt_history.py` writing one run's population history for the Learn chapter `/learn/training-regimes`.
-  `rl_run.py` runs an `libs/rl` algorithm one *iteration* (a budget of env steps) per call and records it in the
+  The trainer's `rl.<algorithm>` runs a `libs/rl` algorithm one *iteration* (a budget of env steps) at a time and
+  records it in the
   same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
   "reinforcement_learning"`; the frontend's `runMeta` relabels them); `libs/rl/scripts/benchmark.py` is the native
-  half of `/dev/rl`'s numbers. `rl_run.py` takes `--param NAME=VALUE`, `--reward shaped|sparse`, `snapshot_every` (a table
-  is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
+  half of `/dev/rl`'s numbers. Its params: `agent` (the learner's own settings), `reward: shaped|sparse`,
+  `snapshot_every` (a table is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
   The trainer's `bandit_evolve` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games

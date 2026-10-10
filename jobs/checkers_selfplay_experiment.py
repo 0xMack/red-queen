@@ -1,7 +1,7 @@
 """Tracked comparison of Checkers self-play variants (docs/design/0010 Phase 4, Decision 4).
 
 Like jobs/rl_experiment.py, but a two-player game has no held-out *score* to rank by -- only opponents. Every arm
-trains from the same rng seeds for the same number of self-play games (jobs/checkers_selfplay_run.py), each run
+trains from the same rng seeds for the same number of self-play games (the trainer's `td_lambda`), each run
 tagged `config.experiment` / `config.arm`, and the report plays each run's *final* network, searching `DEPTH`
 plies, against a fixed field: material search to 2, 3 and 4 plies, and the strongest evolved evaluator on the
 versus leaderboard (a 32 -> 16 -> 1 network searching 3 plies). A run's score is points per game over the field
@@ -26,7 +26,7 @@ variation's leaves.
 `selfplay-v4` compares opponent regimes (2 x 64, 200k games, `g-pool` the baseline): `g-sp` (itself only), `g-league`
 (every past self, one every 5k games), `g-pfsp` (the last 10, prioritized toward those it doesn't beat), `g-league-pfsp`,
 and `g-pool-80` (80% of games against the pool). Report it with `h2h --full`. `g-pbt` is population-based training
-(jobs/checkers_pbt_run.py: 8 members, the settings evolving), `g-rs` the same population with nothing copied.
+(the trainer's `pbt`: 8 members, the settings evolving), `g-rs` the same population with nothing copied.
 
 `selfplay-v5` asks whether TD-Leaf should train from the start (docs/design/0015): `s-leaf2` / `s-leaf2-40k` (equal games /
 equal compute against plain TD, `s-td`), and `s-leaf2-80k` against the fine-tuning recipe `s-td-ft2` (TD, then TD-Leaf)
@@ -64,8 +64,6 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-import checkers_pbt_run
-import checkers_selfplay_run
 from arena.checkers import REPORT_SEED_BASE, play_pairing
 from arena.versus_stats import Sprt, pair_elo
 from checkers_sprt import run_factory, sequential_match
@@ -75,6 +73,7 @@ from games.checkers_strategies import STRATEGIES, evaluator
 from jobcore import experiments_dir, open_sink
 from rl_experiment import paired_permutation_p
 from snake_experiment import _stats, experiment_runs, parse_seeds
+from trainer import train
 
 DEPTH = 3
 GAMES_PER_OPPONENT = 20  # games (so GAMES_PER_OPPONENT / 2 ballot openings, a game pair each) per field opponent
@@ -90,10 +89,10 @@ class Arm:
     baseline: str | tuple[str, str] | None = "sp"  # an arm of this experiment, or (experiment, arm)
     # Continue from the final network of this (experiment, arm)'s run with the same rng seed, instead of a fresh one.
     init: tuple[str, str] | None = None
-    # A population (jobs/checkers_pbt_run.py) of this many members instead of one learner: `games` per member.
+    # A population (the trainer's `pbt`) of this many members instead of one learner: `games` per member.
     population: int = 0
     exploit: bool = True
-    algorithm: str = "td_lambda"  # or "alphazero" (jobs/checkers_selfplay_run.py)
+    algorithm: str = "td_lambda"  # or "alphazero" (both trainer algorithms)
 
 
 POOL = {"pool_every": 5000, "pool_size": 10, "pool_fraction": 0.5}
@@ -231,34 +230,35 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
                 print(f"skip {arm_name} seed {seed}: already completed as {done[0].run_id}", flush=True)
                 continue
             arm = ARMS[arm_name]
-            init_run = None
-            if arm.init:
-                parent = completed_by_seed(registry, *arm.init).get(seed)
-                if parent is None:
-                    sys.exit(f"{arm_name} seed {seed} continues {arm.init}, which has no completed run for that seed")
-                init_run = parent.run_id
+            if arm.init and seed not in completed_by_seed(registry, *arm.init):
+                sys.exit(f"{arm_name} seed {seed} continues {arm.init}, which has no completed run for that seed")
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.games:,} games)", flush=True)
+            tags = {"experiment": name, "arm": arm_name}
             if arm.population:
-                checkers_pbt_run.main(
-                    members=arm.population,
-                    games=arm.games,
-                    depth=DEPTH,
-                    exploit=arm.exploit,
-                    rng_seed=seed,
-                    tags={"experiment": name, "arm": arm_name},
+                train(
+                    {
+                        "game": "checkers",
+                        "algorithm": "pbt",
+                        "budget": {"games": arm.games},
+                        "seed": seed,
+                        "params": {"members": arm.population, "depth": DEPTH, "exploit": arm.exploit},
+                        "tags": tags,
+                    }
                 )
                 continue
             iterations = max(1, arm.games // GAMES_PER_ITERATION)
-            checkers_selfplay_run.main(
-                iterations=iterations,
-                games_per_iteration=GAMES_PER_ITERATION,
-                depth=DEPTH,
-                params=dict(arm.params),
-                rng_seed=seed,
-                held_out_every=max(1, iterations // 10),
-                tags={"experiment": name, "arm": arm_name},
-                init_run=init_run,
-                algorithm=arm.algorithm,
+            init = {"experiment": arm.init[0], "arm": arm.init[1], "seed": seed} if arm.init else None
+            train(
+                {
+                    "game": "checkers",
+                    "algorithm": arm.algorithm,
+                    "budget": {"iterations": iterations},
+                    "seed": seed,
+                    "held_out_every": max(1, iterations // 10),
+                    "init_from": init,
+                    "params": {"games_per_iteration": GAMES_PER_ITERATION, "depth": DEPTH, "agent": dict(arm.params)},
+                    "tags": tags,
+                }
             )
 
 

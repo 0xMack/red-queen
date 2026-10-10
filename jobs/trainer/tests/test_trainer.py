@@ -21,16 +21,16 @@ def test_every_example_spec_resolves_to_an_adapter(path):
     assert params == algorithm.params()  # the examples are the defaults: they set nothing the model doesn't default
 
 
-def test_every_registered_algorithm_has_an_example_spec_and_an_adapter():
+def test_every_registration_has_an_adapter_for_each_game_and_an_example_spec():
     from jobcore.specs import algorithms
 
     import trainer.algorithms  # noqa: F401
 
     examples = {(s.algorithm, s.game) for s in map(load_spec, SPECS)}
     for algorithm in algorithms():
-        for game in algorithm.games or ():
-            assert (algorithm.name, game) in _ADAPTERS
-            assert (algorithm.name, game) in examples
+        games = algorithm.games or ()
+        assert all((algorithm.name, game) in _ADAPTERS for game in games)
+        assert any((algorithm.name, game) in examples for game in games), f"no example spec for {algorithm.name}"
 
 
 def test_the_command_line_runs_a_spec_with_overrides(tmp_path, capsys):

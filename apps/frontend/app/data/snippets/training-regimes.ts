@@ -1,9 +1,9 @@
 import type { Snippet } from "~/types/code"
 
 // Who to Play's snippets. Opponent sampling is Rust (libs/rl/rust/envs/src/selfplay.rs); population-based training
-// is a Python job driving several Rust learners (jobs/checkers_pbt_run.py).
+// is a Python job driving several Rust learners (the trainer's pbt adapter).
 const RUST = "libs/rl/rust/envs/src/selfplay.rs"
-const PBT = "jobs/checkers_pbt_run.py"
+const PBT = "jobs/trainer/src/trainer/algorithms/pbt.py"
 
 export const pickOpponent: Snippet = {
   pseudo: `// Before each game: itself, or a frozen past self -- which one?

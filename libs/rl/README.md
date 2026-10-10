@@ -67,7 +67,7 @@ stats = trainer.train(10_000)         # one iteration: episodes finished, entrop
 trainer.evaluate([20_000, 20_001], 1000)  # the greedy policy on given games
 ```
 
-A run: `uv run python jobs/rl_run.py --algo q_learning --param n_step=3 --iterations 20` (records to telemetry like
+A run: `uv run python -m trainer jobs/trainer/specs/rl-q-learning.yaml --set params.agent.n_step=3` (records to telemetry like
 every job; its champion is a model package on the leaderboard like any other). A comparison:
 `uv run python jobs/rl_experiment.py run --name NAME --arms q-learning,sarsa --seeds 0-4`, then `report`.
 

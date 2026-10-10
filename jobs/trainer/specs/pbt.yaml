@@ -1,0 +1,6 @@
+# Population-based training over Checkers self-play learners (docs/design/0014); the budget is games per member.
+# --set params.exploit=false for the random-search control.
+game: checkers
+algorithm: pbt
+budget: {games: 200000}
+params: {members: 8, interval: 10000}

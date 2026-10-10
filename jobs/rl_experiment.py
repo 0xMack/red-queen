@@ -57,13 +57,13 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-import rl_run
 from arena.snake import PROTOCOL, measure_quality
 from games import interfaces
 from jobcore import experiments_dir, open_sink
 from modelpack import QTable, champion_parameters, load_champion
 from snake_experiment import _stats, experiment_runs, parse_seeds
 from telemetry import FileArtifactStore, FileMetricsStore, RunInfo
+from trainer import train
 
 INTERFACE = "snake/features.v1+relative3.v1"
 EGOCENTRIC = "snake/egocentric.v1+relative3.v1"
@@ -153,17 +153,24 @@ def run_experiment(name: str, arms: list[str], seeds: list[int]) -> None:
             arm = ARMS[arm_name]
             iterations = max(1, arm.steps // STEPS_PER_ITERATION)
             print(f"=== {name} · {arm_name} · seed {seed} ({arm.steps:,} steps)", flush=True)
-            rl_run.main(
-                algorithm=arm.algorithm,
-                env_id=arm.interface,
-                iterations=iterations,
-                steps_per_iteration=STEPS_PER_ITERATION,
-                held_out_every=max(1, iterations // 10),
-                rng_seed=seed,
-                params=dict(arm.params),
-                tags={"experiment": name, "arm": arm_name},
-                reward=arm.reward,
-                snapshot_every=iterations,  # the report only scores the final champion: keep the first and last
+            game, _, _ = arm.interface.partition("/")
+            train(
+                {
+                    "game": game,
+                    "algorithm": f"rl.{arm.algorithm}",
+                    "interface": arm.interface if game == "snake" else None,
+                    "budget": {"iterations": iterations},
+                    "seed": seed,
+                    "held_out_every": max(1, iterations // 10),
+                    "params": {
+                        "steps_per_iteration": STEPS_PER_ITERATION,
+                        "reward": arm.reward,
+                        # the report only scores the final champion: keep the first and last
+                        "snapshot_every": iterations,
+                        "agent": dict(arm.params),
+                    },
+                    "tags": {"experiment": name, "arm": arm_name},
+                }
             )
 
 

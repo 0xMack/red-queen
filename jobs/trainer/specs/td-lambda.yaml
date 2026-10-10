@@ -1,0 +1,7 @@
+# Checkers by TD(λ) self-play (docs/design/0010 Phase 4). --set params.agent.search_depth=3 for TD-Leaf;
+# init_from: {run: <id>} continues an earlier network (a fine-tune).
+game: checkers
+algorithm: td_lambda
+budget: {iterations: 100}
+held_out_every: 10
+params: {games_per_iteration: 1000, depth: 3}

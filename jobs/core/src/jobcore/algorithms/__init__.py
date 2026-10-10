@@ -2,4 +2,4 @@
 them all; `jobcore.specs` does so on first use. The defaults are the original scripts' defaults, so a spec that sets
 nothing trains exactly what the script did."""
 
-from jobcore.algorithms import evolution  # noqa: F401
+from jobcore.algorithms import evolution, reinforcement  # noqa: F401

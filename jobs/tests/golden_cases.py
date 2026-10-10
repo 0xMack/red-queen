@@ -128,56 +128,87 @@ CASES: dict[str, Case] = {
     ),
     **{
         f"rl-{algorithm}": Case(
-            "rl_run",
-            {"algorithm": algorithm, "iterations": 2, "steps_per_iteration": 3_000, "held_out_every": 1, "rng_seed": 2},
-            {"rl_run.MONITOR_SEEDS": (20_000, 20_001)},
+            spec={
+                "game": "snake",
+                "algorithm": f"rl.{algorithm}",
+                "budget": {"iterations": 2},
+                "held_out_every": 1,
+                "seed": 2,
+                "params": {"steps_per_iteration": 3_000},
+            },
+            # two monitor games, not 100: the script's module constant then, the adapter's binding now
+            patches={"trainer.algorithms.reinforcement.MONITOR_SEEDS": (20_000, 20_001)},
         )
         for algorithm in ("random", "q_learning", "sarsa", "dqn", "reinforce", "a2c", "ppo")
     },
     "rl-ppo-reach1d": Case(
-        "rl_run", {"algorithm": "ppo", "env_id": "reach1d", "iterations": 2, "steps_per_iteration": 3_000}
+        spec={
+            "game": "reach1d",
+            "algorithm": "rl.ppo",
+            "budget": {"iterations": 2},
+            "params": {"steps_per_iteration": 3_000},
+        }
     ),
     "selfplay-td": Case(
-        "checkers_selfplay_run",
-        {
-            "iterations": 3,
-            "games_per_iteration": 10,
-            "depth": 1,
+        spec={
+            "game": "checkers",
+            "algorithm": "td_lambda",
+            "budget": {"iterations": 3},
             "held_out_every": 2,
-            "rng_seed": 3,
-            "params": {"hidden": 8, "hidden_layers": 1},
-        },
-        {"checkers_selfplay_run.MONITOR_GAMES": 2},
+            "seed": 3,
+            "params": {
+                "games_per_iteration": 10,
+                "depth": 1,
+                "monitor_games": 2,
+                "agent": {"hidden": 8, "hidden_layers": 1},
+            },
+        }
     ),
     "selfplay-td-leaf": Case(
-        "checkers_selfplay_run",
-        {
-            "iterations": 2,
-            "games_per_iteration": 4,
-            "depth": 1,
+        spec={
+            "game": "checkers",
+            "algorithm": "td_lambda",
+            "budget": {"iterations": 2},
             "held_out_every": 2,
-            "rng_seed": 3,
-            "params": {"hidden": 8, "hidden_layers": 1, "search_depth": 2},
-        },
-        {"checkers_selfplay_run.MONITOR_GAMES": 2},
+            "seed": 3,
+            "params": {
+                "games_per_iteration": 4,
+                "depth": 1,
+                "monitor_games": 2,
+                "agent": {"hidden": 8, "hidden_layers": 1, "search_depth": 2},
+            },
+        }
     ),
     "selfplay-alphazero": Case(
-        "checkers_selfplay_run",
-        {
-            "iterations": 2,
-            "games_per_iteration": 2,
-            "depth": 1,
-            "held_out_every": 2,
-            "rng_seed": 3,
-            "params": {"hidden": 8, "hidden_layers": 1, "simulations": 4},
+        spec={
+            "game": "checkers",
             "algorithm": "alphazero",
-        },
-        {"checkers_selfplay_run.MONITOR_GAMES": 2, "checkers_selfplay_run.MCTS_GAMES": 2},
+            "budget": {"iterations": 2},
+            "held_out_every": 2,
+            "seed": 3,
+            "params": {
+                "games_per_iteration": 2,
+                "depth": 1,
+                "monitor_games": 2,
+                "mcts_games": 2,
+                "agent": {"hidden": 8, "hidden_layers": 1, "simulations": 4},
+            },
+        }
     ),
     "pbt": Case(
-        "checkers_pbt_run",
-        {"members": 4, "games": 40, "interval": 20, "depth": 1, "openings_per_pair": 1, "rng_seed": 3},
-        {"checkers_pbt_run.BASE": {"hidden": 4, "pool_every": 20, "pool_size": 2}},
+        spec={
+            "game": "checkers",
+            "algorithm": "pbt",
+            "budget": {"games": 40},
+            "seed": 3,
+            "params": {
+                "members": 4,
+                "interval": 20,
+                "depth": 1,
+                "openings_per_pair": 1,
+                "base": {"hidden": 4, "pool_every": 20, "pool_size": 2},
+            },
+        }
     ),
     # A pipeline (docs/design/0018: scheduler): a TD run, then a TD-Leaf fine-tune continuing its network.
     "recipe": Case(
@@ -190,8 +221,8 @@ CASES: dict[str, Case] = {
             "leaf_depth": 2,
             "depth": 1,
             "games_per_iteration": 20,
+            "monitor_games": 2,
         },
-        {"checkers_selfplay_run.MONITOR_GAMES": 2},
     ),
     "tinylm": Case("tinylm_run", {"name": "golden"}, {"tinylm_run.STEPS": 3}),
 }

@@ -41,3 +41,29 @@ def train(spec: TrainSpec | dict[str, Any], sink: Sink | None = None) -> str:
 
 def held_out_every(spec: TrainSpec, default: int) -> int:
     return spec.held_out_every if spec.held_out_every is not None else default
+
+
+def resolve_init_from(spec: TrainSpec, sink: Sink) -> str | None:
+    """The full id of the run `spec.init_from` names: a run id or unique prefix, or the completed run an experiment's
+    arm produced for a seed (default: this spec's seed) -- how one experiment continues another's networks."""
+    init = spec.init_from
+    if init is None:
+        return None
+    runs = sink.registry.list_runs()
+    if init.run is not None:
+        matches = [r.run_id for r in runs if r.run_id.startswith(init.run)]
+        if len(matches) != 1:
+            raise ValueError(f"init_from.run {init.run!r} matches {len(matches)} runs, not one")
+        return matches[0]
+    seed = spec.seed if init.seed is None else init.seed
+    matches = [
+        r.run_id
+        for r in runs
+        if r.status == "completed"
+        and r.config.get("experiment") == init.experiment
+        and r.config.get("arm") == init.arm
+        and r.config.get("rng_seed") == seed
+    ]
+    if not matches:
+        raise ValueError(f"no completed run of {init.experiment} / {init.arm} with seed {seed} to continue from")
+    return matches[-1]  # list_runs is newest first: the oldest wins, as the self-play experiments always chose

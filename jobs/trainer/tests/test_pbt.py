@@ -1,9 +1,11 @@
 import random
 
-import checkers_pbt_run as pbt
 import rl
 from games.checkers_openings import ballot
 from telemetry import FileMetricsStore, SqliteRunRegistry
+
+from trainer import train
+from trainer.algorithms import pbt
 
 
 def test_settings_are_sampled_in_range_and_perturbed_within_it():
@@ -25,9 +27,22 @@ def test_the_round_robin_ranks_a_trained_member_above_an_untrained_one():
     assert scores[0] > scores[1]
 
 
-def test_a_tiny_population_runs_exploits_and_records(tmp_path, monkeypatch):
-    monkeypatch.setattr(pbt, "BASE", {"hidden": 4, "pool_every": 20, "pool_size": 2})
-    run_id = pbt.main(members=4, games=40, interval=20, depth=1, openings_per_pair=1, rng_seed=3)
+def test_a_tiny_population_runs_exploits_and_records(tmp_path):
+    run_id = train(
+        {
+            "game": "checkers",
+            "algorithm": "pbt",
+            "budget": {"games": 40},
+            "seed": 3,
+            "params": {
+                "members": 4,
+                "interval": 20,
+                "depth": 1,
+                "openings_per_pair": 1,
+                "base": {"hidden": 4, "pool_every": 20, "pool_size": 2},
+            },
+        }
+    )
     history = FileMetricsStore(tmp_path / "metrics").history(run_id)
     assert len(history) == 2
     assert history[0].extras["replaced"] == 1.0  # a quarter of four, after the first round robin
