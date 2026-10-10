@@ -56,12 +56,12 @@ from games import interfaces
 from games.checkers import Checkers
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
+from jobcore import open_sink
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
     FileMetricsStore,
     SqliteRunRegistry,
-    open_stores,
 )
 
 # Human names and one-line descriptions for the fixed baselines (the strategies themselves are Rust). The deeper
@@ -308,9 +308,9 @@ def evaluate_all(
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # labels contain arrows; the Windows console default can't print them
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
-    store = stores.evaluations
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
+    store = sink.evaluations
 
     entrants = [*baseline_entrants(), *champion_entrants(registry, metrics, artifacts)]
     records = evaluate_all(entrants, metrics, hardware_fingerprint())

@@ -14,10 +14,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from telemetry.artifacts import FileArtifactStore
-from telemetry.evaluations import SqliteEvaluationStore
-from telemetry.metrics import FileMetricsStore
-from telemetry.registry import SqliteRunRegistry
+from telemetry.artifacts import ArtifactStore, FileArtifactStore
+from telemetry.evaluations import EvaluationStore, SqliteEvaluationStore
+from telemetry.metrics import FileMetricsStore, MetricsStore
+from telemetry.registry import RunRegistry, SqliteRunRegistry
 
 # REDQUEEN_RUN_DATA_DIR is the name this had before 0018; still honoured so existing shells and scripts keep working.
 DATA_DIR_VARS = ("REDQUEEN_DATA_DIR", "REDQUEEN_RUN_DATA_DIR")
@@ -50,10 +50,14 @@ def models_dir() -> Path:
 
 @dataclass(frozen=True)
 class Stores:
-    registry: SqliteRunRegistry
-    metrics: FileMetricsStore
-    artifacts: FileArtifactStore
-    evaluations: SqliteEvaluationStore
+    """Every store, typed by its Protocol (docs/design/0002): `open_stores()` fills it with the local file/SQLite
+    implementations, and anything else implementing the Protocols (an HTTP client of the backend, docs/design/0018)
+    can stand in without its callers changing."""
+
+    registry: RunRegistry
+    metrics: MetricsStore
+    artifacts: ArtifactStore
+    evaluations: EvaluationStore
 
 
 def open_stores(root: Path | None = None) -> Stores:

@@ -24,16 +24,16 @@ import statistics
 import time
 from typing import Any
 
+from arena.bandit import MONITOR_SEEDS
 from arena.costs import TrainingCostMeter
 from evolve import GaussianMutation, GenerationSummary, TournamentSelection, WeightVector, evolve
+from jobcore import recorded_run
 from rl import _native
-from run_context import recorded_run
 from telemetry import GenerationStats
 
 POPULATION = 32
 GENERATIONS = 40
 GAMES_PER_SCENARIO = 100  # fresh training games per scenario, every generation
-MONITOR_SEEDS = list(range(20_000, 20_200))
 MONITOR_EVERY = 5
 SIGMA = 0.4
 TOURNAMENT_K = 3
@@ -85,7 +85,7 @@ def monitor_skill(genome: WeightVector, scenarios: list[str]) -> float:
     skills = [
         r["skill"] * 100
         for scenario in scenarios
-        for r in _native.bandit_evaluate("epsilon_greedy", scenario, "none.v1", MONITOR_SEEDS, params)
+        for r in _native.bandit_evaluate("epsilon_greedy", scenario, "none.v1", list(MONITOR_SEEDS), params)
     ]
     return statistics.fmean(skills)
 

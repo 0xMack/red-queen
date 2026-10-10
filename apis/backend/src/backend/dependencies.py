@@ -13,12 +13,8 @@ from modelpack import LocalModelStore
 from telemetry import (
     ArtifactStore,
     EvaluationStore,
-    FileArtifactStore,
-    FileMetricsStore,
     MetricsSource,
     RunRegistry,
-    SqliteEvaluationStore,
-    SqliteRunRegistry,
     Stores,
     models_dir,
     open_stores,
@@ -31,19 +27,19 @@ def _stores() -> Stores:
 
 
 # One provider per store, so a test overrides just the store it fakes.
-def _run_registry() -> SqliteRunRegistry:
+def _run_registry() -> RunRegistry:
     return _stores().registry
 
 
-def _metrics_source() -> FileMetricsStore:
+def _metrics_source() -> MetricsSource:
     return _stores().metrics
 
 
-def _artifact_store() -> FileArtifactStore:
+def _artifact_store() -> ArtifactStore:
     return _stores().artifacts
 
 
-def _evaluation_store() -> SqliteEvaluationStore:
+def _evaluation_store() -> EvaluationStore:
     return _stores().evaluations
 
 

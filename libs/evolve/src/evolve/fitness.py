@@ -53,7 +53,7 @@ class SymbolicRegressionFitness(Generic[Genome]):
 
 def evaluate_all(fitness, population):
     """Every genome's per-case fitness, in population order. An evaluator may offer `evaluate_many(population)` to
-    score the whole generation at once (e.g. across processes, jobs/parallel.py); otherwise it is one at a time."""
+    score the whole generation at once (e.g. across processes, jobcore.parallel); otherwise it is one at a time."""
     batch = getattr(fitness, "evaluate_many", None)
     if batch is not None:
         return list(batch(population))

@@ -17,6 +17,10 @@ class MetricsSource(Protocol):
     def subscribe(self, run_id: str, since_generation: int = 0) -> Iterator[GenerationStats]: ...
 
 
+class MetricsStore(MetricsSink, MetricsSource, Protocol):
+    """Both sides: what a job holds (it records generations and reads its own history back)."""
+
+
 class FileMetricsStore:
     """Local-dev MetricsSink + MetricsSource backed by one JSON-lines file per run.
 

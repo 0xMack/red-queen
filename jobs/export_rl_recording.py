@@ -15,8 +15,8 @@ import argparse
 import json
 from pathlib import Path
 
+from jobcore import open_sink
 from modelpack import QTable, load_champion
-from telemetry import open_stores
 
 OUT = (
     Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "recordings" / "q-learning-snake.json"
@@ -24,8 +24,8 @@ OUT = (
 
 
 def recording(run_id: str, label: str | None = None) -> dict:
-    stores = open_stores()
-    registry, metrics, artifacts = stores.registry, stores.metrics, stores.artifacts
+    sink = open_sink()
+    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
     run = registry.get_run(run_id)
     history = metrics.history(run_id)
     table = load_champion(artifacts.get_program(history[-1].champion_ref).decode("utf-8"))

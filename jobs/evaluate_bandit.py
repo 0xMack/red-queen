@@ -26,8 +26,9 @@ from typing import Any
 from arena.bandit import GAME, HELD_OUT, PROTOCOL, RANKED, SEED_BASE
 from arena.costs import hardware_fingerprint
 from games.bandit import SCENARIOS
+from jobcore import open_sink
 from rl import _native
-from telemetry import EvaluationRecord, open_stores
+from telemetry import EvaluationRecord
 
 # (key, strategy, params, label, description, baseline?) -- the params are what the game page runs the entrant with.
 ENTRANTS: list[tuple[str, str, dict[str, float], str, str, bool]] = [
@@ -209,16 +210,16 @@ def record_for(
 def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
     """Every completed bandit evolution run's final champion (jobs/bandit_evolve_run.py): its evolved settings, as an
     entrant linked to the run that produced it."""
-    stores = open_stores()
+    sink = open_sink()
     out = []
-    for run in stores.registry.list_runs():
+    for run in sink.registry.list_runs():
         config = run.config or {}
         if config.get("game") != GAME or config.get("representation") != "evolved_bandit" or run.status != "completed":
             continue
-        history = stores.metrics.history(run.run_id)
+        history = sink.metrics.history(run.run_id)
         if not history:
             continue
-        champion = json.loads(stores.artifacts.get_program(history[-1].champion_ref))
+        champion = json.loads(sink.artifacts.get_program(history[-1].champion_ref))
         scenarios = config.get("scenarios", [])
         on = scenarios[0] if len(scenarios) == 1 else f"{len(scenarios)} scenarios"
         settings = ", ".join(f"{k} {v}" for k, v in champion["params"].items())
@@ -236,7 +237,7 @@ def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
-    store = open_stores().evaluations
+    store = open_sink().evaluations
     hardware = hardware_fingerprint()
     records = [record_for(e, hardware) for e in ENTRANTS]
     records += [record_for(e, hardware, run) for e, run in evolved_entrants()]

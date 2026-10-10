@@ -138,7 +138,7 @@ def _step_one_generation(
     re-pauses it.
 
     Implemented entirely here rather than as a third RunStatus value -- the training job's control
-    callback (jobs/control.py) only ever needs to understand "paused" vs. everything else; "step" is
+    callback (jobcore.control) only ever needs to understand "paused" vs. everything else; "step" is
     this endpoint driving that same two-state mechanism from the outside.
     """
     last_generation = max((s.generation for s in metrics.history(run_id)), default=-1)

@@ -33,7 +33,7 @@ import rl
 from arena.costs import TrainingCostMeter
 from arena.seeding import TRAINING_POOL
 from arena.snake import BOARD, MAX_STEPS, MONITOR_SEEDS
-from run_context import recorded_run
+from jobcore import recorded_run
 from telemetry import GenerationStats
 
 

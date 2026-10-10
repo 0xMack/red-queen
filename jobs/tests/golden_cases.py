@@ -37,7 +37,12 @@ class Case:
     patches: dict[str, Any] = field(default_factory=dict)  # "module.ATTR" -> value
 
 
-MONITOR2 = {"checkers_training.MONITOR_GAMES": 2}
+def monitor2(module: str) -> dict[str, Any]:
+    """Two monitor games per opponent. Patched on the job's own module: each binds MONITOR_GAMES when imported
+    (`from checkers_training import MONITOR_GAMES`), so patching checkers_training only reached a job imported after
+    the patch -- the result then depended on test order."""
+    return {f"{module}.MONITOR_GAMES": 2}
+
 
 CASES: dict[str, Case] = {
     "gp": Case("baseline_gp_run", patches={"baseline_gp_run.GENERATIONS": 8}),
@@ -68,7 +73,7 @@ CASES: dict[str, Case] = {
             "opponents": ("random", "material-1"),
             "held_out_every": 1,
         },
-        MONITOR2,
+        monitor2("checkers_neuro_run"),
     ),
     "checkers-neuro-hall-depth2": Case(
         "checkers_neuro_run",
@@ -84,7 +89,7 @@ CASES: dict[str, Case] = {
             "margin": True,
             "resample": True,
         },
-        MONITOR2,
+        monitor2("checkers_neuro_run"),
     ),
     "checkers-neat": Case(
         "checkers_neat_run",
@@ -97,7 +102,7 @@ CASES: dict[str, Case] = {
             "hall": 2,
             "seed_material": 0.5,
         },
-        MONITOR2,
+        monitor2("checkers_neat_run"),
     ),
     "checkers-distill": Case(
         "checkers_distill_run",
@@ -112,7 +117,7 @@ CASES: dict[str, Case] = {
             "opponents": ("random",),
             "held_out_every": 1,
         },
-        MONITOR2,
+        monitor2("checkers_distill_run"),
     ),
     "bandit-evolve": Case(
         "bandit_evolve_run",
@@ -140,7 +145,7 @@ CASES: dict[str, Case] = {
             "rng_seed": 3,
             "params": {"hidden": 8, "hidden_layers": 1},
         },
-        MONITOR2 | {"checkers_selfplay_run.MONITOR_GAMES": 2},
+        {"checkers_selfplay_run.MONITOR_GAMES": 2},
     ),
     "selfplay-td-leaf": Case(
         "checkers_selfplay_run",
@@ -152,7 +157,7 @@ CASES: dict[str, Case] = {
             "rng_seed": 3,
             "params": {"hidden": 8, "hidden_layers": 1, "search_depth": 2},
         },
-        MONITOR2 | {"checkers_selfplay_run.MONITOR_GAMES": 2},
+        {"checkers_selfplay_run.MONITOR_GAMES": 2},
     ),
     "selfplay-alphazero": Case(
         "checkers_selfplay_run",
@@ -165,7 +170,7 @@ CASES: dict[str, Case] = {
             "params": {"hidden": 8, "hidden_layers": 1, "simulations": 4},
             "algorithm": "alphazero",
         },
-        MONITOR2 | {"checkers_selfplay_run.MONITOR_GAMES": 2, "checkers_selfplay_run.MCTS_GAMES": 2},
+        {"checkers_selfplay_run.MONITOR_GAMES": 2, "checkers_selfplay_run.MCTS_GAMES": 2},
     ),
     "pbt": Case(
         "checkers_pbt_run",
@@ -184,7 +189,7 @@ CASES: dict[str, Case] = {
             "depth": 1,
             "games_per_iteration": 20,
         },
-        MONITOR2 | {"checkers_selfplay_run.MONITOR_GAMES": 2},
+        {"checkers_selfplay_run.MONITOR_GAMES": 2},
     ),
     "tinylm": Case("tinylm_run", {"name": "golden"}, {"tinylm_run.STEPS": 3}),
 }
@@ -264,6 +269,7 @@ def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str
     """Runs one case in a fresh data directory and returns its digest. `runner` replaces calling the old script's
     `main` -- how a ported adapter is checked against the same fixture."""
     case = CASES[name]
+    importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
     with tempfile.TemporaryDirectory() as scratch, _env("REDQUEEN_DATA_DIR", scratch), _patched(case.patches):
         result = runner(case) if runner else importlib.import_module(case.module).main(**case.kwargs)
         if case.module == "tinylm_run":

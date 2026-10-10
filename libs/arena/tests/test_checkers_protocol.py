@@ -28,6 +28,12 @@ def test_seed_ranges_are_ten_thousand_apart():
     # Each use of seeded games draws below the next base: a leaderboard run uses 2 * 12 games per pairing, so 10k
     # leaves room for a round robin of ~29 entrants before it would reach the report's range.
     bases = sorted(
-        [checkers.MONITOR_SEED_BASE, checkers.VERSUS_SEED_BASE, checkers.REPORT_SEED_BASE, checkers.SPRT_SEED_BASE]
+        [
+            checkers.MONITOR_SEED_BASE,
+            checkers.VERSUS_SEED_BASE,
+            checkers.REPORT_SEED_BASE,
+            checkers.SPRT_SEED_BASE,
+            checkers.PBT_SEED_BASE,
+        ]
     )
     assert all(b - a == 10_000 for a, b in itertools.pairwise(bases))

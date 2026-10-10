@@ -11,14 +11,14 @@ import argparse
 import json
 from pathlib import Path
 
-from telemetry import open_stores
+from jobcore import open_sink
 
 OUT = Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "pbtHistory.ts"
 
 
 def main(experiment: str = "selfplay-v4", arm: str = "g-pbt", seed: int = 0) -> None:
-    stores = open_stores()
-    registry, artifacts = stores.registry, stores.artifacts
+    sink = open_sink()
+    registry, artifacts = sink.registry, sink.artifacts
     (run,) = [
         r
         for r in registry.list_runs()

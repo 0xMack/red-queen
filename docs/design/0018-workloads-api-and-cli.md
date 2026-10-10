@@ -1,8 +1,9 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stage 1 built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the decisions below
-record the answers). Stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`, the deletions and
-moves) is built; stages 2-8 are not.
+Status: **Accepted; stages 1-2 built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the decisions
+below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`, the
+deletions and moves) and stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs). Stages 3-8
+are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -47,10 +48,11 @@ libs/
   cli/         NEW. `redqueen` (alias `rq`, decision 8): Typer, an HTTP client over the backend, `--json`
                everywhere, later `redqueen mcp serve`.
 jobs/                                   one uv package per workload; each a future container image
-  core/        `jobcore`: spec models (TrainSpec, EvalSpec, PublishSpec, ExperimentSpec, Job), the schema registry,
-               the RunSink protocol + LocalSink/HttpSink, run lifecycle, pause/resume control, ProcessPool evaluator
+  core/        `jobcore` [built]: spec models (TrainSpec now; EvalSpec, PublishSpec, ExperimentSpec, Job with their
+               stages), the algorithm registry and params models, the sink (open_sink), run lifecycle, pause/resume
+               control, ProcessPool evaluator
   trainer/     `trainer`: runs ONE TrainSpec. algorithms/{gp,neuroevolution,neat,bandit_evolve,distill,rl,selfplay,
-               alphazero,pbt,tinylm}.py, each an adapter with a pydantic params model
+               alphazero,pbt,tinylm}.py, each an adapter for a params model registered in jobcore
   evaluator/   `evaluator`: runs ONE EvalSpec. protocols/{snake_score,checkers_versus,bandit_skill,checkers_sprt,
                round_robin}.py. Writes EvaluationRecords through the sink
   publisher/   `publisher`: runs ONE PublishSpec (export champions/TinyLM to the model store, catalog)
@@ -86,13 +88,16 @@ params: {hidden: 64, hidden_layers: 2, pool_size: 10, search_depth: 1}
 budget: {games: 1_000_000}            # or generations / env_steps / iterations: the algorithm declares which
 seed: 3
 init_from: {run: 672890ba}            # or {experiment: selfplay-v2, arm: pool-2x64-1m, seed: 3}
-monitor: {held_out_every: 10}
+held_out_every: 10
 tags: {experiment: selfplay-v6, arm: l-3x64-1m}
 ```
 
-`params` is a discriminated union keyed by `algorithm`: each adapter owns its pydantic model, registered in `jobcore`.
-`GET /specs/schemas` exposes the JSON Schema of every kind and algorithm, which is what CLI help and MCP tool schemas are
-generated from.
+`params` is validated against the model `algorithm` registered (`TrainSpec.resolve()`; built in stage 2, with the
+budget-unit and game checks). The params models live in `jobcore`, not the trainer, so the backend and the CLI validate
+a spec without importing a trainer; the adapter in the trainer is what runs it. `GET /specs/schemas` exposes the JSON
+Schema of every kind and algorithm (`jobcore.specs.schemas()`), which is what CLI help and MCP tool schemas are
+generated from. **Acceptance fixture (built):** `jobs/tests/golden_cases.py` -- 23 small runs recorded from the scripts
+before any port, each reduced to its config, curve and champion bytes.
 
 **Compatibility constraint:** the trainer writes exactly the run `config` keys the frontend and evaluator read today
 (`game`, `interface`, `representation`, `paradigm`, `experiment`, `arm`, `rng_seed`, `training_seeds`, ...). Existing
@@ -124,16 +129,19 @@ behind the same protocol later; nothing in this plan builds it.
 
 ### 3. A pluggable run sink: local by default, HTTP when the API is the only writer
 
-`RunSink` (in `jobcore`) is everything a workload writes: create run, record generation, put artifact, set summary/status,
-update config, read status (for pause/resume), put/prune evaluation records.
+A sink is everything a workload reads and writes: runs, metrics, artifacts, evaluations. As built (stage 2) it is
+telemetry's `Stores` with every field typed by its *Protocol* (`RunRegistry`, `MetricsStore`, `ArtifactStore`,
+`EvaluationStore`) -- 0002 made those Protocols precisely so a backend could be swapped, so the sink needs no new
+interface of its own, and a job's `run.metrics` / `run.artifacts` calls are the same whichever sink it has.
 
-- `LocalSink` writes through `telemetry.open_stores(data_dir())`: log-then-serve, exactly 0002's decision. A run never
-  depends on the server being up. It's the default and what local development uses.
-- `HttpSink` writes through new backend endpoints (below). It's for workers that can't share the data directory, like a
-  cluster pod. It batches metrics per generation.
+- **local** (built): the file/SQLite stores under `telemetry.data_dir()`: log-then-serve, exactly 0002's decision. A run
+  never depends on the server being up. It's the default and what local development uses.
+- **HTTP** (stage 5): HTTP implementations of the same Protocols over new backend endpoints (below), for workers that
+  can't share the data directory, like a cluster pod. Metrics batched per generation.
 
-Selected per job (`sink:` in the spec, or `REDQUEEN_SINK=local|http://host:8000`). `recorded_run()` and the control
-callback move onto the sink unchanged in behaviour. The publisher writes the local model store only, until the store's
+Selected per worker by `jobcore.open_sink()` (`REDQUEEN_SINK=local|http://host:8000`) -- a property of where a worker
+runs, not of the work, so it isn't a spec field. `recorded_run()` and the control callback run on the sink unchanged in
+behaviour. The publisher writes the local model store only, until the store's
 host (R2 or the HF Hub, still undecided per 0009) is chosen. A remote publisher is out of scope.
 
 ### 4. `libs/arena`: measurement is domain code, not a job
@@ -238,8 +246,10 @@ misread our arguments -- there is no graceful fallback to rely on. So:
 1. **Foundations** (no behaviour change) -- *built*: `telemetry.data_dir()/open_stores()`, `data/` default, `libs/arena`
    extracted (scripts re-pointed at it), deletions, build-wasm and the RL benchmark moved. The old scripts still run.
    (`RunRegistry.update_config` moved to stage 5, where its first caller, `PATCH /runs/{id}`, lands.)
-2. **`jobcore`:** spec models + registry, `RunSink` + `LocalSink`, run lifecycle and control on the sink. Golden-champion
-   fixtures captured from the *old* scripts here, before anything is ported.
+2. **`jobcore`** -- *built*: `TrainSpec` + the algorithm registry, `open_sink()` (local), run lifecycle and control on
+   the sink, `ProcessPoolEvaluator`; golden runs recorded from the *old* scripts before anything is ported (recording
+   them found an `rl_run` crash: a policy-gradient iteration shorter than its first update). The other payload models
+   (EvalSpec, PublishSpec, ExperimentSpec, Job) land with the stages that consume them.
 3. **trainer** in three PRs: (a) evolution family: gp, neuroevolution, neat, bandit_evolve, distill; (b) rl, selfplay,
    alphazero, pbt; (c) tinylm. Each deletes the scripts it replaces, once its golden tests pass. Interim invocation:
    `uv run --package trainer python -m trainer spec.yaml`.

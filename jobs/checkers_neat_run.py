@@ -38,7 +38,7 @@ from checkers_training import (
 )
 from evolve import InnovationTracker, NeatConfig, evolve_neat, initial_genome
 from games.checkers_strategies import STRATEGIES
-from run_context import recorded_run
+from jobcore import recorded_run
 
 POPULATION_SIZE = 60
 GENERATIONS = 60

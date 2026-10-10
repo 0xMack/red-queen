@@ -49,8 +49,7 @@ from checkers_training import (
 )
 from evolve import GaussianMutation, LexicaseSelection, evolve, random_weight_vector
 from games.checkers_strategies import STRATEGIES
-from parallel import ProcessPoolEvaluator
-from run_context import recorded_run
+from jobcore import ProcessPoolEvaluator, recorded_run
 
 HIDDEN = 8
 POPULATION_SIZE = 40

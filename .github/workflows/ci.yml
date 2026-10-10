@@ -34,7 +34,7 @@ jobs:
       - name: Format
         run: uv run ruff format --check .
       - name: Test
-        run: uv run pytest libs apis jobs/tests
+        run: uv run pytest libs apis jobs/core jobs/tests
 
   rust:
     runs-on: ubuntu-latest

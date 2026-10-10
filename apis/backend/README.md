@@ -28,7 +28,7 @@ for the full contract and the incremental plan this implements.
   - `POST /runs/{run_id}/control` — `ControlRequest{action: pause|resume|step}` → 202. `pause`/
     `resume` just flip the run's `RunStatus` via `RunRegistry.update_status()` — that status field
     already existed (docs/design/0002) and is the *only* coordination between this endpoint and a
-    (separate-process) training job's `jobs/control.py` callback, which blocks while status is
+    (separate-process) training job's `jobcore.control` callback, which blocks while status is
     `"paused"`. `step` is driven entirely from this side: resume, poll `MetricsSource.history()`
     until exactly one new generation is recorded (504 after `timeout_s`, default 30s), then
     re-pause — deliberately *not* a third `RunStatus` value, so the job-side callback only ever

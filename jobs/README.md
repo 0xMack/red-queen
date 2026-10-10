@@ -82,10 +82,6 @@ themselves — see docs/design/0001) get wired to it for a real run.
   h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
 - `export_ballot.py` — writes the ballot (every 3-ply opening, its board and verdict) as
   `apps/frontend/app/data/checkersBallot.ts` for the Learn chapter.
-- `parallel.py` — `ProcessPoolEvaluator(inner, workers)`: scores a generation's genomes across processes
-  (`evolve.fitness.evaluate_all` calls its `evaluate_many`). Fitness evaluators here are deterministic, so a parallel
-  run reproduces a serial one; used by `checkers_neuro_run.py --workers N` and `checkers_distill_run.py`. Cost meters
-  then report wall time, not summed CPU time of the workers.
 - `checkers_distill_run.py` — search distillation for Checkers: evolve an evaluator to predict labelled positions
   (`--label-kind search|rollout|blend`; pools are cached under `data/distill/`), played `--depth` plies. A
   documented negative result (docs/design/0008): it never got near `Material 4-ply`.
@@ -105,22 +101,16 @@ themselves — see docs/design/0001) get wired to it for a real run.
 - **Model packages and TinyLM** (docs/design/0004, 0009): `publish_models.py` exports leaderboard champions and TinyLM
   checkpoints to the local model store and catalog, measuring each variant's agreement; `tinylm_run.py` trains TinyLM;
   `scale_test_package.py` publishes a large random-weight model to exercise the big-model path.
-- `control.py` — `make_control_callback(registry, run_id)`, an `on_generation` callback that blocks
-  while `RunRegistry` reports the run's status as `"paused"` (docs/design/0005's control API,
-  step 7). This is the only coordination needed between `apis/backend`'s `POST
-  /runs/{id}/control` endpoint (a separate process) and a running job: both just read/write the
-  same `RunRegistry` row, reusing `RunStatus`'s existing `"paused"` value rather than adding new
-  shared state. Every training job gets it through `run_context.py`.
-- `run_context.py` — the lifecycle every training job shares: `with recorded_run(config) as run:` creates
-  the run, and marks it `completed` when the block ends or `failed` if it raises (a crashed run used to stay
-  `running` — live-looking — forever). `run.control_callback(cost)` wires pause/resume without counting paused
-  time, and `run.set_training_summary(cost)` writes the standard summary. Stores come from `telemetry.open_stores()` under
-  `telemetry.data_dir()` (`REDQUEEN_DATA_DIR`, default `<repo>/data`), exactly as the backend opens them — point both at
-  a scratch directory for smoke runs, so they don't land on the real runs list. `jobs/tests/conftest.py` points every
-  test at its own temporary directory that way.
+- **Shared plumbing is the `jobcore` package (`jobs/core/`)**: `recorded_run()` (create the run, mark it `completed`,
+  or `failed` if the job dies), the pause/resume control callback, `open_sink()` (where a job writes; local by
+  default), `ProcessPoolEvaluator` (`--workers N`), and the job payload specs. See `jobs/core/README.md`.
+- **Golden runs** (`tests/golden_cases.py`, `tests/golden/champions.json`): a small deterministic run of every training
+  job, reduced to its config, curve and champion bytes, recorded before any job was ported to the trainer workload.
+  `tests/test_golden.py` re-runs them (~9 s). Re-record only for a deliberate behaviour change:
+  `uv run python jobs/tests/golden_cases.py --record <case>`.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on
-`sys.path` automatically, which is how e.g. `baseline_gp_run.py` imports `control.py` as a plain
-sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
+`sys.path` automatically, which is how e.g. `checkers_neuro_run.py` imports `checkers_training.py` as a
+plain sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
 jobs/tests`.

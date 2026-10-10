@@ -4,7 +4,8 @@ version = "0.0.0"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["libs/*", "apis/*"]
+# jobs/ still holds loose scripts beside its packages, so its members are listed, not globbed (docs/design/0018).
+members = ["libs/*", "apis/*", "jobs/core"]
 
 [tool.uv]
 package = false

@@ -1,9 +1,9 @@
 """Pause/resume control for a running evolve() call, via RunRegistry's existing RunStatus.
 
-Lives in jobs/, not libs/telemetry or libs/evolve, for the same reason telemetry-wiring callbacks
-already do (see baseline_gp_run.py's make_telemetry_callback): it's integration glue between an
-algorithm (zero telemetry dependency) and telemetry (zero algorithm dependency), not a concern of
-either package on its own. See docs/design/0005 "Control API".
+Lives in jobcore, not libs/telemetry or libs/evolve, for the same reason telemetry-wiring callbacks
+do: it's integration glue between an algorithm (zero telemetry dependency) and telemetry (zero
+algorithm dependency), not a concern of either package on its own. See docs/design/0005 "Control API".
+Works against any `RunRegistry`, so a job on the HTTP sink (docs/design/0018) pauses the same way.
 """
 
 from __future__ import annotations
