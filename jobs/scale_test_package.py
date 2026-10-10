@@ -20,7 +20,7 @@ from modelpack import CatalogEntry, LocalModelStore
 from modelpack.lm import LMConfig, build_lm_package
 from telemetry import models_dir
 from tinylm.checkpoint import TinyLMConfig, build, named_parameters
-from tinylm_run import split_corpus
+from trainer.algorithms.tinylm import split_corpus
 
 
 def main(d_model: int = 768, n_layers: int = 12) -> None:

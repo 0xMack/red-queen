@@ -9,4 +9,5 @@ from trainer.algorithms import (  # noqa: F401
     pbt,
     reinforcement,
     selfplay,
+    tinylm,
 )

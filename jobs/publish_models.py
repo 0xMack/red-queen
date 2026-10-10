@@ -12,7 +12,7 @@ Writes to a `LocalModelStore` at data/models (served by apis/backend in developm
 game's catalog maps each entrant to its package. Re-running is idempotent: identical exports are
 identical packages.
 
-Also publishes every TinyLM checkpoint under data/tinylm (jobs/tinylm_run.py) to the
+Also publishes every TinyLM checkpoint under data/tinylm (the trainer's `tinylm`) to the
 `tinylm` catalog: fp32 and int8 variants, checked on the corpus's held-out text (modelpack.lm).
 
 Run with: uv run python jobs/publish_models.py [snake|tinylm]   (then re-run jobs/evaluate.py)
@@ -214,7 +214,7 @@ def publish_tinylm(store: LocalModelStore) -> None:
     import tinylm
     from modelpack.lm import LMConfig, build_lm_package
     from tinylm.checkpoint import named_parameters
-    from tinylm_run import SEQ_LEN, split_corpus
+    from trainer.algorithms.tinylm import split_corpus
 
     catalog = store.catalog("tinylm")
     for checkpoint in sorted((data_dir() / "tinylm").glob("*.npz")):
@@ -222,8 +222,9 @@ def publish_tinylm(store: LocalModelStore) -> None:
         model, tokenizer, meta = tinylm.load(checkpoint.with_suffix(""))
         _, _, held_out = split_corpus()
         # Non-overlapping held-out windows, full context length -- text the checkpoint never saw.
-        count = len(held_out) // SEQ_LEN
-        windows = held_out[: count * SEQ_LEN].reshape(count, SEQ_LEN)
+        seq_len = meta["config"]["max_seq_len"]  # the checkpoint's own context (a spec setting since 0018)
+        count = len(held_out) // seq_len
+        windows = held_out[: count * seq_len].reshape(count, seq_len)
         config = LMConfig(**meta["config"])
         package = build_lm_package(
             named_parameters(model),
