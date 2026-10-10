@@ -5,8 +5,16 @@ its script exactly: the same recorded config, the same per-generation curve and 
 learner here is deterministic per seed, so this is an equality test, not a tolerance. `test_golden.py` re-runs every
 case against the fixture; when a case moves to the trainer, only its `run` changes, never the fixture.
 
+Exact *per operating system*, not across them: `math.tanh`/`exp` (Python) and Rust's `f64` functions call the
+platform's libm, and MSVC's and glibc's can differ in the last bit -- which a few generations of selection turn into
+different champions. So there is one fixture per platform (`golden/champions.<sys.platform>.json`). TinyLM is the one
+tolerance: its matrix products go through numpy's BLAS, whose kernels (so whose rounding) depend on the CPU, so its
+weights are compared as per-array sums to 1e-9.
+
 Re-record (only for a deliberate behaviour change, which then needs saying in the commit):
     uv run python jobs/tests/golden_cases.py --record [case ...]
+A platform without a fixture (Linux, recorded by CI): when `REDQUEEN_GOLDEN_OUT` is set, `test_golden.py` writes the
+digests it got there, and CI uploads that directory as the `golden-<platform>` artifact when the test fails.
 """
 
 from __future__ import annotations
@@ -24,7 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-FIXTURE = Path(__file__).parent / "golden" / "champions.json"
+FIXTURE = Path(__file__).parent / "golden" / f"champions.{sys.platform}.json"
+TOLERANT = {"tinylm"}  # cases compared with `close()`, not ==
 JOBS = Path(__file__).resolve().parents[1]
 
 
@@ -253,16 +262,31 @@ def digest_run(run_id: str, names: dict[str, str]) -> dict[str, Any]:
 
 
 def digest_tinylm(name: str) -> dict[str, Any]:
-    """TinyLM isn't a telemetry run: its checkpoint's arrays (not the .npz bytes -- zip entries carry timestamps)."""
+    """TinyLM isn't a telemetry run: its checkpoint's arrays (not the .npz bytes -- zip entries carry timestamps), as
+    each array's shape, sum and sum of squares -- BLAS rounding differs by CPU, so these are compared to 1e-9."""
     import numpy as np
     from telemetry import data_dir
 
     path = data_dir() / "tinylm" / name
     with np.load(path.with_suffix(".npz")) as arrays:
-        weights = {k: _sha(np.ascontiguousarray(arrays[k]).tobytes()) for k in sorted(arrays.files)}
+        weights = {
+            k: {"shape": list(arrays[k].shape), "sum": float(arrays[k].sum()), "sumsq": float((arrays[k] ** 2).sum())}
+            for k in sorted(arrays.files)
+        }
     meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
     meta.get("training", {}).pop("seconds", None)
     return {"weights": weights, "meta": meta}
+
+
+def close(actual: Any, expected: Any, rel: float = 1e-9) -> bool:
+    """Equal, except that floats need only agree to `rel` (TOLERANT cases)."""
+    if isinstance(expected, float) and isinstance(actual, float):
+        return abs(actual - expected) <= rel * max(abs(expected), 1e-12)
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        return actual.keys() == expected.keys() and all(close(actual[k], expected[k], rel) for k in expected)
+    if isinstance(expected, list) and isinstance(actual, list):
+        return len(actual) == len(expected) and all(close(a, e, rel) for a, e in zip(actual, expected, strict=True))
+    return actual == expected
 
 
 def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str, Any]:
