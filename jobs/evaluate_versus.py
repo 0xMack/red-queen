@@ -3,7 +3,7 @@ jobs/evaluate.py. Same `EvaluationRecord`s in the same store, so the game page's
 work unchanged -- only what "a score" means differs.
 
 Entrants for Checkers:
-- every finished checkers run's final champion (a 32→H→1 position evaluator, jobs/checkers_neuro_run.py);
+- every finished checkers run's final champion (a 32→H→1 position evaluator, trained by the trainer workload);
 - the fixed baselines (random, first-legal, 1-ply and 2-ply material) -- always included, since a ranking
   says nothing without them.
 

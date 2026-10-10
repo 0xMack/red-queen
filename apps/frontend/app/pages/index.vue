@@ -139,7 +139,7 @@ const recentRuns = computed(() => runsStore.runs.slice(0, 6))
                   <p class="mt-2">
                     {{ runsStore.error ? "The backend isn't reachable" : "No Snake runs have been recorded" }},
                     so here's the game itself -- click it and steer with the arrow keys. Start the backend
-                    and run <code class="chip">uv run python jobs/snake_neuro_run.py</code> to watch a trained
+                    and run <code class="chip">uv run python -m trainer jobs/trainer/specs/snake-neuroevolution.yaml</code> to watch a trained
                     policy here instead.
                   </p>
                 </div>

@@ -163,8 +163,8 @@ architectural change that might conflict with a decision already made.
     openings, `games.checkers_openings`, ranked by a Bradley–Terry Elo rating, Random = 0, `arena.versus_stats`);
     "is A stronger than B" is a head-to-head SPRT (`jobs/checkers_sprt.py`, `checkers_selfplay_experiment.py h2h`), not
     points against a fixed field. `Checkers(opening=...)` starts a game there and `reset()` returns to it -- `play_match`
-    resets its env, which silently discarded openings stepped onto a fresh env; champions come from
-    `jobs/checkers_neuro_run.py` / `jobs/checkers_neat_run.py` (shared parts in `jobs/checkers_training.py`),
+    resets its env, which silently discarded openings stepped onto a fresh env; champions come from the
+    trainer's `neuroevolution` / `neat` on `checkers` (shared parts in `trainer.checkers`),
     and the browser gets a champion as plain numbers from `GET /runs/{id}/artifacts/{ref}/brain`
     (`evolve.networks.compiled`), so there is no hand-exported champion file and no client-side NEAT. `games.interfaces` registers `checkers/board32.v1+evaluate1ply.v1`.
   - `games.bandit` (`rust/core/src/bandit.rs`, docs/design/0011): a multi-armed bandit, 8 scenarios (`detour` is sequential:
@@ -248,16 +248,18 @@ architectural change that might conflict with a decision already made.
     led, so `q_table` with `gamma` > 0 is the Bellman update (Level 3). Oracle `reference_bandit_agents.py`, belief
     for belief; a `bandit` digest in the fixture.
 - `jobs/` — **being restructured (docs/design/0018)** into workloads (trainer / evaluator / publisher / scheduler)
-  behind a job API and the `redqueen` CLI; until each stage lands, the scripts below are still how things run.
-  Training runs/workers; owns wiring a specific algorithm to `telemetry` (algorithm libs
-  never import `telemetry` directly). `baseline_gp_run.py` is the reference example (linear GP);
-  `snake_neuro_run.py` is the same neuroevolution-vs.-Snake setup validated in
-  `notebooks/0005-neuroevolution-snake.ipynb`, wired to telemetry — its champions are what
-  `apps/frontend`'s `/watch/{runId}` loads. Run with `uv run python jobs/<script>.py` from the repo
-  root. `snake_neuro_run.py [interface_id] [--seeds fixed:5|resample:N]` trains under any registered
-  interface with a training-seed strategy (`arena.seeding`), records a measured training-cost block
+  behind a job API and the `redqueen` CLI; until each stage lands, the remaining scripts below are how things run.
+  Owns wiring a specific algorithm to `telemetry` (algorithm libs never import `telemetry` directly).
+  **`jobs/trainer` (the `trainer` package) runs one `TrainSpec`**: `uv run python -m trainer
+  jobs/trainer/specs/<algorithm>.yaml [--set budget.generations=20 --set params.hidden=32 ...]`, or `trainer.train(spec)`
+  from Python. Built so far: `gp` (the reference example), `neuroevolution` and `neat` (Snake and Checkers), `distill`
+  and `bandit_evolve`; the params models (defaults = the original scripts') are `jobcore.algorithms`, the adapters
+  `trainer.algorithms`, and one algorithm name can be registered per game. An adapter writes exactly the run config
+  the original script did (the frontend reads it), and `jobs/tests/test_golden.py` holds it to that. Snake training
+  takes an interface and a training-seed strategy (`arena.seeding`), records a measured training-cost block
   (`arena.costs`) in the run summary, and logs a held-out game score every N generations (the
-  overfitting curve on the run page). `evaluate.py` produces the
+  overfitting curve on the run page). Everything else is still a script run with `uv run python jobs/<script>.py`.
+  `evaluate.py` produces the
   leaderboards (docs/design/0007): every finished game run's champion plus fixed baselines, on
   held-out seeds under a versioned protocol (defined in `libs/arena`), with inference/training cost — never training
   fitness.
@@ -266,8 +268,8 @@ architectural change that might conflict with a decision already made.
   scores published champions *as their packages* (a variant that plays differently is its own
   `run:<id>@<variant>` entrant). `tinylm_run.py` trains and checkpoints TinyLM;
   `scale_test_package.py` publishes a large random model for testing the big-model path.
-  `snake_neat_run.py` is the NEAT counterpart of `snake_neuro_run.py`; `snake_experiment.py` runs a
-  tagged (arm × rng seed) comparison of the two and aggregates it (`GenerationStats.extras`,
+  `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
+  partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
   `checkers_selfplay_run.py` trains a Checkers evaluator by TD(λ) self-play and records it as an ordinary Checkers run
   (`representation: td_lambda`; `--algorithm alphazero` for 0017's learner, `representation: alphazero`), and
@@ -283,8 +285,8 @@ architectural change that might conflict with a decision already made.
   is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
-  `bandit_evolve_run.py` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games and
-  records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
+  The trainer's `bandit_evolve` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games
+  and records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
   pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
   evolved run's champion; it runs in a second).
   **`jobs/core` (`jobcore`, a workspace package) is what every job shares**: `open_sink()` (where a job writes:

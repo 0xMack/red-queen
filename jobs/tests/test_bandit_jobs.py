@@ -1,25 +1,31 @@
 """The bandit jobs (docs/design/0011): evolving a strategy's settings records an ordinary run, and the leaderboard
 evaluation enters its champion beside the hand-set strategies."""
 
-import bandit_evolve_run
 import evaluate_bandit
 from evolve import WeightVector
 from jobcore import open_sink
 from telemetry import SqliteEvaluationStore
+from trainer import train
+from trainer.algorithms.bandit_evolve import decode
 
 
 def test_decoded_settings_stay_in_range():
     for g in (-50.0, 0.0, 50.0):
-        p = bandit_evolve_run.decode(WeightVector((g, g, g, g), (4,)))
+        p = decode(WeightVector((g, g, g, g), (4,)))
         assert 0 <= p["epsilon"] <= 1 and 20 <= p["decay"] <= 400 and 0 <= p["alpha"] <= 0.5 and 0 <= p["initial"] <= 2
 
 
 def test_an_evolved_strategy_is_recorded_and_ranked(tmp_path, monkeypatch):
-    monkeypatch.setattr(bandit_evolve_run, "POPULATION", 6)
-    monkeypatch.setattr(bandit_evolve_run, "GAMES_PER_SCENARIO", 10)
     monkeypatch.setattr(evaluate_bandit, "HELD_OUT", 20)
 
-    run_id = bandit_evolve_run.main(["classic"], generations=3)
+    run_id = train(
+        {
+            "game": "bandit",
+            "algorithm": "bandit_evolve",
+            "budget": {"generations": 3},
+            "params": {"population_size": 6, "games_per_scenario": 10},
+        }
+    )
     stores = open_sink()
     run = stores.registry.get_run(run_id)
     assert run.status == "completed" and run.config["representation"] == "evolved_bandit"

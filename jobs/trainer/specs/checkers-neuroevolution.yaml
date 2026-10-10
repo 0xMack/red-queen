@@ -1,0 +1,6 @@
+# Neuroevolution vs. Checkers: a 32 -> 8 -> 1 position evaluator, by match fitness against fixed opponents.
+game: checkers
+algorithm: neuroevolution
+budget: {generations: 60}
+held_out_every: 5
+params: {opponents: [random, material-1, material-2], depth: 1}

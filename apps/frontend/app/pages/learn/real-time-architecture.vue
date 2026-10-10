@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-const callbackCode = `# jobs/snake_neuro_run.py -- the only place evolve and telemetry meet
+const callbackCode = `# jobs/trainer/src/trainer/snake.py -- where evolve and telemetry meet
 def on_generation(summary: GenerationSummary) -> None:
     champion_ref = f"{run_id}-gen{summary.generation}"
     artifacts.put_program(champion_ref, summary.champion.to_json().encode("utf-8"))

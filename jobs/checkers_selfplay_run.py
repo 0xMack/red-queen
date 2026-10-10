@@ -10,7 +10,7 @@ Each iteration trains `games_per_iteration` games and records, in the fields eve
 - best/mean/worst fitness: the *return* of self-play -- the first mover's mean outcome (+1 win, 0 draw, -1 loss)
   over the iteration's games (it hovers near 0 by symmetry; a drift shows a first-move advantage being learned);
 - held-out score: every `held_out_every` iterations, the network searching `search_depth` plies against the fixed
-  opponents the evolved runs are monitored with (jobs/checkers_training.py's monitor_score: win 1 / draw 0 / loss -1,
+  opponents the evolved runs are monitored with (trainer.checkers.monitor_score: win 1 / draw 0 / loss -1,
   opponent seeds training never uses) -- the curve to watch;
 - extras: TD loss, mean game length, draws, epsilon, pool games, and the network's value of the start position
   and of a position a king up.
@@ -38,16 +38,20 @@ from typing import Any
 
 import rl
 from arena.costs import TrainingCostMeter
-from checkers_training import MAX_MOVES, MONITOR_GAMES, MONITOR_SEED_BASE, monitor_score
 from evolve import WeightVector
 from jobcore import open_sink, recorded_run
 from rl_run import parse_params
 from telemetry import GenerationStats
+from trainer.checkers import MAX_MOVES, MONITOR_GAMES, MONITOR_SEED_BASE, monitor_score
 
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
 ALGORITHMS = {"td_lambda": rl.CheckersSelfPlay, "alphazero": rl.CheckersAlphaZero}
 MCTS_OPPONENT, MCTS_GAMES = "material-2", 20  # AlphaZero's own player (search + policy), monitored at held-out points
-OPPONENTS = ("random", "material-1", "material-2")  # the evolved runs' monitor set (checkers_neuro_run.py)
+OPPONENTS = (
+    "random",
+    "material-1",
+    "material-2",
+)  # the evolved runs' monitor set (trainer: neuroevolution on Checkers)
 MAX_MOVES_WITHOUT_CAPTURE = 40  # games.checkers.Checkers' default: the draw rule every Checkers game here uses
 
 

@@ -34,7 +34,7 @@ jobs:
       - name: Format
         run: uv run ruff format --check .
       - name: Test
-        run: uv run pytest libs apis jobs/core jobs/tests
+        run: uv run pytest libs apis jobs/core jobs/trainer jobs/tests
         env:
           REDQUEEN_GOLDEN_OUT: ${{ runner.temp }}/golden
       # The golden runs are exact per OS (libm differs); this run's digests, when they don't match -- or when there is

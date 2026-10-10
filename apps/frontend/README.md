@@ -385,8 +385,8 @@ Revisit if the chapter count grows enough that hand-authoring markup becomes the
 ## Running it
 
 Needs `apis/backend` running first (see `apis/backend/README.md`) and at least one recorded run
-(`uv run python jobs/baseline_gp_run.py` from the repo root writes to `data/`, which is
-`apis/backend`'s default data source; `uv run python jobs/snake_neuro_run.py` additionally gives
+(`uv run python -m trainer jobs/trainer/specs/gp.yaml` from the repo root writes to `data/`, which is
+`apis/backend`'s default data source; `uv run python -m trainer jobs/trainer/specs/snake-neuroevolution.yaml` additionally gives
 you a `/watch/{id}`-able run, though it takes a few minutes).
 
 ```bash
@@ -408,7 +408,7 @@ Then open `http://localhost:3000`.
   loads inside it, real keyboard input changes the snake's heading and path, a wall collision ends
   the episode and shows "Game over", "Play again" starts a fresh episode -- and, checked explicitly,
   zero requests to `apis/backend` occur during play. `/watch/{runId}` was verified against a real
-  trained run (`jobs/snake_neuro_run.py`, 250 generations, `games.snake`'s improved 11-feature
+  trained run (`snake-neuroevolution.yaml`, 250 generations, `games.snake`'s improved 11-feature
   observation + `LexicaseSelection` -- best_fitness 0.65 → 17.28 over the earlier setup): the loaded
   policy actually eats food (score up to 9 observed in a single episode, not just surviving),
   auto-replays once its episode ends, and, watched against a real *still-training* run, correctly

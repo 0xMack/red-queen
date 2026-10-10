@@ -1,7 +1,5 @@
 import random
 
-import checkers_neat_run
-import checkers_training as training
 from evolve import InnovationTracker, NeatGenome, WeightVector, initial_genome
 from evolve.neat import ConnectionGene
 from evolve.networks import compiled
@@ -9,6 +7,9 @@ from games import _native
 from games.checkers import Checkers
 from games.checkers_strategies import graph_evaluator
 from telemetry import FileMetricsStore, SqliteRunRegistry
+
+from trainer import checkers as training
+from trainer import train
 
 
 def _positions(games=4, seed=0):
@@ -104,17 +105,22 @@ def test_hall_of_fame_grows_with_champions_and_widens_the_fitness_vector():
     assert len(pool.evaluate(genome)) == 2 + 2 * 2  # + each hall member from both seats
 
 
-def test_neat_run_records_structure_curves_and_a_searching_champion(tmp_path, monkeypatch):
-    monkeypatch.setattr(checkers_neat_run, "MONITOR_GAMES", 2)
-
-    run_id = checkers_neat_run.main(
-        generations=2,
-        population_size=8,
-        opponents=("random", "material-2"),
-        held_out_every=1,
-        depth=2,
-        hall=2,
-        seed_material=0.5,
+def test_neat_run_records_structure_curves_and_a_searching_champion(tmp_path):
+    run_id = train(
+        {
+            "game": "checkers",
+            "algorithm": "neat",
+            "budget": {"generations": 2},
+            "held_out_every": 1,
+            "params": {
+                "population_size": 8,
+                "opponents": ["random", "material-2"],
+                "monitor_games": 2,
+                "depth": 2,
+                "hall": 2,
+                "seed_material": 0.5,
+            },
+        }
     )
 
     run = SqliteRunRegistry(tmp_path / "runs.db").get_run(run_id)

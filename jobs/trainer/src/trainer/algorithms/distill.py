@@ -1,47 +1,45 @@
 """Search distillation for Checkers: evolve a position evaluator to predict what a *deeper* search says, then play it.
 
-Why not win/loss fitness (jobs/checkers_neuro_run.py)? Against deterministic opponents a genome's fitness is a
+Why not win/loss fitness (neuroevolution on Checkers)? Against deterministic opponents a genome's fitness is a
 handful of games, so selection has almost no signal -- measured: 300 generations of best fitness that never rose
 while held-out play drifted *down* (docs/design/0006 follow-up, docs/CODING_GUIDELINES.md). Here the fitness is dense
 and noise-free instead: a pool of positions from real (partly random) games, each labelled with the value a
-`material-K` alpha-beta search gives it (`--label-depth`, default 6), and a genome is scored by how well its
-network -- one forward pass, no search -- predicts that value. A player is then that evaluator searched `--depth`
-plies (default 3): a good evaluator makes a shallow search behave like a deeper one, so a depth-3 player can beat a
-plain `material-4`. The champion is scored, as in the other Checkers jobs, on games it never trained on.
+`material-K` alpha-beta search gives it (`label_depth`, default 6), and a genome is scored by how well its network --
+one forward pass, no search -- predicts that value. A player is then that evaluator searched `depth` plies (default
+3): a good evaluator makes a shallow search behave like a deeper one, so a depth-3 player can beat a plain
+`material-4`. The champion is scored, as in the other Checkers algorithms, on games it never trained on.
 
-Every generation fits a fresh sample from the labelled pool (`--sample`), split into groups so lexicase selection
-still has cases to work with; the pool is cached under data/distill/ so runs are comparable.
-
-  uv run python jobs/checkers_distill_run.py [--generations 300] [--population 100] [--hidden 16] [--depth 3]
-                                             [--label-depth 6] [--workers 8] [--experiment NAME --arm ARM]
+Every generation fits a fresh sample from the labelled pool (`sample`), split into groups so lexicase selection
+still has cases to work with; the pool is cached under data/distill/ so runs are comparable. A documented negative
+result (docs/design/0008): it never got near `Material 4-ply`.
 """
 
 from __future__ import annotations
 
-import argparse
+import copy
 import json
 import math
 import random
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
+from arena.checkers import INTERFACE
 from arena.costs import TrainingCostMeter
-from checkers_training import INPUTS, MAX_MOVES, MONITOR_GAMES, make_telemetry_callback
-from evolve import (
-    GaussianMutation,
-    TournamentSelection,
-    WeightVector,
-    evolve,
-    random_weight_vector,
-)
+from evolve import GaussianMutation, TournamentSelection, WeightVector, evolve, random_weight_vector
 from games import _native
 from games.checkers import Checkers
-from jobcore import ProcessPoolEvaluator, recorded_run
+from jobcore import ProcessPoolEvaluator, Sink, recorded_run
+from jobcore.algorithms.evolution import DistillParams
+from jobcore.specs import TrainSpec
 from telemetry import data_dir
+
+from trainer.checkers import INPUTS, MAX_MOVES, make_telemetry_callback
+from trainer.registry import adapter, held_out_every
 
 LABEL_SCALE = 4.0  # material units at which a label reaches ~76% of the network's range (tanh)
 GROUPS = 10  # fitness cases per genome: the sample split into this many groups (negative mean squared error each)
-DEFAULT_OPPONENTS = ("material-3", "material-4")
+ROLLOUTS = 3  # playouts per position for the `rollout` / `blend` labels
+ROLLOUT_PLAYER = "material-3"  # both sides of every playout
 
 
 def _strategy(name: str, seed: int):
@@ -50,10 +48,6 @@ def _strategy(name: str, seed: int):
 
 def _label(value: float) -> float:
     return math.tanh(max(-50.0, min(50.0, value)) / LABEL_SCALE)  # a decided game reads as +-1
-
-
-ROLLOUTS = 3  # playouts per position for the `rollout` / `blend` labels
-ROLLOUT_PLAYER = "material-3"  # both sides of every playout
 
 
 def _playout(env: Checkers, seed: int) -> float:
@@ -76,8 +70,6 @@ def _games_chunk(args: tuple[int, int, int, str]) -> list[tuple[list[float], flo
     `rollout` -- what actually happens when strong (material-3) players finish the game from there, averaged over
     ROLLOUTS playouts: information material search doesn't have (position, tempo, structure), noisy per position
     but unbiased; `blend` -- their mean."""
-    import copy
-
     seed, games, label_depth, kind = args
     rng = random.Random(seed)
     labeller = _strategy(f"material-{label_depth}", seed)
@@ -104,7 +96,8 @@ def _games_chunk(args: tuple[int, int, int, str]) -> list[tuple[list[float], flo
 def build_pool(
     label_depth: int, games: int, workers: int, seed: int = 0, kind: str = "search"
 ) -> tuple[list[list[float]], list[float]]:
-    """The labelled positions, generated once and cached (the labels cost a deep search each)."""
+    """The labelled positions, generated once and cached (the labels cost a deep search each). The chunking depends
+    on `workers` -- so the pool does too -- which is how it has always been: keep it, or old runs' pools change."""
     (data_dir() / "distill").mkdir(parents=True, exist_ok=True)
     path = (data_dir() / "distill") / f"pool-{kind}-k{label_depth}-g{games}-s{seed}.json"
     if path.exists():
@@ -155,74 +148,62 @@ class DistillFitness:
         return errors
 
 
-def main(
-    generations: int = 300,
-    population_size: int = 100,
-    hidden: int = 16,
-    depth: int = 3,
-    label_depth: int = 6,
-    pool_games: int = 2000,
-    sample: int = 600,
-    sigma: float = 0.1,
-    mutation_rate: float = 0.1,
-    opponents: tuple[str, ...] = DEFAULT_OPPONENTS,
-    rng_seed: int = 0,
-    held_out_every: int = 10,
-    workers: int = 1,
-    tags: dict[str, Any] | None = None,
-    label_kind: str = "search",
-) -> str:
-    layer_sizes = (INPUTS, hidden, 1)
-    observations, labels = build_pool(label_depth, pool_games, max(workers, 1), kind=label_kind)
+@adapter("distill", "checkers")
+def train_distill(spec: TrainSpec, params: DistillParams, sink: Sink) -> str:
+    generations, every = spec.budget_amount, held_out_every(spec, 10)
+    label_depth, label_kind, sample = params.label_depth, params.label_kind, params.sample
+    layer_sizes = (INPUTS, params.hidden, 1)
+    observations, labels = build_pool(label_depth, params.pool_games, max(params.workers, 1), kind=label_kind)
     config = {
         "representation": "neuroevolution",
         "game": "checkers",
-        "interface": "checkers/board32.v1+evaluate1ply.v1",
-        "search_depth": depth,
+        "interface": INTERFACE,
+        "search_depth": params.depth,
         "layer_sizes": list(layer_sizes),
-        "population_size": population_size,
+        "population_size": params.population_size,
         "generations": generations,
         "max_moves": MAX_MOVES,
-        "opponents": list(opponents),  # what the held-out monitor plays; nothing here trains against them
+        "opponents": list(params.opponents),  # what the held-out monitor plays; nothing here trains against them
         "selection": "tournament(k=4)",
-        "variation": f"gaussian_mutation(sigma={sigma}, rate={mutation_rate})",
+        "variation": f"gaussian_mutation(sigma={params.sigma}, rate={params.mutation_rate})",
         "fitness": {
             "search": f"distillation: predict a material-{label_depth} search's value of sampled positions",
-            "rollout": f"regression on playout outcomes ({ROLLOUTS} x {ROLLOUT_PLAYER} self-play from each sampled position)",
+            "rollout": f"regression on playout outcomes ({ROLLOUTS} x {ROLLOUT_PLAYER} self-play from each sampled "
+            "position)",
             "blend": f"half material-{label_depth} search value, half {ROLLOUTS}-playout outcome",
         }[label_kind],
         "label_kind": label_kind,
         "label_depth": label_depth,
         "pool_positions": len(labels),
         "sample_per_generation": sample,
-        "held_out_every": held_out_every,
-        "rng_seed": rng_seed,
-        **(tags or {}),
+        "held_out_every": every,
+        "rng_seed": spec.seed,
+        **spec.tags,
     }
 
-    rng = random.Random(rng_seed)
-    population = [random_weight_vector(layer_sizes, rng, scale=0.5) for _ in range(population_size)]
-    fitness_inner = DistillFitness(observations, labels, sample, rng_seed)
-    fitness = ProcessPoolEvaluator(fitness_inner, workers) if workers > 1 else fitness_inner
-    cost = TrainingCostMeter(population_size=population_size, fitness=fitness)
-    with recorded_run(config) as run:
+    rng = random.Random(spec.seed)
+    population = [random_weight_vector(layer_sizes, rng, scale=0.5) for _ in range(params.population_size)]
+    fitness_inner = DistillFitness(observations, labels, sample, spec.seed)
+    fitness = ProcessPoolEvaluator(fitness_inner, params.workers) if params.workers > 1 else fitness_inner
+    cost = TrainingCostMeter(population_size=params.population_size, fitness=fitness)
+    with recorded_run(config, sink) as run:
         print(f"pool={len(labels)} positions", flush=True)
         evolve(
             population,
             fitness=fitness,
             selection=TournamentSelection(k=4),
-            variation=GaussianMutation(sigma=sigma, rate=mutation_rate),
+            variation=GaussianMutation(sigma=params.sigma, rate=params.mutation_rate),
             generations=generations,
             on_generation=[
                 make_telemetry_callback(
                     run.metrics,
                     run.artifacts,
                     run.run_id,
-                    opponents,
-                    depth,
-                    held_out_every,
+                    params.opponents,
+                    params.depth,
+                    every,
                     generations - 1,
-                    MONITOR_GAMES,
+                    params.monitor_games,
                 ),
                 fitness_inner.on_generation,
                 cost.on_generation,
@@ -231,44 +212,5 @@ def main(
             elitism=2,
             rng=rng,
         )
-        history = run.set_training_summary(cost)
-    print(f"status=completed  recorded {len(history)} generations", flush=True)
+        run.set_training_summary(cost)
     return run.run_id
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Search distillation vs. Checkers, recorded to telemetry.")
-    parser.add_argument("--generations", type=int, default=300)
-    parser.add_argument("--population", type=int, default=100)
-    parser.add_argument("--hidden", type=int, default=16)
-    parser.add_argument("--depth", type=int, default=3, help="plies the finished player searches")
-    parser.add_argument("--label-depth", type=int, default=6, help="plies of material search that label positions")
-    parser.add_argument("--label-kind", choices=("search", "rollout", "blend"), default="search")
-    parser.add_argument("--pool-games", type=int, default=2000)
-    parser.add_argument("--sample", type=int, default=600)
-    parser.add_argument("--sigma", type=float, default=0.1)
-    parser.add_argument("--mutation-rate", type=float, default=0.1)
-    parser.add_argument("--opponents", default=",".join(DEFAULT_OPPONENTS))
-    parser.add_argument("--rng-seed", type=int, default=0)
-    parser.add_argument("--held-out-every", type=int, default=10)
-    parser.add_argument("--workers", type=int, default=1)
-    parser.add_argument("--experiment", default=None)
-    parser.add_argument("--arm", default=None)
-    a = parser.parse_args()
-    main(
-        a.generations,
-        a.population,
-        a.hidden,
-        a.depth,
-        a.label_depth,
-        a.pool_games,
-        a.sample,
-        a.sigma,
-        a.mutation_rate,
-        tuple(a.opponents.split(",")),
-        a.rng_seed,
-        a.held_out_every,
-        a.workers,
-        {"experiment": a.experiment, "arm": a.arm} if a.experiment else None,
-        a.label_kind,
-    )

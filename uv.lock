@@ -22,6 +22,7 @@ members = [
     "rl",
     "telemetry",
     "tinylm",
+    "trainer",
 ]
 
 [[package]]
@@ -1145,6 +1146,7 @@ dependencies = [
     { name = "arena" },
     { name = "evolve" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "telemetry" },
 ]
 
@@ -1153,6 +1155,7 @@ requires-dist = [
     { name = "arena", editable = "libs/arena" },
     { name = "evolve", editable = "libs/evolve" },
     { name = "pydantic", specifier = ">=2" },
+    { name = "pyyaml", specifier = ">=6" },
     { name = "telemetry", editable = "libs/telemetry" },
 ]
 
@@ -3324,6 +3327,31 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/56/ae/047938e828cafc8eca4c908fafb6588fee944e3af39a0af9d7b602499ae5/tornado-6.5.10-cp39-abi3-win32.whl", hash = "sha256:302eb1e0e3e159314eb591920529fdea80acca92df5510a2cec5bbd4f099ec72", size = 468387, upload-time = "2026-09-15T13:47:44.556Z" },
     { url = "https://files.pythonhosted.org/packages/d8/d4/5901517f05affd752490f6a654ba31b7474664e8dd80bd045a00c220bd88/tornado-6.5.10-cp39-abi3-win_amd64.whl", hash = "sha256:37ae8f150cecfdbf747fc4e12f5e9a97ecd8cf1d4cdb3f119e2de84b11196918", size = 468828, upload-time = "2026-09-15T13:47:45.961Z" },
     { url = "https://files.pythonhosted.org/packages/f3/1a/fd497f3a7f7b74bb04f4b94536b5c9f80742b5d50501fd27977652ddec16/tornado-6.5.10-cp39-abi3-win_arm64.whl", hash = "sha256:ce045d3c298fddd30e89a2777f97039d1b641eb9518ac7b26a4721903539c694", size = 467847, upload-time = "2026-09-15T13:47:47.283Z" },
+]
+
+[[package]]
+name = "trainer"
+version = "0.1.0"
+source = { editable = "jobs/trainer" }
+dependencies = [
+    { name = "arena" },
+    { name = "evolve" },
+    { name = "games" },
+    { name = "jobcore" },
+    { name = "pyyaml" },
+    { name = "rl" },
+    { name = "telemetry" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arena", editable = "libs/arena" },
+    { name = "evolve", editable = "libs/evolve" },
+    { name = "games", editable = "libs/games" },
+    { name = "jobcore", editable = "jobs/core" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "rl", editable = "libs/rl" },
+    { name = "telemetry", editable = "libs/telemetry" },
 ]
 
 [[package]]

@@ -208,7 +208,7 @@ def record_for(
 
 
 def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
-    """Every completed bandit evolution run's final champion (jobs/bandit_evolve_run.py): its evolved settings, as an
+    """Every completed bandit evolution run's final champion (the trainer's bandit_evolve): its evolved settings, as an
     entrant linked to the run that produced it."""
     sink = open_sink()
     out = []

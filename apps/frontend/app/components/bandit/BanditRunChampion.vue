@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// An evolved bandit strategy (jobs/bandit_evolve_run.py, docs/design/0011) on its run's page: the settings evolution
+// An evolved bandit strategy (the trainer's bandit_evolve, docs/design/0011) on its run's page: the settings evolution
 // arrived at, next to what they mean, and the strategy playing the scenario it evolved on (`BanditPlayer`). The champion
 // artifact is `{genome, strategy, params}`.
 const props = defineProps<{ runId: string; championRef: string; scenarios?: string[] }>()

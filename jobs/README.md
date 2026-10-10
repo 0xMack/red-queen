@@ -10,34 +10,14 @@ themselves — see docs/design/0001) get wired to it for a real run.
 
 ## Contents
 
-- `baseline_gp_run.py` — runs `libs/evolve`'s baseline GA loop against the fixed benchmark problem
-  (docs/design/0003 phase 1), recording every generation to a local `telemetry` store
-  (`data/`, gitignored) and reading it back to prove the whole evolve → metrics → replay
-  pipeline works. Run with `uv run python jobs/baseline_gp_run.py` from the repo root.
-- `snake_neuro_run.py` — the same neuroevolution-against-`games.snake` setup already validated in
-  `notebooks/0005-neuroevolution-snake.ipynb`, wired to `telemetry` end to end instead of collecting
-  summaries in a plain list. Its champions are real `ArtifactStore` entries, serialized with
-  `WeightVector.to_json()` (the real, round-trippable wire format — see `libs/evolve/README.md`),
-  which is what makes docs/design/0005 step 6 (watching a trained policy play, in
-  `apps/frontend`) possible: the API needed no changes at all to serve them, since
-  `GET /runs/{id}/artifacts/{ref}` already returns raw bytes regardless of what's inside. Run with
-  `uv run python jobs/snake_neuro_run.py [interface_id] [--seeds fixed:5|fixed:N|resample:N]
-  [--held-out-every 10] [--generations 250]` — takes a few minutes (250 generations ×
-  100 individuals × 5 benchmark scenarios; about 2.5× longer under the 100-input
-  `snake/grid-flat.v1+relative3.v1`). Also takes `--selection lexicase|tournament`, `--rng-seed`,
-  and `--experiment NAME` (see `snake_experiment.py`). Records `config.interface`, `training_seeds`, `rng_seed`, and
-  a measured `summary.cost` block (below). Deterministic: the same interface, seed strategy, and
-  `RNG_SEED` reproduce the same champion exactly. Every `--held-out-every` generations it also records
-  the champion's game score on `evaluate.MONITOR_SEEDS` (`GenerationStats.held_out_score`) -- the
-  curve that shows overfitting.
-- `snake_neat_run.py` — NEAT (`libs/evolve/src/evolve/neat.py`, docs/design/0008) against the same
-  Snake interface, seed strategies, held-out monitoring, and cost meter as `snake_neuro_run.py` —
-  it imports that script's callbacks — so the two are directly comparable. Champions are stored as
-  `NeatGenome.to_json()`; per-generation telemetry carries `extras` (species count, the champion's
-  hidden nodes and connections, the adaptive compatibility threshold). Run with `uv run python
-  jobs/snake_neat_run.py [--seeds resample:5] [--rng-seed 0] [--no-speciation]`; ~1.5 min for 250
-  generations. Deterministic per `--rng-seed`.
-- `snake_experiment.py` — a tracked *comparison*: arms (`neuro-lexicase`, `neuro-tournament`, `neat`,
+- **`trainer/` — the trainer workload** (`trainer` package): one `TrainSpec` in, one recorded run out.
+  `uv run python -m trainer trainer/specs/<algorithm>.yaml [--set key=value ...]` (paths from `jobs/`), one example
+  spec per algorithm at the original scripts' defaults. Built: `gp`, `neuroevolution` and `neat` (Snake and Checkers),
+  `distill`, `bandit_evolve` -- they replaced `baseline_gp_run.py`, `snake_neuro_run.py`, `snake_neat_run.py`,
+  `checkers_neuro_run.py`, `checkers_neat_run.py`, `checkers_distill_run.py` and `bandit_evolve_run.py`, reproducing
+  each one's golden runs exactly. See `trainer/README.md` for what each algorithm does and records.
+- `snake_experiment.py` — a tracked *comparison*, each arm a partial `TrainSpec` run by the trainer: arms
+  (`neuro-lexicase`, `neuro-tournament`, `neat`,
   `neat-no-speciation`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/
   `arm`/`rng_seed`, resumable, arms parallelizable as separate processes. `report --name NAME`
   scores each run's *final* champion on the 200 leaderboard games and writes per-arm aggregates to
@@ -55,21 +35,6 @@ themselves — see docs/design/0001) get wired to it for a real run.
   material lookahead) played against each other, 200 games per pairing with seats alternating; the
   numbers the "Multi-Agent Games" Learn chapter cites (headline: one ply of lookahead ≈ random,
   because captures are mandatory; two plies wins ~95%).
-- `checkers_training.py` — what the two Checkers training jobs share: a genome (layered or NEAT) becomes a
-  player via `strategy_factory(genome, depth)` (alpha-beta to `depth` plies in the Rust core, the network
-  scoring the leaves); `OpponentPool` is the fitness evaluator (fixed opponents, optionally a hall of fame of
-  the run's own past champions, optionally *resampled every generation* -- fixed opponent games are
-  memorized: training fitness reached +1 while games never seen got worse); `margin_scorer` scores a draw by
-  the material edge held; `material_seed_*` start part of a population as a noisy material evaluator.
-- `checkers_neat_run.py` — the NEAT counterpart of `checkers_neuro_run.py`, same opponents / depth / hall /
-  monitor, evolving a graph that starts as a linear evaluator (NEAT's structural mutations grow it) and is
-  played through the core's `GraphNet`. Gentler weight mutation than NEAT's default (see the file).
-- `checkers_neuro_run.py` — neuroevolution against Checkers, recorded to telemetry: a genome is a
-  32→H→1 *position evaluator* (the Rust `evaluator` strategy plays the move whose resulting
-  position is worst for the opponent, so a whole match is a few native calls: ~4x faster than scoring
-  in Python), fitness is `MatchFitnessEvaluator(env_aware=True)`
-  against the static strategies (one value per opponent per seat, lexicase selection), and the
-  held-out score is win/draw/loss on games with opponent seeds training never used.
 - `evaluate_versus.py` — the two-player leaderboard (docs/design/0007's "Versus", 0013): protocol
   `checkers.versus.v2`, a round robin over every finished checkers champion plus the fixed baselines, 12 ballot
   openings (`games.checkers_openings`) per pairing, each a **game pair** (both seats). An entrant's score
@@ -82,9 +47,6 @@ themselves — see docs/design/0001) get wired to it for a real run.
   h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
 - `export_ballot.py` — writes the ballot (every 3-ply opening, its board and verdict) as
   `apps/frontend/app/data/checkersBallot.ts` for the Learn chapter.
-- `checkers_distill_run.py` — search distillation for Checkers: evolve an evaluator to predict labelled positions
-  (`--label-kind search|rollout|blend`; pools are cached under `data/distill/`), played `--depth` plies. A
-  documented negative result (docs/design/0008): it never got near `Material 4-ply`.
 - **Reinforcement learning** (`libs/rl`, docs/design/0010): `rl_run.py` trains one `rl.Trainer` algorithm, an
   *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
   budgeted in env steps, final policy on the 200 held-out games, a paired permutation test against each arm's baseline);
@@ -97,20 +59,21 @@ themselves — see docs/design/0001) get wired to it for a real run.
   entrants; `checkers_pbt_run.py` is population-based training over self-play learners, and `export_pbt_history.py` writes
   one run's population history for the Learn chapter.
 - **Bandits** (docs/design/0011): `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`);
-  `bandit_evolve_run.py` evolves ε-greedy's settings as an ordinary run.
+  the trainer's `bandit_evolve` evolves ε-greedy's settings as an ordinary run.
 - **Model packages and TinyLM** (docs/design/0004, 0009): `publish_models.py` exports leaderboard champions and TinyLM
   checkpoints to the local model store and catalog, measuring each variant's agreement; `tinylm_run.py` trains TinyLM;
   `scale_test_package.py` publishes a large random-weight model to exercise the big-model path.
 - **Shared plumbing is the `jobcore` package (`jobs/core/`)**: `recorded_run()` (create the run, mark it `completed`,
   or `failed` if the job dies), the pause/resume control callback, `open_sink()` (where a job writes; local by
   default), `ProcessPoolEvaluator` (`--workers N`), and the job payload specs. See `jobs/core/README.md`.
-- **Golden runs** (`tests/golden_cases.py`, `tests/golden/champions.json`): a small deterministic run of every training
+- **Golden runs** (`tests/golden_cases.py`, `tests/golden/champions.<platform>.json`): a small deterministic run of every training
   job, reduced to its config, curve and champion bytes, recorded before any job was ported to the trainer workload.
   `tests/test_golden.py` re-runs them (~9 s). Re-record only for a deliberate behaviour change:
-  `uv run python jobs/tests/golden_cases.py --record <case>`.
+  `uv run python jobs/tests/golden_cases.py --record <case>`. Exact per OS, not across (Windows' and Linux's libm
+  differ in the last bit); the Linux fixture is recorded by CI, which uploads its digests as an artifact on failure.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on
-`sys.path` automatically, which is how e.g. `checkers_neuro_run.py` imports `checkers_training.py` as a
-plain sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
+`sys.path` automatically, which is how e.g. `checkers_pbt_run.py` imports `checkers_selfplay_run.py` as
+a plain sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
 jobs/tests`.

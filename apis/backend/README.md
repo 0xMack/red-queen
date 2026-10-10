@@ -50,7 +50,7 @@ From the repo root:
 uv run uvicorn backend.main:app --app-dir apis/backend/src --reload --timeout-graceful-shutdown 3
 ```
 
-Then, having run `uv run python jobs/baseline_gp_run.py` at least once so there's real data to
+Then, having run `uv run python -m trainer jobs/trainer/specs/gp.yaml` at least once so there's real data to
 serve: `http://127.0.0.1:8000/runs`.
 
 ## Testing

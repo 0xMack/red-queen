@@ -9,7 +9,8 @@ from evolve.neat import InnovationTracker, mutate
 from evolve.networks import compiled
 from games import interfaces
 from games.nets import native_policy
-from snake_neuro_run import BOARD, make_act, make_rollout
+
+from trainer.snake import BOARD, make_act, make_rollout
 
 INTERFACES = ["snake/features.v1+relative3.v1", "snake/grid-flat.v1+relative3.v1", "snake/egocentric.v1+relative3.v1"]
 SEEDS = range(40)

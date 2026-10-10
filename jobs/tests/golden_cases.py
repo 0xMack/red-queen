@@ -39,99 +39,92 @@ JOBS = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class Case:
-    """`module.main(**kwargs)` with `patches` (module attribute -> value) applied first."""
+    """Either a TrainSpec run by the trainer (`spec`: a ported job), or a script not yet ported: `module.main(**kwargs)`
+    with `patches` (module attribute -> value) applied first. A ported case's spec is what the script's kwargs and
+    patches meant, so its digest is unchanged."""
 
-    module: str
+    module: str = ""
     kwargs: dict[str, Any] = field(default_factory=dict)
     patches: dict[str, Any] = field(default_factory=dict)  # "module.ATTR" -> value
+    spec: dict[str, Any] | None = None
 
 
-def monitor2(module: str) -> dict[str, Any]:
-    """Two monitor games per opponent. Patched on the job's own module: each binds MONITOR_GAMES when imported
-    (`from checkers_training import MONITOR_GAMES`), so patching checkers_training only reached a job imported after
-    the patch -- the result then depended on test order."""
-    return {f"{module}.MONITOR_GAMES": 2}
+def train(game: str, algorithm: str, generations: int, **fields: Any) -> Case:
+    return Case(spec={"game": game, "algorithm": algorithm, "budget": {"generations": generations}, **fields})
 
 
 CASES: dict[str, Case] = {
-    "gp": Case("baseline_gp_run", patches={"baseline_gp_run.GENERATIONS": 8}),
-    "snake-neuro-lexicase": Case(
-        "snake_neuro_run",
-        {"generations": 3, "held_out_every": 2},
-        {"snake_neuro_run.POPULATION_SIZE": 8},
+    "gp": train("symbolic-regression", "gp", 8),
+    "snake-neuro-lexicase": train("snake", "neuroevolution", 3, held_out_every=2, params={"population_size": 8}),
+    "snake-neuro-tournament-egocentric": train(
+        "snake",
+        "neuroevolution",
+        3,
+        interface="snake/egocentric.v1+relative3.v1",
+        held_out_every=2,
+        seed=5,
+        params={"population_size": 8, "seeds": "resample:3", "selection": "tournament"},
     ),
-    "snake-neuro-tournament-egocentric": Case(
-        "snake_neuro_run",
-        {
-            "interface_id": "snake/egocentric.v1+relative3.v1",
-            "seed_strategy": "resample:3",
-            "generations": 3,
-            "held_out_every": 2,
-            "selection_name": "tournament",
-            "rng_seed": 5,
-        },
-        {"snake_neuro_run.POPULATION_SIZE": 8},
+    "snake-neat": train("snake", "neat", 3, held_out_every=2, params={"population_size": 12}),
+    "checkers-neuro": train(
+        "checkers",
+        "neuroevolution",
+        2,
+        held_out_every=1,
+        params={"population_size": 6, "hidden": 4, "opponents": ["random", "material-1"], "monitor_games": 2},
     ),
-    "snake-neat": Case("snake_neat_run", {"generations": 3, "held_out_every": 2, "population_size": 12}),
-    "checkers-neuro": Case(
-        "checkers_neuro_run",
-        {
-            "generations": 2,
+    "checkers-neuro-hall-depth2": train(
+        "checkers",
+        "neuroevolution",
+        2,
+        held_out_every=1,
+        params={
             "population_size": 6,
             "hidden": 4,
-            "opponents": ("random", "material-1"),
-            "held_out_every": 1,
-        },
-        monitor2("checkers_neuro_run"),
-    ),
-    "checkers-neuro-hall-depth2": Case(
-        "checkers_neuro_run",
-        {
-            "generations": 2,
-            "population_size": 6,
-            "hidden": 4,
-            "opponents": ("random", "material-1"),
-            "held_out_every": 1,
+            "opponents": ["random", "material-1"],
+            "monitor_games": 2,
             "depth": 2,
             "hall": 2,
             "seed_material": 0.5,
             "margin": True,
             "resample": True,
         },
-        monitor2("checkers_neuro_run"),
     ),
-    "checkers-neat": Case(
-        "checkers_neat_run",
-        {
-            "generations": 2,
+    "checkers-neat": train(
+        "checkers",
+        "neat",
+        2,
+        held_out_every=1,
+        params={
             "population_size": 8,
-            "opponents": ("random", "material-2"),
-            "held_out_every": 1,
+            "opponents": ["random", "material-2"],
+            "monitor_games": 2,
             "depth": 2,
             "hall": 2,
             "seed_material": 0.5,
         },
-        monitor2("checkers_neat_run"),
     ),
-    "checkers-distill": Case(
-        "checkers_distill_run",
-        {
-            "generations": 2,
+    "checkers-distill": train(
+        "checkers",
+        "distill",
+        2,
+        held_out_every=1,
+        params={
             "population_size": 6,
             "hidden": 4,
             "depth": 1,
             "label_depth": 2,
             "pool_games": 4,
             "sample": 20,
-            "opponents": ("random",),
-            "held_out_every": 1,
+            "opponents": ["random"],
+            "monitor_games": 2,
         },
-        monitor2("checkers_distill_run"),
     ),
-    "bandit-evolve": Case(
-        "bandit_evolve_run",
-        {"scenarios": ["classic", "two-lamps"], "generations": 3},
-        {"bandit_evolve_run.POPULATION": 6, "bandit_evolve_run.GAMES_PER_SCENARIO": 10},
+    "bandit-evolve": train(
+        "bandit",
+        "bandit_evolve",
+        3,
+        params={"scenarios": ["classic", "two-lamps"], "population_size": 6, "games_per_scenario": 10},
     ),
     **{
         f"rl-{algorithm}": Case(
@@ -293,7 +286,12 @@ def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str
     """Runs one case in a fresh data directory and returns its digest. `runner` replaces calling the old script's
     `main` -- how a ported adapter is checked against the same fixture."""
     case = CASES[name]
-    importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
+    if case.spec is not None:
+        from trainer import train as run_spec
+
+        runner = runner or (lambda c: run_spec(c.spec))
+    else:
+        importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
     with tempfile.TemporaryDirectory() as scratch, _env("REDQUEEN_DATA_DIR", scratch), _patched(case.patches):
         result = runner(case) if runner else importlib.import_module(case.module).main(**case.kwargs)
         if case.module == "tinylm_run":

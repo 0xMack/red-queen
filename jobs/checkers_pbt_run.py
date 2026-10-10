@@ -37,12 +37,12 @@ import rl
 from arena.checkers import PBT_SEED_BASE, pair_points, play_pairing
 from arena.costs import TrainingCostMeter
 from checkers_selfplay_run import INTERFACE, MAX_MOVES, MAX_MOVES_WITHOUT_CAPTURE, OPPONENTS
-from checkers_training import MONITOR_GAMES, monitor_score
 from evolve import WeightVector
 from games.checkers_openings import ballot
 from games.checkers_strategies import evaluator
 from jobcore import recorded_run
 from telemetry import GenerationStats
+from trainer.checkers import MONITOR_GAMES, monitor_score
 
 BASE = {"hidden": 64, "hidden_layers": 2, "pool_every": 5000, "pool_size": 10}
 PAUSE_CHECK_GAMES = 1000  # a paused run stops within this many games of one member

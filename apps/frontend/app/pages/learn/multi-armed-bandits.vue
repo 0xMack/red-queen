@@ -172,7 +172,7 @@ import { BANDIT_RESULTS } from "~/data/banditResults"
     <h2>Letting evolution choose the settings</h2>
     <p>
       Every strategy above has knobs, and every number in the table depends on how they were set. So let evolution set
-      them. <code>jobs/bandit_evolve_run.py</code> treats ε-greedy's four settings -- how often it explores, how quickly
+      them. The trainer's <code>bandit_evolve</code> treats ε-greedy's four settings -- how often it explores, how quickly
       that exploring fades, how far each payout moves an estimate, and what an untried machine is assumed to pay -- as a
       genome of four numbers, and evolves a population of 32 of them for 40 generations, scoring each on 100 fresh
       training games every generation (none of them from the table's held-out games).

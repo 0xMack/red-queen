@@ -58,7 +58,7 @@ so a seed is the same game in training, evaluation and a visitor's browser.
   flattened-grid observation once `notebooks/0005-neuroevolution-snake.ipynb`'s own conclusion
   ("a representation ceiling, not a compute shortage") pointed at the representation, not more
   compute, as the next thing to fix; see the module docstring for the full reasoning and
-  `jobs/snake_neuro_run.py` for the retrained result (best_fitness 0.65 → 17.28, same generation
+  the trainer's Snake neuroevolution for the retrained result (best_fitness 0.65 → 17.28, same generation
   budget class, now actually eating food instead of dying near-immediately). The replaced
   100-float grid lives on as `SnakeGridFlat` (`grid-flat.v1`), so champions trained on it still run
   and the two can be compared on the leaderboard. Action is a relative turn

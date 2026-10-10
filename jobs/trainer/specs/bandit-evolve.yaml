@@ -1,0 +1,5 @@
+# Evolving epsilon-greedy's four settings for the bandit (docs/design/0011).
+game: bandit
+algorithm: bandit_evolve
+budget: {generations: 40}
+params: {scenarios: [classic]}
