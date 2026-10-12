@@ -18,6 +18,10 @@ dependencies = [
     "typer>=0.12",
 ]
 
+[project.optional-dependencies]
+# `redqueen mcp serve` (docs/design/0018 stage 8): the MCP SDK is heavier than the CLI, so it's opt-in.
+mcp = ["mcp>=2.3"]
+
 [project.scripts]
 redqueen = "redqueen_cli.main:run"
 # The import name is redqueen_cli: `redqueen` is RedQueenCbind's C++ extension module.

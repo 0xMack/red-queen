@@ -194,7 +194,9 @@ architectural change that might conflict with a decision already made.
     `redqueen` is RedQueenCbind's extension), docs/design/0018: an HTTP client of the API only (httpx2, PyYAML, Typer
     -- no jobcore, nothing native), a group per schema slice (`runs`, `jobs`, `experiments`, `pipeline`, `schedules`,
     `leaderboard`, `models`) plus `train`/`evaluate`/`h2h`/`publish`/`schemas`/`doctor`; `--json` everywhere, `--wait`
-    on anything that starts work. Nothing runs unless the scheduler is up (`uv run python -m scheduler`).
+    on anything that starts work. Nothing runs unless the scheduler is up (`uv run redqueen dev up`). `redqueen mcp
+    serve` (the `mcp` extra, MCP SDK 2.x -- `MCPServer`, not v1's `FastMCP`) exposes the same calls as 22 MCP tools;
+    raise the SDK's `ToolError` for an expected failure, or the agent sees only "Error executing tool".
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
     `arena.bandit`), training-seed strategies (`arena.seeding`), two-player strength statistics

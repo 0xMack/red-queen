@@ -80,6 +80,28 @@ def _summary(entry: Any) -> str:
     return ""
 
 
+mcp = typer.Typer(help="The API as MCP tools, for agents (needs the `mcp` extra).", no_args_is_help=True)
+app.add_typer(mcp, name="mcp")
+
+
+@mcp.command("serve")
+def mcp_serve(
+    ctx: typer.Context,
+    transport: Annotated[str, typer.Option(help="stdio (an agent launches it) or streamable-http.")] = "stdio",
+) -> None:
+    """Serves the API as MCP tools (docs/design/0018, decision 6): `claude mcp add redqueen -- uv run redqueen mcp
+    serve`. Long work is submit, then poll a job -- never one blocking call."""
+    try:
+        from redqueen_cli.mcp_server import build_server
+    except ImportError:  # the extra isn't installed
+        raise typer.BadParameter("needs the MCP SDK: uv sync --all-packages --all-extras") from None
+    try:
+        server = build_server(state(ctx).client)
+    except ModuleNotFoundError as e:
+        raise typer.BadParameter(f"needs the MCP SDK ({e.name}): uv sync --all-packages --all-extras") from None
+    server.run(transport)
+
+
 @app.command()
 def doctor(ctx: typer.Context) -> None:
     """Checks the setup: the API is reachable, and whether `rq` on PATH is this CLI (it's a common name)."""
