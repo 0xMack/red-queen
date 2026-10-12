@@ -18,13 +18,14 @@ export interface RunMeta {
   parameterCount: number | null
   note: string | null
   seedStrategy: string | null // "fixed:5" / "resample:5" (arena.seeding); null for runs before it existed
-  paradigm: "evolution" | "reinforcement_learning"
+  paradigm: "evolution" | "reinforcement_learning" | "supervised"
   terms: RunTerms
   watchable: boolean
 }
 
 // What a run's GenerationStats *mean* (docs/design/0010 Decision 3): an RL run records training iterations, episode
-// returns and policy entropy in the same fields evolution uses for generations, fitness and population diversity.
+// returns and policy entropy in the same fields evolution uses for generations, fitness and population diversity; a
+// supervised run (TinyLM, docs/design/0018) records blocks of training steps and minus the loss.
 export interface RunTerms {
   unit: string // "generation" | "iteration"
   fitness: string // "fitness" | "return"
@@ -32,15 +33,25 @@ export interface RunTerms {
   diversityTitle: string // its chart's heading
   diversityNote: string
   learner: string // "population" | "agent"
+  heldOut: string // the held-out panel's subject: "real game score"
+  heldOutSeries: string // its legend entry
+  heldOutNote: string // what it shows; {n} {every} {unit} {fitness} {learner} are filled in by the page
 }
 
-const EVOLUTION_TERMS: RunTerms = {
+const GAME_HELD_OUT = {
+  heldOut: "real game score",
+  heldOutSeries: "game score, unseen games",
+  heldOutNote: "The champion's mean score on {n} games it never trained on, checked every {every} {unit}s. If training {fitness} keeps rising while this falls, the {learner} is memorizing its training games instead of learning the game.",
+}
+
+export const EVOLUTION_TERMS: RunTerms = {
   unit: "generation",
   fitness: "fitness",
   diversity: "diversity",
   diversityTitle: "Population diversity",
   diversityNote: "Genotypic spread of the population -- a collapse toward zero is premature convergence.",
   learner: "population",
+  ...GAME_HELD_OUT,
 }
 const RL_TERMS: RunTerms = {
   unit: "iteration",
@@ -49,6 +60,20 @@ const RL_TERMS: RunTerms = {
   diversityTitle: "Policy entropy",
   diversityNote: "How undecided the agent's policy still is (nats) -- falling toward zero as it commits to its choices.",
   learner: "agent",
+  ...GAME_HELD_OUT,
+}
+const SUPERVISED_TERMS: RunTerms = {
+  unit: "step block",
+  fitness: "−loss",
+  diversity: "diversity",
+  diversityTitle: "Diversity",
+  diversityNote: "One model trained by gradient descent: there is no population to be diverse (always 0).",
+  learner: "model",
+  heldOut: "held-out −loss",
+  heldOutSeries: "−loss, held-out text",
+  heldOutNote:
+    "Minus the loss on fixed windows of held-out text the {learner} never trained on, checked every {every} {unit}s. If " +
+    "training {fitness} keeps rising while this falls, the {learner} is memorizing its training text instead of the language.",
 }
 
 const REPRESENTATION_LABELS: Record<string, string> = {
@@ -68,6 +93,8 @@ const REPRESENTATION_LABELS: Record<string, string> = {
   alphazero: "AlphaZero",
   // bandits (docs/design/0011)
   evolved_bandit: "Evolved strategy",
+  // gradient descent (docs/design/0004)
+  tinylm: "TinyLM",
 }
 
 function str(value: unknown): string | null {
@@ -96,7 +123,8 @@ export function describeRun(run: RunInfo): RunMeta {
     : null
 
   const subject = game ? capitalize(game) : benchmark ? `f(x) = ${benchmark}` : "Run"
-  const paradigm = c.paradigm === "reinforcement_learning" ? "reinforcement_learning" : "evolution"
+  const paradigm =
+    c.paradigm === "reinforcement_learning" || c.paradigm === "supervised" ? c.paradigm : "evolution"
 
   return {
     title: `${subject} · ${representationLabel}`,
@@ -114,7 +142,7 @@ export function describeRun(run: RunInfo): RunMeta {
     note: str(c.note),
     seedStrategy: str(c.seed_strategy) ?? (Array.isArray(c.training_seeds) ? `fixed:${c.training_seeds.length}` : null),
     paradigm,
-    terms: paradigm === "reinforcement_learning" ? RL_TERMS : EVOLUTION_TERMS,
+    terms: paradigm === "reinforcement_learning" ? RL_TERMS : paradigm === "supervised" ? SUPERVISED_TERMS : EVOLUTION_TERMS,
     // Has a champion viewer (WatchChampion / CheckersWatch): every trained champion, played through its model
     // package -- not the RL pipeline's random agent, which has no policy to package.
     watchable: (game === "snake" || game === "checkers") && representation !== "random",

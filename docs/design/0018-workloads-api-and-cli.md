@@ -1,9 +1,9 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1, 2, 3a and 3b built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the
+Status: **Accepted; stages 1-3 built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
-3a-3b (the trainer: the evolution family, RL, self-play and PBT). Stages 3c-8 are not.
+3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM). Stages 4-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -251,7 +251,8 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    them found an `rl_run` crash: a policy-gradient iteration shorter than its first update). The other payload models
    (EvalSpec, PublishSpec, ExperimentSpec, Job) land with the stages that consume them.
 3. **trainer** in three PRs: (a) evolution family: gp, neuroevolution, neat, bandit_evolve, distill -- *built*; (b)
-   rl, selfplay, alphazero, pbt -- *built*; (c) tinylm. Each deletes the scripts it replaces, once its golden tests pass. Interim
+   rl, selfplay, alphazero, pbt -- *built*; (c) tinylm -- *built*, as a recorded run (`paradigm: supervised`;
+   it answers 0004's deferred "whether it connects"). Each deletes the scripts it replaces, once its golden tests pass. Interim
    invocation: `uv run python -m trainer jobs/trainer/specs/<algorithm>.yaml [--set key=value ...]`. Built with 3a: an
    algorithm name registers once *per game* (`neuroevolution` on Snake and on Checkers have different params and
    adapters), `jobcore.specs.load_spec()`, and one example spec per (algorithm, game) at the old defaults.

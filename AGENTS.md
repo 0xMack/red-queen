@@ -196,8 +196,9 @@ architectural change that might conflict with a decision already made.
     in-place rewrite is what once broke every older Snake champion).
   - `tinylm/` — a small transformer LM, built on `autodiff` (docs/design/0004). Trained by
     gradients, not evolution — the odd one out relative to every other `libs/` package so far, and
-    deliberately not wired into `evolve`/`telemetry` yet (see the doc for why). `checkpoint.py`
-    saves/loads trained weights (`jobs/tinylm_run.py` produces one).
+    not wired into `evolve`; the trainer's `tinylm` (docs/design/0018) records it as an ordinary run
+    (`paradigm: supervised`, the frontend's third run vocabulary) beside its checkpoint. `checkpoint.py` saves/loads
+    trained weights.
   - `modelpack/` — portable model packages for client-side inference (docs/design/0009): exporters
     (WeightVector, NEAT compiled to dense depth layers, TinyLM with a KV cache in `lm.py`) to ONNX,
     content-addressed blobs (graph per variant, weight shards, parity fixture, assets), a sealed
@@ -253,7 +254,7 @@ architectural change that might conflict with a decision already made.
   **`jobs/trainer` (the `trainer` package) runs one `TrainSpec`**: `uv run python -m trainer
   jobs/trainer/specs/<algorithm>.yaml [--set budget.generations=20 --set params.hidden=32 ...]`, or `trainer.train(spec)`
   from Python. Built so far: `gp` (the reference example), `neuroevolution` and `neat` (Snake and Checkers), `distill`,
-  `bandit_evolve`, `rl.<algorithm>` (Snake, Reach1D), `td_lambda`, `alphazero` and `pbt` (Checkers); the params models (defaults = the original scripts') are `jobcore.algorithms`, the adapters
+  `bandit_evolve`, `rl.<algorithm>` (Snake, Reach1D), `td_lambda`, `alphazero` and `pbt` (Checkers), `tinylm` (text); the params models (defaults = the original scripts') are `jobcore.algorithms`, the adapters
   `trainer.algorithms`, and one algorithm name can be registered per game. An adapter writes exactly the run config
   the original script did (the frontend reads it), and `jobs/tests/test_golden.py` holds it to that. Snake training
   takes an interface and a training-seed strategy (`arena.seeding`), records a measured training-cost block
@@ -266,7 +267,7 @@ architectural change that might conflict with a decision already made.
   `publish_models.py` exports champions (fp64 + fp32) and TinyLM checkpoints (fp32 + int8) to the
   local model store and catalog, measuring agreement on the protocol's games; `evaluate.py` then
   scores published champions *as their packages* (a variant that plays differently is its own
-  `run:<id>@<variant>` entrant). `tinylm_run.py` trains and checkpoints TinyLM;
+  `run:<id>@<variant>` entrant). The trainer's `tinylm` trains and checkpoints TinyLM;
   `scale_test_package.py` publishes a large random model for testing the big-model path.
   `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
   partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,

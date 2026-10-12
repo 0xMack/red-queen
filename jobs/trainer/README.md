@@ -46,6 +46,9 @@ returns the run id. Runs land in the data directory (`telemetry.data_dir()`) lik
 | `alphazero.yaml` | AlphaZero-style self-play (docs/design/0017); the champion is the trunk + value unit as an evaluator, the last iteration also stores the two-headed network. |
 | `pbt.yaml` | Population-based training over self-play learners (docs/design/0014); the budget is games per member; `exploit: false` is the random-search control. |
 
-Not yet ported (stage 3c of docs/design/0018): TinyLM (`jobs/tinylm_run.py`).
+| `tinylm.yaml` | TinyLM on Alice (docs/design/0004), recorded as a run (`paradigm: supervised`): a generation per `log_every` steps, fitness = minus the training loss, held-out score = minus the loss on fixed held-out windows. Writes `<data dir>/tinylm/<checkpoint>` for `jobs/publish_models.py`, and stores the final weights as `<run_id>-weights`. |
+
+Every training script is ported; `jobs/checkers_recipe_run.py` (two `td_lambda` stages) stays a script until the
+scheduler runs pipelines (docs/design/0018 stage 6).
 
 Tests: `uv run pytest jobs/trainer` (and the golden runs, `uv run pytest jobs/tests/test_golden.py`).

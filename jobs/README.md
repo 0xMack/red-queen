@@ -13,9 +13,10 @@ themselves — see docs/design/0001) get wired to it for a real run.
 - **`trainer/` — the trainer workload** (`trainer` package): one `TrainSpec` in, one recorded run out.
   `uv run python -m trainer trainer/specs/<algorithm>.yaml [--set key=value ...]` (paths from `jobs/`), one example
   spec per algorithm at the original scripts' defaults. Built: `gp`, `neuroevolution` and `neat` (Snake and Checkers),
-  `distill`, `bandit_evolve`, `rl.<algorithm>`, `td_lambda`, `alphazero`, `pbt` -- they replaced `baseline_gp_run.py`,
+  `distill`, `bandit_evolve`, `rl.<algorithm>`, `td_lambda`, `alphazero`, `pbt`, `tinylm` -- they replaced `baseline_gp_run.py`,
   `snake_neuro_run.py`, `snake_neat_run.py`, `checkers_neuro_run.py`, `checkers_neat_run.py`, `checkers_distill_run.py`,
-  `bandit_evolve_run.py`, `rl_run.py`, `checkers_selfplay_run.py` and `checkers_pbt_run.py`, reproducing each one's
+  `bandit_evolve_run.py`, `rl_run.py`, `checkers_selfplay_run.py`, `checkers_pbt_run.py` and `tinylm_run.py`,
+  reproducing each one's
   golden runs exactly. See `trainer/README.md` for what each algorithm does and records.
 - `snake_experiment.py` — a tracked *comparison*, each arm a partial `TrainSpec` run by the trainer: arms
   (`neuro-lexicase`, `neuro-tournament`, `neat`,
@@ -63,7 +64,7 @@ themselves — see docs/design/0001) get wired to it for a real run.
 - **Bandits** (docs/design/0011): `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`);
   the trainer's `bandit_evolve` evolves ε-greedy's settings as an ordinary run.
 - **Model packages and TinyLM** (docs/design/0004, 0009): `publish_models.py` exports leaderboard champions and TinyLM
-  checkpoints to the local model store and catalog, measuring each variant's agreement; `tinylm_run.py` trains TinyLM;
+  checkpoints to the local model store and catalog, measuring each variant's agreement; the trainer's `tinylm` trains TinyLM;
   `scale_test_package.py` publishes a large random-weight model to exercise the big-model path.
 - **Shared plumbing is the `jobcore` package (`jobs/core/`)**: `recorded_run()` (create the run, mark it `completed`,
   or `failed` if the job dies), the pause/resume control callback, `open_sink()` (where a job writes; local by

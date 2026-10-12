@@ -44,9 +44,7 @@ onMounted(() => {
 onUnmounted(() => metricsStream.stop())
 
 const meta = computed(() => (run.value ? describeRun(run.value) : null))
-const terms = computed(
-  () => meta.value?.terms ?? { unit: "generation", fitness: "fitness", diversity: "diversity", diversityTitle: "Population diversity", diversityNote: "", learner: "population" },
-)
+const terms = computed(() => meta.value?.terms ?? EVOLUTION_TERMS)
 useHead({ title: () => meta.value?.title ?? "Run" })
 
 const history = computed(() => metricsStream.history)
@@ -86,12 +84,20 @@ const monitorGames = computed(() => {
   const range = run.value?.config?.monitor_seeds
   return Array.isArray(range) && range.length === 2 ? Number(range[1]) - Number(range[0]) + 1 : "unseen"
 })
+const heldOutNote = computed(() =>
+  terms.value.heldOutNote
+    .replace("{n}", String(monitorGames.value))
+    .replace("{every}", String(run.value?.config?.held_out_every ?? "N"))
+    .replaceAll("{unit}", terms.value.unit)
+    .replaceAll("{fitness}", terms.value.fitness)
+    .replaceAll("{learner}", terms.value.learner),
+)
 const heldOutPeak = computed(() =>
   heldOut.value.reduce<(typeof heldOut.value)[number] | null>((b, h) => (!b || h.held_out_score! > b.held_out_score! ? h : b), null),
 )
 const heldOutSeries = computed(() => {
   const series = [
-    { key: "held", label: "game score, unseen games", color: palette.life400, values: heldOut.value.map((h) => h.held_out_score!), width: 2.5 },
+    { key: "held", label: terms.value.heldOutSeries, color: palette.life400, values: heldOut.value.map((h) => h.held_out_score!), width: 2.5 },
     { key: "fit", label: `best training ${terms.value.fitness}`, color: palette.queen400, values: heldOut.value.map((h) => h.best_fitness), width: 1.5, dashed: true },
   ]
   if (greedyMean.value !== null) {
@@ -227,18 +233,14 @@ async function copyId() {
             />
           </UiPanel>
 
-          <UiPanel v-if="heldOut.length" :title="`Training ${terms.fitness} vs. real game score`">
+          <UiPanel v-if="heldOut.length" :title="`Training ${terms.fitness} vs. ${terms.heldOut}`">
             <template v-if="heldOutPeak" #actions>
               <span class="text-xs text-fg-subtle">
                 latest <span class="num text-fg">{{ heldOut.at(-1)!.held_out_score!.toFixed(2) }}</span> · peak
                 <span class="num text-life-300">{{ heldOutPeak.held_out_score!.toFixed(2) }}</span> at {{ terms.unit }} {{ heldOutPeak.generation }}
               </span>
             </template>
-            <p class="text-xs leading-relaxed text-fg-subtle">
-              The champion's mean score on {{ monitorGames }} games it never trained on, checked every
-              {{ run?.config?.held_out_every ?? "N" }} {{ terms.unit }}s. If training {{ terms.fitness }} keeps rising while this
-              falls, the {{ terms.learner }} is memorizing its training games instead of learning the game.
-            </p>
+            <p class="text-xs leading-relaxed text-fg-subtle">{{ heldOutNote }}</p>
             <UiLegend class="mt-3" :series="heldOutSeries" />
             <LineChart :x-label="terms.unit" class="mt-2" :x="heldOut.map((h) => h.generation)" :series="heldOutSeries" :height="220" :format="(v: number) => v.toFixed(1)" />
           </UiPanel>

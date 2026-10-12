@@ -224,7 +224,8 @@ CASES: dict[str, Case] = {
             "monitor_games": 2,
         },
     ),
-    "tinylm": Case("tinylm_run", {"name": "golden"}, {"tinylm_run.STEPS": 3}),
+    # Recorded as a run since 0018 stage 3c; the digest is still the checkpoint, so it must match the script's exactly.
+    "tinylm": train("text", "tinylm", 0, budget={"steps": 3}, params={"checkpoint": "golden"}),
 }
 
 
@@ -329,8 +330,8 @@ def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str
         importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
     with tempfile.TemporaryDirectory() as scratch, _env("REDQUEEN_DATA_DIR", scratch), _patched(case.patches):
         result = runner(case) if runner else importlib.import_module(case.module).main(**case.kwargs)
-        if case.module == "tinylm_run":
-            return digest_tinylm(case.kwargs["name"])
+        if case.spec is not None and case.spec["algorithm"] == "tinylm":
+            return digest_tinylm(case.spec["params"]["checkpoint"])
         run_ids = result if isinstance(result, tuple) else (result,)
         names = {run_id: f"<run{i}>" for i, run_id in enumerate(run_ids)}
         return {"runs": [digest_run(run_id, names) for run_id in run_ids]}
