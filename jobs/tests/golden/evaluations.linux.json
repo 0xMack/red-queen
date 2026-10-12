@@ -3399,14 +3399,7 @@
        }
       ],
       "parity": {
-       "action_agreement": 1.0,
-       "decisions": 658,
-       "max_abs_error": 3.3306690738754696e-16,
-       "protocol": "snake.score.v2",
-       "reference": "evolve.neuro.WeightVector.forward (float64)",
-       "samples": 256,
-       "scores_match": true,
-       "tolerance": 1e-09
+       "decisions": 658
       },
       "requirements": {
        "backends": [
@@ -3451,14 +3444,7 @@
        }
       ],
       "parity": {
-       "action_agreement": 1.0,
-       "decisions": 658,
-       "max_abs_error": 1.4958555727417888e-07,
-       "protocol": "snake.score.v2",
-       "reference": "evolve.neuro.WeightVector.forward (float64)",
-       "samples": 256,
-       "scores_match": true,
-       "tolerance": 0.0001
+       "decisions": 658
       },
       "requirements": {
        "backends": [
@@ -3647,14 +3633,7 @@
        }
       ],
       "parity": {
-       "action_agreement": 1.0,
-       "decisions": 2048,
-       "max_abs_error": 1.0964273604585628e-06,
-       "protocol": "tinylm.held-out-top1.v1",
-       "reference": "tinylm.TinyLM (float64, autodiff)",
-       "samples": 7200,
-       "scores_match": null,
-       "tolerance": 0.001
+       "decisions": 2048
       },
       "requirements": {
        "backends": [
@@ -3789,14 +3768,7 @@
        }
       ],
       "parity": {
-       "action_agreement": 1.0,
-       "decisions": 2048,
-       "max_abs_error": 0.48797253283428643,
-       "protocol": "tinylm.held-out-top1.v1",
-       "reference": "tinylm.TinyLM (float64, autodiff)",
-       "samples": 7200,
-       "scores_match": null,
-       "tolerance": 5.0
+       "decisions": 2048
       },
       "requirements": {
        "backends": [

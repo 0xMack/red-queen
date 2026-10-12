@@ -5,7 +5,8 @@ Recorded from the original jobs/evaluate*.py, checkers_sprt.py, checkers_round_r
 they were ported to the evaluator and publisher workloads, which now reproduce them. A case builds the field (`FIELD`: small trainer runs, themselves pinned by golden_cases.py) in a fresh
 data directory, runs its job, and digests what it wrote: evaluation records without their clocks (created_at, hardware,
 latencies, measured seconds), a report as-is, a model store's catalog and manifests without content hashes (parity is
-measured by ONNX Runtime, whose kernels -- so rounding -- vary by CPU). Exact per OS, like golden_cases.py.
+measured by ONNX Runtime, whose kernels -- so rounding -- vary by CPU; so are the variants' measured parity numbers).
+Exact per OS, like golden_cases.py.
 
 Re-record (only for a deliberate behaviour change):
     uv run python jobs/tests/golden_eval.py --record [case ...]
@@ -101,12 +102,24 @@ def _store(game: str) -> Callable[[Any], Any]:
             entries.append(
                 {
                     "entry": _drop(entry.model_dump(mode="json"), {"package_id"}),
-                    "manifest": _drop(manifest, {"package_id", "sha256", "created_at", "blobs", "files", "uri"}),
+                    "manifest": _measured_parity_dropped(
+                        _drop(manifest, {"package_id", "sha256", "created_at", "blobs", "files", "uri"})
+                    ),
                 }
             )
         return sorted(entries, key=lambda e: e["entry"]["entrant_id"])
 
     return digest
+
+
+def _measured_parity_dropped(manifest: dict[str, Any]) -> dict[str, Any]:
+    """A variant's parity is *measured* by ONNX Runtime, whose kernels -- int8 especially -- depend on the CPU's
+    instruction set (an int8 TinyLM's max error was 0.03 on one CI runner, 0.49 on another): a clock, not a result.
+    Kept: how many decisions it was measured on."""
+    for variant in manifest.get("variants", []):
+        if "parity" in variant:
+            variant["parity"] = {"decisions": variant["parity"].get("decisions")}
+    return manifest
 
 
 def _drop(value: Any, keys: set[str]) -> Any:
