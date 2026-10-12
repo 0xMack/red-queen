@@ -1,6 +1,6 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1-6 built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
+Status: **Accepted; stages 1-6 and 7a built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
 3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
@@ -9,7 +9,8 @@ core) and stage 6b (experiments as specs: the report protocols, every historical
 checked against its recorded runs, per-arm seeds, report jobs) and stage 6c's pipelines (a `pipeline` job the
 scheduler advances a stage at a time; the recipe is `experiments/pipelines/checkers-recipe.yaml`) and schedules
 (`kind: schedule`, `/schedules`: an interval and/or "a matching run completed" -- no cron syntax yet, nothing has needed
-a wall-clock time). Stages 7-8 are not.
+a wall-clock time), and stage 7a: the `redqueen` CLI (`libs/cli`), every API-backed group. Stage 7b (`export`,
+`dev`, the docs' "run with" lines) and stage 8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -171,9 +172,12 @@ Routers become thin over `backend/services/` (runs, evaluations, jobs, experimen
 | schedules | `POST /schedules` (a ScheduleSpec), `GET /schedules`, `GET /schedules/{name}`, `DELETE /schedules/{name}` | CLI, MCP, scheduler |
 | specs | `GET /specs/schemas` | CLI help, MCP tool schemas |
 
-The CLI is an **HTTP client only** (`REDQUEEN_API_URL`, default `http://localhost:8000`). It reuses the same pydantic
-models (`telemetry`, `jobcore`) rather than generating a client: the 0005 reuse rule, with the OpenAPI snapshot test as
-the drift guard. Command groups follow the schema slices, and verbs wrap multi-call work:
+The CLI is an **HTTP client only** (`REDQUEEN_API_URL`, default `http://localhost:8000`). *As built (7a), it imports
+neither `telemetry` nor `jobcore`*: it sends specs as plain YAML/JSON and prints the API's JSON, so the API is the one
+validator (a bad spec is a 422 with the reason) and the OpenAPI snapshot the one contract, and the CLI installs with
+three pure-Python dependencies (httpx2, PyYAML, Typer) -- nothing native, runnable anywhere the API is. Its import name
+is `redqueen_cli` (distribution `redqueen-cli`): `redqueen` is RedQueenCbind's C++ extension. Command groups follow the
+schema slices, and verbs wrap multi-call work:
 
 ```
 redqueen runs        list | show | history | tail | pause | resume | step | artifact | brain
@@ -287,7 +291,10 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    would re-resolve the environment each time. (b) *built* -- experiment reports as evaluator protocols; every
    experiment converted to YAML under its existing name, and the `*_experiment.py` scripts deleted. (c) *built* --
    pipelines (the recipe) and schedules.
-7. **`redqueen` CLI:** every group above, `export` and `dev` included. AGENTS.md, the READMEs and the design docs'
+7. **`redqueen` CLI:** (a) *built* -- `libs/cli`: every API-backed group (`runs`, `jobs`, `experiments`, `pipeline`,
+   `schedules`, `leaderboard`, `models`), the verbs `train`/`evaluate`/`h2h`/`publish`, `schemas`, `doctor`, `--json`,
+   `--wait` (a pipeline's stages followed in turn), the `rq` alias and its clash test; tested against the real API
+   through its TestClient. (b) `export` and `dev`. AGENTS.md, the READMEs and the design docs'
    "run with" lines rewritten to CLI commands. `jobs/README.md` becomes a workload index.
 8. **MCP:** `redqueen mcp serve`.
 

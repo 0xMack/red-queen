@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "redqueen-cli"
+version = "0.1.0"
+description = "The `redqueen` CLI: an HTTP client of the backend's API, a command group per schema slice (docs/design/0018)."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+# Deliberately light: no jobcore, no games, nothing native. The API validates every spec (422), and its OpenAPI
+# snapshot is the contract -- so the CLI runs anywhere the API is reachable.
+dependencies = [
+    "httpx2>=2.13",
+    "pyyaml>=6",
+    "typer>=0.12",
+]
+
+[project.scripts]
+redqueen = "redqueen_cli.main:run"
+# The import name is redqueen_cli: `redqueen` is RedQueenCbind's C++ extension module.
+# A convenience alias nothing depends on (docs/design/0018, decision 8): docs, CI and scripts call `redqueen`.
+rq = "redqueen_cli.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/redqueen_cli"]
+
+[tool.ruff]
+# One config for the whole repo (line length, rules, excludes) -- ruff uses the nearest pyproject.toml
+# and does not inherit, so without this the root settings never reached this package.
+extend = "../../pyproject.toml"

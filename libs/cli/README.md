@@ -1,0 +1,48 @@
+# redqueen-cli
+
+The `redqueen` command (docs/design/0018, decisions 1, 5 and 8): the backend's API from the command line. An HTTP
+client only, with no jobcore, no games and nothing native. The API validates every spec and refuses one that can't run
+(422, with the reason), so the CLI runs anywhere the API is reachable. Its import name is `redqueen_cli`, because
+`redqueen` is RedQueenCbind's C++ extension.
+
+```bash
+uv run redqueen --help
+uv run redqueen runs list --game checkers
+uv run redqueen train td_lambda --game checkers --budget iterations=200 -p agent.hidden=64 --wait
+uv run redqueen evaluate checkers --wait                     # re-rank the leaderboard
+uv run redqueen h2h material-4 3a9f1c                        # an SPRT, run-id prefixes resolve
+uv run redqueen experiments submit experiments/selfplay-v8.yaml
+uv run redqueen experiments status selfplay-v8
+uv run redqueen pipeline submit experiments/pipelines/checkers-recipe.yaml --wait
+uv run redqueen schedules submit experiments/schedules/checkers-rerank.yaml
+uv run redqueen jobs logs 1f2e -f
+uv run redqueen doctor
+```
+
+The groups follow the API's schema slices:
+
+| Group | Commands | API |
+|---|---|---|
+| `runs` | `list`, `show`, `history`, `tail`, `pause`, `resume`, `step`, `artifact`, `brain` | `/runs` |
+| `jobs` | `submit`, `list`, `show`, `logs [-f]`, `cancel` | `/jobs` |
+| `experiments` | `submit`, `list`, `status`, `report [--h2h] [--full]` | `/experiments` |
+| `pipeline` | `submit [--wait]` | `/jobs` (kind `pipeline`) |
+| `schedules` | `submit`, `list`, `show`, `delete` | `/schedules` |
+| `leaderboard` | `show GAME [--protocol]`, `interfaces GAME` | `/games/{game}/leaderboard` |
+| `models` | `catalog GAME`, `package RUN REF` | `/games/{game}/models`, `/runs/.../package` |
+
+The verbs `train`, `evaluate`, `h2h` and `publish` build one spec from options and submit it. `schemas` lists what the
+API accepts, and `doctor` checks the setup.
+
+Every command takes `--json`, which prints the API's JSON unchanged in stable shapes, for scripts and the coming MCP
+server. Every command that starts work takes `--wait`: it follows the job's log (a pipeline's, stage by stage) until
+the job ends, and exits 1 unless it succeeded. `--api URL` (or `REDQUEEN_API_URL`) selects the API; the default is
+`http://localhost:8000`. Nothing runs without the scheduler (`uv run python -m scheduler`). The API only records what
+is asked for.
+
+**`rq`** is installed as an alias, but nothing depends on it. RQ (Redis Queue) also installs an `rq`, and outside the
+venv, PATH order picks the winner silently. Docs, CI and scripts always call `redqueen`. `redqueen doctor` reports what
+`rq` resolves to, and `tests/test_entry_points.py` fails if any workspace dependency ships an `rq` script of its own.
+
+Tests (`uv run pytest libs/cli`) drive the real backend through its `TestClient`, so every command is exercised
+against the actual API.
