@@ -63,7 +63,9 @@ autodiff engine rather than under hand-coded transformer backward passes.
   first version is running and its speed is known — same "decide specifics when reached" approach
   every other phase used.
 - **Not wired into `evolve` or `telemetry` yet** — per doc 0003, phase 6 is standalone; phase 7
-  (deferred, open-ended) decides how/whether it connects to the rest of the repo.
+  (deferred, open-ended) decides how/whether it connects to the rest of the repo. *Update (2026-10, docs/design/0018
+  stage 3c):* the telemetry half is decided -- training is the trainer's `tinylm`, recorded as an ordinary run
+  (`paradigm: supervised`) beside the checkpoint; `evolve` stays out of it.
 
 ## Decided: training corpus
 
