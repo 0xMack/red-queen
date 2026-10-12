@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import leaderboards, models, runs
+from backend.routers import jobs, leaderboards, models, runs
 
 app = FastAPI(title="red-queen backend", version="0.1.0")
 
@@ -20,6 +20,9 @@ app.include_router(leaderboards.router)
 app.include_router(models.router)
 app.include_router(models.catalog_router)
 app.include_router(models.export_router)
+app.include_router(jobs.router)
+app.include_router(jobs.experiments_router)
+app.include_router(jobs.specs_router)
 
 
 @app.get("/health")

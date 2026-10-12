@@ -177,6 +177,69 @@ class PublishSpec(BaseModel):
         return target, target.params.model_validate(self.params)
 
 
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """`override` on top of `base`, recursing into nested dicts (so an arm's `params.agent.hidden` changes one setting,
+    not the whole `agent`)."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+class ArmSpec(BaseModel):
+    """One arm: TrainSpec fields on top of the experiment's `defaults`, and what it is compared against."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    train: dict[str, Any] = Field(default_factory=dict, description="TrainSpec fields overriding the defaults.")
+    baseline: str | None = Field(None, description="The arm it differs from in one thing: `arm` or `experiment/arm`.")
+    init_from: str | None = Field(None, description="Continue `experiment/arm`'s run of the same seed.")
+
+
+class ExperimentSpec(BaseModel):
+    """A tracked comparison (docs/design/0018, decision 2): arms x seeds of training runs, each tagged with the
+    experiment and arm, then optionally a report. The scheduler fans it out into trainer jobs and resumes it: an arm x
+    seed already completed is never trained again."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["experiment"] = "experiment"
+    name: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    seeds: list[int] = Field(..., min_length=1)
+    defaults: dict[str, Any] = Field(default_factory=dict, description="TrainSpec fields every arm shares.")
+    arms: dict[str, ArmSpec] = Field(..., min_length=1)
+    report: dict[str, Any] | None = Field(None, description="An EvalSpec to run once every arm x seed is done.")
+
+    def expand(self) -> list[tuple[str, int, TrainSpec]]:
+        """Every (arm, seed, TrainSpec) the experiment trains, in seed-major order (a partial experiment is then a
+        complete one with fewer seeds)."""
+        out = []
+        for seed in self.seeds:
+            for name, arm in self.arms.items():
+                data = deep_merge(self.defaults, arm.train)
+                data = deep_merge(data, {"seed": seed, "tags": {"experiment": self.name, "arm": name}})
+                if arm.init_from:
+                    experiment, _, parent = arm.init_from.rpartition("/")
+                    data["init_from"] = {"experiment": experiment or self.name, "arm": parent, "seed": seed}
+                out.append((name, seed, TrainSpec.model_validate(data)))
+        return out
+
+    def resolve(self) -> tuple[ExperimentSpec, list[tuple[str, int, TrainSpec]]]:
+        """Checks every arm x seed resolves, every baseline names an arm, and the report resolves."""
+        expanded = self.expand()
+        for _arm, _seed, spec in expanded:
+            spec.resolve()
+        for name, arm in self.arms.items():
+            if arm.baseline and "/" not in arm.baseline and arm.baseline not in self.arms:
+                raise ValueError(f"arm {name}'s baseline {arm.baseline!r} isn't an arm of {self.name}")
+        if self.report is not None:
+            EvalSpec.model_validate(self.report).resolve()
+        return self, expanded
+
+
 @dataclass(frozen=True)
 class Protocol:
     name: str
@@ -221,8 +284,13 @@ def register_publish_target(target: PublishTarget) -> PublishTarget:
     return _register(_TARGETS, "publish target", target)
 
 
-Spec = TrainSpec | EvalSpec | PublishSpec
-_KINDS: dict[str, type[BaseModel]] = {"train": TrainSpec, "evaluate": EvalSpec, "publish": PublishSpec}
+Spec = TrainSpec | EvalSpec | PublishSpec | ExperimentSpec
+_KINDS: dict[str, type[BaseModel]] = {
+    "train": TrainSpec,
+    "evaluate": EvalSpec,
+    "publish": PublishSpec,
+    "experiment": ExperimentSpec,
+}
 
 
 def parse_spec(data: dict[str, Any]) -> Spec:

@@ -18,6 +18,7 @@ dependencies = [
     "games",
     "evolve",
     "modelpack",
+    "jobcore",
 ]
 
 
@@ -26,6 +27,7 @@ telemetry = { workspace = true }
 games = { workspace = true }
 evolve = { workspace = true }
 modelpack = { workspace = true }
+jobcore = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/backend"]

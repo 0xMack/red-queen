@@ -48,6 +48,19 @@ for the full contract and the incremental plan this implements.
   (`{protocol, keep}` → the entrant ids removed).
 - `routers/models.py` — the local model store's blobs, manifests and per-game catalogs, and on-demand packaging of an
   unpublished champion (docs/design/0009).
+- `routers/jobs.py` + `services/` — jobs, experiments and spec schemas (docs/design/0018); the API records, the
+  scheduler runs:
+  - `POST /jobs` — a train/evaluate/publish spec (`kind` defaults to `train`) → 201 `Job` (`queued`); 422 with the
+    reason if it doesn't validate *and resolve*, so the scheduler is never handed something that can't run.
+  - `GET /jobs?status=&kind=&parent=`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` (queued: cancelled at once;
+    running: `cancel_requested`, for the scheduler to stop the worker).
+  - `GET /jobs/{id}/logs?offset=N` — `{offset, text, finished}`: the worker's log from byte N, and where to ask
+    next. A client follows a running job by polling it.
+  - `POST /experiments` — an `ExperimentSpec` (stored; resubmitting resumes) → its status. `GET /experiments`,
+    `GET /experiments/{name}` — the arm × seed matrix: `completed` (a completed run tagged with the experiment, arm
+    and seed, however it was trained), a job's status, or `pending`; `done`/`total`, baselines, whether a report
+    exists. `GET /experiments/{name}/report` — `<data dir>/experiments/<name>.json`.
+  - `GET /specs/schemas` — JSON Schema of every payload kind and of each algorithm's, protocol's and target's params.
 - `dependencies.py` — FastAPI providers. Telemetry-backed ones use the **Protocols**
   (`RunRegistry`/`MetricsSource`/`ArtifactStore`), backed by the `Sqlite*`/`File*` implementations
   opened once by `telemetry.open_stores()`, so a storage backend swap never touches router code.

@@ -103,7 +103,12 @@ architectural change that might conflict with a decision already made.
     is implemented entirely API-side instead of as a third status value. `routers/models.py` serves
     the local model store in development (immutable blobs/manifests, `GET /games/{game}/models`
     catalogs with a `base_url` that `REDQUEEN_MODELS_BASE_URL` repoints at a CDN) and the on-demand
-    export of unpublished champions.
+    export of unpublished champions. `routers/jobs.py` (over `services/`, docs/design/0018) is what the CLI and MCP
+    drive: `POST /jobs` records a validated train/evaluate/publish spec as `queued` (the scheduler, not the API, runs
+    it), `GET /jobs[/{id}[/logs?offset=]]`, `POST /jobs/{id}/cancel`; `POST /experiments` stores an `ExperimentSpec`
+    and `GET /experiments/{name}` is its arm × seed matrix, derived from tagged runs and jobs (so experiments run
+    before the API count); `GET /specs/schemas` is every payload's JSON Schema. The write endpoints (`POST /runs`,
+    `PATCH /runs/{id}`, metrics, artifacts, evaluations) are the HTTP sink's.
 - `libs/` — shared libraries
   - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
@@ -182,7 +187,9 @@ architectural change that might conflict with a decision already made.
   - `telemetry/` — run registry, metrics stream, artifact store (`Protocol`-based, swappable
     backends — see docs/design/0002), plus `EvaluationStore` (`evaluations.db`): leaderboard
     results per (protocol, entrant), docs/design/0007. `telemetry.data_dir()` / `open_stores()` are the one
-    definition of where local data lives and how it's opened (docs/design/0018).
+    definition of where local data lives and how it's opened (docs/design/0018). `JobStore` (`jobs.db`,
+    `open_job_store()`) holds jobs (`queued` → `running` → `succeeded`/`failed`/`cancelled`; `claim_next()` is the
+    scheduler's atomic claim) and submitted experiment specs -- the API's and the scheduler's, never a workload's.
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
     `arena.bandit`), training-seed strategies (`arena.seeding`), two-player strength statistics
