@@ -16,6 +16,7 @@ from pathlib import Path
 
 from telemetry.artifacts import ArtifactStore, FileArtifactStore
 from telemetry.evaluations import EvaluationStore, SqliteEvaluationStore
+from telemetry.jobs import SqliteJobStore
 from telemetry.metrics import FileMetricsStore, MetricsStore
 from telemetry.registry import RunRegistry, SqliteRunRegistry
 
@@ -69,3 +70,9 @@ def open_stores(root: Path | None = None) -> Stores:
         artifacts=FileArtifactStore(root / "artifacts"),
         evaluations=SqliteEvaluationStore(root / "evaluations.db"),
     )
+
+
+def open_job_store(root: Path | None = None) -> SqliteJobStore:
+    """Jobs and experiments (`jobs.db` under `root`, default `data_dir()`): the API's and the scheduler's, not a
+    workload's -- a worker writes runs and evaluations through its sink, never its own job row."""
+    return SqliteJobStore((data_dir() if root is None else root) / "jobs.db")

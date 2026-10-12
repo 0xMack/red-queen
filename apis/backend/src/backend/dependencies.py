@@ -13,11 +13,13 @@ from modelpack import LocalModelStore
 from telemetry import (
     ArtifactStore,
     EvaluationStore,
+    JobStore,
     MetricsSource,
     MetricsStore,
     RunRegistry,
     Stores,
     models_dir,
+    open_job_store,
     open_stores,
 )
 
@@ -45,6 +47,11 @@ def _evaluation_store() -> EvaluationStore:
 
 
 @lru_cache
+def _job_store() -> JobStore:
+    return open_job_store()
+
+
+@lru_cache
 def _model_store() -> LocalModelStore:
     return LocalModelStore(models_dir())
 
@@ -54,6 +61,7 @@ MetricsSourceDep = Annotated[MetricsSource, Depends(_metrics_source)]
 MetricsStoreDep = Annotated[MetricsStore, Depends(_metrics_source)]  # the write side (POST /runs/{id}/metrics)
 ArtifactStoreDep = Annotated[ArtifactStore, Depends(_artifact_store)]
 EvaluationStoreDep = Annotated[EvaluationStore, Depends(_evaluation_store)]
+JobStoreDep = Annotated[JobStore, Depends(_job_store)]
 # The concrete local store, not the `ModelStore` protocol: serving its files from disk is exactly what
 # a remote store (R2, the HF Hub) would *not* need this backend for -- see routers/models.py.
 LocalModelStoreDep = Annotated[LocalModelStore, Depends(_model_store)]
