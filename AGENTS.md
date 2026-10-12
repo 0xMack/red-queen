@@ -190,6 +190,11 @@ architectural change that might conflict with a decision already made.
     definition of where local data lives and how it's opened (docs/design/0018). `JobStore` (`jobs.db`,
     `open_job_store()`) holds jobs (`queued` → `running` → `succeeded`/`failed`/`cancelled`; `claim_next()` is the
     scheduler's atomic claim) and submitted experiment specs -- the API's and the scheduler's, never a workload's.
+  - `cli/` — the `redqueen` command (alias `rq`, which nothing may depend on; import name `redqueen_cli`, since
+    `redqueen` is RedQueenCbind's extension), docs/design/0018: an HTTP client of the API only (httpx2, PyYAML, Typer
+    -- no jobcore, nothing native), a group per schema slice (`runs`, `jobs`, `experiments`, `pipeline`, `schedules`,
+    `leaderboard`, `models`) plus `train`/`evaluate`/`h2h`/`publish`/`schemas`/`doctor`; `--json` everywhere, `--wait`
+    on anything that starts work. Nothing runs unless the scheduler is up (`uv run python -m scheduler`).
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
     `arena.bandit`), training-seed strategies (`arena.seeding`), two-player strength statistics
