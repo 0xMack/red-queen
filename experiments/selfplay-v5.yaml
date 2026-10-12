@@ -1,0 +1,63 @@
+# selfplay-v5: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: selfplay-v5
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 64
+      hidden_layers: 2
+arms:
+  s-td:
+    train:
+      budget:
+        iterations: 200
+      held_out_every: 20
+  s-leaf2:
+    train:
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        agent:
+          search_depth: 2
+    baseline: s-td
+  s-leaf2-80k:
+    train:
+      budget:
+        iterations: 80
+      held_out_every: 8
+      params:
+        agent:
+          search_depth: 2
+    baseline: s-td-ft2
+  s-leaf2-40k:
+    train:
+      budget:
+        iterations: 40
+      held_out_every: 4
+      params:
+        agent:
+          search_depth: 2
+    baseline: s-td
+  s-td-ft2:
+    train:
+      budget:
+        iterations: 40
+      held_out_every: 4
+      params:
+        agent:
+          search_depth: 2
+    baseline: s-td
+    init_from: selfplay-v5/s-td
+report:
+  protocol: experiment.checkers-h2h
+  params:
+    full: true

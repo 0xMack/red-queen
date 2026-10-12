@@ -1,0 +1,42 @@
+# checkers-long-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: checkers-long-v1
+seeds: [41, 42]
+defaults:
+  game: checkers
+  algorithm: neuroevolution
+  held_out_every: 10
+  params:
+    population_size: 60
+    hidden: 16
+    hall: 6
+    seed_material: 0.5
+    resample: false
+    games_per_opponent: 1
+    sigma: 0.2
+    mutation_rate: 1.0
+arms:
+  long-d3:
+    train:
+      budget:
+        generations: 600
+      params:
+        opponents: [random, material-2, material-3]
+        depth: 3
+        margin: false
+  d4:
+    train:
+      budget:
+        generations: 300
+      params:
+        opponents: [random, material-3, material-4]
+        depth: 4
+        margin: false
+  d4-margin:
+    train:
+      budget:
+        generations: 300
+      params:
+        opponents: [random, material-3, material-4]
+        depth: 4
+        margin: true

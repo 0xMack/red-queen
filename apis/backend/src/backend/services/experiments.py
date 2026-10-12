@@ -39,7 +39,8 @@ def status(experiment: Experiment, store: JobStore, registry: RunRegistry) -> di
         jobs[(tags.get("arm"), job.spec.get("seed"))] = job
     cells: dict[str, dict[str, dict[str, Any]]] = {}
     done = 0
-    for arm, seed, _train in spec.expand():
+    expanded = spec.expand()
+    for arm, seed, _train in expanded:
         run, job = runs.get((arm, seed)), jobs.get((arm, seed))
         if run is not None:
             cell = {"status": "completed", "run_id": run.run_id}
@@ -56,7 +57,7 @@ def status(experiment: Experiment, store: JobStore, registry: RunRegistry) -> di
         "arms": cells,
         "baselines": {name: arm.baseline for name, arm in spec.arms.items() if arm.baseline},
         "done": done,
-        "total": len(spec.seeds) * len(spec.arms),
+        "total": len(expanded),
         "report": (data_dir() / "experiments" / f"{spec.name}.json").exists(),
     }
 

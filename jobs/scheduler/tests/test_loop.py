@@ -117,3 +117,31 @@ def test_recover_fails_running_jobs_whose_worker_is_gone(world):
     jobs.update(job.job_id, pid=2**22 + 12345)  # no such process
     assert scheduler.recover() == [job.job_id]
     assert jobs.get(job.job_id).status == "failed" and "gone" in jobs.get(job.job_id).error
+
+
+def test_an_arm_can_run_its_own_seeds(world):
+    scheduler, jobs, _, _ = world
+    jobs.put_experiment("probe", {**EXPERIMENT, "arms": {"base": {}, "more": {"seeds": [0, 1, 2]}}})
+    submitted = scheduler.fan_out_experiments()
+    assert sorted((j.spec["tags"]["arm"], j.spec["seed"]) for j in submitted) == [
+        ("base", 0),
+        ("base", 1),
+        ("more", 0),
+        ("more", 1),
+        ("more", 2),
+    ]
+
+
+def test_the_report_runs_once_every_cell_is_done_and_again_after_a_resubmission(world):
+    scheduler, jobs, registry, _ = world
+    spec = {**EXPERIMENT, "seeds": [0], "arms": {"base": {}}, "report": {"protocol": "experiment.snake-report"}}
+    jobs.put_experiment("probe", spec)
+    scheduler.fan_out_experiments()
+    _complete(registry, "base", 0)
+    (report,) = scheduler.fan_out_experiments()
+    assert report.kind == "evaluate" and report.parent == "probe"
+    assert report.spec["protocol"] == "experiment.snake-report" and report.spec["params"] == {"experiment": "probe"}
+    assert scheduler.fan_out_experiments() == []  # once
+    jobs.put_experiment("probe", spec)
+    (again,) = scheduler.fan_out_experiments()
+    assert again.kind == "evaluate" and again.job_id != report.job_id

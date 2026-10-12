@@ -1,0 +1,23 @@
+# snake-ego-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: snake-ego-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: snake
+  algorithm: neat
+  budget:
+    generations: 600
+  held_out_every: 10
+  params:
+    population_size: 300
+    max_steps: 1000
+    seeds: resample:10
+arms:
+  neat-max-ego:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+  neat-max-ego2:
+    train:
+      interface: snake/egocentric.v2+relative3.v1
+report:
+  protocol: experiment.snake-report

@@ -1,0 +1,77 @@
+# selfplay-v2: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: selfplay-v2
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+arms:
+  sp-pool:
+    train:
+      budget:
+        iterations: 200
+      held_out_every: 20
+  pool-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+    baseline: sp-pool
+  pool-h64:
+    train:
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        agent:
+          hidden: 64
+    baseline: sp-pool
+  pool-h64-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 64
+    baseline: pool-1m
+  pool-2x64-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 64
+          hidden_layers: 2
+    baseline: pool-h64-1m
+  pool-2x32-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 32
+          hidden_layers: 2
+    baseline: pool-h64-1m
+  pool-h192-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 192
+    baseline: pool-2x64-1m
+report:
+  protocol: experiment.checkers-field
+  params:
+    games: 60

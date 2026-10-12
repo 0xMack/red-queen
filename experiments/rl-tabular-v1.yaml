@@ -1,0 +1,153 @@
+# rl-tabular-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: rl-tabular-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: snake
+  interface: snake/features.v1+relative3.v1
+  params:
+    steps_per_iteration: 50000
+arms:
+  q-learning:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent: {}
+  sarsa:
+    train:
+      algorithm: rl.sarsa
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent: {}
+    baseline: q-learning
+  q-eps-fast:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          epsilon_decay_steps: 20000
+    baseline: q-learning
+  q-eps-slow:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          epsilon_decay_steps: 500000
+    baseline: q-learning
+  q-gamma-0.9:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          gamma: 0.9
+    baseline: q-learning
+  q-gamma-0.99:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          gamma: 0.99
+    baseline: q-learning
+  q-alpha-0.3:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          alpha: 0.3
+    baseline: q-learning
+  q-optimistic:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          initial_q: 2.0
+          epsilon_start: 0.02
+          epsilon_end: 0.02
+    baseline: q-learning
+  q-n3:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          n_step: 3
+    baseline: q-learning
+  sarsa-n3:
+    train:
+      algorithm: rl.sarsa
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: shaped
+        snapshot_every: 20
+        agent:
+          n_step: 3
+    baseline: q-learning
+  q-sparse:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        reward: sparse
+        snapshot_every: 20
+        agent: {}
+    baseline: q-learning
+  q-long:
+    train:
+      algorithm: rl.q_learning
+      budget:
+        iterations: 100
+      held_out_every: 10
+      params:
+        reward: shaped
+        snapshot_every: 100
+        agent: {}
+    baseline: q-learning
+report:
+  protocol: experiment.rl-report

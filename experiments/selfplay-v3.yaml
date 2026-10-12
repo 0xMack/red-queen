@@ -1,0 +1,40 @@
+# selfplay-v3: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: selfplay-v3
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  budget:
+    iterations: 50
+  held_out_every: 5
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 64
+      hidden_layers: 2
+arms:
+  ft-td:
+    init_from: selfplay-v2/pool-2x64-1m
+  ft-leaf2:
+    train:
+      params:
+        agent:
+          search_depth: 2
+    baseline: ft-td
+    init_from: selfplay-v2/pool-2x64-1m
+  ft-leaf3:
+    train:
+      params:
+        agent:
+          search_depth: 3
+    baseline: ft-td
+    init_from: selfplay-v2/pool-2x64-1m
+report:
+  protocol: experiment.checkers-h2h
+  params:
+    full: true

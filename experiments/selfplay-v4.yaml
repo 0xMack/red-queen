@@ -1,0 +1,131 @@
+# selfplay-v4: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: selfplay-v4
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  params:
+    depth: 3
+arms:
+  g-pool:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          pool_every: 5000
+          pool_size: 10
+          pool_fraction: 0.5
+          hidden: 64
+          hidden_layers: 2
+  g-sp:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          hidden: 64
+          hidden_layers: 2
+    baseline: g-pool
+  g-league:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          pool_every: 5000
+          pool_size: 40
+          pool_fraction: 0.5
+          hidden: 64
+          hidden_layers: 2
+    baseline: g-pool
+  g-pfsp:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          pool_every: 5000
+          pool_size: 10
+          pool_fraction: 0.5
+          hidden: 64
+          hidden_layers: 2
+          pfsp: 2
+    baseline: g-pool
+  g-league-pfsp:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          pool_every: 5000
+          pool_size: 40
+          pool_fraction: 0.5
+          hidden: 64
+          hidden_layers: 2
+          pfsp: 2
+    baseline: g-league
+  g-pool-80:
+    train:
+      algorithm: td_lambda
+      budget:
+        iterations: 200
+      held_out_every: 20
+      params:
+        games_per_iteration: 1000
+        agent:
+          pool_every: 5000
+          pool_size: 10
+          pool_fraction: 0.8
+          hidden: 64
+          hidden_layers: 2
+    baseline: g-pool
+  g-rs:
+    train:
+      algorithm: pbt
+      budget:
+        games: 200000
+      params:
+        members: 8
+        interval: 10000
+        exploit: false
+        base:
+          hidden: 64
+          hidden_layers: 2
+          pool_every: 5000
+          pool_size: 10
+    baseline: g-pool
+  g-pbt:
+    train:
+      algorithm: pbt
+      budget:
+        games: 200000
+      params:
+        members: 8
+        interval: 10000
+        exploit: true
+        base:
+          hidden: 64
+          hidden_layers: 2
+          pool_every: 5000
+          pool_size: 10
+    baseline: g-rs
+report:
+  protocol: experiment.checkers-h2h
+  params:
+    full: true

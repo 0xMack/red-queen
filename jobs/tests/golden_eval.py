@@ -170,95 +170,92 @@ EVAL_CASES: dict[str, EvalCase] = {
     ),
     "publish.tinylm": EvalCase(_publish("tinylm"), _store("tinylm")),
 }
-# --- Experiment reports: a tiny experiment trained and reported by the original scripts (stage 6b) --------------
-GOLDEN_SEEDS = [0, 1]
+# --- Experiment reports: a tiny experiment, trained and reported (stage 6b) -------------------------------------
+# Recorded from snake_experiment.py, rl_experiment.py and checkers_selfplay_experiment.py with these arms patched in;
+# now each is an ExperimentSpec, stored, its expansion trained in the scripts' order, and its report protocol run.
+GOLDEN_EXPERIMENTS: dict[str, dict[str, Any]] = {
+    "snake": {
+        "name": "golden-snake",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "snake",
+            "interface": "snake/features.v1+relative3.v1",
+            "budget": {"generations": 3},
+            "held_out_every": 10,
+            "params": {"seeds": "resample:5"},
+        },
+        "arms": {
+            "neuro": {"train": {"algorithm": "neuroevolution", "params": {"population_size": 8}}},
+            "neat": {"train": {"algorithm": "neat", "params": {"population_size": 12}}},
+        },
+    },
+    "rl": {
+        "name": "golden-rl",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "snake",
+            "interface": "snake/features.v1+relative3.v1",
+            "budget": {"iterations": 2},
+            "held_out_every": 1,
+            "params": {"steps_per_iteration": 5_000, "reward": "shaped", "snapshot_every": 2},
+        },
+        "arms": {
+            "q": {"train": {"algorithm": "rl.q_learning", "params": {"agent": {"epsilon_decay_steps": 5_000}}}},
+            "sarsa": {
+                "train": {"algorithm": "rl.sarsa", "params": {"agent": {"epsilon_decay_steps": 5_000}}},
+                "baseline": "q",
+            },
+        },
+    },
+    "selfplay": {
+        "name": "golden-selfplay",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "checkers",
+            "algorithm": "td_lambda",
+            "budget": {"iterations": 2},
+            "held_out_every": 1,
+            "params": {"games_per_iteration": 10, "depth": 1},
+        },
+        "arms": {
+            "a": {"train": {"params": {"agent": {"hidden": 8}}}},
+            "b": {"train": {"params": {"agent": {"hidden": 8, "lambda": 0.0}}}, "baseline": "a"},
+        },
+    },
+}
 
 
-def _old_snake_experiment() -> Any:
-    import snake_experiment as se
-
-    se.run_experiment("golden-snake", ["neuro", "neat"], GOLDEN_SEEDS, 3)
-    return se.build_report("golden-snake")
-
-
-def _old_rl_experiment() -> Any:
-    import rl_experiment as rx
-
-    rx.run_experiment("golden-rl", ["q", "sarsa"], GOLDEN_SEEDS)
-    return rx.build_report("golden-rl")
-
-
-def _old_selfplay_experiment(report: str) -> Callable[[], Any]:
+def _experiment(family: str, protocol: str, **params: Any) -> Callable[[], Any]:
     def run() -> Any:
-        import checkers_selfplay_experiment as cx
+        from evaluator import evaluate
+        from jobcore.specs import ExperimentSpec
+        from telemetry import open_job_store
+        from trainer import train
 
-        cx.run_experiment("golden-selfplay", ["a", "b"], GOLDEN_SEEDS)
-        return cx.build_report("golden-selfplay", games=2) if report == "field" else cx.build_h2h("golden-selfplay")
+        spec = ExperimentSpec.model_validate(GOLDEN_EXPERIMENTS[family])
+        open_job_store().put_experiment(spec.name, spec.model_dump(mode="json"))
+        for _arm, _seed, train_spec in spec.expand():
+            train(train_spec)
+        return evaluate({"protocol": protocol, "params": {"experiment": spec.name, **params}})
 
     return run
 
 
-def _small_arms() -> dict[str, Any]:
-    """The tiny arms each old script ran (patched in as its ARMS), built lazily: they need the scripts imported."""
-    import checkers_selfplay_experiment as cx
-    import rl_experiment as rx
-    import snake_experiment as se
-
-    return {
-        "snake": {"neuro": se._arm("neuroevolution", population_size=8), "neat": se._arm("neat", population_size=12)},
-        "rl": {
-            "q": rx.Arm("q_learning", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline=None),
-            "sarsa": rx.Arm("sarsa", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline="q"),
-        },
-        "selfplay": {
-            "a": cx.Arm({"hidden": 8}, games=20, baseline=None),
-            "b": cx.Arm({"hidden": 8, "lambda": 0.0}, games=20, baseline="a"),
-        },
-    }
-
-
-class _LazyPatches(dict):
-    """Patches whose values are only built when applied (importing the experiment scripts at module load would make
-    every golden test import them)."""
-
-    def __init__(self, build: Callable[[], dict[str, Any]]):
-        super().__init__()
-        self._build = build
-
-    def items(self):
-        return self._build().items()
-
-
-def _experiment_patches(family: str) -> _LazyPatches:
-    def build() -> dict[str, Any]:
-        arms = _small_arms()[family]
-        common = {"arena.snake.HELD_OUT_SEEDS": SNAKE_20}
-        return {
-            "snake": {**common, "snake_experiment.ARMS": arms},
-            "rl": {
-                **common,
-                "rl_experiment.ARMS": arms,
-                "rl_experiment.STEPS_PER_ITERATION": 5_000,
-                "trainer.algorithms.reinforcement.MONITOR_SEEDS": (20_000, 20_001),
-            },
-            "selfplay": {
-                "checkers_selfplay_experiment.ARMS": arms,
-                "checkers_selfplay_experiment.GAMES_PER_ITERATION": 10,
-                "checkers_selfplay_experiment.DEPTH": 1,
-            },
-        }[family]
-
-    return _LazyPatches(build)
-
-
+EXPERIMENT_PATCHES = {"arena.snake.HELD_OUT_SEEDS": SNAKE_20}
 EVAL_CASES.update(
     {
-        "experiment.snake-report": EvalCase(_old_snake_experiment, _report, _experiment_patches("snake")),
-        "experiment.rl-report": EvalCase(_old_rl_experiment, _report, _experiment_patches("rl")),
-        "experiment.checkers-field": EvalCase(
-            _old_selfplay_experiment("field"), _report, _experiment_patches("selfplay")
+        "experiment.snake-report": EvalCase(
+            _experiment("snake", "experiment.snake-report"), _report, EXPERIMENT_PATCHES
         ),
-        "experiment.checkers-h2h": EvalCase(_old_selfplay_experiment("h2h"), _report, _experiment_patches("selfplay")),
+        "experiment.rl-report": EvalCase(
+            _experiment("rl", "experiment.rl-report"),
+            _report,
+            {**EXPERIMENT_PATCHES, "trainer.algorithms.reinforcement.MONITOR_SEEDS": (20_000, 20_001)},
+        ),
+        "experiment.checkers-field": EvalCase(
+            _experiment("selfplay", "experiment.checkers-field", games=2, depth=1), _report
+        ),
+        "experiment.checkers-h2h": EvalCase(_experiment("selfplay", "experiment.checkers-h2h", depth=1), _report),
     }
 )
 

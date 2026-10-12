@@ -1,0 +1,25 @@
+# checkers-open-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: checkers-open-v1
+seeds: [61, 62]
+defaults:
+  game: checkers
+  algorithm: neuroevolution
+  budget:
+    generations: 300
+  held_out_every: 10
+  params:
+    population_size: 60
+    hidden: 16
+    opponents: [random, material-2, material-3]
+    depth: 3
+    hall: 6
+    seed_material: 0.5
+    margin: true
+    resample: true
+    games_per_opponent: 3
+    sigma: 0.1
+    mutation_rate: 0.05
+    opening_plies: 6
+arms:
+  open-d3: {}
