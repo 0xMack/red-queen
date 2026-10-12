@@ -1,0 +1,11 @@
+# Re-rank the Checkers leaderboard (a round robin; its Elo ratings are relative to the field, so they're stale the
+# moment an entrant joins) after every new Checkers run -- and nightly, in case a run was entered some other way.
+#
+#   uv run python -m scheduler --submit experiments/schedules/checkers-rerank.yaml
+kind: schedule
+name: checkers-rerank
+every: 1d
+on_run_completed: {game: checkers}
+submit:
+  kind: evaluate
+  protocol: checkers.versus.v2

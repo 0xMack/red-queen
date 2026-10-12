@@ -5,7 +5,8 @@ A job is one payload (a train, evaluate or publish spec, or a pipeline of them) 
 jobs; only the scheduler claims and runs them, and it alone moves one to `running` (atomically, so two schedulers
 can't both take it). A cancel on a queued job cancels it outright; on a running one it sets `cancel_requested` for
 the scheduler to act on. An experiment is a named spec whose fan-out is jobs with that `parent`; a pipeline is a job
-whose stages are jobs with its id as their `parent`, submitted one at a time (it has no worker of its own).
+whose stages are jobs with its id as their `parent`, submitted one at a time (it has no worker of its own). A
+schedule is a named spec the scheduler submits a job from when it falls due; its jobs' `parent` is `schedule:<name>`.
 
 Local-dev store: one SQLite file (`jobs.db`, beside `runs.db`), the same pattern as the run registry.
 """
@@ -50,6 +51,14 @@ class Experiment(BaseModel):
     updated_at: float = Field(..., description="Last (re)submission: a failed cell is retried once this is newer.")
 
 
+class Schedule(BaseModel):
+    name: str = Field(..., min_length=1)
+    spec: dict[str, Any]
+    created_at: float
+    updated_at: float = Field(..., description="Last (re)submission: runs completed since then can trigger it.")
+    fired_at: float | None = Field(None, description="When it last submitted a job.")
+
+
 class JobStore(Protocol):
     def submit(self, kind: JobKind, spec: dict[str, Any], parent: str | None = None) -> Job: ...
     def get(self, job_id: str) -> Job: ...
@@ -62,6 +71,11 @@ class JobStore(Protocol):
     def put_experiment(self, name: str, spec: dict[str, Any]) -> Experiment: ...
     def get_experiment(self, name: str) -> Experiment: ...
     def list_experiments(self) -> list[Experiment]: ...
+    def put_schedule(self, name: str, spec: dict[str, Any]) -> Schedule: ...
+    def get_schedule(self, name: str) -> Schedule: ...
+    def list_schedules(self) -> list[Schedule]: ...
+    def delete_schedule(self, name: str) -> None: ...
+    def mark_fired(self, name: str, at: float) -> Schedule: ...
 
 
 _SCHEMA = [
@@ -79,6 +93,13 @@ _SCHEMA = [
         spec TEXT NOT NULL,
         created_at REAL NOT NULL,
         updated_at REAL NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS schedules (
+        name TEXT PRIMARY KEY,
+        spec TEXT NOT NULL,
+        created_at REAL NOT NULL,
+        updated_at REAL NOT NULL,
+        fired_at REAL
     )""",
 ]
 UPDATABLE = frozenset(
@@ -228,6 +249,65 @@ class SqliteJobStore:
         finally:
             conn.close()
         return [_experiment(r) for r in rows]
+
+    def put_schedule(self, name: str, spec: dict[str, Any]) -> Schedule:
+        now = time.time()
+        conn = self._connect()
+        try:
+            existing = conn.execute("SELECT created_at, fired_at FROM schedules WHERE name = ?", (name,)).fetchone()
+            created_at = existing["created_at"] if existing is not None else now
+            fired_at = existing["fired_at"] if existing is not None else None  # a resubmission doesn't reset the clock
+            conn.execute(
+                "INSERT OR REPLACE INTO schedules (name, spec, created_at, updated_at, fired_at) VALUES (?, ?, ?, ?, ?)",
+                (name, json.dumps(spec), created_at, now, fired_at),
+            )
+        finally:
+            conn.close()
+        return Schedule(name=name, spec=spec, created_at=created_at, updated_at=now, fired_at=fired_at)
+
+    def get_schedule(self, name: str) -> Schedule:
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT * FROM schedules WHERE name = ?", (name,)).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            raise KeyError(f"no such schedule: {name}")
+        return _schedule(row)
+
+    def list_schedules(self) -> list[Schedule]:
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT * FROM schedules ORDER BY name").fetchall()
+        finally:
+            conn.close()
+        return [_schedule(r) for r in rows]
+
+    def delete_schedule(self, name: str) -> None:
+        conn = self._connect()
+        try:
+            if conn.execute("DELETE FROM schedules WHERE name = ?", (name,)).rowcount == 0:
+                raise KeyError(f"no such schedule: {name}")
+        finally:
+            conn.close()
+
+    def mark_fired(self, name: str, at: float) -> Schedule:
+        conn = self._connect()
+        try:
+            conn.execute("UPDATE schedules SET fired_at = ? WHERE name = ?", (at, name))
+        finally:
+            conn.close()
+        return self.get_schedule(name)
+
+
+def _schedule(row: sqlite3.Row) -> Schedule:
+    return Schedule(
+        name=row["name"],
+        spec=json.loads(row["spec"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        fired_at=row["fired_at"],
+    )
 
 
 def _experiment(row: sqlite3.Row) -> Experiment:

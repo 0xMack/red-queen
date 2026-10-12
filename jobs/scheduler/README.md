@@ -6,7 +6,7 @@ and the only thing that understands composite work.** The API records jobs and e
 ```bash
 uv run python -m scheduler --workers 2      # Ctrl-C stops it, and (cleanly) the workers it started
 uv run python -m scheduler --once           # one tick: recover, fan out, reap, claim -- for scripts and tests
-uv run python -m scheduler --submit experiments/selfplay-v8.yaml   # store (or resubmit) an experiment first
+uv run python -m scheduler --submit experiments/selfplay-v8.yaml   # store an experiment, schedule or job spec first
 ```
 
 **Experiments** are checked in as `experiments/<name>.yaml` (`kind: experiment`: `seeds`, `defaults` -- TrainSpec
@@ -30,7 +30,11 @@ Each tick (`scheduler.loop.Scheduler.tick`):
    pipeline's job id) once the last succeeded, a train stage's `init_from: {stage: NAME}` filled in with that stage's
    run. The pipeline fails with the first stage that fails, succeeds with every stage's result
    (`{"stages": {name: result}}`), and a cancel stops its running stage.
-4. **Claim** — queued jobs, oldest first (an atomic claim in the job store: two schedulers never share a job), up to
+4. **Schedules** — a stored schedule (`kind: schedule`: `every: 30m|6h|1d` and/or `on_run_completed: {game,
+   algorithm?}`, and the job to `submit`; e.g. `experiments/schedules/checkers-rerank.yaml`, POST /schedules) submits
+   its job (`parent` = `schedule:<name>`) once its interval has passed or a matching non-experiment run has completed
+   since it last fired (runs older than its submission never count) -- but never while its last job is in flight.
+5. **Claim** — queued jobs, oldest first (an atomic claim in the job store: two schedulers never share a job), up to
    `--workers` at a time.
 
 On start, `recover()` marks `running` jobs whose worker is gone `failed` — the crash rule `recorded_run()` has for
@@ -42,7 +46,6 @@ Stopping never relies on Ctrl-C, which a console-less child often never receives
 elsewhere — turned into KeyboardInterrupt by the workload (`jobcore.cli`), so its run is marked `failed` — then a kill
 after `grace` seconds. A Kubernetes runner would implement the same `start`/`poll`/`stop`.
 
-Not yet: schedules.
 
 Tests: `uv run pytest jobs/scheduler` — the decisions with a fake runner, and real worker processes (a job run end to
 end; a cancel that stops the worker cleanly, its run marked `failed`).

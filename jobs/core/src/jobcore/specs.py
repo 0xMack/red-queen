@@ -13,6 +13,7 @@ Pure pydantic: the backend and the CLI import this to validate a spec without im
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -306,6 +307,56 @@ class PipelineSpec(BaseModel):
         return self
 
 
+_DURATION = re.compile(r"^(\d+)([smhd])$")
+_UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+class RunTrigger(BaseModel):
+    """Fire when a run matching this completes (an experiment's runs never trigger: they aren't leaderboard
+    entrants)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    game: str = Field(..., min_length=1)
+    algorithm: str | None = Field(None, description="Only this algorithm's runs (`config.representation`).")
+
+
+class ScheduleSpec(BaseModel):
+    """Submit a job when it falls due (docs/design/0018, decision 2): every `every` (`30m`, `6h`, `1d`), and/or once a
+    matching run has completed since it last fired -- e.g. re-rank `checkers.versus.v2` after every new Checkers run.
+    Never while its previous job is still queued or running, so a slow job can't pile up behind itself."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["schedule"] = "schedule"
+    name: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    every: str | None = Field(None, pattern=_DURATION.pattern, description="An interval: N s, m, h or d.")
+    on_run_completed: RunTrigger | None = None
+    submit: dict[str, Any] = Field(..., description="The job: a train, evaluate, publish or pipeline spec.")
+
+    @model_validator(mode="after")
+    def _a_trigger(self) -> ScheduleSpec:
+        if self.every is None and self.on_run_completed is None:
+            raise ValueError("a schedule needs `every`, `on_run_completed`, or both")
+        return self
+
+    @property
+    def interval(self) -> float | None:
+        if self.every is None:
+            return None
+        count, unit = _DURATION.match(self.every).groups()  # type: ignore[union-attr]
+        return int(count) * _UNIT_SECONDS[unit]
+
+    def job(self) -> TrainSpec | EvalSpec | PublishSpec | PipelineSpec:
+        if self.submit.get("kind", "train") not in ("train", "evaluate", "publish", "pipeline"):
+            raise ValueError(f"schedule {self.name} submits a train, evaluate, publish or pipeline spec")
+        return parse_spec(self.submit)  # type: ignore[return-value]
+
+    def resolve(self) -> ScheduleSpec:
+        self.job().resolve()
+        return self
+
+
 @dataclass(frozen=True)
 class Protocol:
     name: str
@@ -350,13 +401,14 @@ def register_publish_target(target: PublishTarget) -> PublishTarget:
     return _register(_TARGETS, "publish target", target)
 
 
-Spec = TrainSpec | EvalSpec | PublishSpec | ExperimentSpec | PipelineSpec
+Spec = TrainSpec | EvalSpec | PublishSpec | ExperimentSpec | PipelineSpec | ScheduleSpec
 _KINDS: dict[str, type[BaseModel]] = {
     "train": TrainSpec,
     "evaluate": EvalSpec,
     "publish": PublishSpec,
     "experiment": ExperimentSpec,
     "pipeline": PipelineSpec,
+    "schedule": ScheduleSpec,
 }
 
 

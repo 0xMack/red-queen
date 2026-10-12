@@ -6,7 +6,7 @@ from telemetry.evaluations import (
     EvaluationStore,
     SqliteEvaluationStore,
 )
-from telemetry.jobs import Experiment, Job, JobKind, JobStatus, JobStore, SqliteJobStore
+from telemetry.jobs import Experiment, Job, JobKind, JobStatus, JobStore, Schedule, SqliteJobStore
 from telemetry.metrics import FileMetricsStore, MetricsSink, MetricsSource, MetricsStore
 from telemetry.registry import RunInfo, RunRegistry, RunStatus, SqliteRunRegistry
 from telemetry.types import GenerationStats
@@ -30,6 +30,7 @@ __all__ = [
     "RunInfo",
     "RunRegistry",
     "RunStatus",
+    "Schedule",
     "SqliteEvaluationStore",
     "SqliteJobStore",
     "SqliteRunRegistry",

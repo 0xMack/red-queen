@@ -22,6 +22,7 @@ app.include_router(models.catalog_router)
 app.include_router(models.export_router)
 app.include_router(jobs.router)
 app.include_router(jobs.experiments_router)
+app.include_router(jobs.schedules_router)
 app.include_router(jobs.specs_router)
 
 

@@ -1,7 +1,9 @@
-"""Jobs, experiments and spec schemas (docs/design/0018, decisions 2 and 5) -- what the CLI and, later, MCP drive.
+"""Jobs, experiments, schedules and spec schemas (docs/design/0018, decisions 2 and 5) -- what the CLI and, later, MCP
+drive.
 
-POST /jobs records a validated train/evaluate/publish spec as `queued`; the scheduler (not this API) claims and runs
-it. POST /experiments stores an experiment spec, which the scheduler fans out into jobs. GET /specs/schemas is every
+POST /jobs records a validated train/evaluate/publish/pipeline spec as `queued`; the scheduler (not this API) claims and
+runs it. POST /experiments stores an experiment spec, which the scheduler fans out into jobs; POST /schedules stores a
+schedule, which the scheduler submits a job from whenever it falls due. GET /specs/schemas is every
 payload's JSON Schema, so a client can build or check a spec without importing Python.
 """
 
@@ -9,15 +11,17 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from jobcore.specs import schemas
-from telemetry import Job, JobKind, JobStatus
+from telemetry import Job, JobKind, JobStatus, Schedule
 
 from backend.dependencies import JobStoreDep, RunRegistryDep
 from backend.services import experiments as experiment_service
 from backend.services import jobs as job_service
+from backend.services import schedules as schedule_service
 from backend.services.jobs import InvalidSpec
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 experiments_router = APIRouter(prefix="/experiments", tags=["jobs"])
+schedules_router = APIRouter(prefix="/schedules", tags=["jobs"])
 specs_router = APIRouter(prefix="/specs", tags=["jobs"])
 
 
@@ -96,6 +100,38 @@ def get_experiment_report(name: str) -> dict[str, Any]:
         return experiment_service.report(name)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e).strip("'")) from None
+
+
+@schedules_router.post("", status_code=201)
+def put_schedule(store: JobStoreDep, spec: Annotated[dict[str, Any], Body()]) -> Schedule:
+    """Stores (or replaces) a schedule spec; 422 if it has no trigger or its job can't run. Replacing one keeps when it
+    last fired."""
+    try:
+        return schedule_service.put(store, spec)
+    except InvalidSpec as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+
+
+@schedules_router.get("")
+def list_schedules(store: JobStoreDep) -> list[Schedule]:
+    return store.list_schedules()
+
+
+@schedules_router.get("/{name}")
+def get_schedule(name: str, store: JobStoreDep) -> Schedule:
+    try:
+        return store.get_schedule(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no such schedule: {name}") from None
+
+
+@schedules_router.delete("/{name}", status_code=204)
+def delete_schedule(name: str, store: JobStoreDep) -> None:
+    """Stops it firing; the jobs it already submitted are untouched (GET /jobs?parent=schedule:<name>)."""
+    try:
+        store.delete_schedule(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no such schedule: {name}") from None
 
 
 @specs_router.get("/schemas")

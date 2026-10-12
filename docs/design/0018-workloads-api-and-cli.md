@@ -1,14 +1,15 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1-6c (pipelines) built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
+Status: **Accepted; stages 1-6 built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
 3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
 stage 5 (the backend's write endpoints, the HTTP sink, the job store and the job API), stage 6a (the scheduler's
 core) and stage 6b (experiments as specs: the report protocols, every historical experiment as `experiments/*.yaml`
 checked against its recorded runs, per-arm seeds, report jobs) and stage 6c's pipelines (a `pipeline` job the
-scheduler advances a stage at a time; the recipe is `experiments/pipelines/checkers-recipe.yaml`). Schedules and
-stages 7-8 are not.
+scheduler advances a stage at a time; the recipe is `experiments/pipelines/checkers-recipe.yaml`) and schedules
+(`kind: schedule`, `/schedules`: an interval and/or "a matching run completed" -- no cron syntax yet, nothing has needed
+a wall-clock time). Stages 7-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -167,6 +168,7 @@ Routers become thin over `backend/services/` (runs, evaluations, jobs, experimen
 | evaluations | `PUT /games/{game}/evaluations`, `POST .../prune` | evaluator over HttpSink |
 | jobs | `POST /jobs {kind, spec}` (422 on a bad spec), `GET /jobs?kind&status&parent`, `GET /jobs/{id}`, `GET /jobs/{id}/logs` (SSE tail, same polling pattern as `/metrics/stream`), `POST /jobs/{id}/cancel` | CLI, MCP, scheduler |
 | experiments | `POST /experiments` (an ExperimentSpec), `GET /experiments`, `GET /experiments/{name}` (arm × seed matrix: job, run, status), `GET /experiments/{name}/report` | CLI, Learn citations |
+| schedules | `POST /schedules` (a ScheduleSpec), `GET /schedules`, `GET /schedules/{name}`, `DELETE /schedules/{name}` | CLI, MCP, scheduler |
 | specs | `GET /specs/schemas` | CLI help, MCP tool schemas |
 
 The CLI is an **HTTP client only** (`REDQUEEN_API_URL`, default `http://localhost:8000`). It reuses the same pydantic
@@ -282,9 +284,9 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    `jobcore.cli` turns into KeyboardInterrupt so the run is marked `failed`), restart recovery, and experiment fan-out
    (a continuing arm waits for its parent run; a failed cell is retried only after a resubmission). Workers run on the
    scheduler's own interpreter, not `uv run --package`: one workspace venv has every workload, and a `uv run` per job
-   would re-resolve the environment each time. (b) experiment reports as evaluator protocols; every experiment
-   converted to YAML under its existing name, and the `*_experiment.py` scripts deleted. (c) pipelines (the recipe)
-   and schedules.
+   would re-resolve the environment each time. (b) *built* -- experiment reports as evaluator protocols; every
+   experiment converted to YAML under its existing name, and the `*_experiment.py` scripts deleted. (c) *built* --
+   pipelines (the recipe) and schedules.
 7. **`redqueen` CLI:** every group above, `export` and `dev` included. AGENTS.md, the READMEs and the design docs'
    "run with" lines rewritten to CLI commands. `jobs/README.md` becomes a workload index.
 8. **MCP:** `redqueen mcp serve`.

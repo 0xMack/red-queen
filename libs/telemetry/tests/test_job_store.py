@@ -76,3 +76,19 @@ def test_an_experiment_resubmitted_keeps_when_it_began(store):
     assert [e.name for e in store.list_experiments()] == ["e"]
     with pytest.raises(KeyError):
         store.get_experiment("nope")
+
+
+def test_a_schedule_is_stored_replaced_fired_and_deleted(tmp_path):
+    store = SqliteJobStore(tmp_path / "jobs.db")
+    first = store.put_schedule("nightly", {"every": "1d"})
+    assert first.fired_at is None and store.list_schedules() == [first]
+    fired = store.mark_fired("nightly", 123.0)
+    assert fired.fired_at == 123.0
+    replaced = store.put_schedule("nightly", {"every": "2d"})
+    assert replaced.spec == {"every": "2d"} and replaced.fired_at == 123.0 and replaced.created_at == first.created_at
+    store.delete_schedule("nightly")
+    assert store.list_schedules() == []
+    with pytest.raises(KeyError):
+        store.get_schedule("nightly")
+    with pytest.raises(KeyError):
+        store.delete_schedule("nightly")

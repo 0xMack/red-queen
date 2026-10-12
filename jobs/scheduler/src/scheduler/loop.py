@@ -11,7 +11,9 @@ One `tick()`:
 3. **pipelines** -- each pipeline job's next stage is submitted (`parent` = the pipeline's job id) once the last
    succeeded, its `init_from: {stage}` filled in with that stage's run; the pipeline fails with the first stage that
    does, and succeeds with every stage's result. A pipeline has no worker of its own;
-4. **claim** -- queued jobs, oldest first, up to `max_workers` running at once.
+4. **schedules** -- each stored schedule that has fallen due (its interval has passed, or a matching run has completed
+   since it last fired) submits its job (`parent` = `schedule:<name>`), unless its last job is still in flight;
+5. **claim** -- queued jobs, oldest first, up to `max_workers` running at once.
 
 `recover()` runs once at start: a `running` job whose worker is gone (this scheduler restarted, or the machine did) is
 marked `failed` -- the crash rule `recorded_run()` has for runs, one level up.
@@ -22,7 +24,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from jobcore.specs import ExperimentSpec, PipelineSpec
+from jobcore.specs import ExperimentSpec, PipelineSpec, ScheduleSpec
 from telemetry import Job, JobStore, RunRegistry
 
 from scheduler.runner import Handle, LocalProcessRunner, Runner, log_tail, pid_alive, read_result
@@ -55,6 +57,7 @@ class Scheduler:
         self.fan_out_experiments()
         self.reap()
         self.advance_pipelines()
+        self.fire_schedules()
         self.claim()
 
     def run_forever(self, poll_interval: float = 1.0) -> None:
@@ -174,6 +177,38 @@ class Scheduler:
                 continue
             submitted.append(self.jobs.submit(stage.kind, stage.model_dump(mode="json"), parent=pipeline.job_id))
         return submitted
+
+    def fire_schedules(self, now: float | None = None) -> list[Job]:
+        """Submits each due schedule's job; returns them."""
+        now = time.time() if now is None else now
+        submitted = []
+        runs = None
+        for schedule in self.jobs.list_schedules():
+            spec = ScheduleSpec.model_validate(schedule.spec)
+            parent = f"schedule:{schedule.name}"
+            if any(job.status in ACTIVE for job in self.jobs.list(parent=parent)):
+                continue  # its last job is still in flight: never pile up behind it
+            # since it last fired -- or, never fired, since it was (re)submitted: older runs don't count
+            since = max(schedule.fired_at or 0.0, schedule.updated_at)
+            due = spec.interval is not None and now - (schedule.fired_at or schedule.updated_at) >= spec.interval
+            if not due and spec.on_run_completed is not None:
+                runs = self.registry.list_runs() if runs is None else runs
+                due = any(self._triggers(spec, run) and run.updated_at > since for run in runs)
+            if due:
+                job = spec.job()
+                submitted.append(self.jobs.submit(job.kind, job.model_dump(mode="json"), parent=parent))
+                self.jobs.mark_fired(schedule.name, now)
+        return submitted
+
+    @staticmethod
+    def _triggers(spec: ScheduleSpec, run) -> bool:
+        trigger, config = spec.on_run_completed, run.config
+        return (
+            run.status == "completed"
+            and not config.get("experiment")
+            and config.get("game") == trigger.game
+            and (trigger.algorithm is None or config.get("representation") == trigger.algorithm)
+        )
 
     def claim(self) -> None:
         while len(self.running) < self.max_workers:

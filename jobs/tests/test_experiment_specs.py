@@ -6,7 +6,7 @@ from pathlib import Path
 import evaluator.protocols  # noqa: F401  (registers the report protocols)
 import pytest
 import trainer.algorithms  # noqa: F401  (registers the algorithms)
-from jobcore.specs import ExperimentSpec, PipelineSpec, load_spec
+from jobcore.specs import ExperimentSpec, PipelineSpec, ScheduleSpec, load_spec
 
 EXPERIMENTS = sorted((Path(__file__).resolve().parents[2] / "experiments").glob("*.yaml"))
 
@@ -29,4 +29,14 @@ PIPELINES = sorted((Path(__file__).resolve().parents[2] / "experiments" / "pipel
 def test_a_pipeline_resolves(path):
     spec = load_spec(path)
     assert isinstance(spec, PipelineSpec) and spec.name == path.stem
+    spec.resolve()
+
+
+SCHEDULES = sorted((Path(__file__).resolve().parents[2] / "experiments" / "schedules").glob("*.yaml"))
+
+
+@pytest.mark.parametrize("path", SCHEDULES, ids=lambda p: p.stem)
+def test_a_schedule_resolves(path):
+    spec = load_spec(path)
+    assert isinstance(spec, ScheduleSpec) and spec.name == path.stem
     spec.resolve()

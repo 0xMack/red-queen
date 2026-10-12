@@ -131,3 +131,17 @@ def test_a_pipeline_that_cant_run_is_refused(stages, error):
 
     with pytest.raises(ValueError, match=error):
         PipelineSpec.model_validate(_pipeline(*stages)).resolve()
+
+
+def test_a_schedule_needs_a_trigger_and_a_runnable_job():
+    from jobcore.specs import ScheduleSpec
+
+    job = {"kind": "evaluate", "protocol": "bandit.skill.v1"}
+    spec = ScheduleSpec.model_validate({"name": "s", "every": "6h", "submit": job}).resolve()
+    assert spec.interval == 6 * 3600 and spec.job().protocol == "bandit.skill.v1"
+    with pytest.raises(ValidationError, match="needs `every`"):
+        ScheduleSpec.model_validate({"name": "s", "submit": job})
+    with pytest.raises(ValidationError):
+        ScheduleSpec.model_validate({"name": "s", "every": "soon", "submit": job})
+    with pytest.raises(ValueError, match="train, evaluate, publish or pipeline"):
+        ScheduleSpec.model_validate({"name": "s", "every": "1d", "submit": {"kind": "schedule"}}).resolve()
