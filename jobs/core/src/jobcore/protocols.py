@@ -85,8 +85,39 @@ for name, game, params, summary in (
 ):
     register_protocol(Protocol(name, game, params, "report", summary))
 
+
+class FrontendParams(_Params):
+    out: str | None = Field(None, description="Write here instead of under apps/frontend/app/data/.")
+
+
+class PbtHistoryParams(FrontendParams):
+    experiment: str = "selfplay-v4"
+    arm: str = "g-pbt"
+    seed: int = 0
+
+
+class RlCurvesParams(FrontendParams):
+    names: list[str] | None = Field(None, description="Recordings to write (default: all); `out` is then a directory.")
+
+
+class RlRecordingParams(FrontendParams):
+    run: str = Field(..., min_length=1, description="A tabular RL run (an id or a unique prefix).")
+    label: str | None = Field(None, description="How the chapter describes it (default: built from its config).")
+
+
 register_publish_target(PublishTarget("snake", PublishParams, "the Snake leaderboard's champions, fp64 + fp32"))
 register_publish_target(PublishTarget("tinylm", PublishParams, "every TinyLM checkpoint, fp32 + int8"))
 register_publish_target(
     PublishTarget("scale-test", ScaleTestPublishParams, "a large random-weight model for the big-model path")
+)
+# Frontend data files the Learn chapters draw (publisher.frontend): written into the repo, then committed.
+register_publish_target(PublishTarget("frontend.ballot", FrontendParams, "the Checkers ballot, checkersBallot.ts"))
+register_publish_target(
+    PublishTarget("frontend.pbt-history", PbtHistoryParams, "a PBT run's population history, pbtHistory.ts")
+)
+register_publish_target(
+    PublishTarget("frontend.rl-curves", RlCurvesParams, "chosen RL experiment runs' curves, recordings/*.json")
+)
+register_publish_target(
+    PublishTarget("frontend.rl-recording", RlRecordingParams, "a tabular run's curve and Q-table, the no-WASM demo")
 )

@@ -34,6 +34,15 @@ The groups follow the API's schema slices:
 The verbs `train`, `evaluate`, `h2h` and `publish` build one spec from options and submit it. `schemas` lists what the
 API accepts, and `doctor` checks the setup.
 
+Two groups produce files in the repo:
+
+- **`export`** (`ballot`, `pbt-history`, `rl-curves`, `rl-recording`) regenerates the Learn chapters' data files. Each
+  command submits a publisher job (`frontend.*` targets), so it still goes through the API, and the file is written
+  in the checkout the scheduler runs from.
+- **`dev`** is the only local-only group. `up` starts the backend, the scheduler and the frontend together, and
+  Ctrl-C stops them cleanly. `build-wasm [games|rl]`, `openapi`, `bench-rl` and `screenshots RUN` run the repo's own
+  scripts as subprocesses; the CLI still imports none of them.
+
 Every command takes `--json`, which prints the API's JSON unchanged in stable shapes, for scripts and the coming MCP
 server. Every command that starts work takes `--wait`: it follows the job's log (a pipeline's, stage by stage) until
 the job ends, and exits 1 unless it succeeded. `--api URL` (or `REDQUEEN_API_URL`) selects the API; the default is

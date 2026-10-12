@@ -8,7 +8,7 @@ import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 // the same `DqnAgent` the training jobs run (docs/design/0010 Phase 2b). Choose what the snake sees and which
 // stabilizers are on; the curve is the greedy policy's score on 30 unseen games every 10k steps, drawn over the
 // previous run's so two settings can be compared; the second chart is the network's mean Q(s, a), which is where a
-// diverging run shows first. Without WebAssembly, recorded runs of the same setup (jobs/export_rl_curves.py)
+// diverging run shows first. Without WebAssembly, recorded runs of the same setup (redqueen export rl-curves)
 // stand in.
 
 const GREEDY = 17.89

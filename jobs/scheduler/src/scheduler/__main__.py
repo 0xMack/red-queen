@@ -9,6 +9,7 @@ submits a pipeline (or any job spec) as POST /jobs would -- for working without 
 
 import argparse
 
+from jobcore.cli import stop_cleanly_on_termination
 from jobcore.specs import ExperimentSpec, ScheduleSpec, load_spec
 from telemetry import open_job_store, open_stores
 
@@ -46,6 +47,7 @@ def main(argv: list[str] | None = None) -> None:
         scheduler.recover()
         scheduler.tick()
         return
+    stop_cleanly_on_termination()  # CTRL_BREAK/SIGTERM (`redqueen dev up`, a service manager) stops it like Ctrl-C
     print(f"scheduler: up to {args.workers} worker(s); Ctrl-C to stop", flush=True)
     try:
         scheduler.run_forever(args.poll)

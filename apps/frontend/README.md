@@ -269,7 +269,7 @@ agent's table, and either a greedy `DemoGame` Snake board with the action values
 environment -- a `DemoEnv` step with the observation, action and the Gaussian's mean/spread) → `useRlLab` →
 `QLearningLab` / `DqnLab` / `PolicyGradientLab` / `ReachLab`, with `QTableGrid` drawing the 256 reachable rows of
 Snake's table. Without WebAssembly (`?device=nowasm` forces it) they show `data/recordings/*.json`
-(`jobs/export_rl_recording.py`, `jobs/export_rl_curves.py`); `DqnDivergence` draws recorded runs on purpose, since
+(`redqueen export rl-recording`, `redqueen export rl-curves`); `DqnDivergence` draws recorded runs on purpose, since
 divergence is too rare to show live. `ArmResults` is the shared strip plot for a cited experiment. `/learn/self-play`
 has its own worker (`workers/selfPlayLab.worker.ts`: the WASM `SelfPlayTrainer`, points against fixed strategies, the
 latest network as `WeightVector` JSON) → `useSelfPlayLab` → `SelfPlayLab`, which seats that network on the

@@ -28,6 +28,7 @@ def target(name: str) -> Callable[[Target], Target]:
 
 
 def publish(spec: PublishSpec | dict[str, Any], sink: Sink | None = None) -> dict[str, Any]:
+    import publisher.frontend
     import publisher.models
     import publisher.scale_test  # noqa: F401
 
@@ -39,7 +40,7 @@ def publish(spec: PublishSpec | dict[str, Any], sink: Sink | None = None) -> dic
         raise ValueError(f"no publisher for target {spec.target}") from None
     store = LocalModelStore(models_dir())
     summary = run(spec, params, sink or open_sink(), store)
-    if params.collect_garbage:
+    if getattr(params, "collect_garbage", False):  # model-store targets; a frontend file isn't in the store
         removed, freed = store.collect_garbage()
         summary["garbage_collected"] = {"files": removed, "bytes": freed}
         print(f"garbage collected {removed} superseded files ({freed / 1e6:.1f} MB)")

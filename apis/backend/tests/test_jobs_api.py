@@ -116,7 +116,7 @@ def test_schemas_describe_every_kind(api):
     schemas = client.get("/specs/schemas").json()
     assert set(schemas["kinds"]) == {"train", "evaluate", "publish", "experiment", "pipeline", "schedule"}
     assert "neuroevolution@snake" in schemas["algorithms"] and "checkers.sprt" in schemas["protocols"]
-    assert set(schemas["publish_targets"]) == {"snake", "tinylm", "scale-test"}
+    assert {"snake", "tinylm", "scale-test", "frontend.ballot", "frontend.rl-curves"} <= set(schemas["publish_targets"])
 
 
 def test_a_pipeline_is_a_job_and_a_broken_one_is_refused(api):

@@ -15,7 +15,7 @@ from typing import Annotated, Any
 import typer
 
 from redqueen_cli.client import ApiError
-from redqueen_cli.commands import games, jobs, runs, specs, work
+from redqueen_cli.commands import games, jobs, local, runs, specs, work
 from redqueen_cli.output import emit, table
 from redqueen_cli.state import State, state
 
@@ -46,6 +46,8 @@ app.add_typer(specs.pipeline, name="pipeline")
 app.add_typer(specs.schedules, name="schedules")
 app.add_typer(games.leaderboard, name="leaderboard")
 app.add_typer(games.models, name="models")
+app.add_typer(local.export, name="export")
+app.add_typer(local.dev, name="dev")
 app.command()(work.train)
 app.command()(work.evaluate)
 app.command()(work.h2h)

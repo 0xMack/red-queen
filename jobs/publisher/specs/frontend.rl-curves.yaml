@@ -1,0 +1,3 @@
+# Recorded RL curves, recordings/<name>.json (the DQN and policy-gradient chapters). `redqueen export rl-curves`.
+kind: publish
+target: frontend.rl-curves

@@ -4,7 +4,7 @@ import { BALLOT_DEPTH, BALLOT_PLIES, openings } from "~/data/checkersBallot"
 // The ballot (docs/design/0013): every Checkers position three plies from the start, one tile each, and the verdict of
 // an 8-ply material search on it. The level ones (most) are the openings every strength measurement plays; the rest
 // lose material by force for one side and are left out. Pick a tile to see its board and moves. The data is generated
-// by jobs/export_ballot.py from the same code the measurement uses.
+// by redqueen export ballot from the same code the measurement uses.
 
 // The 32 playable squares in the board string's order: row by row from Red's side.
 const SQUARES = Array.from({ length: 64 }, (_, i) => [i % 8, Math.floor(i / 8)] as const).filter(([x, y]) => (x + y) % 2 === 1)

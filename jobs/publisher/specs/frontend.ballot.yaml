@@ -1,0 +1,3 @@
+# The Checkers ballot as checkersBallot.ts (the "Measuring Strength" chapter). `redqueen export ballot`.
+kind: publish
+target: frontend.ballot

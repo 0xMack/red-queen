@@ -8,7 +8,7 @@ import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 // reader's browser -- the same `PgAgent` the training jobs run (docs/design/0010 Phase 3b). Pick the rung of the
 // ladder, what the snake sees and a seed; the board shows the policy's own move probabilities as it plays (the bars),
 // the curve its score on 30 unseen games every 20k steps (over the previous run's), and the second chart its entropy:
-// how undecided it still is. Without WebAssembly, recorded runs of each rung (jobs/export_rl_curves.py) stand in.
+// how undecided it still is. Without WebAssembly, recorded runs of each rung (redqueen export rl-curves) stand in.
 
 const GREEDY = 17.89
 const NEAT = 37.95 // leaderboard's best evolved champion
