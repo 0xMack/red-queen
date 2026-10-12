@@ -74,7 +74,11 @@ CLOCKS = {"created_at", "hardware", "wall_s", "active_s", "cpu_s", "paused_s", "
 def _strip_clocks(value: Any) -> Any:
     """Clocks dropped; a long list of numbers (every game's score) kept as its length, sum and hash -- still exact."""
     if isinstance(value, dict):
-        return {k: _strip_clocks(v) for k, v in value.items() if k not in CLOCKS and not k.endswith("_us")}
+        return {
+            k: _strip_clocks(v)
+            for k, v in value.items()
+            if not (isinstance(k, str) and (k in CLOCKS or k.endswith("_us")))
+        }
     if isinstance(value, list):
         if len(value) > 32 and all(isinstance(v, int | float) for v in value):
             text = json.dumps(value).encode()
@@ -84,7 +88,7 @@ def _strip_clocks(value: Any) -> Any:
 
 
 def _report(result: Any) -> Any:
-    return result
+    return _strip_clocks(result)
 
 
 def _store(game: str) -> Callable[[Any], Any]:
@@ -166,6 +170,99 @@ EVAL_CASES: dict[str, EvalCase] = {
     ),
     "publish.tinylm": EvalCase(_publish("tinylm"), _store("tinylm")),
 }
+# --- Experiment reports: a tiny experiment trained and reported by the original scripts (stage 6b) --------------
+GOLDEN_SEEDS = [0, 1]
+
+
+def _old_snake_experiment() -> Any:
+    import snake_experiment as se
+
+    se.run_experiment("golden-snake", ["neuro", "neat"], GOLDEN_SEEDS, 3)
+    return se.build_report("golden-snake")
+
+
+def _old_rl_experiment() -> Any:
+    import rl_experiment as rx
+
+    rx.run_experiment("golden-rl", ["q", "sarsa"], GOLDEN_SEEDS)
+    return rx.build_report("golden-rl")
+
+
+def _old_selfplay_experiment(report: str) -> Callable[[], Any]:
+    def run() -> Any:
+        import checkers_selfplay_experiment as cx
+
+        cx.run_experiment("golden-selfplay", ["a", "b"], GOLDEN_SEEDS)
+        return cx.build_report("golden-selfplay", games=2) if report == "field" else cx.build_h2h("golden-selfplay")
+
+    return run
+
+
+def _small_arms() -> dict[str, Any]:
+    """The tiny arms each old script ran (patched in as its ARMS), built lazily: they need the scripts imported."""
+    import checkers_selfplay_experiment as cx
+    import rl_experiment as rx
+    import snake_experiment as se
+
+    return {
+        "snake": {"neuro": se._arm("neuroevolution", population_size=8), "neat": se._arm("neat", population_size=12)},
+        "rl": {
+            "q": rx.Arm("q_learning", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline=None),
+            "sarsa": rx.Arm("sarsa", {"epsilon_decay_steps": 5_000}, steps=10_000, baseline="q"),
+        },
+        "selfplay": {
+            "a": cx.Arm({"hidden": 8}, games=20, baseline=None),
+            "b": cx.Arm({"hidden": 8, "lambda": 0.0}, games=20, baseline="a"),
+        },
+    }
+
+
+class _LazyPatches(dict):
+    """Patches whose values are only built when applied (importing the experiment scripts at module load would make
+    every golden test import them)."""
+
+    def __init__(self, build: Callable[[], dict[str, Any]]):
+        super().__init__()
+        self._build = build
+
+    def items(self):
+        return self._build().items()
+
+
+def _experiment_patches(family: str) -> _LazyPatches:
+    def build() -> dict[str, Any]:
+        arms = _small_arms()[family]
+        common = {"arena.snake.HELD_OUT_SEEDS": SNAKE_20}
+        return {
+            "snake": {**common, "snake_experiment.ARMS": arms},
+            "rl": {
+                **common,
+                "rl_experiment.ARMS": arms,
+                "rl_experiment.STEPS_PER_ITERATION": 5_000,
+                "trainer.algorithms.reinforcement.MONITOR_SEEDS": (20_000, 20_001),
+            },
+            "selfplay": {
+                "checkers_selfplay_experiment.ARMS": arms,
+                "checkers_selfplay_experiment.GAMES_PER_ITERATION": 10,
+                "checkers_selfplay_experiment.DEPTH": 1,
+            },
+        }[family]
+
+    return _LazyPatches(build)
+
+
+EVAL_CASES.update(
+    {
+        "experiment.snake-report": EvalCase(_old_snake_experiment, _report, _experiment_patches("snake")),
+        "experiment.rl-report": EvalCase(_old_rl_experiment, _report, _experiment_patches("rl")),
+        "experiment.checkers-field": EvalCase(
+            _old_selfplay_experiment("field"), _report, _experiment_patches("selfplay")
+        ),
+        "experiment.checkers-h2h": EvalCase(_old_selfplay_experiment("h2h"), _report, _experiment_patches("selfplay")),
+    }
+)
+
+
 TOLERANT = {"publish.snake", "publish.tinylm"}  # ONNX Runtime parity numbers
 
 
@@ -181,8 +278,14 @@ def run_case(name: str, case: EvalCase | None = None) -> Any:
         run_ids = build_field()
         with _patched(case.patches), contextlib.redirect_stdout(sys.stderr):
             result = case.run()
-        names = {run_id: f"<run{i}>" for i, run_id in enumerate(run_ids)}
-        digest = _anonymize(case.digest(result), names)
+        # every run, the field's and any the case trained itself (an experiment's), named in creation order
+        from telemetry import open_stores
+
+        created = [r.run_id for r in sorted(open_stores().registry.list_runs(), key=lambda r: r.created_at)]
+        assert created[: len(run_ids)] == run_ids
+        names = {run_id: f"<run{i}>" for i, run_id in enumerate(created)}
+        # through JSON: what a fixture holds (an int key, like a seed, comes back a string)
+        digest = json.loads(json.dumps(_anonymize(case.digest(result), names), default=str))
         if isinstance(digest, list) and all(isinstance(d, dict) and "entrant_id" in d for d in digest):
             digest.sort(key=lambda d: d["entrant_id"])
         return digest
