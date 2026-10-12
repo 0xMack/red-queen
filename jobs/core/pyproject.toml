@@ -13,6 +13,7 @@ requires-python = ">=3.11"
 dependencies = [
     "arena",
     "evolve",
+    "httpx2>=2.13",
     "pydantic>=2",
     "pyyaml>=6",
     "telemetry",

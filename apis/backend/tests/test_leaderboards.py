@@ -54,3 +54,19 @@ def test_interfaces_describe_every_snake_representation(client):
 
 def test_interfaces_for_unknown_game_is_404(client):
     assert client.get("/games/nope/interfaces").status_code == 404
+
+
+def test_records_are_put_and_pruned_through_the_api(client):
+    response = client.put("/games/snake/evaluations", json=_record("run:abc", 9.0).model_dump(mode="json"))
+    assert response.status_code == 204
+    entrants = [
+        r["entrant_id"] for r in client.get("/games/snake/leaderboard", params={"protocol": "snake.score.v1"}).json()
+    ]
+    assert entrants == ["baseline:greedy", "run:abc", "baseline:random"]
+
+    wrong_game = client.put("/games/checkers/evaluations", json=_record("run:abc", 9.0).model_dump(mode="json"))
+    assert wrong_game.status_code == 422
+
+    pruned = client.post("/games/snake/evaluations/prune", json={"protocol": "snake.score.v1", "keep": ["run:abc"]})
+    assert sorted(pruned.json()["removed"]) == ["baseline:greedy", "baseline:random"]
+    assert len(client.get("/games/snake/leaderboard", params={"protocol": "snake.score.v0"}).json()) == 1  # untouched

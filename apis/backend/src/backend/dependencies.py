@@ -14,6 +14,7 @@ from telemetry import (
     ArtifactStore,
     EvaluationStore,
     MetricsSource,
+    MetricsStore,
     RunRegistry,
     Stores,
     models_dir,
@@ -31,7 +32,7 @@ def _run_registry() -> RunRegistry:
     return _stores().registry
 
 
-def _metrics_source() -> MetricsSource:
+def _metrics_source() -> MetricsStore:
     return _stores().metrics
 
 
@@ -50,6 +51,7 @@ def _model_store() -> LocalModelStore:
 
 RunRegistryDep = Annotated[RunRegistry, Depends(_run_registry)]
 MetricsSourceDep = Annotated[MetricsSource, Depends(_metrics_source)]
+MetricsStoreDep = Annotated[MetricsStore, Depends(_metrics_source)]  # the write side (POST /runs/{id}/metrics)
 ArtifactStoreDep = Annotated[ArtifactStore, Depends(_artifact_store)]
 EvaluationStoreDep = Annotated[EvaluationStore, Depends(_evaluation_store)]
 # The concrete local store, not the `ModelStore` protocol: serving its files from disk is exactly what

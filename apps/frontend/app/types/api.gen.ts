@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/games/{game}/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Evaluation
+         * @description Stores (replaces) one entrant's record under its protocol -- the evaluator on the HTTP sink writes this way.
+         */
+        put: operations["put_evaluation_games__game__evaluations_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game}/evaluations/prune": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prune Evaluations
+         * @description Drops every record of `protocol` whose entrant isn't in `keep` -- entrants that no longer qualify.
+         */
+        post: operations["prune_evaluations_games__game__evaluations_prune_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/games/{game}/interfaces": {
         parameters: {
             query?: never;
@@ -127,7 +167,8 @@ export interface paths {
         /** List Runs */
         get: operations["list_runs_runs_get"];
         put?: never;
-        post?: never;
+        /** Create Run */
+        post: operations["create_run_runs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -168,7 +209,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Patch Run */
+        patch: operations["patch_run_runs__run_id__patch"];
         trace?: never;
     };
     "/runs/{run_id}/artifacts/{ref}": {
@@ -180,7 +222,8 @@ export interface paths {
         };
         /** Get Artifact */
         get: operations["get_artifact_runs__run_id__artifacts__ref__get"];
-        put?: never;
+        /** Put Artifact */
+        put: operations["put_artifact_runs__run_id__artifacts__ref__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -246,6 +289,26 @@ export interface paths {
         put?: never;
         /** Control Run */
         post: operations["control_run_runs__run_id__control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Generations
+         * @description Appends generations in order. Each must belong to this run: a mismatched id is a client bug, not data.
+         */
+        post: operations["record_generations_runs__run_id__metrics_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -412,6 +475,39 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** PruneRequest */
+        PruneRequest: {
+            /**
+             * Keep
+             * @description Entrant ids that still qualify; every other record of the protocol goes.
+             */
+            keep: string[];
+            /** Protocol */
+            protocol: string;
+        };
+        /** PruneResult */
+        PruneResult: {
+            /** Removed */
+            removed: string[];
+        };
+        /**
+         * RunCreate
+         * @description A run as a job starts it (the HTTP sink's `create_run`, docs/design/0018).
+         */
+        RunCreate: {
+            /**
+             * Config
+             * @description The run's configuration, recorded as given.
+             */
+            config: {
+                [key: string]: unknown;
+            };
+        };
+        /** RunCreated */
+        RunCreated: {
+            /** Run Id */
+            run_id: string;
+        };
         /**
          * RunInfo
          * @description Metadata for one evolution run, as stored in the RunRegistry.
@@ -452,6 +548,23 @@ export interface components {
              * @description Unix timestamp of the last status/summary update.
              */
             updated_at: number;
+        };
+        /**
+         * RunPatch
+         * @description Any of a run's mutable parts. `config` is *merged* (top-level keys; None removes one) -- for corrections after
+         *     the fact, like a run recorded before a field existed.
+         */
+        RunPatch: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Status */
+            status?: ("running" | "paused" | "completed" | "failed") | null;
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * RunSummary
@@ -501,6 +614,74 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    put_evaluation_games__game__evaluations_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluationRecord"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prune_evaluations_games__game__evaluations_prune_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PruneRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_interfaces_games__game__interfaces_get: {
         parameters: {
             query?: never;
@@ -704,6 +885,39 @@ export interface operations {
             };
         };
     };
+    create_run_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_run_summaries_runs_summaries_get: {
         parameters: {
             query?: {
@@ -766,6 +980,41 @@ export interface operations {
             };
         };
     };
+    patch_run_runs__run_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_artifact_runs__run_id__artifacts__ref__get: {
         parameters: {
             query?: {
@@ -788,6 +1037,38 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_artifact_runs__run_id__artifacts__ref__put: {
+        parameters: {
+            query?: {
+                kind?: "program" | "trace";
+            };
+            header?: never;
+            path: {
+                run_id: string;
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -891,6 +1172,39 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_generations_runs__run_id__metrics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationStats"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

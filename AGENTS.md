@@ -294,7 +294,8 @@ architectural change that might conflict with a decision already made.
   pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
   evolved run's champion; it runs in a second).
   **`jobs/core` (`jobcore`, a workspace package) is what every job shares**: `open_sink()` (where a job writes:
-  telemetry's Protocol-typed `Stores`, local file/SQLite by default, `REDQUEEN_SINK`), `recorded_run()` (every
+  telemetry's Protocol-typed `Stores`, local file/SQLite by default, `REDQUEEN_SINK=http://host:8000` for the HTTP sink
+  over the backend's write endpoints, `jobcore.http`), `recorded_run()` (every
   training job's lifecycle: create the run, then `completed` or `failed`), `make_control_callback` (the job-side half
   of the pause/resume control API — see the `apis/backend` bullet above), `ProcessPoolEvaluator`, and `specs`
   (`TrainSpec` + the algorithm registry the trainer workload will be driven by). Data lives under

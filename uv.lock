@@ -1174,6 +1174,7 @@ source = { editable = "jobs/core" }
 dependencies = [
     { name = "arena" },
     { name = "evolve" },
+    { name = "httpx2" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "telemetry" },
@@ -1183,6 +1184,7 @@ dependencies = [
 requires-dist = [
     { name = "arena", editable = "libs/arena" },
     { name = "evolve", editable = "libs/evolve" },
+    { name = "httpx2", specifier = ">=2.13" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "telemetry", editable = "libs/telemetry" },

@@ -1,5 +1,9 @@
 """Run/metrics/artifact endpoints -- doc 0005's "routers/runs.py" group.
 
+The write side (POST /runs, PATCH /runs/{id}, POST /runs/{id}/metrics, PUT /runs/{id}/artifacts/{ref}) is what a job
+on the HTTP sink writes through (docs/design/0018) -- a worker that can't share the data directory. A job on the
+local sink writes the same stores directly; either way the stores hold the same thing.
+
 Reuses telemetry's own pydantic models (`RunInfo`, `GenerationStats`) directly as response models,
 per doc 0005 "Reusing existing pydantic models directly" -- no duplicate API-layer schemas for data
 that already has a canonical shape.
@@ -12,13 +16,13 @@ from typing import Annotated, Literal
 
 import anyio
 from evolve.networks import compiled, network_from_json
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
 from telemetry import GenerationStats, MetricsSource, RunInfo, RunRegistry
 
-from backend.dependencies import ArtifactStoreDep, MetricsSourceDep, RunRegistryDep
-from backend.schemas import ControlAction, ControlRequest, RunSummary
+from backend.dependencies import ArtifactStoreDep, MetricsSourceDep, MetricsStoreDep, RunRegistryDep
+from backend.schemas import ControlAction, ControlRequest, RunCreate, RunCreated, RunPatch, RunSummary
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -58,6 +62,49 @@ def list_run_summaries(
             )
         )
     return summaries
+
+
+@router.post("", status_code=201)
+def create_run(body: RunCreate, registry: RunRegistryDep) -> RunCreated:
+    return RunCreated(run_id=registry.create_run(config=body.config))
+
+
+@router.patch("/{run_id}")
+def patch_run(run_id: str, body: RunPatch, registry: RunRegistryDep) -> RunInfo:
+    try:
+        registry.get_run(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no such run: {run_id}") from None
+    if body.config is not None:
+        registry.update_config(run_id, body.config)
+    if body.summary is not None:
+        registry.set_summary(run_id, body.summary)
+    if body.status is not None:
+        registry.update_status(run_id, body.status)
+    return registry.get_run(run_id)
+
+
+@router.post("/{run_id}/metrics", status_code=204)
+def record_generations(run_id: str, body: list[GenerationStats], metrics: MetricsStoreDep) -> None:
+    """Appends generations in order. Each must belong to this run: a mismatched id is a client bug, not data."""
+    wrong = [s.generation for s in body if s.run_id != run_id]
+    if wrong:
+        raise HTTPException(status_code=422, detail=f"generations {wrong} belong to another run")
+    for stats in body:
+        metrics.record_generation(stats)
+
+
+@router.put("/{run_id}/artifacts/{ref}", status_code=204)
+async def put_artifact(
+    run_id: str,  # unused, as on GET: the artifact store is flat (ref -> bytes)
+    ref: str,
+    request: Request,
+    artifacts: ArtifactStoreDep,
+    kind: Literal["program", "trace"] = "program",
+) -> None:
+    data = await request.body()
+    putter = artifacts.put_program if kind == "program" else artifacts.put_trace
+    await anyio.to_thread.run_sync(putter, ref, data)
 
 
 @router.get("/{run_id}")
