@@ -45,7 +45,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   `forward()` returns every output, for multi-output policies that pick a discrete action via
   argmax (e.g. `games.snake`'s left/straight/right). `to_json()`/`from_json()` are the real
   (round-trippable) wire format -- unlike `LinearProgram`'s `repr()`-based prototype serialization
-  in the trainer's `gp` adapter (`jobs/trainer`), these are read back by `jobs/evaluate.py`,
+  in the trainer's `gp` adapter (`jobs/trainer`), these are read back by `evaluator.protocols.snake_score`,
   `apis/backend`'s on-demand export and `libs/modelpack`, which turns a champion into the ONNX package
   a browser actually runs (docs/design/0009).
 - `neat.py` — `NeatGenome`: the fourth representation (docs/design/0008), and the first whose
@@ -62,7 +62,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
   compiles the graph once per genome (`cached_property`), pruning nodes that can't reach an output.
 - `networks.py` — `network_from_json()`: one loader for every trained-network wire format
   (`WeightVector`, or a NEAT genome, which carries `"type": "neat"`), plus `parameter_count()`/
-  `describe()` — what `jobs/evaluate.py` and `libs/modelpack` use so they don't care which kind a
+  `describe()` — what `evaluator.protocols.snake_score` and `libs/modelpack` use so they don't care which kind a
   champion is.
 - `simulation.py` — `Environment` protocol (`reset()`/`step()`, docs/design/0002) and
   `SimulationFitnessEvaluator`: dataset-based fitness's simulation counterpart, one fitness value

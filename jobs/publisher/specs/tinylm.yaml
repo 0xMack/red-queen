@@ -1,0 +1,3 @@
+# Package every TinyLM checkpoint under <data dir>/tinylm (fp32 + int8).
+kind: publish
+target: tinylm

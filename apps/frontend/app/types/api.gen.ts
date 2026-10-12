@@ -225,7 +225,7 @@ export interface paths {
          *     published (a still-training run's latest, a pinned generation). Development/live-training only:
          *     it costs a little server compute per *new* champion, never per frame, and packages are
          *     content-addressed, so asking again for the same champion re-uses the stored one. Unlike
-         *     jobs/publish_models.py it measures only numeric parity (on random inputs), not action agreement
+         *     publisher.models it measures only numeric parity (on random inputs), not action agreement
          *     on the protocol's games -- so it's marked `on_demand`, and never becomes a leaderboard entrant.
          */
         post: operations["export_champion_runs__run_id__artifacts__ref__package_post"];

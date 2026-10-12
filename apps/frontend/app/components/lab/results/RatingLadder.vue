@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The Checkers leaderboard two ways (docs/design/0013): points per game against the whole field on the left, the Elo
-// rating fitted to the same games on the right, one line per entrant. `jobs/evaluate_versus.py`, protocol
+// rating fitted to the same games on the right, one line per entrant. `evaluator.protocols.checkers_versus`, protocol
 // checkers.versus.v2 (2026-09-30): 20 entrants, 12 ballot openings (24 games) per pairing. Hard-coded from that run.
 interface Row {
   label: string
@@ -100,7 +100,7 @@ const FIELDS = [
       Every entrant on the Checkers leaderboard (blue: trained, grey: fixed baselines; hover a line for its name and interval). On this field
       the two yardsticks agree on the order, because they come from the same games. What differs is what they depend on. Drop the nine weakest
       entrants and the leader's points per game fall by 0.065, though it played exactly the same games against everyone left. Its rating
-      relative to Material 4-ply doesn't move. <code>jobs/evaluate_versus.py</code>, protocol <code>checkers.versus.v2</code>.
+      relative to Material 4-ply doesn't move. <code>evaluator.protocols.checkers_versus</code>, protocol <code>checkers.versus.v2</code>.
     </template>
   </UiFigure>
 </template>

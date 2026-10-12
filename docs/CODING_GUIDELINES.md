@@ -103,7 +103,7 @@ what belongs here and how to add to it). Read before writing code, not after.
 - Training fitness is not performance. It's shaped reward on the seeds the population trained on,
   so it overstates: the best Snake champion scores 16–19 on its 5 training seeds but 11.9 on 200
   held-out ones, and a 3-line greedy heuristic beats it (18.5). Judge a policy with
-  `jobs/evaluate.py` (held-out seeds, game score, baselines) before claiming it learned anything
+  `evaluator.protocols.snake_score` (held-out seeds, game score, baselines) before claiming it learned anything
   (docs/design/0007).
 - A fixed handful of training seeds is a dataset of that size, and evolution overfits it like any
   learner: with Snake's 5 fixed seeds the champion's unseen-game score peaked by generation ~20 and
@@ -205,7 +205,7 @@ what belongs here and how to add to it). Read before writing code, not after.
 - **Measure two-player strength in game pairs, by rating, head to head** (docs/design/0013). Points per game against a
   field saturates once the leader outclasses it (TD-Leaf's +120 Elo on every seed read as p = 0.125 there). Play ballot
   openings from both seats, rank by Bradley–Terry Elo (`arena.versus_stats`), and compare two players with the SPRT
-  (`jobs/checkers_sprt.py`). Check the test's own error rates by simulation before trusting its defaults: with a first
+  (`evaluator.protocols.checkers_sprt`). Check the test's own error rates by simulation before trusting its defaults: with a first
   look at 10 pairs it said "stronger" for equal players 8% of the time (5% promised); from 20 pairs, 6%. A pooled
   interval over seeds counts pairs, so it compares *these* networks; a regime needs the per-seed results to agree.
 - **A regression target only teaches what its labels contain.** Evolving an evaluator to predict a deeper *material*
@@ -278,7 +278,7 @@ what belongs here and how to add to it). Read before writing code, not after.
 - **Check an exported model by the decisions it makes, not only its numeric error.** Every evolved
   Snake champion exported to float32 was within ~1e-6 of its float64 original, yet five of ten chose a
   different move somewhere in 200 held-out games (an old grid champion on 11% of moves): argmax on
-  near-ties flips. `jobs/publish_models.py` measures action agreement on the protocol's games; a
+  near-ties flips. `publisher.models` measures action agreement on the protocol's games; a
   variant that disagrees is ranked as its own entrant. The LM equivalent is top-1 next-token agreement,
   measured the way a client generates (int8's dynamic quantization picks activation scales per call,
   so one-token-at-a-time decoding legitimately differs from a full pass).

@@ -8,22 +8,26 @@ labelled a scale test everywhere it appears. What it measures is the infrastruct
 integrity checks, caching, session creation, per-token latency -- not language modelling. Published to
 the `scale-test` catalog, which only the /dev/inference page reads.
 
-Run with: uv run python jobs/scale_test_package.py [d_model] [n_layers]
 """
 
 from __future__ import annotations
 
-import sys
 import time
+from typing import Any
 
+from jobcore import Sink
+from jobcore.specs import PublishSpec
 from modelpack import CatalogEntry, LocalModelStore
 from modelpack.lm import LMConfig, build_lm_package
-from telemetry import models_dir
 from tinylm.checkpoint import TinyLMConfig, build, named_parameters
-from trainer.algorithms.tinylm import split_corpus
+from tinylm.corpus import split_corpus
+
+from publisher.registry import target
 
 
-def main(d_model: int = 768, n_layers: int = 12) -> None:
+@target("scale-test")
+def publish_scale_test(spec: PublishSpec, params, sink: Sink, store: LocalModelStore) -> dict[str, Any]:
+    d_model, n_layers = params.d_model, params.n_layers
     tokenizer, _, held_out = split_corpus()
     config = TinyLMConfig(
         vocab_size=tokenizer.vocab_size,
@@ -55,7 +59,6 @@ def main(d_model: int = 768, n_layers: int = 12) -> None:
         ),
         provenance={"champion_ref": "scale-test"},
     )
-    store = LocalModelStore(models_dir())
     store.put(package)
     manifest = package.manifest
     catalog = store.catalog("scale-test")
@@ -77,7 +80,4 @@ def main(d_model: int = 768, n_layers: int = 12) -> None:
             f"largest tensor {v.requirements.max_tensor_bytes / 1e6:.1f} MB, backends {v.requirements.backends}, "
             f"top-1 agreement {v.parity.action_agreement}"
         )
-
-
-if __name__ == "__main__":
-    main(*(int(a) for a in sys.argv[1:]))
+    return {"target": "scale-test", "package_id": manifest.package_id}

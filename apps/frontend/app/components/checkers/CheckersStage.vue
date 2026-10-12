@@ -127,7 +127,7 @@ watch(
       />
     </template>
     <template #arena-note>
-      Any two entrants on the leaderboard -- the same measurement <code class="chip">jobs/evaluate_versus.py</code> ranks them by.
+      Any two entrants on the leaderboard -- the same measurement <code class="chip">evaluator.protocols.checkers_versus</code> ranks them by.
     </template>
   </VersusStage>
 </template>

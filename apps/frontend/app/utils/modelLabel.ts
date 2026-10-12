@@ -1,6 +1,6 @@
 // One way to name a trained model everywhere (runs table, run page, leaderboards): the algorithm plus
 // the size of what it produced -- "NEAT · 11 hidden · 73 conns", "Neuroevolution · 11 → 16 → 3". The
-// leaderboard gets these facts from jobs/evaluate.py (`metrics.model.shape`), the runs table from the
+// leaderboard gets these facts from evaluator.protocols.snake_score (`metrics.model.shape`), the runs table from the
 // run's config and its latest generation's `extras`. Auto-imported (app/utils/).
 
 export interface ModelShape {

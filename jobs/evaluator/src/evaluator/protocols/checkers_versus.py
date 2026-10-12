@@ -1,5 +1,5 @@
 """Versus leaderboard evaluation (docs/design/0007, "Versus (Checkers)"): the two-player counterpart of
-jobs/evaluate.py. Same `EvaluationRecord`s in the same store, so the game page's leaderboard components
+the Snake protocol (evaluator.protocols.snake_score). Same `EvaluationRecord`s in the same store, so the game page's leaderboard components
 work unchanged -- only what "a score" means differs.
 
 Entrants for Checkers:
@@ -21,8 +21,6 @@ Why a rating rather than points per game (v1): points against the field saturate
 much weaker entrants scores ~0.94 whatever it is -- while a rating is set by the games it played against opponents
 near its strength. It is still relative to the field (re-run this job whenever entrants change; it replaces the old
 records), and draws are real (40 moves without a capture), counting half a win each way.
-
-Run with: uv run python jobs/evaluate_versus.py
 """
 
 from __future__ import annotations
@@ -30,7 +28,6 @@ from __future__ import annotations
 import itertools
 import random
 import statistics
-import sys
 import time
 from typing import Any
 
@@ -49,20 +46,23 @@ from arena.checkers import (
 )
 from arena.costs import hardware_fingerprint
 from arena.versus_stats import pentanomial, rate
-from evaluate import model_shape, training_cost
 from evolve import NeatGenome, network_from_json
 from evolve.networks import describe, parameter_count
 from games import interfaces
 from games.checkers import Checkers
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
-from jobcore import open_sink
+from jobcore import Sink
+from jobcore.specs import EvalSpec
 from telemetry import (
     EvaluationRecord,
     FileArtifactStore,
     FileMetricsStore,
     SqliteRunRegistry,
 )
+
+from evaluator.protocols.snake_score import model_shape, training_cost
+from evaluator.registry import protocol
 
 # Human names and one-line descriptions for the fixed baselines (the strategies themselves are Rust). The deeper
 # material searches are the *fair* opponents for a trained evaluator that searches as deep: beating a shallower
@@ -306,12 +306,9 @@ def evaluate_all(
     return records
 
 
-def main() -> None:
-    sys.stdout.reconfigure(encoding="utf-8")  # labels contain arrows; the Windows console default can't print them
-    sink = open_sink()
-    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
-    store = sink.evaluations
-
+@protocol("checkers.versus.v2")
+def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+    registry, metrics, artifacts, store = sink.registry, sink.metrics, sink.artifacts, sink.evaluations
     entrants = [*baseline_entrants(), *champion_entrants(registry, metrics, artifacts)]
     records = evaluate_all(entrants, metrics, hardware_fingerprint())
     for record in sorted(records, key=lambda r: -r.metrics["quality"]["mean"]):
@@ -323,9 +320,7 @@ def main() -> None:
             f"{record.metrics['inference']['total_us']:>8.1f} µs/decision"
         )
     # A versus score is relative to the field, so a stale record (an entrant that no longer qualifies) is wrong twice.
-    for entrant_id in store.prune(GAME, PROTOCOL, {r.entrant_id for r in records}):
+    removed = store.prune(GAME, PROTOCOL, {r.entrant_id for r in records})
+    for entrant_id in removed:
         print(f"removed {entrant_id}: no longer an entrant")
-
-
-if __name__ == "__main__":
-    main()
+    return {"protocol": PROTOCOL, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}

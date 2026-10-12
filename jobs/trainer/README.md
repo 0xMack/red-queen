@@ -39,14 +39,14 @@ returns the run id. Runs land in the data directory (`telemetry.data_dir()`) lik
 | `checkers-neuroevolution.yaml` | A 32 -> H -> 1 position evaluator searched `depth` plies, fitness = match outcomes against fixed opponents (one case per opponent per seat, lexicase), optional hall of fame (`hall`), material seeding (`seed_material`), draws scored by material (`margin`), fresh opponent games every generation (`resample` -- fixed games get memorized), `workers` for parallel scoring (same result). |
 | `checkers-neat.yaml` | The NEAT counterpart: a graph growing from a linear start, gentler weight mutation than NEAT's default. |
 | `checkers-distill.yaml` | Search distillation: fit the evaluator to a deeper material search's values on a cached position pool (`data/distill/`). A documented negative result (docs/design/0008). The pool depends on `workers`. |
-| `bandit-evolve.yaml` | Evolves epsilon-greedy's four settings for the bandit (docs/design/0011) on fresh training games; `jobs/evaluate_bandit.py` ranks every completed run's champion. |
+| `bandit-evolve.yaml` | Evolves epsilon-greedy's four settings for the bandit (docs/design/0011) on fresh training games; `evaluator.protocols.bandit_skill` ranks every completed run's champion. |
 
 | `rl-<algorithm>.yaml` | A `libs/rl` learner (docs/design/0010): `rl.random` (the smoke test), `rl.q_learning` / `rl.sarsa` (tabular), `rl.dqn`, `rl.reinforce` / `rl.a2c` / `rl.ppo`, on Snake (any interface; tabular needs one with a discretizer) or Reach1D (`--set game=reach1d --set interface=null`). Budgeted in iterations of `steps_per_iteration` env steps; `params.agent` is the learner's own settings, recorded as the run's `params`. |
 | `td-lambda.yaml` | A Checkers evaluator by TD(λ) self-play; `agent.search_depth` > 1 is TD-Leaf; `init_from` continues an earlier run's network (by id prefix, or an experiment's arm for a seed). |
 | `alphazero.yaml` | AlphaZero-style self-play (docs/design/0017); the champion is the trunk + value unit as an evaluator, the last iteration also stores the two-headed network. |
 | `pbt.yaml` | Population-based training over self-play learners (docs/design/0014); the budget is games per member; `exploit: false` is the random-search control. |
 
-| `tinylm.yaml` | TinyLM on Alice (docs/design/0004), recorded as a run (`paradigm: supervised`): a generation per `log_every` steps, fitness = minus the training loss, held-out score = minus the loss on fixed held-out windows. Writes `<data dir>/tinylm/<checkpoint>` for `jobs/publish_models.py`, and stores the final weights as `<run_id>-weights`. |
+| `tinylm.yaml` | TinyLM on Alice (docs/design/0004), recorded as a run (`paradigm: supervised`): a generation per `log_every` steps, fitness = minus the training loss, held-out score = minus the loss on fixed held-out windows. Writes `<data dir>/tinylm/<checkpoint>` for `publisher.models`, and stores the final weights as `<run_id>-weights`. |
 
 Every training script is ported; `jobs/checkers_recipe_run.py` (two `td_lambda` stages) stays a script until the
 scheduler runs pipelines (docs/design/0018 stage 6).

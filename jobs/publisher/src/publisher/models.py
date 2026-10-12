@@ -1,6 +1,6 @@
 """Publish leaderboard champions as model packages for client-side inference (docs/design/0009).
 
-For every champion `evaluate.py` would rank: export it to ONNX (`modelpack`) as an fp64 and an fp32
+For every champion the Snake leaderboard (evaluator `snake.score.v2`) would rank: export it to ONNX (`modelpack`) as an fp64 and an fp32
 variant, check each packaged artifact against the trainer's own forward pass, then play the
 leaderboard protocol's held-out games with both and record how often they choose the same move. A
 variant that doesn't agree on every decision would show visitors a different game than the one the
@@ -15,22 +15,23 @@ identical packages.
 Also publishes every TinyLM checkpoint under data/tinylm (the trainer's `tinylm`) to the
 `tinylm` catalog: fp32 and int8 variants, checked on the corpus's held-out text (modelpack.lm).
 
-Run with: uv run python jobs/publish_models.py [snake|tinylm]   (then re-run jobs/evaluate.py)
+Targets `snake` and `tinylm` (then re-run the `snake.score.v2` evaluation, which scores published champions as
+their packages).
 """
 
 from __future__ import annotations
 
-import sys
 import time
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL
-from evaluate import champion_entrants
+from evaluator.protocols.snake_score import champion_entrants
 from games import interfaces
 from games.observation import Interface
-from jobcore import open_sink
+from jobcore import Sink
+from jobcore.specs import PublishSpec
 from modelpack import (
     CatalogEntry,
     LocalModelStore,
@@ -40,7 +41,9 @@ from modelpack import (
     export_network_json,
     with_parity,
 )
-from telemetry import data_dir, models_dir
+from telemetry import data_dir
+
+from publisher.registry import target
 
 PARITY_SAMPLES = 256
 
@@ -79,11 +82,12 @@ def reference_games(interface: Interface, forward, seeds) -> list[tuple[list[lis
 
 
 def measure_agreement(
-    interface: Interface, reference_forward, packaged: PackagedModel, seeds=HELD_OUT_SEEDS
+    interface: Interface, reference_forward, packaged: PackagedModel, seeds=None
 ) -> tuple[Agreement, list[list[float]]]:
     """Decision agreement on the reference's own trajectories (one batched call per game), plus whether
     every game scores the same when the packaged model plays it end to end. Also returns the observations
-    seen, as realistic parity samples."""
+    seen, as realistic parity samples. `seeds` defaults to the protocol's held-out games, read at call time."""
+    seeds = HELD_OUT_SEEDS if seeds is None else seeds
     games = reference_games(interface, reference_forward, seeds)
     decisions = agreed = 0
     for observations, reference_decisions, _ in games:
@@ -182,10 +186,10 @@ def publish(
     return entries, package, agreements
 
 
-def main(game: str = "snake") -> None:
-    sink = open_sink()
+@target("snake")
+def publish_snake(spec: PublishSpec, params, sink: Sink, store: LocalModelStore) -> dict[str, Any]:
+    game = "snake"
     registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
-    store = LocalModelStore(models_dir())
     catalog = store.catalog(game)
     entrants = champion_entrants(registry, metrics, artifacts, game)
     # Only current entrants stay listed: a run that stopped qualifying (failed, deleted) drops out of the catalog too.
@@ -208,13 +212,15 @@ def main(game: str = "snake") -> None:
             )
     store.put_catalog(catalog)
     print(f"catalog: {store.catalog_path(game)} ({len(catalog.entries)} entries)")
+    return {"target": game, "entries": [e.entrant_id for e in catalog.entries]}
 
 
-def publish_tinylm(store: LocalModelStore) -> None:
+@target("tinylm")
+def publish_tinylm(spec: PublishSpec, params, sink: Sink, store: LocalModelStore) -> dict[str, Any]:
     import tinylm
     from modelpack.lm import LMConfig, build_lm_package
     from tinylm.checkpoint import named_parameters
-    from trainer.algorithms.tinylm import split_corpus
+    from tinylm.corpus import split_corpus
 
     catalog = store.catalog("tinylm")
     for checkpoint in sorted((data_dir() / "tinylm").glob("*.npz")):
@@ -260,13 +266,4 @@ def publish_tinylm(store: LocalModelStore) -> None:
                 f"top-1 agreement {v.parity.action_agreement:.4f} over {v.parity.decisions} held-out positions"
             )
     store.put_catalog(catalog)
-
-
-if __name__ == "__main__":
-    which = sys.argv[1:] or ["snake", "tinylm"]
-    if "snake" in which:
-        main()
-    if "tinylm" in which:
-        publish_tinylm(LocalModelStore(models_dir()))
-    removed, freed = LocalModelStore(models_dir()).collect_garbage()
-    print(f"garbage collected {removed} superseded files ({freed / 1e6:.1f} MB)")
+    return {"target": "tinylm", "entries": [e.entrant_id for e in catalog.entries]}

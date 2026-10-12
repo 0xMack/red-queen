@@ -4,7 +4,7 @@ import type { GameDevice, GameModule } from "~/games/types"
 import type { EvaluationRecord } from "~/types/leaderboard"
 import type { DeviceFit } from "~/types/modelpack"
 
-// Snake (docs/design/0007): single-agent, scored by food eaten on held-out seeds (jobs/evaluate.py).
+// Snake (docs/design/0007): single-agent, scored by food eaten on held-out seeds (evaluator.protocols.snake_score).
 // Its champions are ONNX model packages, so unlike a game whose entrants run anywhere, the page needs to
 // know which of them *this device* can run (docs/design/0009).
 

@@ -1,6 +1,6 @@
 """Is Checkers player A stronger than player B? A head-to-head SPRT over the ballot (docs/design/0013).
 
-A and B play game pairs (one ballot opening, each from both seats; jobs/evaluate_versus.py's `play_pairing`) until
+A and B play game pairs (one ballot opening, each from both seats; evaluator.protocols.checkers_versus's `play_pairing`) until
 Wald's sequential test is conclusive (libs/arena/src/arena/versus_stats.py's `Sprt`): H1, A is at least `elo1` stronger, or H0, A is
 no stronger than `elo0`. The field doesn't enter into it, so it keeps working however strong the players get. The
 openings are played in a fixed shuffled order, so an early stop isn't a verdict on one family of openings. If the
@@ -10,13 +10,11 @@ and the Elo estimate and its interval say how small.
 A player is a fixed strategy (`material-4`, `random`, ...) or a run's final champion: its run id, or any unique
 prefix of it, optionally `@N` to search N plies instead of the depth the run was trained for.
 
-  uv run python jobs/checkers_sprt.py A B [--elo0 0] [--elo1 50] [--alpha 0.05] [--beta 0.05]
-  e.g. uv run python jobs/checkers_sprt.py 672890ba@4 material-4
+  uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.a=672890ba@4 --set params.b=material-4
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import random
 import sys
@@ -28,8 +26,11 @@ from arena.versus_stats import Sprt
 from evolve import NeatGenome, network_from_json
 from games.checkers_openings import Opening, ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator, strategy
-from jobcore import experiments_dir, open_sink
+from jobcore import Sink, experiments_dir
+from jobcore.specs import EvalSpec
 from telemetry import FileArtifactStore, FileMetricsStore, RunInfo, SqliteRunRegistry
+
+from evaluator.registry import protocol
 
 
 def sprt_order() -> list[Opening]:
@@ -94,39 +95,26 @@ def sequential_match(
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Head-to-head SPRT between two Checkers players (docs/design/0013).")
-    parser.add_argument("a")
-    parser.add_argument("b")
-    parser.add_argument("--elo0", type=float, default=0.0)
-    parser.add_argument("--elo1", type=float, default=50.0)
-    parser.add_argument("--alpha", type=float, default=0.05)
-    parser.add_argument("--beta", type=float, default=0.05)
-    parser.add_argument("--out", default=None, help="write the result as JSON under data/experiments/")
-    args = parser.parse_args(argv)
-    sys.stdout.reconfigure(encoding="utf-8")
-    sink = open_sink()
+@protocol("checkers.sprt")
+def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
     registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
-    a = resolve(args.a, registry, metrics, artifacts)
-    b = resolve(args.b, registry, metrics, artifacts)
-    test = Sprt(elo0=args.elo0, elo1=args.elo1, alpha=args.alpha, beta=args.beta)
+    a = resolve(params.a, registry, metrics, artifacts)
+    b = resolve(params.b, registry, metrics, artifacts)
+    test = Sprt(elo0=params.elo0, elo1=params.elo1, alpha=params.alpha, beta=params.beta)
 
     def progress(k: int, scored: list[float]) -> None:
         if (k + 1) % 10 == 0 or test.verdict:
             print(f"pair {k + 1:>3}  LLR {test.llr:+.2f} in [{test.lower:.2f}, {test.upper:.2f}]", flush=True)
 
     result = sequential_match([(a, b)], test, on_pair=progress)
-    result = {"a": args.a, "b": args.b, **result}
+    result = {"a": params.a, "b": params.b, **result}
     del result["per_couple"]
     print(
-        f"{args.a} vs {args.b}: {result['verdict']} after {result['pairs']} pairs -- "
+        f"{params.a} vs {params.b}: {result['verdict']} after {result['pairs']} pairs -- "
         f"Elo {result['elo']:+.0f} [{result['lo']:+.0f}, {result['hi']:+.0f}], pentanomial {result['pentanomial']}"
     )
-    if args.out:
-        path = experiments_dir() / f"{args.out}.json"
+    if params.out:
+        path = experiments_dir() / f"{params.out}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-
-
-if __name__ == "__main__":
-    main()
+    return result

@@ -2,7 +2,7 @@
 
 Same model and schedule as notebooks/0006-tinylm-from-scratch.ipynb (the numbers the Transformers Learn chapter
 cites), except that the last 5% of the corpus is held out: never trained on, used for a validation loss here and, by
-jobs/publish_models.py, as the text an exported package is checked on (top-1 next-character agreement).
+the publisher's `tinylm` target, as the text an exported package is checked on (top-1 next-character agreement).
 
 Writes <data dir>/tinylm/<checkpoint>.npz + .json, which is what the model store publishes -- and, since
 docs/design/0018 stage 3c, records an ordinary run (`paradigm: supervised`) beside it, so a TinyLM run is on the runs
@@ -20,7 +20,6 @@ import json
 import math
 import statistics
 import time
-from pathlib import Path
 
 import numpy as np
 from arena.costs import TrainingCostMeter
@@ -28,24 +27,13 @@ from jobcore import Sink, recorded_run
 from jobcore.algorithms.language import TinyLMParams
 from jobcore.specs import TrainSpec
 from telemetry import GenerationStats, data_dir
-from tinylm import Adam, CharTokenizer, TinyLM, cross_entropy, save
+from tinylm import Adam, TinyLM, cross_entropy, save
 from tinylm.checkpoint import named_parameters
+from tinylm.corpus import CORPUS_NAME, HELD_OUT_FRACTION, split_corpus
 
 from trainer.registry import adapter, held_out_every
 
-CORPUS = Path(__file__).parents[5] / "libs" / "tinylm" / "data" / "alice.txt"
-HELD_OUT_FRACTION = 0.05
 HELD_OUT_WINDOWS = 256
-
-
-def split_corpus() -> tuple[CharTokenizer, np.ndarray, np.ndarray]:
-    """(tokenizer over the whole corpus, training ids, held-out ids) -- the vocabulary covers the held-out
-    text too, so every held-out character is encodable."""
-    text = CORPUS.read_text(encoding="utf-8")
-    tokenizer = CharTokenizer(text)
-    ids = np.array(tokenizer.encode(text))
-    cut = int(len(ids) * (1 - HELD_OUT_FRACTION))
-    return tokenizer, ids[:cut], ids[cut:]
 
 
 def windows(ids: np.ndarray, count: int, rng: np.random.Generator, seq_len: int) -> tuple[np.ndarray, np.ndarray]:
@@ -85,7 +73,7 @@ def train_tinylm(spec: TrainSpec, params: TinyLMParams, sink: Sink) -> str:
         "representation": "tinylm",
         "game": "text",
         "paradigm": "supervised",
-        "corpus": "libs/tinylm/data/alice.txt",
+        "corpus": CORPUS_NAME,
         "held_out_fraction": HELD_OUT_FRACTION,
         "model": model_config,
         "parameters": parameters,
@@ -153,7 +141,7 @@ def train_tinylm(spec: TrainSpec, params: TinyLMParams, sink: Sink) -> str:
             tokenizer,
             path,
             name=params.checkpoint,
-            corpus="libs/tinylm/data/alice.txt",
+            corpus=CORPUS_NAME,
             held_out_fraction=HELD_OUT_FRACTION,
             training={"steps": steps, "batch_size": params.batch_size, "lr": params.lr, "seconds": round(train_s, 1)},
             train_loss=round(float(np.mean(losses[-50:])), 4),

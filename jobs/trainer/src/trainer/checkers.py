@@ -43,7 +43,7 @@ from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
 from telemetry import ArtifactStore, GenerationStats, MetricsSink
 
 INPUTS = 32  # games.checkers' observation: the 32 playable squares from the mover's perspective
-MAX_MOVES = 200  # plies per match (a draw beyond that), the same cap jobs/checkers_round_robin.py uses
+MAX_MOVES = 200  # plies per match (a draw beyond that), the same cap the static round robin uses
 MONITOR_GAMES = 10  # per opponent, alternating seats
 
 Genome = WeightVector | NeatGenome

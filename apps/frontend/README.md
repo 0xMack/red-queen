@@ -23,8 +23,8 @@ for the full contract and incremental plan this implements (steps 3-6).
   registered in `games/registry.ts`): the score's name and format (`ScoreSpec`), extra leaderboard columns,
   which entrant opens by default, the Watch/Play stage components, optional device probing (Snake's ONNX
   model availability), and page copy. **To add a game:** write its module and stage(s), register it, add it
-  to `data/games.ts`, and produce leaderboard records with an evaluation job (`jobs/evaluate.py` for a
-  single-agent score, `jobs/evaluate_versus.py` for a round robin). Stage components receive `mode`,
+  to `data/games.ts`, and produce leaderboard records with an evaluation job (`evaluator.protocols.snake_score` for a
+  single-agent score, `evaluator.protocols.checkers_versus` for a round robin). Stage components receive `mode`,
   `entry`, `entries`, `device` and may emit `score`/`exit`; spell those props out inline -- the SFC compiler
   can't resolve an imported type as the *whole* props type without TypeScript installed.
   - **Snake** wraps its existing pieces (`SnakeWatchStage` -> `WatchChampion`, `SnakePlayStage` ->
@@ -93,7 +93,7 @@ for the full contract and incremental plan this implements (steps 3-6).
   one root `<article class="prose-chapter">` (page transitions need a single root; a template
   comment next to it counts as a second one in dev). Every listed chapter is written, each citing
   real code and real results (via `Callout`) rather than invented examples -- numbers come from the
-  notebooks, the telemetry store, or a committed script (`jobs/checkers_round_robin.py` for the
+  notebooks, the telemetry store, or a committed script (`evaluator.protocols.static_round_robin` for the
   multi-agent chapter). Interactive pieces: `LiveSnakeDemo` (Snake case study), `ChampionProgram`
   (a real linear-GP champion, genome representations), `AutodiffPlayground` (live forward/backward
   pass on one neuron with a finite-difference check), `CausalMaskDemo` (transformers), and
@@ -120,7 +120,7 @@ for the full contract and incremental plan this implements (steps 3-6).
   switch remounts it on the warm worker) -- by default the best *trained* model -- and the side
   `LeaderboardList` is also the selector (click any entrant; the full `LeaderboardTable` and the
   `LeaderboardPareto` chart below select too). Baselines are watchable: the worker runs
-  `games.baselines` (the same code `jobs/evaluate.py` scores) via `useBaselineSession`.
+  `games.baselines` (the same code `evaluator.protocols.snake_score` scores) via `useBaselineSession`.
   **"Play it yourself"** swaps the stage to `HumanPlay`: same board and rules, a countdown that
   waits for the runtime (`warmup` worker message), window-scoped arrow keys (or an on-screen pad on
   touch screens), a live `HumanRace` track of every entrant's mean, and `HumanResults` at the end --
@@ -129,7 +129,7 @@ for the full contract and incremental plan this implements (steps 3-6).
   side list (TransitionGroup FLIP). Personal history is this browser's localStorage only
   (`utils/leaderboard.ts`); submitting humans to the real leaderboard is doc 0007 step 4. State is in
   the URL: `?watch=<entrant_id>`, `?mode=play`. Data: `GET /games/{game}/leaderboard` (records
-  written by `jobs/evaluate.py`, newest protocol shown -- versions aren't comparable) and
+  written by `evaluator.protocols.snake_score`, newest protocol shown -- versions aren't comparable) and
   `GET /games/{game}/interfaces`. The run detail page links its own standing into this page, since
   "best fitness" there is training fitness, not a game score.
 - `app/pages/play/[game].vue` — now just a redirect to `/games/[game]?mode=play` (old links). The

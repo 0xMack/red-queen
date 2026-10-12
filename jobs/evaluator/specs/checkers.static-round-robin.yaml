@@ -1,0 +1,4 @@
+# The fixed Checkers strategies against each other: the numbers the Multi-Agent Games chapter cites.
+kind: evaluate
+protocol: checkers.static-round-robin
+params: {games: 200}

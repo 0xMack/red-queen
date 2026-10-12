@@ -18,7 +18,7 @@ export function entrantLabel(r: EvaluationRecord): string {
   return r.run_id ? `${entrantShortLabel(r)} · ${shortId(r.run_id)}` : r.label
 }
 
-/** A champion's model facts: `metrics.model.shape` (jobs/evaluate.py), or -- for records evaluated
+/** A champion's model facts: `metrics.model.shape` (evaluator.protocols.snake_score), or -- for records evaluated
  * before that existed -- parsed back out of its label ("NEAT 11 → 11 hidden → 3 · 73 conns · speciation"). */
 export function entrantShape(r: EvaluationRecord): ModelShape | null {
   if (r.entrant_kind !== "champion") return null

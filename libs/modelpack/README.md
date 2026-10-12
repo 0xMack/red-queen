@@ -16,6 +16,6 @@ evaluation job (`PackagedModel`, ONNX Runtime CPU) run the same bytes.
 - `runtime` — load a package variant into an ONNX Runtime CPU session.
 
 Publishing (export → verify → action agreement on the protocol's games → store → catalog) is
-`jobs/publish_models.py`, since it plays games. Depends on `evolve`, never the other way round.
+`publisher.models`, since it plays games. Depends on `evolve`, never the other way round.
 
 Tests: `uv run pytest libs/modelpack/tests`.

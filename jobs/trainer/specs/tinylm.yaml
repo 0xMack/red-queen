@@ -1,5 +1,5 @@
 # TinyLM on Alice (docs/design/0004): a character-level transformer, recorded as a run beside its checkpoint
-# (<data dir>/tinylm/<checkpoint>), which jobs/publish_models.py packages for the browser.
+# (<data dir>/tinylm/<checkpoint>), which publisher.models packages for the browser.
 game: text
 algorithm: tinylm
 budget: {steps: 3000}

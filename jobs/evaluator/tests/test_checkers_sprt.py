@@ -1,7 +1,8 @@
-import checkers_sprt
 from arena.versus_stats import Sprt
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, strategy
+
+from evaluator.protocols import checkers_sprt
 
 
 def test_the_order_is_the_whole_ballot_shuffled_and_fixed():
@@ -29,12 +30,3 @@ def test_couples_take_turns_on_each_opening():
     result = checkers_sprt.sequential_match(couples, Sprt(min_pairs=10**6), openings=ballot()[:3])
     assert result["verdict"] == "inconclusive" and result["pairs"] == 6
     assert [len(p) for p in result["per_couple"]] == [3, 3]
-
-
-def test_across_seeds_is_the_regime_level_view():
-    from checkers_selfplay_experiment import across_seeds
-
-    agree = across_seeds({s: {"elo": e} for s, e in enumerate([103.0, 124.0, 127.0, 120.0, 126.0])})
-    assert agree["positive"] == 5 and agree["sign_flip_p"] == 0.0625  # the floor with five seeds
-    split = across_seeds({s: {"elo": e} for s, e in enumerate([24.0, 21.0, -7.0, 22.0, -33.0])})
-    assert split["positive"] == 3 and split["sign_flip_p"] > 0.5

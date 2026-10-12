@@ -1,6 +1,6 @@
 """Leaderboards and representations per game (docs/design/0007).
 
-Read-only: evaluations are produced by jobs/evaluate.py (a separate evaluation job, never training
+Read-only: evaluations are produced by evaluator.protocols.snake_score (a separate evaluation job, never training
 fitness), and interfaces are defined in games.interfaces. This router just serves both.
 """
 

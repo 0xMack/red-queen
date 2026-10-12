@@ -1,6 +1,7 @@
-import evaluate_versus
 from evolve import WeightVector
 from games.checkers_strategies import evaluator
+
+import evaluator.protocols.checkers_versus as evaluate_versus
 
 
 def _entrants():

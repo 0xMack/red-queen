@@ -1,7 +1,7 @@
 """Checkers self-play runs (the trainer's `td_lambda` / `alphazero`) are recorded like any other Checkers run and join
-the versus leaderboard (jobs/evaluate_versus.py); the recipe chains two of them."""
+the versus leaderboard (evaluator `checkers.versus.v2`); the recipe chains two of them."""
 
-import evaluate_versus
+import evaluator.protocols.checkers_versus as evaluate_versus
 from evolve import WeightVector
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
 from trainer import train

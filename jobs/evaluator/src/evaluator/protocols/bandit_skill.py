@@ -11,24 +11,24 @@ skill on `classic`, the default game; `metrics.bandit.scenarios` holds every sce
 and for `two-lamps` both blind (`none.v1`) and seeing the lamp (`lamp.v1`) -- the contextual lesson.
 
 Random and greedy are the baselines (the reference points every other strategy is read against); the rest compete.
-
-Run with: uv run python jobs/evaluate_bandit.py
 """
 
 from __future__ import annotations
 
 import json
 import statistics
-import sys
 import time
 from typing import Any
 
 from arena.bandit import GAME, HELD_OUT, PROTOCOL, RANKED, SEED_BASE
 from arena.costs import hardware_fingerprint
 from games.bandit import SCENARIOS
-from jobcore import open_sink
+from jobcore import Sink
+from jobcore.specs import EvalSpec
 from rl import _native
 from telemetry import EvaluationRecord
+
+from evaluator.registry import protocol
 
 # (key, strategy, params, label, description, baseline?) -- the params are what the game page runs the entrant with.
 ENTRANTS: list[tuple[str, str, dict[str, float], str, str, bool]] = [
@@ -207,10 +207,9 @@ def record_for(
     )
 
 
-def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
+def evolved_entrants(sink: Sink) -> list[tuple[tuple, tuple[str, str, dict | None]]]:
     """Every completed bandit evolution run's final champion (the trainer's bandit_evolve): its evolved settings, as an
     entrant linked to the run that produced it."""
-    sink = open_sink()
     out = []
     for run in sink.registry.list_runs():
         config = run.config or {}
@@ -235,15 +234,16 @@ def evolved_entrants() -> list[tuple[tuple, tuple[str, str, dict | None]]]:
     return out
 
 
-def main() -> None:
-    sys.stdout.reconfigure(encoding="utf-8")
-    store = open_sink().evaluations
+@protocol("bandit.skill.v1")
+def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+    store = sink.evaluations
     hardware = hardware_fingerprint()
     records = [record_for(e, hardware) for e in ENTRANTS]
-    records += [record_for(e, hardware, run) for e, run in evolved_entrants()]
+    records += [record_for(e, hardware, run) for e, run in evolved_entrants(sink)]
     for record in records:
         store.put(record)
-    for entrant_id in store.prune(GAME, PROTOCOL, {r.entrant_id for r in records}):
+    removed = store.prune(GAME, PROTOCOL, {r.entrant_id for r in records})
+    for entrant_id in removed:
         print(f"removed {entrant_id}: no longer an entrant")
 
     columns = [*SCENARIOS, "two-lamps:lamp.v1"]
@@ -253,7 +253,4 @@ def main() -> None:
     for record in sorted(records, key=lambda r: -r.metrics["quality"]["mean"]):
         s = record.metrics["bandit"]["scenarios"]
         print(f"| {record.label} | " + " | ".join(f"{s[c]['skill']:.1f}" for c in columns) + " |")
-
-
-if __name__ == "__main__":
-    main()
+    return {"protocol": PROTOCOL, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}

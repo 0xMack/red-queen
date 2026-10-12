@@ -23,7 +23,7 @@ A mixed Rust/Python package, like `libs/games`:
 
 - `rust/core` (`redqueen-rl`) — the learning core. **Never names a game.**
   - `env.rs`: the `Env` trait (`reset(seed)`, `step(action)`, `score()`, observation size, action space), and
-    `play()`, the evaluation loop `jobs/evaluate.py` also runs.
+    `play()`, the evaluation loop `evaluator.protocols.snake_score` also runs.
   - `nn.rs`: a batched MLP (`linear`/`relu`/`tanh` layers) with explicit backprop, and Adam. Parameters are one
     flat vector in `evolve.WeightVector`'s layout.
   - `agent.rs`: the `Agent` trait, `Params` (hyperparameters by name; unknown names are errors), `RandomAgent`,
@@ -46,7 +46,7 @@ A mixed Rust/Python package, like `libs/games`:
   (TD(λ) / TD-Leaf) and `alphazero.rs` (MCTS with a policy-and-value network). Shared by both binding crates.
 - `rust/python` → `rl._native` (PyO3). `rust/wasm` → `apps/frontend/app/wasm/rl` (built by `scripts/build_wasm.py`).
 - `src/rl` — the Python face.
-- `tests/` — parity against `libs/autodiff` (`reference_nn.py`), the adapters against `jobs/evaluate.py`'s scores,
+- `tests/` — parity against `libs/autodiff` (`reference_nn.py`), the adapters against `evaluator.protocols.snake_score`'s scores,
   and the determinism fixture (`determinism.json`) that the native build, Node and the browser all check against.
 
 ## Determinism

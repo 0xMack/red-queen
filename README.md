@@ -129,7 +129,7 @@ Needs [uv](https://docs.astral.sh/uv/), a Rust toolchain, and Node with [pnpm](h
 
 ```bash
 uv sync --all-packages                       # every Python package, building the Rust extensions
-uv run python jobs/evaluate_bandit.py        # the bandit leaderboard (seconds; no training needed)
+uv run python -m evaluator jobs/evaluator/specs/bandit.skill.v1.yaml        # the bandit leaderboard (seconds; no training needed)
 uv run uvicorn backend.main:app --app-dir apis/backend/src --port 8000
 ```
 
@@ -143,7 +143,7 @@ leaderboards, train something and evaluate it. For example:
 ```bash
 uv run python -m trainer jobs/trainer/specs/rl-dqn.yaml      # DQN on Snake (rl-*.yaml: Q-learning ... PPO)
 uv run python -m trainer jobs/trainer/specs/snake-neat.yaml  # NEAT on Snake
-uv run python jobs/evaluate.py                               # rank every finished Snake run
+uv run python -m evaluator jobs/evaluator/specs/snake.score.v2.yaml                               # rank every finished Snake run
 ```
 
 Runs land in `data/`, which is gitignored. The same checks CI runs are listed in

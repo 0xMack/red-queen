@@ -1,0 +1,3 @@
+# Package the Snake leaderboard's champions (fp64 + fp32) into the model store; then re-run snake.score.v2.
+kind: publish
+target: snake

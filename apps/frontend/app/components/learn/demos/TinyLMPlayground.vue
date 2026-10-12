@@ -143,8 +143,8 @@ onUnmounted(() => worker?.terminate())
     </div>
     <p v-if="models.error.value" class="mt-3 text-sm text-queen-300">Couldn't load the model catalog: {{ models.error.value }}</p>
     <p v-else-if="models.catalog.value && !entry" class="mt-3 text-sm text-fg-muted">
-      Nothing is published in the <code>{{ catalog }}</code> catalog yet (see <code>jobs/publish_models.py</code>
-      and <code>jobs/scale_test_package.py</code>).
+      Nothing is published in the <code>{{ catalog }}</code> catalog yet (see <code>publisher.models</code>
+      and <code>publisher.scale_test</code>).
     </p>
     <template v-else-if="manifest">
       <p class="mt-2 text-sm text-fg-muted">{{ manifest.description }}</p>

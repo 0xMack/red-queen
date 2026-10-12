@@ -5,7 +5,7 @@ import type { GameModule } from "~/games/types"
 
 // The multi-armed bandit (docs/design/0011): single-player, and its entrants are *strategies* -- algorithms that learn
 // within one game, since a bandit's machines are drawn afresh every game -- scored by skill (0 = no better than
-// random, 100 = the best machine every pull) on the default scenario's held-out games (jobs/evaluate_bandit.py). Every
+// random, 100 = the best machine every pull) on the default scenario's held-out games (evaluator.protocols.bandit_skill). Every
 // strategy runs anywhere (the Rust core in WebAssembly). Play is a race: you against the entrant you pick and two
 // reference strategies, on the same machines.
 export const banditModule: GameModule = {

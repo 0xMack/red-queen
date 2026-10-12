@@ -885,7 +885,7 @@
     },
     "/runs/{run_id}/artifacts/{ref}/package": {
       "post": {
-        "description": "Package any stored champion on demand -- how the browser watches a champion that was never\npublished (a still-training run's latest, a pinned generation). Development/live-training only:\nit costs a little server compute per *new* champion, never per frame, and packages are\ncontent-addressed, so asking again for the same champion re-uses the stored one. Unlike\njobs/publish_models.py it measures only numeric parity (on random inputs), not action agreement\non the protocol's games -- so it's marked `on_demand`, and never becomes a leaderboard entrant.",
+        "description": "Package any stored champion on demand -- how the browser watches a champion that was never\npublished (a still-training run's latest, a pinned generation). Development/live-training only:\nit costs a little server compute per *new* champion, never per frame, and packages are\ncontent-addressed, so asking again for the same champion re-uses the stored one. Unlike\npublisher.models it measures only numeric parity (on random inputs), not action agreement\non the protocol's games -- so it's marked `on_demand`, and never becomes a leaderboard entrant.",
         "operationId": "export_champion_runs__run_id__artifacts__ref__package_post",
         "parameters": [
           {

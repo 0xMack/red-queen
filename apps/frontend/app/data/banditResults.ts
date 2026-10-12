@@ -1,4 +1,4 @@
-// The bandit chapter's cited results (docs/design/0011): skill per strategy per scenario, from `jobs/evaluate_bandit.py`
+// The bandit chapter's cited results (docs/design/0011): skill per strategy per scenario, from `evaluator.protocols.bandit_skill`
 // (protocol bandit.skill.v1, 500 held-out games per scenario, seeds 10,000-10,499). Hard-coded on purpose, like every
 // chapter's figures: the numbers a chapter's prose cites must not change under a reader because someone re-ran a job.
 // The game page draws the same table live from the leaderboard records.

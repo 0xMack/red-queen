@@ -1,6 +1,6 @@
 // libs/telemetry's EvaluationRecord (docs/design/0007) is generated from the backend's OpenAPI schema
 // (`api.gen.ts`, see types/telemetry.ts) -- except `metrics` and `hardware`, free-form dicts on the Python
-// side, whose shape below is what jobs/evaluate.py and jobs/evaluate_versus.py write. InterfaceInfo mirrors
+// side, whose shape below is what evaluator.protocols.snake_score and evaluator.protocols.checkers_versus write. InterfaceInfo mirrors
 // libs/games/src/games/observation.py's Interface.describe() by hand (the endpoint returns a plain dict).
 
 import type { components } from "./api.gen"
@@ -51,7 +51,7 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
     quality: QualityMetrics
     inference: InferenceMetrics
     training: TrainingMetrics
-    // Two-player games only (jobs/evaluate_versus.py): the record behind the score, and against each other entrant,
+    // Two-player games only (evaluator.protocols.checkers_versus): the record behind the score, and against each other entrant,
     // for the head-to-head matrix. Since `checkers.versus.v2` (docs/design/0013) the score (`quality.mean`) is an Elo
     // rating; points per game, the game-pair counts and the rating's interval are here.
     versus?: {
@@ -76,7 +76,7 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
       variant?: string | null
     }
     protocol: { held_out_seeds: [number, number]; episodes: number; max_steps: number; board: Record<string, number>; metric: string }
-    // Bandit strategies only (jobs/evaluate_bandit.py, docs/design/0011): the strategy and settings the entrant is,
+    // Bandit strategies only (evaluator.protocols.bandit_skill, docs/design/0011): the strategy and settings the entrant is,
     // and its skill on every scenario -- `two-lamps:lamp.v1` is the same strategy seeing the lamp.
     bandit?: {
       strategy: string

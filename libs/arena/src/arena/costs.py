@@ -126,7 +126,7 @@ class TrainingCostMeter:
         episodes = getattr(self._fitness, "episodes", None)
         steps = getattr(self._fitness, "steps", None)
         return {
-            "measured": True,  # vs. "estimated" for pre-0007 runs (see jobs/evaluate.py)
+            "measured": True,  # vs. "estimated" for pre-0007 runs (see evaluator.protocols.snake_score)
             "generations": self.generations,
             "fitness_evaluations": self.generations * self._population_size,
             "episodes": episodes,

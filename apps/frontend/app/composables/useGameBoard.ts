@@ -1,7 +1,7 @@
 import type { EvaluationRecord, InterfaceInfo } from "~/types/leaderboard"
 
 // A game's leaderboard data (docs/design/0007), the same fetch for every game: the evaluations
-// (`/games/{game}/leaderboard`, produced by jobs/evaluate.py or jobs/evaluate_versus.py -- never
+// (`/games/{game}/leaderboard`, produced by evaluator.protocols.snake_score or evaluator.protocols.checkers_versus -- never
 // training fitness) and the representations (`/games/{game}/interfaces`). Records from different
 // protocol versions aren't comparable, so only the newest protocol's are ranked. An unreachable backend
 // leaves `entries` empty and sets `error`; the page then still lets you play.

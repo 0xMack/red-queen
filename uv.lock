@@ -13,10 +13,12 @@ members = [
     "arena",
     "autodiff",
     "backend",
+    "evaluator",
     "evolve",
     "games",
     "jobcore",
     "modelpack",
+    "publisher",
     "red-queen-workspace",
     "redqueen",
     "rl",
@@ -763,6 +765,33 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
+]
+
+[[package]]
+name = "evaluator"
+version = "0.1.0"
+source = { editable = "jobs/evaluator" }
+dependencies = [
+    { name = "arena" },
+    { name = "evolve" },
+    { name = "games" },
+    { name = "jobcore" },
+    { name = "modelpack" },
+    { name = "pyyaml" },
+    { name = "rl" },
+    { name = "telemetry" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arena", editable = "libs/arena" },
+    { name = "evolve", editable = "libs/evolve" },
+    { name = "games", editable = "libs/games" },
+    { name = "jobcore", editable = "jobs/core" },
+    { name = "modelpack", editable = "libs/modelpack" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "rl", editable = "libs/rl" },
+    { name = "telemetry", editable = "libs/telemetry" },
 ]
 
 [[package]]
@@ -2376,6 +2405,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/20/e5/16ff212c1e452235a90aeb09066144d0c5a6a8c0834397e03f5224495c4e/ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220", size = 70762, upload-time = "2020-12-28T15:15:30.155Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/22/a6/858897256d0deac81a172289110f31629fc4cee19b6f01283303e18c8db3/ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35", size = 13993, upload-time = "2020-12-28T15:15:28.35Z" },
+]
+
+[[package]]
+name = "publisher"
+version = "0.1.0"
+source = { editable = "jobs/publisher" }
+dependencies = [
+    { name = "arena" },
+    { name = "evaluator" },
+    { name = "jobcore" },
+    { name = "modelpack" },
+    { name = "telemetry" },
+    { name = "tinylm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arena", editable = "libs/arena" },
+    { name = "evaluator", editable = "jobs/evaluator" },
+    { name = "jobcore", editable = "jobs/core" },
+    { name = "modelpack", editable = "libs/modelpack" },
+    { name = "telemetry", editable = "libs/telemetry" },
+    { name = "tinylm", editable = "libs/tinylm" },
 ]
 
 [[package]]

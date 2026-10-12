@@ -1,7 +1,7 @@
 """The game adapters and the training loop.
 
 An adapter is right when the numbers are: a games-crate baseline played through the Snake adapter must score
-exactly what `jobs/evaluate.py`'s protocol records for the same seeds.
+exactly what `evaluator.protocols.snake_score`'s protocol records for the same seeds.
 """
 
 import math
@@ -18,7 +18,7 @@ MAX_STEPS = 1000  # the protocol's cap
 
 
 def _python_protocol(policy_factory, seed: int) -> tuple[int, int]:
-    """jobs/evaluate.py's play_episode, inlined (jobs/ isn't importable from libs/)."""
+    """evaluator.protocols.snake_score's play_episode, inlined (jobs/ isn't importable from libs/)."""
     game = interfaces.get(FEATURES).make_game(seed=seed, **BOARD)
     observation = game.reset()
     policy = policy_factory(seed)
