@@ -1,0 +1,134 @@
+"""The scheduler (docs/design/0018, decision 2): the only thing that turns queued jobs into running workers, and the only
+thing that understands composite work.
+
+One `tick()`:
+1. **experiments** -- every stored experiment's arm x seed cells that have no completed run and no job in flight
+   become trainer jobs (`parent` = the experiment). A cell whose arm continues another (`init_from`) waits until that
+   run exists. A cell whose last job failed or was cancelled is retried only once the experiment has been resubmitted
+   since (so a broken arm doesn't loop forever);
+2. **reap** -- each worker it started: cancelled if asked (the runner stops it), `succeeded` with its result or
+   `failed` with its log's tail once it exits, its heartbeat refreshed while it runs;
+3. **claim** -- queued jobs, oldest first, up to `max_workers` running at once.
+
+`recover()` runs once at start: a `running` job whose worker is gone (this scheduler restarted, or the machine did) is
+marked `failed` -- the crash rule `recorded_run()` has for runs, one level up.
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+
+from jobcore.specs import ExperimentSpec
+from telemetry import Job, JobStore, RunRegistry
+
+from scheduler.runner import Handle, LocalProcessRunner, Runner, log_tail, pid_alive, read_result
+
+ACTIVE = frozenset({"queued", "running"})
+
+
+@dataclass
+class Scheduler:
+    jobs: JobStore
+    registry: RunRegistry
+    runner: Runner = field(default_factory=LocalProcessRunner)
+    max_workers: int = 1
+    grace: float = 10.0
+    running: dict[str, Handle] = field(default_factory=dict)
+
+    def recover(self) -> list[str]:
+        """Marks `running` jobs with no live worker `failed`; returns their ids."""
+        lost = []
+        for job in self.jobs.list(status="running"):
+            if job.job_id not in self.running and not (job.pid and pid_alive(job.pid)):
+                self.jobs.update(job.job_id, status="failed", error="the worker was gone when the scheduler started")
+                lost.append(job.job_id)
+        return lost
+
+    def tick(self) -> None:
+        self.fan_out_experiments()
+        self.reap()
+        self.claim()
+
+    def run_forever(self, poll_interval: float = 1.0) -> None:
+        self.recover()
+        try:
+            while True:
+                self.tick()
+                time.sleep(poll_interval)
+        except KeyboardInterrupt:
+            for handle in list(self.running.values()):  # stopping the scheduler stops its workers, cleanly
+                self.runner.stop(handle, self.grace)
+                self.jobs.update(handle.job_id, status="cancelled", error="the scheduler was stopped")
+            raise
+
+    # --- experiments -------------------------------------------------------------------------------------------
+
+    def fan_out_experiments(self) -> list[Job]:
+        submitted = []
+        for experiment in self.jobs.list_experiments():
+            spec = ExperimentSpec.model_validate(experiment.spec)
+            completed = self._completed_runs()
+            latest: dict[tuple[str, int], Job] = {}
+            for job in self.jobs.list(parent=spec.name):  # oldest first: the newest wins
+                latest[(job.spec.get("tags", {}).get("arm"), job.spec.get("seed"))] = job
+            for arm, seed, train in spec.expand():
+                if (spec.name, arm, seed) in completed:
+                    continue
+                job = latest.get((arm, seed))
+                if job is not None and (
+                    job.status in ACTIVE
+                    or job.status == "succeeded"  # its run is recorded; nothing to redo
+                    or (job.finished_at or 0) >= experiment.updated_at  # failed since the last (re)submission
+                ):
+                    continue
+                if train.init_from is not None:
+                    parent = (train.init_from.experiment, train.init_from.arm, train.init_from.seed)
+                    if parent not in completed:
+                        continue  # waits for the run it continues
+                submitted.append(self.jobs.submit("train", train.model_dump(mode="json"), parent=spec.name))
+        return submitted
+
+    def _completed_runs(self) -> set[tuple[str, str, int]]:
+        return {
+            (r.config.get("experiment"), r.config.get("arm"), r.config.get("rng_seed"))
+            for r in self.registry.list_runs()
+            if r.status == "completed" and r.config.get("experiment")
+        }
+
+    # --- workers -----------------------------------------------------------------------------------------------
+
+    def reap(self) -> None:
+        for job_id, handle in list(self.running.items()):
+            job = self.jobs.get(job_id)
+            if job.cancel_requested:
+                self.runner.stop(handle, self.grace)
+                self.jobs.update(job_id, status="cancelled")
+                del self.running[job_id]
+                continue
+            code = self.runner.poll(handle)
+            if code is None:
+                self.jobs.update(job_id, heartbeat_at=time.time())
+                continue
+            result = read_result(handle)
+            if code == 0 and result is not None:
+                self.jobs.update(job_id, status="succeeded", result=result)
+            else:
+                self.jobs.update(job_id, status="failed", error=f"exit code {code}\n{log_tail(handle.log)}".strip())
+            del self.running[job_id]
+
+    def claim(self) -> None:
+        while len(self.running) < self.max_workers:
+            job = self.jobs.claim_next()
+            if job is None:
+                return
+            if job.cancel_requested:
+                self.jobs.update(job.job_id, status="cancelled")
+                continue
+            try:
+                handle = self.runner.start(job)
+            except OSError as e:
+                self.jobs.update(job.job_id, status="failed", error=f"couldn't start the worker: {e}")
+                continue
+            self.jobs.update(job.job_id, pid=handle.pid, log=handle.log)
+            self.running[job.job_id] = handle

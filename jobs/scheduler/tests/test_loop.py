@@ -1,0 +1,119 @@
+"""The scheduler's decisions, with a runner that only pretends: what gets claimed, submitted, reaped and recovered."""
+
+import itertools
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import pytest
+from telemetry import SqliteJobStore, SqliteRunRegistry
+
+from scheduler import Scheduler
+from scheduler.runner import Handle
+
+EXPERIMENT = {
+    "kind": "experiment",
+    "name": "probe",
+    "seeds": [0, 1],
+    "defaults": {"game": "snake", "algorithm": "neat", "budget": {"generations": 2}},
+    "arms": {"base": {}, "ft": {"baseline": "base", "init_from": "probe/base"}},
+}
+
+
+@dataclass
+class FakeRunner:
+    """Workers that exit when told to: `finish(job_id, code, result)`."""
+
+    exits: dict[str, tuple[int, dict | None]] = field(default_factory=dict)
+    started: list[str] = field(default_factory=list)
+    stopped: list[str] = field(default_factory=list)
+    pids: itertools.count = field(default_factory=lambda: itertools.count(1000))
+
+    def start(self, job):
+        self.started.append(job.job_id)
+        return Handle(job.job_id, next(self.pids), f"jobs/{job.job_id}.log", Path("nowhere"))
+
+    def poll(self, handle):
+        return self.exits.get(handle.job_id, (None, None))[0]
+
+    def stop(self, handle, grace):
+        self.stopped.append(handle.job_id)
+
+    def finish(self, job_id, code=0, result=None):
+        self.exits[job_id] = (code, result)
+
+
+@pytest.fixture
+def world(tmp_path, monkeypatch):
+    jobs, registry, runner = SqliteJobStore(tmp_path / "jobs.db"), SqliteRunRegistry(tmp_path / "runs.db"), FakeRunner()
+    monkeypatch.setattr("scheduler.loop.read_result", lambda handle: runner.exits.get(handle.job_id, (0, None))[1])
+    return Scheduler(jobs, registry, runner, max_workers=2), jobs, registry, runner
+
+
+def _complete(registry, arm, seed):
+    run_id = registry.create_run({"experiment": "probe", "arm": arm, "rng_seed": seed})
+    registry.update_status(run_id, "completed")
+    return run_id
+
+
+def test_queued_jobs_are_claimed_up_to_the_worker_limit_and_reaped(world):
+    scheduler, jobs, _, runner = world
+    a, b, c = (jobs.submit("train", {"n": i}) for i in range(3))
+    scheduler.tick()
+    assert runner.started == [a.job_id, b.job_id] and jobs.get(c.job_id).status == "queued"
+    assert jobs.get(a.job_id).pid is not None and jobs.get(a.job_id).log == f"jobs/{a.job_id}.log"
+
+    runner.finish(a.job_id, 0, {"run_id": "r1"})
+    runner.finish(b.job_id, 3)
+    scheduler.tick()
+    assert jobs.get(a.job_id).status == "succeeded" and jobs.get(a.job_id).result == {"run_id": "r1"}
+    assert jobs.get(b.job_id).status == "failed" and jobs.get(b.job_id).error.startswith("exit code 3")
+    assert runner.started[-1] == c.job_id  # a freed slot takes the next queued job
+
+
+def test_a_cancel_stops_the_worker(world):
+    scheduler, jobs, _, runner = world
+    job = jobs.submit("train", {})
+    scheduler.tick()
+    jobs.request_cancel(job.job_id)
+    scheduler.tick()
+    assert runner.stopped == [job.job_id] and jobs.get(job.job_id).status == "cancelled"
+
+
+def test_an_experiment_fans_out_and_a_continuing_arm_waits_for_its_parent(world):
+    scheduler, jobs, registry, _ = world
+    jobs.put_experiment("probe", EXPERIMENT)
+    submitted = scheduler.fan_out_experiments()
+    # base for both seeds; ft waits until base's run of the same seed exists
+    assert [(j.spec["tags"]["arm"], j.spec["seed"]) for j in submitted] == [("base", 0), ("base", 1)]
+    assert all(j.parent == "probe" for j in submitted)
+    assert scheduler.fan_out_experiments() == []  # in flight: nothing new
+
+    _complete(registry, "base", 0)
+    ft = scheduler.fan_out_experiments()
+    assert [(j.spec["tags"]["arm"], j.spec["seed"]) for j in ft] == [("ft", 0)]
+    assert ft[0].spec["init_from"] == {"run": None, "experiment": "probe", "arm": "base", "seed": 0}
+
+
+def test_a_completed_cell_is_never_retrained_and_a_failed_one_waits_for_a_resubmission(world):
+    scheduler, jobs, registry, runner = world
+    _complete(registry, "base", 0)  # trained before the scheduler existed: counts
+    jobs.put_experiment("probe", {**EXPERIMENT, "seeds": [0]})
+    (ft,) = scheduler.fan_out_experiments()
+    assert ft.spec["tags"]["arm"] == "ft"
+
+    scheduler.claim()
+    runner.finish(ft.job_id, 1)
+    scheduler.reap()
+    assert scheduler.fan_out_experiments() == []  # failed since the last submission: not retried by itself
+    jobs.put_experiment("probe", {**EXPERIMENT, "seeds": [0]})  # resubmitted: retried
+    (retry,) = scheduler.fan_out_experiments()
+    assert retry.spec["tags"]["arm"] == "ft" and retry.job_id != ft.job_id
+
+
+def test_recover_fails_running_jobs_whose_worker_is_gone(world):
+    scheduler, jobs, _, _ = world
+    job = jobs.submit("train", {})
+    jobs.claim_next()
+    jobs.update(job.job_id, pid=2**22 + 12345)  # no such process
+    assert scheduler.recover() == [job.job_id]
+    assert jobs.get(job.job_id).status == "failed" and "gone" in jobs.get(job.job_id).error

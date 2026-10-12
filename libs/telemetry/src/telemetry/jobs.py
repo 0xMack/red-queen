@@ -46,6 +46,7 @@ class Experiment(BaseModel):
     name: str = Field(..., min_length=1)
     spec: dict[str, Any]
     created_at: float
+    updated_at: float = Field(..., description="Last (re)submission: a failed cell is retried once this is newer.")
 
 
 class JobStore(Protocol):
@@ -75,7 +76,8 @@ _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS experiments (
         name TEXT PRIMARY KEY,
         spec TEXT NOT NULL,
-        created_at REAL NOT NULL
+        created_at REAL NOT NULL,
+        updated_at REAL NOT NULL
     )""",
 ]
 UPDATABLE = frozenset(
@@ -194,19 +196,19 @@ class SqliteJobStore:
         return job
 
     def put_experiment(self, name: str, spec: dict[str, Any]) -> Experiment:
-        experiment = Experiment(name=name, spec=spec, created_at=time.time())
+        now = time.time()
         conn = self._connect()
         try:
             existing = conn.execute("SELECT created_at FROM experiments WHERE name = ?", (name,)).fetchone()
-            if existing is not None:  # resubmitting keeps when it began: an experiment is resumed, not restarted
-                experiment = experiment.model_copy(update={"created_at": existing["created_at"]})
+            # Resubmitting keeps when it began (an experiment is resumed, not restarted) and retries failed cells.
+            created_at = existing["created_at"] if existing is not None else now
             conn.execute(
-                "INSERT OR REPLACE INTO experiments (name, spec, created_at) VALUES (?, ?, ?)",
-                (name, json.dumps(spec), experiment.created_at),
+                "INSERT OR REPLACE INTO experiments (name, spec, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (name, json.dumps(spec), created_at, now),
             )
         finally:
             conn.close()
-        return experiment
+        return Experiment(name=name, spec=spec, created_at=created_at, updated_at=now)
 
     def get_experiment(self, name: str) -> Experiment:
         conn = self._connect()
@@ -216,7 +218,7 @@ class SqliteJobStore:
             conn.close()
         if row is None:
             raise KeyError(f"no such experiment: {name}")
-        return Experiment(name=row["name"], spec=json.loads(row["spec"]), created_at=row["created_at"])
+        return _experiment(row)
 
     def list_experiments(self) -> list[Experiment]:
         conn = self._connect()
@@ -224,4 +226,10 @@ class SqliteJobStore:
             rows = conn.execute("SELECT * FROM experiments ORDER BY created_at DESC").fetchall()
         finally:
             conn.close()
-        return [Experiment(name=r["name"], spec=json.loads(r["spec"]), created_at=r["created_at"]) for r in rows]
+        return [_experiment(r) for r in rows]
+
+
+def _experiment(row: sqlite3.Row) -> Experiment:
+    return Experiment(
+        name=row["name"], spec=json.loads(row["spec"]), created_at=row["created_at"], updated_at=row["updated_at"]
+    )
