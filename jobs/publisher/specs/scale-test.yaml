@@ -1,0 +1,4 @@
+# A large random-weight model (~85M parameters) for the big-model path (/dev/inference).
+kind: publish
+target: scale-test
+params: {d_model: 768, n_layers: 12}

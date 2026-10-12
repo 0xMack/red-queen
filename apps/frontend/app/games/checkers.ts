@@ -1,7 +1,7 @@
 import CheckersStage from "~/components/checkers/CheckersStage.vue"
 import type { GameModule } from "~/games/types"
 
-// Checkers (docs/design/0006, 0007, 0013): two-player, ranked by a round robin (jobs/evaluate_versus.py). Its score is
+// Checkers (docs/design/0006, 0007, 0013): two-player, ranked by a round robin (evaluator.protocols.checkers_versus). Its score is
 // an *Elo rating* -- Bradley-Terry fitted to every game of the round robin, Random = 0 -- played in game pairs over a
 // ballot of level openings. Unlike points per game against the field it doesn't saturate at the top, but it is still
 // relative to the field, and the page says so. Every entrant here (baselines and trained champions) runs anywhere:

@@ -5,7 +5,7 @@ import type { EvaluationRecord } from "~/types/leaderboard"
 // row entrant's side -- the share of points it took (win 1, draw ½), shaded from lost-everything to
 // won-everything. A single score hides *who* an entrant beats: this shows that a champion which beats
 // random and 1-ply material still loses to 2-ply search. Reads `metrics.versus.by_opponent`, which
-// jobs/evaluate_versus.py writes; entries without it are skipped.
+// evaluator.protocols.checkers_versus writes; entries without it are skipped.
 const props = defineProps<{ entries: EvaluationRecord[]; selectedId?: string | null }>()
 defineEmits<{ select: [entrantId: string] }>()
 

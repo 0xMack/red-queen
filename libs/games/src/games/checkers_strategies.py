@@ -1,5 +1,5 @@
 """Static Checkers strategies -- the fixed opponents every Checkers experiment measures against
-(docs/design/0006): a round robin (jobs/checkers_round_robin.py), evolution's fitness opponents
+(docs/design/0006): a round robin (evaluator.protocols.static_round_robin), evolution's fitness opponents
 (the trainer's Checkers neuroevolution), the leaderboard's baselines.
 
 Beyond the fixed players, a *trained evaluator* can search: `evaluator(weights, layer_sizes, depth=...)` for

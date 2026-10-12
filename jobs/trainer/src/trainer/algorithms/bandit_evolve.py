@@ -8,7 +8,7 @@ every pull) on fresh *training* games every generation -- seeds 1-9,999, never t
 and every few generations the champion's skill on a fixed monitor set (`arena.bandit.MONITOR_SEEDS`) is recorded as the
 run's held-out score, so the run page shows whether evolution is fitting the training games or the game.
 
-Recorded like every evolution run (`representation: evolved_bandit`, `game: bandit`); `jobs/evaluate_bandit.py` then
+Recorded like every evolution run (`representation: evolved_bandit`, `game: bandit`); the evaluator's `bandit.skill.v1` then
 ranks every completed bandit run's final champion on the held-out games with the hand-tuned strategies.
 """
 

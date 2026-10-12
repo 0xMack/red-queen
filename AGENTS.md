@@ -159,9 +159,9 @@ architectural change that might conflict with a decision already made.
     evaluation-trace diagnostics for free. Checkers only supplies `utils/checkersEngine.ts` +
     `CheckersBoard` + `CheckersStage` (its `GameModule` is `app/games/checkers.ts`; the run viewer
     `CheckersWatch` is the same stage on a run's champion). Its leaderboard is a round robin
-    (`jobs/evaluate_versus.py`, protocol `checkers.versus.v2`, docs/design/0013: game pairs over a ballot of level
+    (the evaluator's `checkers.versus.v2`, docs/design/0013: game pairs over a ballot of level
     openings, `games.checkers_openings`, ranked by a Bradley–Terry Elo rating, Random = 0, `arena.versus_stats`);
-    "is A stronger than B" is a head-to-head SPRT (`jobs/checkers_sprt.py`, `checkers_selfplay_experiment.py h2h`), not
+    "is A stronger than B" is a head-to-head SPRT (the evaluator's `checkers.sprt`, `checkers_selfplay_experiment.py h2h`), not
     points against a fixed field. `Checkers(opening=...)` starts a game there and `reset()` returns to it -- `play_match`
     resets its env, which silently discarded openings stepped onto a fresh env; champions come from the
     trainer's `neuroevolution` / `neat` on `checkers` (shared parts in `trainer.checkers`),
@@ -259,16 +259,18 @@ architectural change that might conflict with a decision already made.
   the original script did (the frontend reads it), and `jobs/tests/test_golden.py` holds it to that. Snake training
   takes an interface and a training-seed strategy (`arena.seeding`), records a measured training-cost block
   (`arena.costs`) in the run summary, and logs a held-out game score every N generations (the
-  overfitting curve on the run page). Everything else is still a script run with `uv run python jobs/<script>.py`.
-  `evaluate.py` produces the
-  leaderboards (docs/design/0007): every finished game run's champion plus fixed baselines, on
-  held-out seeds under a versioned protocol (defined in `libs/arena`), with inference/training cost — never training
-  fitness.
-  `publish_models.py` exports champions (fp64 + fp32) and TinyLM checkpoints (fp32 + int8) to the
-  local model store and catalog, measuring agreement on the protocol's games; `evaluate.py` then
-  scores published champions *as their packages* (a variant that plays differently is its own
-  `run:<id>@<variant>` entrant). The trainer's `tinylm` trains and checkpoints TinyLM;
-  `scale_test_package.py` publishes a large random model for testing the big-model path.
+  overfitting curve on the run page).
+  **`jobs/evaluator` runs one `EvalSpec`** (`uv run python -m evaluator jobs/evaluator/specs/<protocol>.yaml`, or
+  `evaluator.evaluate(spec)`): the leaderboard protocols `snake.score.v2`, `checkers.versus.v2` and `bandit.skill.v1`
+  (docs/design/0007: every finished game run's champion plus fixed baselines, on held-out seeds under a versioned
+  protocol defined in `libs/arena`, with inference/training cost — never training fitness), and the reports
+  `checkers.sprt` and `checkers.static-round-robin`. **`jobs/publisher` runs one `PublishSpec`**: target `snake`
+  exports champions (fp64 + fp32), `tinylm` TinyLM checkpoints (fp32 + int8), to the local model store and catalog,
+  measuring agreement on the protocol's games (the Snake evaluation then scores published champions *as their
+  packages*: a variant that plays differently is its own `run:<id>@<variant>` entrant); `scale-test` publishes a large
+  random model for the big-model path. `jobs/tests/test_golden_eval.py` pins every protocol, report and publish
+  target on a small field. The remaining scripts (experiments, exports, the recipe) run with
+  `uv run python jobs/<script>.py`.
   `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
   partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
@@ -288,7 +290,7 @@ architectural change that might conflict with a decision already made.
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
   The trainer's `bandit_evolve` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games
-  and records it as an ordinary run; `evaluate_bandit.py` is the bandit leaderboard (protocol `bandit.skill.v1`: skill -- 0 random, 100 the best arm every
+  and records it as an ordinary run; the evaluator's `bandit.skill.v1` is the bandit leaderboard (skill -- 0 random, 100 the best arm every
   pull -- on 500 held-out games of every scenario, ranked on `classic`; the hand-set strategies plus every completed
   evolved run's champion; it runs in a second).
   **`jobs/core` (`jobcore`, a workspace package) is what every job shares**: `open_sink()` (where a job writes:

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evaluator"
+version = "0.1.0"
+description = "The evaluator workload: leaderboard protocols and reports, one EvalSpec at a time (docs/design/0018)."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "arena",
+    "evolve",
+    "games",
+    "jobcore",
+    "modelpack",
+    "pyyaml>=6",
+    "rl",
+    "telemetry",
+]
+
+[tool.uv.sources]
+arena = { workspace = true }
+evolve = { workspace = true }
+games = { workspace = true }
+jobcore = { workspace = true }
+modelpack = { workspace = true }
+rl = { workspace = true }
+telemetry = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evaluator"]
+
+[tool.ruff]
+# One config for the whole repo (line length, rules, excludes) -- ruff uses the nearest pyproject.toml
+# and does not inherit, so without this the root settings never reached this package.
+extend = "../../pyproject.toml"

@@ -10,7 +10,7 @@
 //!   0). Never ends on its own -- episodes end at the step cap. Score: minus the final distance to the target.
 //!
 //! Also here: the games' fixed baselines as policies, so `tests/test_envs.py` can check that an episode through an
-//! adapter scores exactly what `jobs/evaluate.py` records for the same seed.
+//! adapter scores exactly what `evaluator.protocols.snake_score` records for the same seed.
 
 pub mod alphazero;
 pub mod bandit;
@@ -207,7 +207,7 @@ pub fn factory_with(env_id: &str, width: i32, height: i32, reward: Reward) -> Re
 }
 
 /// A games-crate baseline (`games.baselines`) on each of `seeds`: `snake-random` (a fresh `SnakeRandom(seed)` per
-/// game, as `jobs/evaluate.py` builds it) or `snake-greedy`. Both read `features.v1`.
+/// game, as `evaluator.protocols.snake_score` builds it) or `snake-greedy`. Both read `features.v1`.
 pub fn evaluate_baseline(
     name: &str,
     factory: &dyn EnvFactory,

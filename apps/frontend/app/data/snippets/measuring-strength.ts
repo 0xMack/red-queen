@@ -1,6 +1,6 @@
 import type { Snippet } from "~/types/code"
 
-// Measuring Strength's snippets. The measurement is Python (libs/arena/src/arena/versus_stats.py, jobs/evaluate_versus.py,
+// Measuring Strength's snippets. The measurement is Python (libs/arena/src/arena/versus_stats.py, evaluator.protocols.checkers_versus,
 // libs/games/src/games/checkers_openings.py); the chapter's own demos run the TypeScript twin (utils/versusStats.ts).
 const STATS = "libs/arena/src/arena/versus_stats.py"
 const TS = "apps/frontend/app/utils/versusStats.ts"

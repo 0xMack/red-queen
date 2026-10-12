@@ -2,7 +2,7 @@ import type { EvaluationRecord } from "~/types/leaderboard"
 
 // The multi-armed bandit (docs/design/0011), as the frontend describes it. The rules and the strategies are the Rust
 // core (compiled to WebAssembly, `~/wasm/rl`); this is only what the page needs to *say* about them -- mirrored by
-// hand from `games.bandit.SCENARIOS` and `jobs/evaluate_bandit.py`. Auto-imported (app/utils/).
+// hand from `games.bandit.SCENARIOS` and `evaluator.protocols.bandit_skill`. Auto-imported (app/utils/).
 
 export interface BanditScenario {
   id: string

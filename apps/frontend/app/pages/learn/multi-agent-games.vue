@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-// Round-robin numbers: jobs/checkers_round_robin.py (200 games per pairing, seats alternating).
+// Round-robin numbers: evaluator.protocols.static_round_robin (200 games per pairing, seats alternating).
 import * as code from "~/data/snippets/multi-agent-games"
 import * as math from "~/data/math/multi-agent-games"
 import { checkersSnapshot } from "~/data/checkersSnapshot"
@@ -108,7 +108,7 @@ const results = [
       </table>
       <p class="border-t border-line px-4 py-2 text-xs text-fg-subtle">
         200 games per pairing, seats alternating, from the first-named side. Reproduce with
-        <code>uv run python jobs/checkers_round_robin.py</code>.
+        <code>uv run python -m evaluator jobs/evaluator/specs/checkers.static-round-robin.yaml</code>.
       </p>
     </div>
     <Callout variant="finding" title="One move of lookahead is worth almost nothing -- two is worth everything">

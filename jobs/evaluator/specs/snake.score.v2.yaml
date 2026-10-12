@@ -1,0 +1,3 @@
+# The snake.score.v2 leaderboard: every entrant, scored as the protocol (libs/arena) defines -- nothing to set.
+kind: evaluate
+protocol: snake.score.v2

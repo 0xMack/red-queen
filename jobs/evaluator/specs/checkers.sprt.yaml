@@ -1,0 +1,5 @@
+# Is A stronger than B? Game pairs over the ballot until the SPRT decides (docs/design/0013).
+# A player: a fixed strategy (material-6) or a run id prefix, optionally @depth.
+kind: evaluate
+protocol: checkers.sprt
+params: {a: material-3, b: material-2, elo0: 0, elo1: 50}

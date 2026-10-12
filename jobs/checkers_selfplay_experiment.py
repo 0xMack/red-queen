@@ -50,7 +50,7 @@ with search targets (against `l-1m-ft2`, at equal games / about equal compute) a
 
 `h2h` is the comparison that doesn't run out of opponents (docs/design/0013): each arm's final network plays its
 baseline arm's network from the same rng seed, head to head, both searching `DEPTH` plies, in game pairs over the
-ballot -- every seed's couple plays each opening before the next -- feeding one SPRT (jobs/checkers_sprt.py) that
+ballot -- every seed's couple plays each opening before the next -- feeding one SPRT (evaluator.protocols.checkers_sprt) that
 stops once the arm is shown `elo1` stronger (H1) or no stronger (H0). `--full` plays the whole ballot regardless, for
 the tightest estimate. Reported per arm: the verdict, the pooled Elo difference with its interval, and each seed's.
 """
@@ -66,7 +66,7 @@ from typing import Any
 
 from arena.checkers import REPORT_SEED_BASE, play_pairing
 from arena.versus_stats import Sprt, pair_elo
-from checkers_sprt import run_factory, sequential_match
+from evaluator.protocols.checkers_sprt import run_factory, sequential_match
 from evolve import WeightVector, network_from_json
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator

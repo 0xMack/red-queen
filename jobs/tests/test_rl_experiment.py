@@ -1,5 +1,5 @@
 import arena.snake
-import evaluate
+import evaluator.protocols.snake_score as evaluate
 import pytest
 import rl_experiment
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry

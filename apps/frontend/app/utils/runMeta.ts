@@ -184,6 +184,6 @@ export function unrankedReason(run: RunInfo): string | null {
   if (c.experiment) return `comparison run (${String(c.experiment)}): aggregated in its experiment, not ranked individually`
   if (c.representation === "random") return "the RL pipeline's random agent: the random baseline is already ranked"
   if (run.status === "running" || run.status === "paused") return "still training: evaluated once finished"
-  return "not evaluated yet: run jobs/evaluate.py"
+  return "not evaluated yet: run the snake.score.v2 evaluation"
 }
 

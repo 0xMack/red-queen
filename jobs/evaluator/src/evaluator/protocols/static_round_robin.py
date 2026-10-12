@@ -13,18 +13,21 @@ The finding: material-1 is barely better than random, because captures are manda
 capture exists, *every* legal move is a capture, and otherwise no move changes material, so one ply of
 material lookahead has almost nothing to choose between. Looking one ply further (does my move hang a
 piece?) wins nearly every game.
-
-Run with: uv run python jobs/checkers_round_robin.py
 """
 
 from __future__ import annotations
 
 import itertools
 import random
+from typing import Any
 
 from evolve import play_match
 from games.checkers import Checkers
 from games.checkers_strategies import STRATEGIES
+from jobcore import Sink
+from jobcore.specs import EvalSpec
+
+from evaluator.registry import protocol
 
 GAMES = 200
 MAX_PLIES = 300
@@ -48,11 +51,11 @@ def play_pairing(a: str, b: str, games: int = GAMES) -> dict[str, int]:
     return tally
 
 
-def main() -> None:
+@protocol("checkers.static-round-robin")
+def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+    """`a vs b` -> a's wins, draws and losses, for every pair of the fixed strategies."""
+    results = {}
     for a, b in itertools.combinations(STRATEGIES, 2):
-        t = play_pairing(a, b)
+        t = results[f"{a} vs {b}"] = play_pairing(a, b, params.games)
         print(f"{a:>12} vs {b:<12} {a}: {t['wins']:3d} W  {t['draws']:3d} D  {t['losses']:3d} L")
-
-
-if __name__ == "__main__":
-    main()
+    return results

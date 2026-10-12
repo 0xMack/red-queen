@@ -68,7 +68,7 @@ pub struct Episode {
 }
 
 /// Plays one episode of game `seed`, `act` choosing every move, for at most `max_steps` steps -- exactly the loop
-/// `jobs/evaluate.py`'s `play_episode` runs, so scores through an adapter match the leaderboard's.
+/// `evaluator.protocols.snake_score`'s `play_episode` runs, so scores through an adapter match the leaderboard's.
 pub fn play(env: &mut dyn Env, seed: u64, max_steps: u32, mut act: impl FnMut(&[f64]) -> Action) -> Episode {
     let mut observation = env.reset(seed);
     let (mut total_reward, mut steps) = (0.0, 0);

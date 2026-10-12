@@ -1,9 +1,9 @@
 """Reinforcement-learning runs (the trainer's `rl.*` algorithms, docs/design/0010) are recorded like any other run, and
-the ones with a loadable champion join the Snake leaderboard (jobs/evaluate.py)."""
+the ones with a loadable champion join the Snake leaderboard (evaluator `snake.score.v2`)."""
 
 import math
 
-import evaluate
+import evaluator.protocols.snake_score as evaluate
 import pytest
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
 from trainer import train

@@ -2,7 +2,7 @@
 reduced to a digest (docs/design/0018 stage 4) -- the evaluator/publisher counterpart of golden_cases.py.
 
 Recorded from the original jobs/evaluate*.py, checkers_sprt.py, checkers_round_robin.py and publish_models.py before
-they were ported. A case builds the field (`FIELD`: small trainer runs, themselves pinned by golden_cases.py) in a fresh
+they were ported to the evaluator and publisher workloads, which now reproduce them. A case builds the field (`FIELD`: small trainer runs, themselves pinned by golden_cases.py) in a fresh
 data directory, runs its job, and digests what it wrote: evaluation records without their clocks (created_at, hardware,
 latencies, measured seconds), a report as-is, a model store's catalog and manifests without content hashes (parity is
 measured by ONNX Runtime, whose kernels -- so rounding -- vary by CPU). Exact per OS, like golden_cases.py.
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import importlib
 import json
 import sys
 import tempfile
@@ -118,50 +117,41 @@ def _drop(value: Any, keys: set[str]) -> Any:
     return value
 
 
-def _script(module: str, function: str = "main", *args: Any) -> Callable[[], Any]:
-    return lambda: getattr(importlib.import_module(module), function)(*args)
+def _evaluate(protocol: str, **params: Any) -> Callable[[], Any]:
+    def run() -> Any:
+        from evaluator import evaluate
+
+        return evaluate({"protocol": protocol, "params": params})
+
+    return run
 
 
-def _round_robin() -> dict[str, Any]:
-    import itertools
+def _publish(target: str) -> Callable[[], Any]:
+    def run() -> Any:
+        from publisher import publish
 
-    import checkers_round_robin as rr
+        return publish({"target": target})
 
-    return {f"{a} vs {b}": rr.play_pairing(a, b) for a, b in itertools.combinations(rr.STRATEGIES, 2)}
-
-
-def _publish_tinylm() -> None:
-    import publish_models
-    from modelpack import LocalModelStore
-    from telemetry import models_dir
-
-    publish_models.publish_tinylm(LocalModelStore(models_dir()))
-
-
-def _sprt() -> dict[str, Any]:
-    import checkers_sprt
-    from jobcore import experiments_dir
-
-    checkers_sprt.main(["material-2", "random", "--out", "golden-sprt"])
-    return json.loads((experiments_dir() / "golden-sprt.json").read_text(encoding="utf-8"))
+    return run
 
 
 EVAL_CASES: dict[str, EvalCase] = {
     "snake.score.v2": EvalCase(
-        _script("evaluate"),
+        _evaluate("snake.score.v2"),
         _records("snake"),
-        {"arena.snake.HELD_OUT_SEEDS": SNAKE_20, "evaluate.HELD_OUT_SEEDS": SNAKE_20},
+        {"arena.snake.HELD_OUT_SEEDS": SNAKE_20, "evaluator.protocols.snake_score.HELD_OUT_SEEDS": SNAKE_20},
     ),
-    "checkers.versus.v2": EvalCase(_script("evaluate_versus"), _records("checkers")),
-    "bandit.skill.v1": EvalCase(_script("evaluate_bandit"), _records("bandit")),
-    "checkers.sprt": EvalCase(_sprt, _report),
-    "checkers.static-round-robin": EvalCase(_round_robin, _report),
+    "checkers.versus.v2": EvalCase(_evaluate("checkers.versus.v2"), _records("checkers")),
+    "bandit.skill.v1": EvalCase(_evaluate("bandit.skill.v1"), _records("bandit")),
+    # the result as the script wrote it with --out: what a report returns
+    "checkers.sprt": EvalCase(_evaluate("checkers.sprt", a="material-2", b="random"), _report),
+    "checkers.static-round-robin": EvalCase(_evaluate("checkers.static-round-robin"), _report),
     "publish.snake": EvalCase(
-        _script("publish_models", "main", "snake"),
+        _publish("snake"),
         _store("snake"),
-        {"arena.snake.HELD_OUT_SEEDS": SNAKE_20, "publish_models.HELD_OUT_SEEDS": SNAKE_20},
+        {"arena.snake.HELD_OUT_SEEDS": SNAKE_20, "publisher.models.HELD_OUT_SEEDS": SNAKE_20},
     ),
-    "publish.tinylm": EvalCase(lambda: _publish_tinylm(), _store("tinylm")),
+    "publish.tinylm": EvalCase(_publish("tinylm"), _store("tinylm")),
 }
 TOLERANT = {"publish.snake", "publish.tinylm"}  # ONNX Runtime parity numbers
 

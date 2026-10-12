@@ -1,6 +1,7 @@
-import evaluate
 from games import interfaces
 from telemetry import FileMetricsStore, GenerationStats, RunInfo
+
+import evaluator.protocols.snake_score as evaluate
 
 FEATURES = interfaces.get(evaluate.FEATURES)
 

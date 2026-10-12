@@ -1,7 +1,8 @@
 """The bandit jobs (docs/design/0011): evolving a strategy's settings records an ordinary run, and the leaderboard
 evaluation enters its champion beside the hand-set strategies."""
 
-import evaluate_bandit
+import evaluator.protocols.bandit_skill as evaluate_bandit
+from evaluator import evaluate
 from evolve import WeightVector
 from jobcore import open_sink
 from telemetry import SqliteEvaluationStore
@@ -33,7 +34,7 @@ def test_an_evolved_strategy_is_recorded_and_ranked(tmp_path, monkeypatch):
     assert len(history) == 3 and history[0].held_out_score is not None and history[-1].held_out_score is not None
     assert set(history[-1].extras) == {"epsilon", "decay", "alpha", "initial"}
 
-    evaluate_bandit.main()
+    evaluate({"protocol": "bandit.skill.v1"})
     records = {r.entrant_id: r for r in SqliteEvaluationStore(tmp_path / "evaluations.db").list("bandit")}
     evolved = records[f"run:{run_id}"]
     assert evolved.entrant_kind == "champion" and evolved.run_id == run_id

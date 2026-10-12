@@ -227,7 +227,7 @@ export function wasmStrategy(options: WasmStrategyOptions): VersusStrategy<Check
 
 const builtin = (kind: string, label: string, description: string) => wasmStrategy({ id: kind, kind, label, description })
 
-/** The static players -- the same ones `games.checkers_strategies` (Python) exposes; jobs/evaluate_versus.py
+/** The static players -- the same ones `games.checkers_strategies` (Python) exposes; evaluator.protocols.checkers_versus
  *  ranks them as the leaderboard's baselines. Used directly when there is no leaderboard to draw entrants from. */
 export const STATIC_STRATEGIES: VersusStrategy<CheckersPosition>[] = [
   builtin("random", "Random", "A uniformly random legal move."),

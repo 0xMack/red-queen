@@ -120,7 +120,8 @@ def register_algorithm(algorithm: Algorithm) -> Algorithm:
 
 
 def _load_builtin() -> None:
-    import jobcore.algorithms  # noqa: F401 -- registers every built-in algorithm's params
+    import jobcore.algorithms
+    import jobcore.protocols  # noqa: F401 -- and every protocol and publish target
 
 
 def get_algorithm(name: str, game: str | None = None) -> Algorithm:
@@ -146,22 +147,109 @@ def algorithms() -> list[Algorithm]:
     return [a for name in sorted(_ALGORITHMS) for a in _ALGORITHMS[name]]
 
 
-def load_spec(source: str | Path) -> TrainSpec:
-    """A spec from a .yaml/.yml or .json file."""
+class EvalSpec(BaseModel):
+    """One evaluation: a leaderboard protocol (records every entrant into the evaluation store) or a report (returns
+    a result, e.g. a head-to-head SPRT). The protocol is versioned and fixed; `params` are only what it lets vary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["evaluate"] = "evaluate"
+    protocol: str = Field(..., min_length=1, description="A registered protocol, e.g. `checkers.versus.v2`.")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+    def resolve(self) -> tuple[Protocol, BaseModel]:
+        protocol = _get(_PROTOCOLS, "protocol", self.protocol)
+        return protocol, protocol.params.model_validate(self.params)
+
+
+class PublishSpec(BaseModel):
+    """Export to the model store: a target is what gets packaged (a game's leaderboard champions, TinyLM checkpoints,
+    the scale-test model)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["publish"] = "publish"
+    target: str = Field(..., min_length=1, description="A registered publish target, e.g. `snake`.")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+    def resolve(self) -> tuple[PublishTarget, BaseModel]:
+        target = _get(_TARGETS, "publish target", self.target)
+        return target, target.params.model_validate(self.params)
+
+
+@dataclass(frozen=True)
+class Protocol:
+    name: str
+    game: str
+    params: type[BaseModel]
+    output: Literal["leaderboard", "report"]
+    summary: str = ""
+
+
+@dataclass(frozen=True)
+class PublishTarget:
+    name: str
+    params: type[BaseModel]
+    summary: str = ""
+
+
+_PROTOCOLS: dict[str, Protocol] = {}
+_TARGETS: dict[str, PublishTarget] = {}
+
+
+def _register(registry: dict[str, Any], what: str, item: Any) -> Any:
+    existing = registry.get(item.name)
+    if existing is not None and existing != item:
+        raise ValueError(f"{what} {item.name!r} is already registered differently")
+    registry[item.name] = item
+    return item
+
+
+def _get(registry: dict[str, Any], what: str, name: str) -> Any:
+    _load_builtin()
+    try:
+        return registry[name]
+    except KeyError:
+        raise ValueError(f"unknown {what} {name!r} (known: {', '.join(sorted(registry)) or 'none'})") from None
+
+
+def register_protocol(protocol: Protocol) -> Protocol:
+    return _register(_PROTOCOLS, "protocol", protocol)
+
+
+def register_publish_target(target: PublishTarget) -> PublishTarget:
+    return _register(_TARGETS, "publish target", target)
+
+
+Spec = TrainSpec | EvalSpec | PublishSpec
+_KINDS: dict[str, type[BaseModel]] = {"train": TrainSpec, "evaluate": EvalSpec, "publish": PublishSpec}
+
+
+def parse_spec(data: dict[str, Any]) -> Spec:
+    """Any job payload, by its `kind` (default `train`)."""
+    kind = data.get("kind", "train")
+    if kind not in _KINDS:
+        raise ValueError(f"unknown spec kind {kind!r} (known: {', '.join(_KINDS)})")
+    return _KINDS[kind].model_validate(data)  # type: ignore[return-value]
+
+
+def load_spec(source: str | Path) -> Spec:
+    """A spec of any kind from a .yaml/.yml or .json file."""
     path = Path(source)
     text = path.read_text(encoding="utf-8")
-    data = yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
-    return TrainSpec.model_validate(data)
+    return parse_spec(yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text))
 
 
 def schemas() -> dict[str, Any]:
-    """JSON Schema for every payload kind and every registered algorithm's params (keyed `name` or `name@game`)."""
+    """JSON Schema for every payload kind, and every registered algorithm's, protocol's and publish target's params
+    (algorithms keyed `name`, or `name@game` when a name is registered per game)."""
 
     def key(a: Algorithm) -> str:
         return a.name if len(_ALGORITHMS[a.name]) == 1 else f"{a.name}@{','.join(sorted(a.games or ()))}"
 
+    _load_builtin()
     return {
-        "kinds": {"train": TrainSpec.model_json_schema()},
+        "kinds": {kind: model.model_json_schema() for kind, model in _KINDS.items()},
         "algorithms": {
             key(a): {
                 "name": a.name,
@@ -171,5 +259,13 @@ def schemas() -> dict[str, Any]:
                 "params": a.params.model_json_schema(),
             }
             for a in algorithms()
+        },
+        "protocols": {
+            p.name: {"game": p.game, "output": p.output, "summary": p.summary, "params": p.params.model_json_schema()}
+            for p in sorted(_PROTOCOLS.values(), key=lambda p: p.name)
+        },
+        "publish_targets": {
+            t.name: {"summary": t.summary, "params": t.params.model_json_schema()}
+            for t in sorted(_TARGETS.values(), key=lambda t: t.name)
         },
     }

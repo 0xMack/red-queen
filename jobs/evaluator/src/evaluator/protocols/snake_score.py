@@ -3,7 +3,7 @@ record a vector of measurements -- quality, inference cost, training cost -- not
 
 Entrants for Snake today:
 - every Snake run's final champion, under the interface recorded in its config (see
-  pre-0007 runs, which had it backfilled once). Once published (jobs/publish_models.py), a champion
+  pre-0007 runs, which had it backfilled once). Once published (publisher.models), a champion
   is evaluated *as its model package*, run by ONNX Runtime -- the exact bytes a visitor's browser
   downloads (docs/design/0009) -- and each package variant that plays differently from the champion
   is an entrant of its own (`run:<id>@fp32`);
@@ -11,8 +11,6 @@ Entrants for Snake today:
 
 The protocol itself (`snake.score.v2`: seeds, board, step cap, scoring) is defined in `arena.snake`; this job
 enumerates the entrants, measures them under it, and writes the records.
-
-Run with: uv run python jobs/evaluate.py
 """
 
 from __future__ import annotations
@@ -27,7 +25,8 @@ from arena.snake import BOARD, HELD_OUT_SEEDS, MAX_STEPS, PROTOCOL, Policy, Poli
 from games import baselines, interfaces
 from games.observation import Interface
 from games.snake import BENCHMARK_SEEDS
-from jobcore import open_sink
+from jobcore import Sink
+from jobcore.specs import EvalSpec
 from modelpack import (
     LocalModelStore,
     MlpPolicy,
@@ -47,6 +46,8 @@ from telemetry import (
     SqliteRunRegistry,
     models_dir,
 )
+
+from evaluator.registry import protocol
 
 # --- Baselines ---------------------------------------------------------------------------------------
 
@@ -325,10 +326,9 @@ def evaluate_entrant(
     )
 
 
-def main() -> None:
-    sink = open_sink()
-    registry, metrics, artifacts = sink.registry, sink.metrics, sink.artifacts
-    store = sink.evaluations
+@protocol("snake.score.v2")
+def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+    registry, metrics, artifacts, store = sink.registry, sink.metrics, sink.artifacts, sink.evaluations
     hardware = hardware_fingerprint()
 
     models = LocalModelStore(models_dir())
@@ -345,9 +345,7 @@ def main() -> None:
             f"train {q['train_mean']!s:>6}  {inf['total_us']:>7.2f} µs/decision"
         )
     # An entrant that no longer qualifies (its run failed, or was deleted) leaves the leaderboard, not a stale row.
-    for entrant_id in store.prune("snake", PROTOCOL, evaluated):
+    removed = store.prune("snake", PROTOCOL, evaluated)
+    for entrant_id in removed:
         print(f"removed {entrant_id}: no longer an entrant")
-
-
-if __name__ == "__main__":
-    main()
+    return {"protocol": PROTOCOL, "evaluated": sorted(evaluated), "removed": sorted(removed)}

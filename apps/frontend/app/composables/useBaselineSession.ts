@@ -2,7 +2,7 @@ import type { LoadedPolicy } from "~/composables/useWatchSession"
 import type { RunInfo, GenerationStats } from "~/types/telemetry"
 
 // Watch a games.baselines policy (e.g. the greedy heuristic) play -- the same code
-// jobs/evaluate.py scores (the Rust game core's baselines), run in the worker as WebAssembly. Returns the same shape as useWatchSession so
+// evaluator.protocols.snake_score scores (the Rust game core's baselines), run in the worker as WebAssembly. Returns the same shape as useWatchSession so
 // WatchChampion can render either kind of leaderboard entrant; the run/generation parts are simply
 // empty, since a baseline was never trained.
 export function useBaselineSession(baseline: string, interfaceId: string) {
