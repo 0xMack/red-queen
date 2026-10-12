@@ -166,7 +166,7 @@ architectural change that might conflict with a decision already made.
     `CheckersWatch` is the same stage on a run's champion). Its leaderboard is a round robin
     (the evaluator's `checkers.versus.v2`, docs/design/0013: game pairs over a ballot of level
     openings, `games.checkers_openings`, ranked by a Bradley–Terry Elo rating, Random = 0, `arena.versus_stats`);
-    "is A stronger than B" is a head-to-head SPRT (the evaluator's `checkers.sprt`, `checkers_selfplay_experiment.py h2h`), not
+    "is A stronger than B" is a head-to-head SPRT (the evaluator's `checkers.sprt`; `experiment.checkers-h2h` for an experiment's arms), not
     points against a fixed field. `Checkers(opening=...)` starts a game there and `reset()` returns to it -- `play_match`
     resets its env, which silently discarded openings stepped onto a fresh env; champions come from the
     trainer's `neuroevolution` / `neat` on `checkers` (shared parts in `trainer.checkers`),
@@ -278,16 +278,17 @@ architectural change that might conflict with a decision already made.
   random model for the big-model path. `jobs/tests/test_golden_eval.py` pins every protocol, report and publish
   target on a small field. **`jobs/scheduler`** (`uv run python -m scheduler [--workers N]`) is the only thing that
   runs queued jobs (`POST /jobs`): worker processes logged under `<data dir>/jobs/`, cancelled by CTRL_BREAK/SIGTERM
-  (never Ctrl-C), recovered after a restart; it also fans stored experiments out into jobs. The remaining scripts
-  (experiments, exports, the recipe) run with `uv run python jobs/<script>.py`.
-  `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
-  partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,
-  `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).
+  (never Ctrl-C), recovered after a restart; it also fans stored experiments out into jobs and runs each one's report when its cells
+  are done (`--submit experiments/<name>.yaml` stores one without the backend). **Experiments** are checked-in specs,
+  `experiments/<name>.yaml` (every historical comparison, converted from and checked against its recorded runs): arms
+  (partial `TrainSpec`s, optional per-arm `seeds`, `baseline`, `init_from`) × rng seeds, tagged `config.experiment`/
+  `arm`, then a report protocol (`experiment.snake-report`, `.rl-report`, `.checkers-field`, `.checkers-h2h`). The
+  remaining scripts (exports, the recipe) run with `uv run python jobs/<script>.py`.
   The trainer's `td_lambda` trains a Checkers evaluator by TD(λ) self-play (`params.agent.search_depth` > 1: TD-Leaf;
   `init_from` continues a network) and records it as an ordinary Checkers run (`representation: td_lambda`;
-  `alphazero` for 0017's learner), and `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `checkers_selfplay_experiment.py` compares variants by points per game against a fixed
+  `alphazero` for 0017's learner), and `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `experiment.checkers-field` compares variants by points per game against a fixed
   field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by -- and,
-  better, `h2h [--full]` (each arm against its baseline arm, head to head, docs/design/0013). The trainer's `pbt` is a
+  better, `experiment.checkers-h2h` (each arm against its baseline arm, head to head, docs/design/0013). The trainer's `pbt` is a
   population of self-play learners whose settings evolve (`params.exploit: false` is its random-search control), with
   `export_pbt_history.py` writing one run's population history for the Learn chapter `/learn/training-regimes`.
   The trainer's `rl.<algorithm>` runs a `libs/rl` algorithm one *iteration* (a budget of env steps) at a time and
@@ -295,7 +296,7 @@ architectural change that might conflict with a decision already made.
   same `GenerationStats` fields (returns as fitness, policy entropy as diversity, `config.paradigm =
   "reinforcement_learning"`; the frontend's `runMeta` relabels them); `libs/rl/scripts/benchmark.py` is the native
   half of `/dev/rl`'s numbers. Its params: `agent` (the learner's own settings), `reward: shaped|sparse`,
-  `snapshot_every` (a table is ~150 KB). `rl_experiment.py` is the RL `snake_experiment.py`: arms budgeted in env steps (each with its own
+  `snapshot_every` (a table is ~150 KB). `experiment.rl-report` scores an RL experiment: arms budgeted in env steps (each with its own
   interface), final champion on the 200 held-out games, an exact paired permutation test against the arm's
   `baseline` -- the arm it differs from in one thing (the DQN stability ladder tests each rung against the last).
   The trainer's `bandit_evolve` evolves ε-greedy's four settings (a 4-number `WeightVector`) on fresh training games

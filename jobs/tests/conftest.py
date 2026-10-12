@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-# jobs/ isn't a uv workspace package (see AGENTS.md) -- e.g. rl_experiment.py can import snake_experiment.py
+# jobs/ isn't a uv workspace package (see AGENTS.md) -- e.g. a test can import checkers_recipe_run.py
 # because `uv run python jobs/<script>.py` puts the script's own directory on sys.path
 # automatically. Tests need the same thing done explicitly.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

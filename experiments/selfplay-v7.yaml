@@ -1,0 +1,40 @@
+# selfplay-v7 (prepared, not yet run; docs/design/0016's "next"): does width keep paying, and is 2 x 128's gain capacity
+# or just compute? 32 -> 256 -> 256 -> 1 (74k weights, ~3.6x 2 x 128's) against 2 x 128, a 2 x 64 network given 2 x 128's
+# compute in games (2.7M) against 2 x 128, and 2 x 256's fine-tune against 2 x 128's.
+kind: experiment
+name: selfplay-v7
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 64
+      hidden_layers: 2
+arms:
+  w-2x256-1m:
+    train:
+      budget: {iterations: 1000}
+      held_out_every: 100
+      params: {agent: {hidden: 256}}
+    baseline: selfplay-v6/l-2x128-1m
+  w-2x64-2700k:
+    train:
+      budget: {iterations: 2700}
+      held_out_every: 270
+    baseline: selfplay-v6/l-2x128-1m
+  w-2x256-ft2:
+    train:
+      budget: {iterations: 40}
+      held_out_every: 4
+      params: {agent: {hidden: 256, search_depth: 2}}
+    baseline: selfplay-v6/l-2x128-ft2
+    init_from: selfplay-v7/w-2x256-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}

@@ -1,0 +1,40 @@
+# rl-selfplay-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: rl-selfplay-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  budget:
+    iterations: 200
+  held_out_every: 20
+  params:
+    games_per_iteration: 1000
+    depth: 3
+arms:
+  sp:
+    train:
+      params:
+        agent: {}
+  sp-pool:
+    train:
+      params:
+        agent:
+          pool_every: 5000
+          pool_size: 10
+          pool_fraction: 0.5
+    baseline: sp
+  sp-lambda0:
+    train:
+      params:
+        agent:
+          lambda: 0.0
+    baseline: sp
+  sp-lambda1:
+    train:
+      params:
+        agent:
+          lambda: 1.0
+    baseline: sp
+report:
+  protocol: experiment.checkers-field

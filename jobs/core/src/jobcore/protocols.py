@@ -31,6 +31,22 @@ class StaticRoundRobinParams(_Params):
     games: PositiveInt = Field(200, description="Games per pairing, seats alternating.")
 
 
+class ExperimentReportParams(_Params):
+    experiment: str = Field(..., min_length=1, description="A stored experiment (POST /experiments).")
+
+
+class CheckersFieldParams(ExperimentReportParams):
+    games: PositiveInt = Field(20, description="Games per field opponent (game pairs over ballot openings).")
+    depth: PositiveInt = Field(3, description="Plies each final network searches.")
+
+
+class CheckersH2hParams(ExperimentReportParams):
+    arms: list[str] | None = Field(None, description="Only these arms (default: every arm with a baseline).")
+    elo1: float = Field(50.0, description="The SPRT's H1: the arm is at least this much stronger.")
+    full: bool = Field(False, description="Play the whole ballot instead of stopping when the SPRT decides.")
+    depth: PositiveInt = 3
+
+
 class PublishParams(_Params):
     collect_garbage: bool = Field(True, description="Then delete store files no catalog entry references any more.")
 
@@ -60,6 +76,14 @@ register_protocol(
         "the fixed strategies against each other (the numbers the Multi-Agent Games chapter cites)",
     )
 )
+
+for name, game, params, summary in (
+    ("experiment.snake-report", "snake", ExperimentReportParams, "each run's final champion on the held-out games"),
+    ("experiment.rl-report", "snake", ExperimentReportParams, "held-out scores, each arm against its baseline"),
+    ("experiment.checkers-field", "checkers", CheckersFieldParams, "each run's network against a fixed field"),
+    ("experiment.checkers-h2h", "checkers", CheckersH2hParams, "each arm against its baseline, head to head (SPRT)"),
+):
+    register_protocol(Protocol(name, game, params, "report", summary))
 
 register_publish_target(PublishTarget("snake", PublishParams, "the Snake leaderboard's champions, fp64 + fp32"))
 register_publish_target(PublishTarget("tinylm", PublishParams, "every TinyLM checkpoint, fp32 + int8"))

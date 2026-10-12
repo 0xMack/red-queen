@@ -1,0 +1,166 @@
+# rl-dqn-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: rl-dqn-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: snake
+  algorithm: rl.dqn
+  params:
+    steps_per_iteration: 50000
+    reward: shaped
+arms:
+  dqn-naive:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          replay_capacity: 0
+          target_update: 0
+    seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  dqn-replay:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          target_update: 0
+    baseline: dqn-naive
+    seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  dqn:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent: {}
+    baseline: dqn-replay
+    seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+  dqn-double:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          double: 1
+    baseline: dqn
+  dqn-dueling:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          double: 1
+          dueling: 1
+    baseline: dqn-double
+  dqn-n3:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          double: 1
+          dueling: 1
+          n_step: 3
+    baseline: dqn-dueling
+  dqn-per:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent:
+          double: 1
+          dueling: 1
+          n_step: 3
+          prioritized: 1
+    baseline: dqn-n3
+  dqn-features:
+    train:
+      interface: snake/features.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent: {}
+    baseline: dqn
+  dqn-grid:
+    train:
+      interface: snake/grid-flat.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent: {}
+    baseline: dqn
+  dqn-long:
+    train:
+      interface: snake/egocentric.v1+relative3.v1
+      budget:
+        iterations: 100
+      held_out_every: 10
+      params:
+        snapshot_every: 100
+        agent:
+          double: 1
+          dueling: 1
+          n_step: 3
+          prioritized: 1
+    baseline: dqn-per
+  dqn-ego2:
+    train:
+      interface: snake/egocentric.v2+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent: {}
+    baseline: dqn
+  dqn-onehot:
+    train:
+      interface: snake/grid-onehot.v1+relative3.v1
+      budget:
+        iterations: 20
+      held_out_every: 2
+      params:
+        snapshot_every: 20
+        agent: {}
+    baseline: dqn-grid
+  dqn-ego2-long:
+    train:
+      interface: snake/egocentric.v2+relative3.v1
+      budget:
+        iterations: 100
+      held_out_every: 10
+      params:
+        snapshot_every: 100
+        agent:
+          double: 1
+          dueling: 1
+          n_step: 3
+          prioritized: 1
+    baseline: dqn-long
+report:
+  protocol: experiment.rl-report

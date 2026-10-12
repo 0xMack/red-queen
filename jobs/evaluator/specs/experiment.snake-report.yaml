@@ -1,0 +1,6 @@
+# An experiment's report: each run's final champion on the 200 leaderboard games, aggregated per arm. Usually run by
+# the scheduler once the experiment's cells are done (its `report`); by hand: `--set params.experiment=NAME`.
+kind: evaluate
+protocol: experiment.snake-report
+params:
+  experiment: neat-vs-neuro-v1

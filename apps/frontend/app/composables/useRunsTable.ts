@@ -2,7 +2,7 @@ import type { ModelShape } from "~/utils/modelLabel"
 import type { RunRow } from "~/utils/runMeta"
 
 // The runs table's model (pages/runs/index.vue), apart from how it's drawn: every run as a `RunRow`, the filters
-// (search, status, algorithm), sorting, and experiment groups -- the runs of one comparison (jobs/snake_experiment.py
+// (search, status, algorithm), sorting, and experiment groups -- the runs of one comparison (experiments/*.yaml
 // and friends: arms x seeds, tagged config.experiment) collapse into one row, since they're read together and there
 // are dozens per experiment. `standings` maps a run to its champion's place on its game's leaderboard.
 

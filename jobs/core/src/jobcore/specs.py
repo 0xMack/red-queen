@@ -197,6 +197,7 @@ class ArmSpec(BaseModel):
     train: dict[str, Any] = Field(default_factory=dict, description="TrainSpec fields overriding the defaults.")
     baseline: str | None = Field(None, description="The arm it differs from in one thing: `arm` or `experiment/arm`.")
     init_from: str | None = Field(None, description="Continue `experiment/arm`'s run of the same seed.")
+    seeds: list[int] | None = Field(None, min_length=1, description="This arm's seeds, if not the experiment's.")
 
 
 class ExperimentSpec(BaseModel):
@@ -211,14 +212,18 @@ class ExperimentSpec(BaseModel):
     seeds: list[int] = Field(..., min_length=1)
     defaults: dict[str, Any] = Field(default_factory=dict, description="TrainSpec fields every arm shares.")
     arms: dict[str, ArmSpec] = Field(..., min_length=1)
-    report: dict[str, Any] | None = Field(None, description="An EvalSpec to run once every arm x seed is done.")
+    report: dict[str, Any] | None = Field(
+        None, description="An EvalSpec to run once every arm x seed is done (`params.experiment` defaults to this one)."
+    )
 
     def expand(self) -> list[tuple[str, int, TrainSpec]]:
         """Every (arm, seed, TrainSpec) the experiment trains, in seed-major order (a partial experiment is then a
         complete one with fewer seeds)."""
         out = []
-        for seed in self.seeds:
+        for seed in sorted({seed for arm in self.arms.values() for seed in arm.seeds or self.seeds}):
             for name, arm in self.arms.items():
+                if seed not in (arm.seeds or self.seeds):
+                    continue
                 data = deep_merge(self.defaults, arm.train)
                 data = deep_merge(data, {"seed": seed, "tags": {"experiment": self.name, "arm": name}})
                 if arm.init_from:
@@ -236,8 +241,19 @@ class ExperimentSpec(BaseModel):
             if arm.baseline and "/" not in arm.baseline and arm.baseline not in self.arms:
                 raise ValueError(f"arm {name}'s baseline {arm.baseline!r} isn't an arm of {self.name}")
         if self.report is not None:
-            EvalSpec.model_validate(self.report).resolve()
+            self.report_spec().resolve()
         return self, expanded
+
+    def report_spec(self) -> EvalSpec | None:
+        """The report as an EvalSpec; a protocol that takes an `experiment` parameter gets this one by default."""
+        if self.report is None:
+            return None
+        spec = EvalSpec.model_validate(self.report)
+        _load_builtin()
+        protocol = _PROTOCOLS.get(spec.protocol)
+        if protocol is not None and "experiment" in protocol.params.model_fields and "experiment" not in spec.params:
+            spec = spec.model_copy(update={"params": {"experiment": self.name, **spec.params}})
+        return spec
 
 
 @dataclass(frozen=True)

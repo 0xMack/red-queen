@@ -1,0 +1,52 @@
+# snake-long-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: snake-long-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: snake
+  algorithm: neat
+  interface: snake/features.v1+relative3.v1
+  held_out_every: 10
+arms:
+  neat:
+    train:
+      budget:
+        generations: 250
+      params:
+        population_size: 100
+        max_steps: 200
+        seeds: resample:5
+  neat-long:
+    train:
+      budget:
+        generations: 1000
+      params:
+        population_size: 100
+        max_steps: 200
+        seeds: resample:5
+  neat-pop400:
+    train:
+      budget:
+        generations: 250
+      params:
+        population_size: 400
+        max_steps: 200
+        seeds: resample:5
+  neat-h1000:
+    train:
+      budget:
+        generations: 250
+      params:
+        population_size: 100
+        max_steps: 1000
+        seeds: resample:5
+  neat-max:
+    train:
+      budget:
+        generations: 600
+      params:
+        population_size: 300
+        max_steps: 1000
+        seeds: resample:10
+report:
+  protocol: experiment.snake-report

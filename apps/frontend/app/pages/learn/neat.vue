@@ -117,7 +117,7 @@ import * as math from "~/data/math/neat"
     <p>
       That's one champion. A single run is an anecdote -- a different random seed can move a Snake policy's score by several points -- so the
       project ran a tracked experiment: four algorithm variants, <strong>five seeds each</strong>, an identical budget, every run recorded to
-      telemetry and scored on the same 200 unseen games (<code>jobs/snake_experiment.py</code>, docs/design/0008):
+      telemetry and scored on the same 200 unseen games (<code>experiments/neat-vs-neuro-v1.yaml</code>, docs/design/0008):
     </p>
     <SnakeNeatResults />
     <ul>

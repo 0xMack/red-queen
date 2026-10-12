@@ -1,0 +1,30 @@
+# checkers-distill-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: checkers-distill-v1
+seeds: [71, 72]
+defaults:
+  game: checkers
+  algorithm: distill
+  budget:
+    generations: 300
+  held_out_every: 10
+  params:
+    population_size: 100
+    hidden: 16
+    depth: 3
+    label_kind: search
+    sample: 600
+    sigma: 0.1
+    mutation_rate: 0.1
+    opponents: [material-3, material-4]
+arms:
+  distill-k8:
+    train:
+      params:
+        label_depth: 8
+        pool_games: 1500
+  distill-k6:
+    train:
+      params:
+        label_depth: 6
+        pool_games: 2000

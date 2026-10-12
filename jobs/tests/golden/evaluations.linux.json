@@ -3330,6 +3330,564 @@
    "run_id": "<run2>"
   }
  ],
+ "experiment.checkers-field": {
+  "arms": {
+   "a": {
+    "by_opponent": {
+     "material-2": 0.0,
+     "material-3": 0.125,
+     "material-4": 0.0
+    },
+    "n": 2,
+    "points": {
+     "max": 0.083,
+     "mean": 0.042,
+     "min": 0.0,
+     "sd": 0.059
+    },
+    "points_per_seed": [
+     0.08333333333333333,
+     0.0
+    ]
+   },
+   "b": {
+    "by_opponent": {
+     "material-2": 0.125,
+     "material-3": 0.0,
+     "material-4": 0.0
+    },
+    "n": 2,
+    "points": {
+     "max": 0.083,
+     "mean": 0.042,
+     "min": 0.0,
+     "sd": 0.059
+    },
+    "points_per_seed": [
+     0.0,
+     0.08333333333333333
+    ],
+    "vs_baseline": {
+     "arm": "a",
+     "mean_difference": 0.0,
+     "paired_p": 1.0,
+     "pairs": 2
+    }
+   }
+  },
+  "name": "golden-selfplay",
+  "protocol": "final network at 1-ply vs ['material-2', 'material-3', 'material-4'], 2 games each",
+  "runs": [
+   {
+    "arm": "a",
+    "curve": [
+     [
+      0,
+      -0.3333333333333333
+     ],
+     [
+      1,
+      -0.36666666666666664
+     ]
+    ],
+    "games": 20,
+    "points": {
+     "material-2": 0.0,
+     "material-3": 0.25,
+     "material-4": 0.0,
+     "overall": 0.08333333333333333
+    },
+    "rng_seed": 0,
+    "run_id": "<run5>"
+   },
+   {
+    "arm": "a",
+    "curve": [
+     [
+      0,
+      -0.43333333333333335
+     ],
+     [
+      1,
+      -0.4
+     ]
+    ],
+    "games": 20,
+    "points": {
+     "material-2": 0.0,
+     "material-3": 0.0,
+     "material-4": 0.0,
+     "overall": 0.0
+    },
+    "rng_seed": 1,
+    "run_id": "<run7>"
+   },
+   {
+    "arm": "b",
+    "curve": [
+     [
+      0,
+      -0.23333333333333334
+     ],
+     [
+      1,
+      -0.16666666666666666
+     ]
+    ],
+    "games": 20,
+    "points": {
+     "material-2": 0.0,
+     "material-3": 0.0,
+     "material-4": 0.0,
+     "overall": 0.0
+    },
+    "rng_seed": 0,
+    "run_id": "<run6>"
+   },
+   {
+    "arm": "b",
+    "curve": [
+     [
+      0,
+      -0.26666666666666666
+     ],
+     [
+      1,
+      -0.23333333333333334
+     ]
+    ],
+    "games": 20,
+    "points": {
+     "material-2": 0.25,
+     "material-3": 0.0,
+     "material-4": 0.0,
+     "overall": 0.08333333333333333
+    },
+    "rng_seed": 1,
+    "run_id": "<run8>"
+   }
+  ]
+ },
+ "experiment.checkers-h2h": {
+  "arms": {
+   "b": {
+    "across_seeds": {
+     "mean": 13.3,
+     "positive": 1,
+     "sd": 34.8,
+     "seeds": 2,
+     "sign_flip_p": 1.0
+    },
+    "alpha": 0.05,
+    "baseline": "a",
+    "beta": 0.05,
+    "bounds": [
+     -2.944,
+     2.944
+    ],
+    "elo": 13.2,
+    "elo0": 0.0,
+    "elo1": 50.0,
+    "hi": 40.2,
+    "llr": -3.082,
+    "lo": -13.6,
+    "openings_available": 174,
+    "openings_played": 46,
+    "pairs": 92,
+    "pentanomial": [
+     1,
+     15,
+     57,
+     14,
+     5
+    ],
+    "per_seed": {
+     "0": {
+      "elo": 37.9,
+      "hi": 78.1,
+      "lo": -1.3,
+      "pairs": 46,
+      "score": 0.5543
+     },
+     "1": {
+      "elo": -11.3,
+      "hi": 24.1,
+      "lo": -47.0,
+      "pairs": 46,
+      "score": 0.4837
+     }
+    },
+    "score": 0.519,
+    "seeds": [
+     0,
+     1
+    ],
+    "verdict": "H0"
+   }
+  },
+  "name": "golden-selfplay",
+  "protocol": "head to head at 1-ply, game pairs over the 174-opening ballot, SPRT elo0 0, elo1 50.0, alpha = beta = 0.05"
+ },
+ "experiment.rl-report": {
+  "arms": {
+   "q": {
+    "env_steps": {
+     "max": 10000.0,
+     "mean": 10000.0,
+     "min": 10000.0,
+     "sd": 0.0
+    },
+    "held_out_mean": {
+     "max": 15.3,
+     "mean": 14.3,
+     "min": 13.3,
+     "sd": 1.414
+    },
+    "held_out_per_seed": [
+     13.3,
+     15.3
+    ],
+    "n": 2,
+    "seeds": [
+     0,
+     1
+    ],
+    "visited_states": {
+     "max": 202.0,
+     "mean": 199.5,
+     "min": 197.0,
+     "sd": 3.536
+    }
+   },
+   "sarsa": {
+    "env_steps": {
+     "max": 10000.0,
+     "mean": 10000.0,
+     "min": 10000.0,
+     "sd": 0.0
+    },
+    "held_out_mean": {
+     "max": 14.65,
+     "mean": 13.75,
+     "min": 12.85,
+     "sd": 1.273
+    },
+    "held_out_per_seed": [
+     14.65,
+     12.85
+    ],
+    "n": 2,
+    "seeds": [
+     0,
+     1
+    ],
+    "visited_states": {
+     "max": 207.0,
+     "mean": 202.0,
+     "min": 197.0,
+     "sd": 7.071
+    },
+    "vs_baseline": {
+     "arm": "q",
+     "mean_difference": -0.55,
+     "paired_p": 1.0,
+     "pairs": 2
+    }
+   }
+  },
+  "name": "golden-rl",
+  "protocol": "snake.score.v2 (200 held-out games per run, final champion)",
+  "runs": [
+   {
+    "arm": "q",
+    "curve": [
+     [
+      5000,
+      12.0
+     ],
+     [
+      10000,
+      12.0
+     ]
+    ],
+    "env_steps": 10000,
+    "final_q_mean": null,
+    "final_td_loss": null,
+    "held_out_ci95": 2.6415,
+    "held_out_mean": 13.3,
+    "parameters": 6144,
+    "rng_seed": 0,
+    "run_id": "<run5>",
+    "visited_states": 197,
+    "zero_rate": 0.0
+   },
+   {
+    "arm": "q",
+    "curve": [
+     [
+      5000,
+      16.5
+     ],
+     [
+      10000,
+      16.5
+     ]
+    ],
+    "env_steps": 10000,
+    "final_q_mean": null,
+    "final_td_loss": null,
+    "held_out_ci95": 2.3541,
+    "held_out_mean": 15.3,
+    "parameters": 6144,
+    "rng_seed": 1,
+    "run_id": "<run7>",
+    "visited_states": 202,
+    "zero_rate": 0.0
+   },
+   {
+    "arm": "sarsa",
+    "curve": [
+     [
+      5000,
+      11.5
+     ],
+     [
+      10000,
+      15.5
+     ]
+    ],
+    "env_steps": 10000,
+    "final_q_mean": null,
+    "final_td_loss": null,
+    "held_out_ci95": 2.4681,
+    "held_out_mean": 14.65,
+    "parameters": 6144,
+    "rng_seed": 0,
+    "run_id": "<run6>",
+    "visited_states": 207,
+    "zero_rate": 0.0
+   },
+   {
+    "arm": "sarsa",
+    "curve": [
+     [
+      5000,
+      8.0
+     ],
+     [
+      10000,
+      9.0
+     ]
+    ],
+    "env_steps": 10000,
+    "final_q_mean": null,
+    "final_td_loss": null,
+    "held_out_ci95": 2.7801,
+    "held_out_mean": 12.85,
+    "parameters": 6144,
+    "rng_seed": 1,
+    "run_id": "<run8>",
+    "visited_states": 197,
+    "zero_rate": 0.0
+   }
+  ],
+  "setup": {
+   "arms": {
+    "q": {
+     "baseline": null,
+     "interface": "snake/features.v1+relative3.v1",
+     "params": {
+      "epsilon_decay_steps": 5000
+     },
+     "steps": 10000
+    },
+    "sarsa": {
+     "baseline": "q",
+     "interface": "snake/features.v1+relative3.v1",
+     "params": {
+      "epsilon_decay_steps": 5000
+     },
+     "steps": 10000
+    }
+   },
+   "steps_per_iteration": 5000
+  }
+ },
+ "experiment.snake-report": {
+  "arms": {
+   "neat": {
+    "connections": {
+     "max": 37.0,
+     "mean": 36.5,
+     "min": 36.0,
+     "sd": 0.707
+    },
+    "curve_mean": {
+     "0": 0.3
+    },
+    "held_out_mean": {
+     "max": 0.25,
+     "mean": 0.15,
+     "min": 0.05,
+     "sd": 0.141
+    },
+    "held_out_per_seed": [
+     0.25,
+     0.05
+    ],
+    "hidden_nodes": {
+     "max": 1.0,
+     "mean": 0.5,
+     "min": 0.0,
+     "sd": 0.707
+    },
+    "n": 2,
+    "parameters": {
+     "max": 37.0,
+     "mean": 36.5,
+     "min": 36.0,
+     "sd": 0.707
+    },
+    "seeds": [
+     0,
+     1
+    ]
+   },
+   "neuro": {
+    "curve_mean": {
+     "0": 0.11
+    },
+    "held_out_mean": {
+     "max": 0.9,
+     "mean": 0.575,
+     "min": 0.25,
+     "sd": 0.46
+    },
+    "held_out_per_seed": [
+     0.25,
+     0.9
+    ],
+    "n": 2,
+    "parameters": {
+     "max": 243.0,
+     "mean": 243.0,
+     "min": 243.0,
+     "sd": 0.0
+    },
+    "seeds": [
+     0,
+     1
+    ]
+   }
+  },
+  "name": "golden-snake",
+  "protocol": "snake.score.v2 (200 held-out games per run, final champion)",
+  "runs": [
+   {
+    "arm": "neat",
+    "connections": 36,
+    "curve": {
+     "0": 0.39,
+     "100": null,
+     "150": null,
+     "200": null,
+     "249": null,
+     "50": null,
+     "500": null,
+     "599": null,
+     "999": null
+    },
+    "env_steps": 7738,
+    "generations": 3,
+    "held_out_ci95": 0.2411,
+    "held_out_mean": 0.25,
+    "hidden_nodes": 0,
+    "parameters": 36,
+    "rng_seed": 0,
+    "run_id": "<run6>",
+    "species_final": 1.0,
+    "training_best_fitness": -0.746,
+    "zero_rate": 0.8
+   },
+   {
+    "arm": "neat",
+    "connections": 37,
+    "curve": {
+     "0": 0.22,
+     "100": null,
+     "150": null,
+     "200": null,
+     "249": null,
+     "50": null,
+     "500": null,
+     "599": null,
+     "999": null
+    },
+    "env_steps": 4265,
+    "generations": 3,
+    "held_out_ci95": 0.098,
+    "held_out_mean": 0.05,
+    "hidden_nodes": 1,
+    "parameters": 37,
+    "rng_seed": 1,
+    "run_id": "<run8>",
+    "species_final": 1.0,
+    "training_best_fitness": -0.834,
+    "zero_rate": 0.95
+   },
+   {
+    "arm": "neuro",
+    "curve": {
+     "0": 0.08,
+     "100": null,
+     "150": null,
+     "200": null,
+     "249": null,
+     "50": null,
+     "500": null,
+     "599": null,
+     "999": null
+    },
+    "env_steps": 3230,
+    "generations": 3,
+    "held_out_ci95": 0.2411,
+    "held_out_mean": 0.25,
+    "parameters": 243,
+    "rng_seed": 0,
+    "run_id": "<run5>",
+    "training_best_fitness": -0.596,
+    "zero_rate": 0.8
+   },
+   {
+    "arm": "neuro",
+    "curve": {
+     "0": 0.14,
+     "100": null,
+     "150": null,
+     "200": null,
+     "249": null,
+     "50": null,
+     "500": null,
+     "599": null,
+     "999": null
+    },
+    "env_steps": 4097,
+    "generations": 3,
+    "held_out_ci95": 0.2808,
+    "held_out_mean": 0.9,
+    "parameters": 243,
+    "rng_seed": 1,
+    "run_id": "<run7>",
+    "training_best_fitness": -0.462,
+    "zero_rate": 0.25
+   }
+  ],
+  "setup": {
+   "interface": "snake/features.v1+relative3.v1",
+   "population": 100,
+   "training": "resample:5"
+  }
+ },
  "publish.snake": [
   {
    "entry": {

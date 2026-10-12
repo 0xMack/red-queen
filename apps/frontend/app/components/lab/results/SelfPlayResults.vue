@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArmResult } from "~/components/chart/ArmResults.vue"
 
-// `jobs/checkers_selfplay_experiment.py report --name rl-selfplay-v1` (docs/design/0010 Phase 4): each run's final
+// `experiments/rl-selfplay-v1.yaml`'s `experiment.checkers-field` (docs/design/0010 Phase 4): each run's final
 // network, searching 3 plies, against a fixed field -- material search to 2, 3 and 4 plies and the strongest evolved
 // evaluator on the versus leaderboard (32 -> 16 -> 1, 3 plies) -- 20 games each, seats alternating. Points per game
 // (win 1, draw 1/2); 200k self-play games per run, 5 seeds per arm, compared with pure self-play seed for seed.
@@ -52,7 +52,7 @@ const BY_OPPONENT: { label: string; points: number[] }[] = [
       :ticks="[0.2, 0.35, 0.5, 0.65, 0.8]"
     >
       Each dot is one training run's final network (a different rng seed); its score is points per game (win 1, draw ½) over 80 games against the
-      field below. From <code>jobs/checkers_selfplay_experiment.py report --name rl-selfplay-v1</code>.
+      field below. From the <code>experiment.checkers-field</code> of <code>experiments/rl-selfplay-v1.yaml</code>.
     </ArmResults>
     <div class="card not-prose -mt-4 mb-8 overflow-x-auto p-5">
       <p class="label">Mean points per game, by opponent</p>

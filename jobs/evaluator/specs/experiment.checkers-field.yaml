@@ -1,0 +1,7 @@
+# A self-play experiment against a fixed field (material-2/3/4 and the best evolved evaluator): Elo per run, per arm.
+kind: evaluate
+protocol: experiment.checkers-field
+params:
+  experiment: rl-selfplay-v1
+  games: 20
+  depth: 3

@@ -70,9 +70,14 @@ class Scheduler:
             spec = ExperimentSpec.model_validate(experiment.spec)
             completed = self._completed_runs()
             latest: dict[tuple[str, int], Job] = {}
+            report: Job | None = None
             for job in self.jobs.list(parent=spec.name):  # oldest first: the newest wins
-                latest[(job.spec.get("tags", {}).get("arm"), job.spec.get("seed"))] = job
-            for arm, seed, train in spec.expand():
+                if job.kind == "evaluate":
+                    report = job
+                else:
+                    latest[(job.spec.get("tags", {}).get("arm"), job.spec.get("seed"))] = job
+            expanded = spec.expand()
+            for arm, seed, train in expanded:
                 if (spec.name, arm, seed) in completed:
                     continue
                 job = latest.get((arm, seed))
@@ -87,6 +92,12 @@ class Scheduler:
                     if parent not in completed:
                         continue  # waits for the run it continues
                 submitted.append(self.jobs.submit("train", train.model_dump(mode="json"), parent=spec.name))
+            # the report, once every cell is done -- once per (re)submission of the experiment
+            done = all((spec.name, arm, seed) in completed for arm, seed, _ in expanded)
+            stale = report is None or report.created_at < experiment.updated_at
+            if spec.report is not None and done and stale:
+                report_spec = spec.report_spec().model_dump(mode="json")
+                submitted.append(self.jobs.submit("evaluate", report_spec, parent=spec.name))
         return submitted
 
     def _completed_runs(self) -> set[tuple[str, str, int]]:

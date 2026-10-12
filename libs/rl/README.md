@@ -7,7 +7,7 @@ DQN → policy gradients → Checkers self-play; each rung lands with a tracked 
 - **Phase 0:** the foundation — the environments behind a trait, networks with backprop, Adam, the training loop, a
   random agent, and the checks that everything is deterministic across targets.
 - **Phase 1:** tabular **Q-learning** and **SARSA** with n-step returns (`tabular.rs`), exported as model packages
-  (`modelpack.champions.QTable`), compared in `jobs/rl_experiment.py`.
+  (`modelpack.champions.QTable`), compared in `experiments/rl-tabular-v1.yaml`.
 - **Phase 2:** **DQN** (`dqn.rs`): replay, target network, double, dueling, n-step and prioritized replay, each a
   parameter. `td_gradients` is checked against `tests/reference_dqn.py`.
 - **Phase 3:** **policy gradients** (`pg.rs`): REINFORCE (with or without a baseline), A2C and PPO on one agent and one
@@ -68,8 +68,8 @@ trainer.evaluate([20_000, 20_001], 1000)  # the greedy policy on given games
 ```
 
 A run: `uv run python -m trainer jobs/trainer/specs/rl-q-learning.yaml --set params.agent.n_step=3` (records to telemetry like
-every job; its champion is a model package on the leaderboard like any other). A comparison:
-`uv run python jobs/rl_experiment.py run --name NAME --arms q-learning,sarsa --seeds 0-4`, then `report`.
+every job; its champion is a model package on the leaderboard like any other). A comparison is an experiment spec (`experiments/rl-*.yaml`; arms x seeds, then `experiment.rl-report`):
+`uv run python -m scheduler --submit experiments/NAME.yaml`.
 
 After changing `rust/`, rebuild the browser copy: `uv run python libs/rl/scripts/build_wasm.py`
 (`tests/test_wasm_build.py` fails until you do).

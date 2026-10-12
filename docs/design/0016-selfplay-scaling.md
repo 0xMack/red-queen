@@ -68,7 +68,7 @@ Next, in order of cost:
 
 **Prepared (2026-10-06), not yet run:** the leaderboard candidate is one command, `jobs/checkers_recipe_run.py` (defaults:
 2 x 128, 1M games, then 50k games of TD-Leaf at 3 plies, seed 0; `--td-run <id> --depth 4` adds the 4-ply entrant
-without retraining the TD phase). The width arms are `selfplay-v7` in `checkers_selfplay_experiment.py`: `w-2x256-1m`,
+without retraining the TD phase). The width arms are `experiments/selfplay-v7.yaml`: `w-2x256-1m`,
 `w-2x256-ft2` and the compute-matched control `w-2x64-2700k`. Expect several hours per 2 x 256 run, since 2 x 128 took
 ~9,300 s at 3.6x fewer weights. The AlphaZero learner is built ([0017](0017-alphazero-checkers.md)), with its arms in
 `selfplay-v8`.

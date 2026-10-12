@@ -26,25 +26,23 @@ themselves — see docs/design/0001) get wired to it for a real run.
   worker processes, and fans stored experiments out into jobs. See `scheduler/README.md`.
 - **`publisher/` — the publisher workload**: one `PublishSpec` (target `snake`, `tinylm` or `scale-test`) in, packages in
   the model store out. Replaced `publish_models.py` and `scale_test_package.py`; see `publisher/README.md`.
-- `snake_experiment.py` — a tracked *comparison*, each arm a partial `TrainSpec` run by the trainer: arms
-  (`neuro-lexicase`, `neuro-tournament`, `neat`,
-  `neat-no-speciation`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/
-  `arm`/`rng_seed`, resumable, arms parallelizable as separate processes. `report --name NAME`
-  scores each run's *final* champion on the 200 leaderboard games and writes per-arm aggregates to
-  `data/experiments/NAME.json` (gitignored — the durable record of a result is
-  docs/design/0008 and the Learn chapter). Experiment-tagged runs are deliberately kept off the
-  leaderboard (the Snake evaluation skips them) so 20 seeds don't bury every other entrant.
+- **Experiments** — a tracked *comparison* is a checked-in spec, `experiments/<name>.yaml`: arms (each a partial
+  `TrainSpec`) × rng seeds, every run recorded to telemetry and tagged `config.experiment`/`arm`/`rng_seed`, then a
+  report protocol (`experiment.snake-report`, `.rl-report`, `.checkers-field`, `.checkers-h2h`) writing
+  `data/experiments/NAME.json` (gitignored — the durable record of a result is the design doc and the Learn chapter).
+  The scheduler trains the cells and runs the report; it never retrains a completed cell. Experiment-tagged runs are
+  deliberately kept off the leaderboard so 20 seeds don't bury every other entrant. Replaced `snake_experiment.py`,
+  `rl_experiment.py` and `checkers_selfplay_experiment.py`.
 - `export_ballot.py` — writes the ballot (every 3-ply opening, its board and verdict) as
   `apps/frontend/app/data/checkersBallot.ts` for the Learn chapter.
 - **Reinforcement learning** (`libs/rl`, docs/design/0010): the trainer's `rl.<algorithm>` trains one `rl.Trainer`
-  algorithm, an *iteration* (a budget of env steps) per recorded generation; `rl_experiment.py` is its tracked comparison (arms
+  algorithm, an *iteration* (a budget of env steps) per recorded generation; its comparisons are `experiments/rl-*.yaml` (arms
   budgeted in env steps, final policy on the 200 held-out games, a paired permutation test against each arm's baseline);
   `export_rl_recording.py` / `export_rl_curves.py`
   write real runs as the Learn chapters' recorded fallbacks.
 - **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): the trainer's `td_lambda` trains a position evaluator
   by TD(λ) or TD-Leaf(λ) (`params.agent.search_depth: N`), `alphazero` by AlphaZero-style search targets, each recorded
-  as an ordinary Checkers run; `checkers_selfplay_experiment.py` runs and compares the tracked arms (`selfplay-v1` ...
-  `v8`); `checkers_recipe_run.py` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one command, for leaderboard
+  as an ordinary Checkers run; the tracked arms are `experiments/rl-selfplay-v1.yaml` and `selfplay-v2` ... `v8`; `checkers_recipe_run.py` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one command, for leaderboard
   entrants (a pipeline of two trainer runs); the trainer's `pbt` is population-based training over self-play learners,
   and `export_pbt_history.py` writes
   one run's population history for the Learn chapter.
@@ -64,6 +62,5 @@ themselves — see docs/design/0001) get wired to it for a real run.
 
 `jobs/` isn't a `uv` workspace package (no `pyproject.toml`) — scripts here import already-installed
 workspace packages, and `uv run python jobs/<script>.py` puts the script's own directory on
-`sys.path` automatically, which is how e.g. `rl_experiment.py` imports `snake_experiment.py` as a plain
-sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
+`sys.path` automatically, so a script can import another as a plain sibling module. `jobs/tests/conftest.py` does the same thing explicitly for `uv run pytest
 jobs/tests`.

@@ -74,7 +74,11 @@ CLOCKS = {"created_at", "hardware", "wall_s", "active_s", "cpu_s", "paused_s", "
 def _strip_clocks(value: Any) -> Any:
     """Clocks dropped; a long list of numbers (every game's score) kept as its length, sum and hash -- still exact."""
     if isinstance(value, dict):
-        return {k: _strip_clocks(v) for k, v in value.items() if k not in CLOCKS and not k.endswith("_us")}
+        return {
+            k: _strip_clocks(v)
+            for k, v in value.items()
+            if not (isinstance(k, str) and (k in CLOCKS or k.endswith("_us")))
+        }
     if isinstance(value, list):
         if len(value) > 32 and all(isinstance(v, int | float) for v in value):
             text = json.dumps(value).encode()
@@ -84,7 +88,7 @@ def _strip_clocks(value: Any) -> Any:
 
 
 def _report(result: Any) -> Any:
-    return result
+    return _strip_clocks(result)
 
 
 def _store(game: str) -> Callable[[Any], Any]:
@@ -166,6 +170,96 @@ EVAL_CASES: dict[str, EvalCase] = {
     ),
     "publish.tinylm": EvalCase(_publish("tinylm"), _store("tinylm")),
 }
+# --- Experiment reports: a tiny experiment, trained and reported (stage 6b) -------------------------------------
+# Recorded from snake_experiment.py, rl_experiment.py and checkers_selfplay_experiment.py with these arms patched in;
+# now each is an ExperimentSpec, stored, its expansion trained in the scripts' order, and its report protocol run.
+GOLDEN_EXPERIMENTS: dict[str, dict[str, Any]] = {
+    "snake": {
+        "name": "golden-snake",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "snake",
+            "interface": "snake/features.v1+relative3.v1",
+            "budget": {"generations": 3},
+            "held_out_every": 10,
+            "params": {"seeds": "resample:5"},
+        },
+        "arms": {
+            "neuro": {"train": {"algorithm": "neuroevolution", "params": {"population_size": 8}}},
+            "neat": {"train": {"algorithm": "neat", "params": {"population_size": 12}}},
+        },
+    },
+    "rl": {
+        "name": "golden-rl",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "snake",
+            "interface": "snake/features.v1+relative3.v1",
+            "budget": {"iterations": 2},
+            "held_out_every": 1,
+            "params": {"steps_per_iteration": 5_000, "reward": "shaped", "snapshot_every": 2},
+        },
+        "arms": {
+            "q": {"train": {"algorithm": "rl.q_learning", "params": {"agent": {"epsilon_decay_steps": 5_000}}}},
+            "sarsa": {
+                "train": {"algorithm": "rl.sarsa", "params": {"agent": {"epsilon_decay_steps": 5_000}}},
+                "baseline": "q",
+            },
+        },
+    },
+    "selfplay": {
+        "name": "golden-selfplay",
+        "seeds": [0, 1],
+        "defaults": {
+            "game": "checkers",
+            "algorithm": "td_lambda",
+            "budget": {"iterations": 2},
+            "held_out_every": 1,
+            "params": {"games_per_iteration": 10, "depth": 1},
+        },
+        "arms": {
+            "a": {"train": {"params": {"agent": {"hidden": 8}}}},
+            "b": {"train": {"params": {"agent": {"hidden": 8, "lambda": 0.0}}}, "baseline": "a"},
+        },
+    },
+}
+
+
+def _experiment(family: str, protocol: str, **params: Any) -> Callable[[], Any]:
+    def run() -> Any:
+        from evaluator import evaluate
+        from jobcore.specs import ExperimentSpec
+        from telemetry import open_job_store
+        from trainer import train
+
+        spec = ExperimentSpec.model_validate(GOLDEN_EXPERIMENTS[family])
+        open_job_store().put_experiment(spec.name, spec.model_dump(mode="json"))
+        for _arm, _seed, train_spec in spec.expand():
+            train(train_spec)
+        return evaluate({"protocol": protocol, "params": {"experiment": spec.name, **params}})
+
+    return run
+
+
+EXPERIMENT_PATCHES = {"arena.snake.HELD_OUT_SEEDS": SNAKE_20}
+EVAL_CASES.update(
+    {
+        "experiment.snake-report": EvalCase(
+            _experiment("snake", "experiment.snake-report"), _report, EXPERIMENT_PATCHES
+        ),
+        "experiment.rl-report": EvalCase(
+            _experiment("rl", "experiment.rl-report"),
+            _report,
+            {**EXPERIMENT_PATCHES, "trainer.algorithms.reinforcement.MONITOR_SEEDS": (20_000, 20_001)},
+        ),
+        "experiment.checkers-field": EvalCase(
+            _experiment("selfplay", "experiment.checkers-field", games=2, depth=1), _report
+        ),
+        "experiment.checkers-h2h": EvalCase(_experiment("selfplay", "experiment.checkers-h2h", depth=1), _report),
+    }
+)
+
+
 TOLERANT = {"publish.snake", "publish.tinylm"}  # ONNX Runtime parity numbers
 
 
@@ -181,8 +275,14 @@ def run_case(name: str, case: EvalCase | None = None) -> Any:
         run_ids = build_field()
         with _patched(case.patches), contextlib.redirect_stdout(sys.stderr):
             result = case.run()
-        names = {run_id: f"<run{i}>" for i, run_id in enumerate(run_ids)}
-        digest = _anonymize(case.digest(result), names)
+        # every run, the field's and any the case trained itself (an experiment's), named in creation order
+        from telemetry import open_stores
+
+        created = [r.run_id for r in sorted(open_stores().registry.list_runs(), key=lambda r: r.created_at)]
+        assert created[: len(run_ids)] == run_ids
+        names = {run_id: f"<run{i}>" for i, run_id in enumerate(created)}
+        # through JSON: what a fixture holds (an int key, like a seed, comes back a string)
+        digest = json.loads(json.dumps(_anonymize(case.digest(result), names), default=str))
         if isinstance(digest, list) and all(isinstance(d, dict) and "entrant_id" in d for d in digest):
             digest.sort(key=lambda d: d["entrant_id"])
         return digest

@@ -1,0 +1,31 @@
+# checkers-fix-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: checkers-fix-v1
+seeds: [51, 52]
+defaults:
+  game: checkers
+  algorithm: neuroevolution
+  budget:
+    generations: 300
+  held_out_every: 10
+  params:
+    population_size: 60
+    hidden: 16
+    opponents: [random, material-2, material-3]
+    depth: 3
+    hall: 6
+    seed_material: 0.5
+    margin: true
+    sigma: 0.1
+    mutation_rate: 0.05
+arms:
+  sparse-d3:
+    train:
+      params:
+        resample: false
+        games_per_opponent: 1
+  sparse-d3-resample:
+    train:
+      params:
+        resample: true
+        games_per_opponent: 2

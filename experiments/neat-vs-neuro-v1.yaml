@@ -1,0 +1,39 @@
+# neat-vs-neuro-v1: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: neat-vs-neuro-v1
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: snake
+  interface: snake/features.v1+relative3.v1
+  budget:
+    generations: 250
+  held_out_every: 10
+  params:
+    population_size: 100
+    max_steps: 200
+    seeds: resample:5
+arms:
+  neuro-lexicase:
+    train:
+      algorithm: neuroevolution
+      params:
+        hidden: 16
+        selection: lexicase
+  neuro-tournament:
+    train:
+      algorithm: neuroevolution
+      params:
+        hidden: 16
+        selection: tournament
+        tournament_k: 4
+  neat:
+    train:
+      algorithm: neat
+  neat-no-speciation:
+    train:
+      algorithm: neat
+      params:
+        neat:
+          speciation: false
+report:
+  protocol: experiment.snake-report

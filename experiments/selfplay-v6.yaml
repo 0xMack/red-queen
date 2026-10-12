@@ -1,0 +1,75 @@
+# selfplay-v6: converted from its recorded runs (docs/design/0018 stage 6b).
+kind: experiment
+name: selfplay-v6
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+arms:
+  l-2x128-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 128
+          hidden_layers: 2
+    baseline: selfplay-v2/pool-2x64-1m
+  l-1m-ft2:
+    train:
+      budget:
+        iterations: 40
+      held_out_every: 4
+      params:
+        agent:
+          hidden: 64
+          hidden_layers: 2
+          search_depth: 2
+    baseline: selfplay-v5/s-td-ft2
+    init_from: selfplay-v2/pool-2x64-1m
+  l-3x64-1m:
+    train:
+      budget:
+        iterations: 1000
+      held_out_every: 100
+      params:
+        agent:
+          hidden: 64
+          hidden_layers: 3
+    baseline: selfplay-v2/pool-2x64-1m
+  l-3x64-ft2:
+    train:
+      budget:
+        iterations: 40
+      held_out_every: 4
+      params:
+        agent:
+          hidden: 64
+          hidden_layers: 3
+          search_depth: 2
+    baseline: l-1m-ft2
+    init_from: selfplay-v6/l-3x64-1m
+  l-2x128-ft2:
+    train:
+      budget:
+        iterations: 40
+      held_out_every: 4
+      params:
+        agent:
+          hidden: 128
+          hidden_layers: 2
+          search_depth: 2
+    baseline: l-1m-ft2
+    init_from: selfplay-v6/l-2x128-1m
+report:
+  protocol: experiment.checkers-h2h
+  params:
+    full: true
