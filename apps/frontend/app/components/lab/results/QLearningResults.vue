@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArmResult } from "~/components/chart/ArmResults.vue"
 
-// `jobs/rl_experiment.py report --name rl-tabular-v1` (docs/design/0010 Phase 1a): twelve variants of tabular
+// `experiments/rl-tabular-v1.yaml`'s `experiment.rl-report` (docs/design/0010 Phase 1a): twelve variants of tabular
 // Q-learning on Snake (features.v1), five rng seeds each, 1M environment steps each (q-long: 5M), every run's *final*
 // table playing the same 200 held-out games. Each variant is compared with the default (`q-learning`), seeds paired.
 const scores: Record<string, number[]> = {
@@ -43,7 +43,7 @@ const ARMS: ArmResult[] = [
   >
     Each dot is a separate training run (a different rng seed) whose final table played the same 200 games none of them trained on; the bar is the
     mean of five. Every run visited the same 256 states. Each trained in about half a second (the 5M-step arm in 2.6 s) in the Rust core. From
-    <code>jobs/rl_experiment.py report --name rl-tabular-v1</code>; the runs are on the <NuxtLink to="/runs">runs page</NuxtLink>, grouped under
+    the <code>experiment.rl-report</code> of <code>experiments/rl-tabular-v1.yaml</code>; the runs are on the <NuxtLink to="/runs">runs page</NuxtLink>, grouped under
     the experiment's name.
   </ArmResults>
 </template>

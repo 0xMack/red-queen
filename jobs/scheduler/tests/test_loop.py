@@ -145,3 +145,19 @@ def test_the_report_runs_once_every_cell_is_done_and_again_after_a_resubmission(
     jobs.put_experiment("probe", spec)
     (again,) = scheduler.fan_out_experiments()
     assert again.kind == "evaluate" and again.job_id != report.job_id
+
+
+def test_submit_stores_an_experiment_file(tmp_path, monkeypatch):
+    from telemetry import open_job_store
+
+    from scheduler.__main__ import main
+
+    monkeypatch.setenv("REDQUEEN_DATA_DIR", str(tmp_path))
+    path = tmp_path / "probe.yaml"
+    path.write_bytes(
+        b"kind: experiment\nname: probe\nseeds: [0]\ndefaults: {game: snake, algorithm: neat, budget: {generations: 1}}\narms: {a: {}}\n"
+    )
+    main(["--submit", str(path), "--once"])
+    (experiment,) = open_job_store().list_experiments()
+    assert experiment.name == "probe"
+    assert [j.spec["tags"]["arm"] for j in open_job_store().list(parent="probe")] == ["a"]

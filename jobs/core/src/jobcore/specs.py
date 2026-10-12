@@ -249,6 +249,7 @@ class ExperimentSpec(BaseModel):
         if self.report is None:
             return None
         spec = EvalSpec.model_validate(self.report)
+        _load_builtin()
         protocol = _PROTOCOLS.get(spec.protocol)
         if protocol is not None and "experiment" in protocol.params.model_fields and "experiment" not in spec.params:
             spec = spec.model_copy(update={"params": {"experiment": self.name, **spec.params}})

@@ -140,7 +140,7 @@ import * as math from "~/data/math/self-play"
     >
       <template #caption>
         2 × 64 networks, TD-Leaf searching 2 plies, the opponent pool; each arm's five final networks against the baseline's, seed for seed,
-        every ballot opening from both seats, both searching 3 plies. <code>jobs/checkers_selfplay_experiment.py h2h --name selfplay-v5 --full</code>
+        every ballot opening from both seats, both searching 3 plies. The <code>experiment.checkers-h2h</code> of <code>experiments/selfplay-v5.yaml</code>
         (docs/design/0015).
       </template>
     </H2hResults>
@@ -163,7 +163,7 @@ import * as math from "~/data/math/self-play"
     >
       <template #caption>
         The opponent pool; fine-tunes are 40,000 games of TD-Leaf at 2 plies; measured as above.
-        <code>jobs/checkers_selfplay_experiment.py h2h --name selfplay-v6 --full</code> (docs/design/0016).
+        the <code>experiment.checkers-h2h</code> of <code>experiments/selfplay-v6.yaml</code> (docs/design/0016).
       </template>
     </H2hResults>
     <Callout variant="finding" title="Learned knowledge beats deeper search">

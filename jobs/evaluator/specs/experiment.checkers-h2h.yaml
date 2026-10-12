@@ -1,0 +1,6 @@
+# Each arm against its baseline arm, head to head, seed for seed (an SPRT; `full: true` plays the whole ballot).
+kind: evaluate
+protocol: experiment.checkers-h2h
+params:
+  experiment: selfplay-v6
+  full: true

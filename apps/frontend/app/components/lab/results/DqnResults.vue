@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArmResult } from "~/components/chart/ArmResults.vue"
 
-// `jobs/rl_experiment.py report --name rl-dqn-v1` (docs/design/0010 Phase 2a): every run's final network on the 200
+// `experiments/rl-dqn-v1.yaml`'s `experiment.rl-report` (docs/design/0010 Phase 2a): every run's final network on the 200
 // held-out games. `ladder`: each rung adds one stabilizer to the one before it and is compared with it (seeds
 // paired); the first three rungs have 20 seeds, because a divergence in 1 of 5 couldn't be told from a fluke.
 // `observers`: the same DQN on three observations of the same game.
@@ -99,7 +99,7 @@ const REFERENCES = [
   >
     Each dot is a separate training run whose final network played the same 200 unseen games; the bar is the mean. Each rung adds one idea to the
     rung above and is compared with it, seeds paired (with five pairs, p = 0.06 is the smallest possible: every pair moved the same way). The two
-    dots at zero are the runs that diverged. From <code>jobs/rl_experiment.py report --name rl-dqn-v1</code>.
+    dots at zero are the runs that diverged. From the <code>experiment.rl-report</code> of <code>experiments/rl-dqn-v1.yaml</code>.
   </ArmResults>
   <ArmResults
     v-else

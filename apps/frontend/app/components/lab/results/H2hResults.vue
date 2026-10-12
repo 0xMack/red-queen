@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Every Checkers self-play comparison, measured again head to head (docs/design/0013):
-// `jobs/checkers_selfplay_experiment.py h2h --name <experiment> [--full]`. Each variant's final network plays its
+// `experiments/<experiment>.yaml`'s `experiment.checkers-h2h`. Each variant's final network plays its
 // baseline's from the same training seed, both searching 3 plies, one game pair per ballot opening; five seeds.
 // "Field" is what the old report said (points per game against material-2/3/4 and an evolved network, the variant's
 // mean minus its baseline's, exact paired p over seeds). "SPRT" is the sequential test (elo0 0, elo1 50, α = β = 0.05,
@@ -80,7 +80,7 @@ const signed = (v: number, d = 0) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.
       searching 3 plies. <em>Elo</em>: all 174 ballot openings × 5 seeds, the pooled difference with its interval (the shaded bar), and each
       seed's (the dots). <em>Stronger / no stronger</em>: the sequential test's verdict and the game pairs it needed, seeds pooled.
       <em>Field</em>: what the old report said (points per game against material search and an evolved network, and its p over five seeds).
-      <code>jobs/checkers_selfplay_experiment.py h2h</code>.
+      the <code>experiment.checkers-h2h</code> report.
       </slot>
     </template>
   </UiFigure>

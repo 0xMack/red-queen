@@ -51,7 +51,7 @@ A stronger network makes a stronger search, which makes better targets. No other
    trunk and value unit, with a zero (uniform) policy. That gives the same choice 0015 measured for TD-Leaf: learn from
    scratch, or fine-tune what cheap plain TD already learned.
 7. **Comparable by construction.** Runs go through `jobs/checkers_selfplay_run.py --algorithm alphazero`
-   (`config.representation = "alphazero"`) and `checkers_selfplay_experiment.py` arms (`Arm.algorithm`). So the
+   (`config.representation = "alphazero"`) and experiment arms (`algorithm: alphazero`). So the
    head-to-head SPRT compares an AlphaZero value head with a TD network *under the same alpha-beta search*. That answers
    "is a value learned this way a better evaluator?". It does not answer "is the MCTS player stronger?", which needs
    the search in the games crate (see "Not built"). The run's extras log the search player directly: `mcts_points`,
@@ -81,12 +81,12 @@ improves, as TD-Leaf's did (0015).
 | `z-az-200k` | AlphaZero from scratch, 200k games | ~1.75x | `selfplay-v5/s-leaf2` (TD-Leaf from scratch, 200k games) |
 
 ```bash
-uv run python -u jobs/checkers_selfplay_experiment.py run --name selfplay-v8 --arms z-az-ft,z-az-ft-16k --seeds 0-4
-uv run python -u jobs/checkers_selfplay_experiment.py h2h --name selfplay-v8 --full
+uv run python -m scheduler --submit experiments/selfplay-v8.yaml --workers 2
 ```
 
-The fine-tune arms are ~30 min (`z-az-ft`) and ~12 min (`z-az-ft-16k`) per run alone, so start with them. `z-az-200k` is
-~2.5 hours per run.
+The scheduler trains every arm x seed and then runs the report (`experiment.checkers-h2h`, the full ballot). The
+fine-tune arms are ~30 min (`z-az-ft`) and ~12 min (`z-az-ft-16k`) per run alone, `z-az-200k` ~2.5 hours, so to see
+the fine-tunes first, submit the spec without `z-az-200k`, then resubmit it whole (completed cells are never retrained).
 
 What would count: `z-az-ft` beating `l-1m-ft2` at about equal compute (`z-az-ft-16k`) would make search targets the
 new finishing step. Losing at equal games would say this value target (the outcome only) is too noisy at this scale.

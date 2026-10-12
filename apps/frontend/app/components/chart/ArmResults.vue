@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A tracked experiment's result, as the Learn chapters cite them (jobs/rl_experiment.py, jobs/snake_experiment.py):
+// A tracked experiment's result, as the Learn chapters cite them (experiments/*.yaml and their report protocols):
 // one row per arm, one dot per training run (a different rng seed), a bar at the arm's mean, dashed reference lines
 // (a baseline heuristic, another method's score), and a table with each arm's comparison against the arm it differs
 // from in one thing. The numbers are the caller's, hard-coded from a report: a chapter's figures shouldn't change

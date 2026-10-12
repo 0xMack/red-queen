@@ -179,7 +179,7 @@ const pocketBoard = board([
     <h2>What the knobs do</h2>
     <p>
       One run is an anecdote -- a different random seed moves a Snake score by a point or two -- so the project ran each setting five times, a
-      million moves each (<code>jobs/rl_experiment.py</code>), and scored every final table on the same 200 held-out games the leaderboard uses:
+      million moves each (<code>experiments/rl-tabular-v1.yaml</code>), and scored every final table on the same 200 held-out games the leaderboard uses:
     </p>
     <QLearningResults />
     <ul>

@@ -14,8 +14,8 @@ import argparse
 import json
 from pathlib import Path
 
+from evaluator.protocols.experiments import experiment_runs
 from jobcore import open_sink
-from snake_experiment import experiment_runs
 
 RECORDINGS_DIR = Path(__file__).resolve().parents[1] / "apps" / "frontend" / "app" / "data" / "recordings"
 

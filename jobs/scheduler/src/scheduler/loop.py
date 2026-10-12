@@ -93,10 +93,11 @@ class Scheduler:
                         continue  # waits for the run it continues
                 submitted.append(self.jobs.submit("train", train.model_dump(mode="json"), parent=spec.name))
             # the report, once every cell is done -- once per (re)submission of the experiment
-            if spec.report is not None and all((spec.name, arm, seed) in completed for arm, seed, _ in expanded):
-                if report is None or report.created_at < experiment.updated_at:
-                    report_spec = spec.report_spec().model_dump(mode="json")
-                    submitted.append(self.jobs.submit("evaluate", report_spec, parent=spec.name))
+            done = all((spec.name, arm, seed) in completed for arm, seed, _ in expanded)
+            stale = report is None or report.created_at < experiment.updated_at
+            if spec.report is not None and done and stale:
+                report_spec = spec.report_spec().model_dump(mode="json")
+                submitted.append(self.jobs.submit("evaluate", report_spec, parent=spec.name))
         return submitted
 
     def _completed_runs(self) -> set[tuple[str, str, int]]:

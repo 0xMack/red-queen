@@ -187,7 +187,7 @@ def champion_entrants(
         # completes), and a failed or stopped run's is whatever it had when it stopped.
         if run.status != "completed":
             continue
-        # Repeated runs of a comparison (jobs/snake_experiment.py) are aggregated there, not ranked
+        # Repeated runs of a comparison (experiments/*.yaml) are aggregated there, not ranked
         # one by one: twenty seeds of four arms would bury every other entrant.
         if run.config.get("experiment"):
             continue

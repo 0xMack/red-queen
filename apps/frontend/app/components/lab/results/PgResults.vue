@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArmResult } from "~/components/chart/ArmResults.vue"
 
-// `jobs/rl_experiment.py report --name rl-pg-v1` (docs/design/0010 Phase 3): every run's final policy on the 200
+// `experiments/rl-pg-v1.yaml`'s `experiment.rl-report` (docs/design/0010 Phase 3): every run's final policy on the 200
 // held-out games, 2M env steps. `ladder`: each rung adds one idea to the one before (seeds paired). `evolution`: PPO
 // on neuroevolution's own network and observation (11 -> 16 -> 3, tanh, features.v1) against neuroevolution's runs
 // from `neat-vs-neuro-v1` with the same rng seeds. `observers`: PPO on the two egocentric observations.
@@ -95,7 +95,7 @@ const REFERENCES = [
   >
     Each dot is a separate training run whose final policy played the same 200 unseen games (its most likely move each time); the bar is the
     mean of five. Each rung is compared with the one above it, seeds paired -- with five pairs, p = 0.06 means every pair moved the same way. From
-    <code>jobs/rl_experiment.py report --name rl-pg-v1</code>.
+    the <code>experiment.rl-report</code> of <code>experiments/rl-pg-v1.yaml</code>.
   </ArmResults>
   <ArmResults
     v-else-if="view === 'evolution'"
@@ -106,7 +106,7 @@ const REFERENCES = [
     :ticks="[10, 14, 18, 22, 26]"
   >
     Same architecture (243 weights, tanh), same observation (features.v1), same rng seeds; gradient ascent on the return against evolution's
-    selection. Neuroevolution's runs are from <code>jobs/snake_experiment.py</code>'s <code>neat-vs-neuro-v1</code>, compared here seed for seed.
+    selection. Neuroevolution's runs are from <code>experiments/neat-vs-neuro-v1.yaml</code>, compared here seed for seed.
   </ArmResults>
   <ArmResults
     v-else

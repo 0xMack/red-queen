@@ -3,8 +3,8 @@
 Every report reads the experiment's stored spec (POST /experiments) for its arms' baselines and setup, scores each
 completed run tagged with the experiment by its *final* champion -- never the best-looking generation, which would be
 selecting on the test set -- and writes `<data dir>/experiments/<name>[-h2h[-full]].json` (what GET
-/experiments/{name}/report serves). Ported from snake_experiment.py, rl_experiment.py and
-checkers_selfplay_experiment.py; `jobs/tests/test_golden_eval.py` holds each to what its script produced.
+/experiments/{name}/report serves). Ported from the old experiment scripts (snake_experiment.py, rl_experiment.py,
+checkers_selfplay_experiment.py); `jobs/tests/test_golden_eval.py` holds each to what its script produced.
 
 - `experiment.snake-report` -- each run's final champion on the 200 leaderboard games, aggregated per arm.
 - `experiment.rl-report` -- the same, plus each arm against its baseline arm: an exact paired permutation test over

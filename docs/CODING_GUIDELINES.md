@@ -111,8 +111,8 @@ what belongs here and how to add to it). Read before writing code, not after.
   (`--held-out-every`) and prefer fresh seeds per generation (`--seeds resample:N`, arena.seeding).
 - One training run is an anecdote; comparing algorithms takes seeds. Snake runs that differ only in rng seed
   span several points of held-out score, so "A beat B" from one run each means little. Use
-  `jobs/snake_experiment.py` (arms × >=5 seeds, identical budgets, tagged runs, final champion scored on the
-  held-out games) and report an exact permutation test, not just overlapping ranges -- with 5 seeds, +2.0 points
+  an experiment spec (`experiments/*.yaml`: arms × >=5 seeds, identical budgets, tagged runs, final champion scored
+  on the held-out games) and report an exact permutation test, not just overlapping ranges -- with 5 seeds, +2.0 points
   was p=0.056 (suggestive) and +3.8 was p=0.008. Include a control that changes *one* thing at a time: NEAT vs.
   lexicase-selected neuroevolution confounds the algorithm with the selection rule until a tournament-selected
   arm is added (docs/design/0008). Five seeds can't measure a *rare* failure: DQN without a target network diverged

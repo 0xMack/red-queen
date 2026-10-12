@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The numbers from `jobs/snake_experiment.py report --name neat-vs-neuro-v1` (docs/design/0008): four arms, five rng seeds
+// The numbers from `experiments/neat-vs-neuro-v1.yaml`'s `experiment.snake-report` (docs/design/0008): four arms, five rng seeds
 // each, identical budget (population 100, 250 generations, 5 fresh training games per generation, 125,000 training
 // episodes), every run's *final* champion scored on the same 200 held-out Snake games. Hard-coded on purpose, like the
 // other chapters' cited results: the run data itself is gitignored, and a chapter's figures shouldn't change under a
@@ -84,7 +84,7 @@ const ticks = [0, 5, 10, 15, 20]
     <template #caption>
       Each dot is a separate training run (a different rng seed) whose final champion played the same 200 games none of them trained on; the bar is the mean of
       the five. Every arm gets 125,000 training episodes. Training time is this project's pure-Python implementation on one machine -- a reference for
-      relative cost, not a benchmark. From <code>jobs/snake_experiment.py report --name neat-vs-neuro-v1</code>; the individual runs are on the
+      relative cost, not a benchmark. From the <code>experiment.snake-report</code> of <code>experiments/neat-vs-neuro-v1.yaml</code>; the individual runs are on the
       <NuxtLink to="/runs">runs page</NuxtLink>.
     </template>
   </UiFigure>

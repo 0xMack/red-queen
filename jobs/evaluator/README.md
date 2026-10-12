@@ -33,8 +33,8 @@ uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.
 - **`bandit.skill.v1`** (was `evaluate_bandit.py`) — skill (0 random, 100 the best arm every pull) on 500 held-out
   games of every scenario, ranked on `classic`; the hand-set strategies plus every completed evolved run's champion.
 - **`checkers.sprt`** (was `checkers_sprt.py`) — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
-  decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `checkers_selfplay_experiment.py
-  h2h` runs the same test for every arm against its baseline arm, seed for seed (`--full`: the whole ballot).
+  decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `experiment.checkers-h2h`
+  runs the same test for every arm against its baseline arm, seed for seed (`full: true`: the whole ballot).
 - **`checkers.static-round-robin`** (was `checkers_round_robin.py`) — four static Checkers strategies (random, first-legal, one- and two-ply
   material lookahead) played against each other, 200 games per pairing with seats alternating; the
   numbers the "Multi-Agent Games" Learn chapter cites (headline: one ply of lookahead ≈ random,

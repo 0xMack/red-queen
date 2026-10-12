@@ -1,0 +1,6 @@
+# An RL experiment's report: final policies on the 200 held-out games, and each arm against its baseline (an exact
+# paired permutation test over the seeds).
+kind: evaluate
+protocol: experiment.rl-report
+params:
+  experiment: rl-dqn-v1

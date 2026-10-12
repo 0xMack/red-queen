@@ -5,7 +5,7 @@ import type { H2hRow } from "~/components/lab/results/H2hResults.vue"
 import * as code from "~/data/snippets/training-regimes"
 import * as math from "~/data/math/training-regimes"
 
-// selfplay-v4 (docs/design/0014), `checkers_selfplay_experiment.py h2h --full`: 2 x 64 networks, 200k self-play games,
+// selfplay-v4 (docs/design/0014), `experiment.checkers-h2h` (full ballot): 2 x 64 networks, 200k self-play games,
 // each arm's final network against its baseline's from the same seed, 174 ballot openings x 5 seeds, both at 3 plies.
 const REGIMES: H2hRow[] = [
   { arm: "only itself", vs: "the pool", what: "pure self-play, no past selves", elo: -26, lo: -37, hi: -16, seeds: [-40, -43, -38, -63, 51] },
@@ -69,7 +69,7 @@ const REGIMES: H2hRow[] = [
       <template #caption>
         Each regime against the arm it changes one thing from ("the pool": the last 10 past selves, half the games), same training seed on both
         sides. The Elo difference pooled over 870 game pairs, with its interval (the shaded bar), and each seed's (the dots).
-        <code>jobs/checkers_selfplay_experiment.py h2h --name selfplay-v4 --full</code>.
+        the <code>experiment.checkers-h2h</code> of <code>experiments/selfplay-v4.yaml</code>.
       </template>
     </H2hResults>
     <ul>
