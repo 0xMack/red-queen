@@ -28,7 +28,7 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Install the workspace
-        run: uv sync --all-packages --locked
+        run: uv sync --all-packages --locked --extra mcp  # the CLI's MCP server is tested too
       - name: Lint
         run: uv run ruff check .
       - name: Format

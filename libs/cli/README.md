@@ -43,6 +43,13 @@ Two groups produce files in the repo:
   Ctrl-C stops them cleanly. `build-wasm [games|rl]`, `openapi`, `bench-rl` and `screenshots RUN` run the repo's own
   scripts as subprocesses; the CLI still imports none of them.
 
+**`redqueen mcp serve`** serves the same API as MCP tools for agents. Install it with
+`uv sync --all-packages --all-extras` (it is the optional `mcp` extra), then add it to an agent, for example
+`claude mcp add redqueen -- uv run redqueen mcp serve`. There are 22 tools: runs, leaderboards and models to read;
+`train`, `evaluate`, `publish`, `submit_job`, `submit_spec_file`, experiments and schedules to start work. Long work
+is never one blocking call. You submit, then poll `get_job` / `job_logs` (pass the returned offset back to follow a
+log), and stop it with `cancel_job`. When the API refuses a request, the tool error carries the API's reason.
+
 Every command takes `--json`, which prints the API's JSON unchanged in stable shapes, for scripts and the coming MCP
 server. Every command that starts work takes `--wait`: it follows the job's log (a pipeline's, stage by stage) until
 the job ends, and exits 1 unless it succeeded. `--api URL` (or `REDQUEEN_API_URL`) selects the API; the default is

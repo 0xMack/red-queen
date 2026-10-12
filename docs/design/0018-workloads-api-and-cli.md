@@ -1,6 +1,6 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1-7 built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
+Status: **Accepted; built** (2026-10-12): every stage, 1-8. Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
 3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
@@ -10,7 +10,7 @@ checked against its recorded runs, per-arm seeds, report jobs) and stage 6c's pi
 scheduler advances a stage at a time; the recipe is `experiments/pipelines/checkers-recipe.yaml`) and schedules
 (`kind: schedule`, `/schedules`: an interval and/or "a matching run completed" -- no cron syntax yet, nothing has needed
 a wall-clock time), and stage 7: the `redqueen` CLI (`libs/cli`) -- every API-backed group, `export` (the frontend's data files as
-publisher targets, `frontend.*`, so the CLI stays an HTTP client) and `dev`. Stage 8 (MCP) is not.
+publisher targets, `frontend.*`, so the CLI stays an HTTP client) and `dev`; and stage 8: `redqueen mcp serve`.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -299,7 +299,13 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    `screenshots`: the repo's own scripts, run by subprocess). The last loose scripts went with it; `jobs/` is only
    workloads. AGENTS.md, the READMEs and the design docs'
    "run with" lines rewritten to CLI commands. `jobs/README.md` becomes a workload index.
-8. **MCP:** `redqueen mcp serve`.
+8. **MCP:** *built* -- `redqueen mcp serve` (`redqueen_cli.mcp_server`, the CLI's optional `mcp` extra, MCP SDK 2.x
+   `MCPServer`): 22 tools over the same `Client` the commands use, returning the API's JSON -- runs, leaderboards and
+   models read; `train`/`evaluate`/`publish`/`submit_job`/`submit_spec_file`/experiments/schedules submitted; long work
+   as submit -> `get_job`/`job_logs` (by byte offset) -> `cancel_job`, never one blocking call. Read-only and destructive
+   tools carry MCP's hints; an API refusal is an anticipated tool error (`ToolError`) carrying the API's reason, since
+   the SDK reports any other exception as a bare "Error executing tool". Tested through an in-process MCP client
+   session against the real API, and over stdio.
 
 ## Risks and open questions
 
