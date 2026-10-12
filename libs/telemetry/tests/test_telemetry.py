@@ -1,6 +1,8 @@
 import itertools
 import time
 
+import pytest
+
 from telemetry import (
     FileArtifactStore,
     FileMetricsStore,
@@ -194,3 +196,13 @@ def test_held_out_score_is_optional_and_round_trips(tmp_path):
     history = store.history("r")
 
     assert [h.held_out_score for h in history] == [None, 12.5]
+
+
+def test_update_config_merges_top_level_keys_and_none_removes_one(tmp_path):
+    registry = SqliteRunRegistry(tmp_path / "runs.db")
+    run_id = registry.create_run({"game": "snake", "interface": None, "note": "x"})
+    updated = registry.update_config(run_id, {"interface": "snake/features.v1+relative3.v1", "note": None})
+    assert updated.config == {"game": "snake", "interface": "snake/features.v1+relative3.v1"}
+    assert registry.get_run(run_id).config == updated.config
+    with pytest.raises(KeyError):
+        registry.update_config("nope", {"a": 1})

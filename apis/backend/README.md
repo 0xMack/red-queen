@@ -33,8 +33,21 @@ for the full contract and the incremental plan this implements.
     until exactly one new generation is recorded (504 after `timeout_s`, default 30s), then
     re-pause — deliberately *not* a third `RunStatus` value, so the job-side callback only ever
     needs to understand two states.
+  - **The write side** (docs/design/0018: what a job on the HTTP sink, `jobcore.http`, writes through -- a worker
+    that can't share the data directory): `POST /runs` (`RunCreate{config}` → 201 `{run_id}`), `PATCH /runs/{run_id}`
+    (`RunPatch{status?, summary?, config?}`; `config` is *merged*, a value of null removing a key, for corrections
+    after the fact) → `RunInfo`, `POST /runs/{run_id}/metrics` (a list of `GenerationStats`, appended in order; 422
+    if any belongs to another run, and then none is recorded), `PUT /runs/{run_id}/artifacts/{ref}?kind=` (the raw
+    body; the run segment is ignored, as on GET). Golden runs recorded over this API match the local sink's exactly
+    (`jobs/tests/test_http_sink.py`).
 - There is no game-session API any more: every game is played client-side (docs/design/0009 -- the Rust core
   compiled to WebAssembly), so the server-side sessions docs/design/0005 step 4 started with were removed.
+- `routers/leaderboards.py` — `GET /games/{game}/leaderboard?protocol=` (every `EvaluationRecord`, best mean first) and
+  `GET /games/{game}/interfaces`; and, for the evaluator on the HTTP sink, `PUT /games/{game}/evaluations` (one record,
+  replacing that entrant's under its protocol; 422 if it's another game's) and `POST /games/{game}/evaluations/prune`
+  (`{protocol, keep}` → the entrant ids removed).
+- `routers/models.py` — the local model store's blobs, manifests and per-game catalogs, and on-demand packaging of an
+  unpublished champion (docs/design/0009).
 - `dependencies.py` — FastAPI providers. Telemetry-backed ones use the **Protocols**
   (`RunRegistry`/`MetricsSource`/`ArtifactStore`), backed by the `Sqlite*`/`File*` implementations
   opened once by `telemetry.open_stores()`, so a storage backend swap never touches router code.

@@ -4,8 +4,10 @@ What every workload (docs/design/0018: trainer, evaluator, publisher, scheduler)
 `telemetry`, `arena` and `evolve` only, so the backend and the CLI can import the specs without pulling in a trainer.
 
 - `jobcore.sink` — `open_sink()`: where a workload writes. A sink is telemetry's `Stores`, every store typed by its
-  Protocol; `local` (the default; `REDQUEEN_SINK`) is the file/SQLite stores under `telemetry.data_dir()`. An HTTP
-  sink, for workers that can't share the data directory, arrives with the backend's write endpoints (stage 5).
+  Protocol; `local` (the default; `REDQUEEN_SINK`) is the file/SQLite stores under `telemetry.data_dir()`, and a URL
+  (`REDQUEEN_SINK=http://host:8000`) is the HTTP sink (`jobcore.http`): the same Protocols over the backend's API, for
+  a worker that can't share the data directory. Errors keep their local meaning (an unknown run is a KeyError, an
+  unknown artifact a FileNotFoundError).
 - `jobcore.lifecycle` — `with recorded_run(config) as run:` creates the run and marks it `completed`, or `failed` if
   the block raises (a crashed run used to stay `running` forever); `run.control_callback(cost)` wires pause/resume
   without counting paused time; `run.set_training_summary(cost)` writes the standard summary.

@@ -3,8 +3,8 @@
 Status: **Accepted; stages 1-4 built** (2026-10-10). Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
-3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM) and stage 4 (the evaluator and publisher).
-Stages 5-8 are not.
+3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
+stage 5a (the backend's write endpoints and the HTTP sink). Stages 5b-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -262,8 +262,12 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    `TrainSpec`, their params in `jobcore.protocols`, `jobcore.parse_spec()` for any kind, and one shared command line
    (`jobcore.cli`) for `python -m trainer|evaluator|publisher`. TinyLM's corpus split moved to `tinylm.corpus`, so the
    publisher doesn't depend on the trainer.
-5. **backend:** services layer, write endpoints + `HttpSink` (with `RunRegistry.update_config`), `JobStore`, `/jobs`,
-   `/experiments`, `/specs`. OpenAPI snapshot and frontend types regenerated.
+5. **backend**, in two PRs: (a) *built* -- the write endpoints (`POST /runs`, `PATCH /runs/{id}` with
+   `RunRegistry.update_config`, `POST /runs/{id}/metrics`, `PUT .../artifacts/{ref}`, `PUT /games/{game}/evaluations`,
+   `POST .../evaluations/prune`) and the HTTP sink, `jobcore.http`; golden training runs and evaluations recorded over
+   HTTP against the backend match the fixtures exactly (`jobs/tests/test_http_sink.py`). No services layer yet: these
+   routes only delegate to the stores, so one would be ceremony -- it arrives with (b), where routes carry logic.
+   (b) `JobStore`, `/jobs`, `/experiments`, `/specs`. OpenAPI snapshot and frontend types regenerated each time.
 6. **scheduler:** queue claiming, `LocalProcessRunner`, experiment fan-out and reports, pipelines, cron. Every existing
    experiment converted to YAML under its existing name, and the `*_experiment.py` scripts deleted.
 7. **`redqueen` CLI:** every group above, `export` and `dev` included. AGENTS.md, the READMEs and the design docs'

@@ -12,7 +12,14 @@ def test_the_default_sink_is_the_local_stores_under_the_data_dir(tmp_path):
 
 
 def test_an_unknown_sink_is_refused_by_name(monkeypatch):
-    monkeypatch.setenv("REDQUEEN_SINK", "http://localhost:8000")
-    with pytest.raises(ValueError, match="stage 5"):
+    monkeypatch.setenv("REDQUEEN_SINK", "ftp://localhost")
+    with pytest.raises(ValueError, match="unknown sink"):
         open_sink()
     assert open_sink("local").registry is not None
+
+
+def test_a_url_names_the_http_sink(monkeypatch):
+    from jobcore.http import HttpRunRegistry
+
+    monkeypatch.setenv("REDQUEEN_SINK", "http://localhost:8000")
+    assert isinstance(open_sink().registry, HttpRunRegistry)

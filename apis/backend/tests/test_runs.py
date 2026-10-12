@@ -244,3 +244,31 @@ def test_get_brain_serves_a_champion_as_plain_numbers_for_the_game_core(backend)
 
     assert client.get(f"/runs/{run_id}/artifacts/nope/brain").status_code == 404
     assert client.get(f"/runs/{run_id}/artifacts/junk/brain").status_code == 422
+
+
+def test_the_write_side_creates_patches_records_and_stores(backend):
+    """What the HTTP sink (jobcore.http) does -- each call's effect lands in the same stores the reads serve."""
+    client, registry, metrics, artifacts = backend
+    run_id = client.post("/runs", json={"config": {"game": "snake", "interface": None}}).json()["run_id"]
+    assert registry.get_run(run_id).config == {"game": "snake", "interface": None}
+
+    patched = client.patch(f"/runs/{run_id}", json={"config": {"interface": "x.v1"}, "summary": {"best": 1.0}})
+    assert patched.status_code == 200
+    assert patched.json()["config"] == {"game": "snake", "interface": "x.v1"} and patched.json()["summary"] == {
+        "best": 1.0
+    }
+    assert client.patch(f"/runs/{run_id}", json={"status": "completed"}).json()["status"] == "completed"
+    assert client.patch("/runs/nope", json={"status": "failed"}).status_code == 404
+    assert client.patch(f"/runs/{run_id}", json={"status": "exploded"}).status_code == 422
+
+    stats = [make_stats(run_id, g).model_dump(mode="json") for g in range(2)]
+    assert client.post(f"/runs/{run_id}/metrics", json=stats).status_code == 204
+    assert [s.generation for s in metrics.history(run_id)] == [0, 1]
+    other = [make_stats("someone-else", 2).model_dump(mode="json")]
+    assert client.post(f"/runs/{run_id}/metrics", json=other).status_code == 422
+    assert len(metrics.history(run_id)) == 2  # nothing of a rejected batch is recorded
+
+    assert client.put(f"/runs/{run_id}/artifacts/{run_id}-gen1", content=b"\x00champion").status_code == 204
+    assert artifacts.get_program(f"{run_id}-gen1") == b"\x00champion"
+    assert client.put(f"/runs/_/artifacts/{run_id}-log", params={"kind": "trace"}, content=b"t").status_code == 204
+    assert client.get(f"/runs/_/artifacts/{run_id}-log", params={"kind": "trace"}).content == b"t"

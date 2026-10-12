@@ -27,6 +27,7 @@ class RunRegistry(Protocol):
     def create_run(self, config: dict[str, Any]) -> str: ...
     def update_status(self, run_id: str, status: RunStatus) -> None: ...
     def set_summary(self, run_id: str, summary: dict[str, Any]) -> None: ...
+    def update_config(self, run_id: str, patch: dict[str, Any]) -> RunInfo: ...
     def get_run(self, run_id: str) -> RunInfo: ...
     def list_runs(self) -> list[RunInfo]: ...
 
@@ -98,6 +99,26 @@ class SqliteRunRegistry:
             conn.commit()
         finally:
             conn.close()
+
+    def update_config(self, run_id: str, patch: dict[str, Any]) -> RunInfo:
+        """Merges `patch` into the run's config (top-level keys; a value of None removes a key) and returns the run.
+        For corrections after the fact -- a run recorded before a field existed -- never for what a job decides
+        while it trains: that belongs in the config it starts with."""
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT config FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"no such run: {run_id}")
+            config = {**json.loads(row["config"]), **patch}
+            config = {k: v for k, v in config.items() if v is not None}
+            conn.execute(
+                "UPDATE runs SET config = ?, updated_at = ? WHERE run_id = ?",
+                (json.dumps(config), time.time(), run_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return self.get_run(run_id)
 
     def get_run(self, run_id: str) -> RunInfo:
         conn = self._connect()
