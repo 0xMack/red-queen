@@ -1,0 +1,4065 @@
+{
+ "bandit.skill.v1": [
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:greedy",
+   "entrant_kind": "baseline",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Greedy",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.38301999999999997,
+       "efficiency": 75.51943977405844,
+       "regret": 18.370181319893298,
+       "scores": {
+        "n": 500,
+        "sha256": "fc60f71993291c652d05533a411de9e277e9404ffc8782948807a1676207c401",
+        "sum": 19394.40000000002
+       },
+       "skill": 38.79031035649961,
+       "skill_ci95": 5.349841127240283
+      },
+      "close-call": {
+       "best_rate": 0.221,
+       "efficiency": 87.37483099929071,
+       "regret": 6.943842950390097,
+       "scores": {
+        "n": 500,
+        "sha256": "688e0859bc60172d64a3b0506c4feab9ff38667bb391af967be1348b40fab22a",
+        "sum": 1807.400000000003
+       },
+       "skill": 3.6142384300203765,
+       "skill_ci95": 5.007420379777932
+      },
+      "detour": {
+       "best_rate": 0.10443999999999999,
+       "efficiency": 46.74792744621807,
+       "regret": 63.90248706453838,
+       "scores": {
+        "n": 500,
+        "sha256": "aa9c9ceb0a0c8e97b05386968b78468972f63adcc9c803e2668dc9ce78e3b953",
+        "sum": -2124.2999999999993
+       },
+       "skill": -4.247300582516748,
+       "skill_ci95": 2.530956109576934
+      },
+      "drifting": {
+       "best_rate": 0.27823000000000003,
+       "efficiency": 62.64131654854683,
+       "regret": 48.21989199883473,
+       "scores": {
+        "n": 500,
+        "sha256": "ce77d694429631a41c29cf28fa5de7229328f81769ec92a20d6af3b30ad07755",
+        "sum": 6786.699999999999
+       },
+       "skill": 13.572216453995816,
+       "skill_ci95": 4.087418906098956
+      },
+      "jackpot": {
+       "best_rate": 0.01304,
+       "efficiency": 60.673850085834815,
+       "regret": 39.32614991416518,
+       "scores": {
+        "n": 500,
+        "sha256": "695aa27deb265754f5c05fcdf8e44bbc2a5c272ee89405cbf99fe51de5c0f1f6",
+        "sum": -3095.5999999999985
+       },
+       "skill": -6.192174209956247,
+       "skill_ci95": 4.0980280307753185
+      },
+      "lucky-start": {
+       "best_rate": 0.16794,
+       "efficiency": 78.67385714285714,
+       "regret": 149.283,
+       "scores": {
+        "n": 500,
+        "sha256": "31aecc7f1350854b4487aa141a61849c69e4393f8ac59f79f8161a773fb4a59d",
+        "sum": 239.0
+       },
+       "skill": 0.478,
+       "skill_ci95": 5.897551297542522
+      },
+      "too-many-arms": {
+       "best_rate": 0.11674,
+       "efficiency": 71.59062619077375,
+       "regret": 21.568687716871203,
+       "scores": {
+        "n": 500,
+        "sha256": "34fd935141273d816d9b7fb52258977ad3039e03f6aaed931758f5c0a8447f4c",
+        "sum": 17473.399999999998
+       },
+       "skill": 34.946555274921764,
+       "skill_ci95": 4.553907729002039
+      },
+      "two-lamps": {
+       "best_rate": 0.22994,
+       "efficiency": 60.02773300593836,
+       "regret": 30.040782560846072,
+       "scores": {
+        "n": 500,
+        "sha256": "67132f3b9ce3ad0eec4998a85ce5d4c80946a03d44ab3c51a926c12dcbc51803",
+        "sum": 36.60000000000009
+       },
+       "skill": 0.07416599098063628,
+       "skill_ci95": 0.6555044691799402
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.36574,
+       "efficiency": 74.399883611965,
+       "regret": 19.226097648501774,
+       "scores": {
+        "n": 500,
+        "sha256": "235522e7e9e31bacd096d5ce16d892df2253f36e22b0c7a67e0b0333746114aa",
+        "sum": 17970.000000000004
+       },
+       "skill": 35.93910140963688,
+       "skill_ci95": 3.9489260899804153
+      }
+     },
+     "strategy": "greedy"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Always the machine with the best average so far. Never explores on purpose.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Greedy"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 5.349841127240283,
+     "generalization_gap": null,
+     "max": 100.0,
+     "mean": 38.79031035649961,
+     "mean_steps": 100.0,
+     "median": 51.4,
+     "min": -115.4,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "fc60f71993291c652d05533a411de9e277e9404ffc8782948807a1676207c401",
+      "sum": 19394.40000000002
+     },
+     "train_mean": null,
+     "zero_rate": 0.27
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:random",
+   "entrant_kind": "baseline",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Random",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.19936,
+       "efficiency": 59.84413913382986,
+       "regret": 30.163091038838783,
+       "scores": {
+        "n": 500,
+        "sha256": "5e78200660568525bcd14740748085c1d92e2b6401af36a4d536b8fd8d377f32",
+        "sum": -208.89999999999995
+       },
+       "skill": -0.4175909969583019,
+       "skill_ci95": 0.629820041117504
+      },
+      "close-call": {
+       "best_rate": 0.1991,
+       "efficiency": 86.83316095785078,
+       "regret": 7.241761473182063,
+       "scores": {
+        "n": 500,
+        "sha256": "921377fe04c3133fc0d3efbbab8a0293456d0dcd8bd0816aa716d78d84c63c35",
+        "sum": -83.30000000000014
+       },
+       "skill": -0.1640167964025838,
+       "skill_ci95": 0.5001527321348361
+      },
+      "detour": {
+       "best_rate": 0.20046,
+       "efficiency": 48.987204105893355,
+       "regret": 61.21535507292803,
+       "scores": {
+        "n": 500,
+        "sha256": "a49fcf97625dcbe779716365f3a417c3bcb921491e565fa795910b813a7df6ea",
+        "sum": 14.899999999999991
+       },
+       "skill": 0.03107075771779683,
+       "skill_ci95": 0.5398254420682578
+      },
+      "drifting": {
+       "best_rate": 0.20021,
+       "efficiency": 56.594685975021044,
+       "regret": 56.07217277663304,
+       "scores": {
+        "n": 500,
+        "sha256": "77c6d5c98475aabf9392601ddf1afe801571880f5fc772cabc1400c9eb306081",
+        "sum": -103.80000000000003
+       },
+       "skill": -0.20724408855260637,
+       "skill_ci95": 0.4219708216427373
+      },
+      "jackpot": {
+       "best_rate": 0.20138,
+       "efficiency": 62.885249341484126,
+       "regret": 37.11475065851586,
+       "scores": {
+        "n": 500,
+        "sha256": "981cc25d2969c0377768744645195107a2778272697ca69614da10272cf58399",
+        "sum": 25.000000000000018
+       },
+       "skill": 0.04954967231665382,
+       "skill_ci95": 0.5628747294026041
+      },
+      "lucky-start": {
+       "best_rate": 0.1993,
+       "efficiency": 78.55621428571428,
+       "regret": 150.1065,
+       "scores": {
+        "n": 500,
+        "sha256": "7a78439aa3b3321f4005875e4ae16b309723c01378b608562ce6c7a2e5949bc4",
+        "sum": -35.5
+       },
+       "skill": -0.071,
+       "skill_ci95": 0.6219605669836031
+      },
+      "too-many-arms": {
+       "best_rate": 0.06144,
+       "efficiency": 56.236331267120576,
+       "regret": 33.151348572973404,
+       "scores": {
+        "n": 500,
+        "sha256": "4afa5158d46ae293a0c44bfb08f8b979a55d7ae7f39f11809d6e8f8372cb7a20",
+        "sum": 217.3
+       },
+       "skill": 0.4354376343501108,
+       "skill_ci95": 0.5936786882908046
+      },
+      "two-lamps": {
+       "best_rate": 0.2004,
+       "efficiency": 59.85769037744705,
+       "regret": 30.168500403949107,
+       "scores": {
+        "n": 500,
+        "sha256": "f02360d0632b2798bade08d1223acd2fccd839e3534ca114ac1f9568003aafc4",
+        "sum": -172.80000000000027
+       },
+       "skill": -0.3486339508944535,
+       "skill_ci95": 0.6273391978359578
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.2004,
+       "efficiency": 59.85769037744705,
+       "regret": 30.168500403949107,
+       "scores": {
+        "n": 500,
+        "sha256": "f02360d0632b2798bade08d1223acd2fccd839e3534ca114ac1f9568003aafc4",
+        "sum": -172.80000000000027
+       },
+       "skill": -0.3486339508944535,
+       "skill_ci95": 0.6273391978359578
+      }
+     },
+     "strategy": "random"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Pulls any machine at random. Learns nothing: the floor.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Random"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 0.629820041117504,
+     "generalization_gap": null,
+     "max": 25.9,
+     "mean": -0.4175909969583019,
+     "mean_steps": 100.0,
+     "median": -0.8,
+     "min": -22.5,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "5e78200660568525bcd14740748085c1d92e2b6401af36a4d536b8fd8d377f32",
+      "sum": -208.89999999999995
+     },
+     "train_mean": null,
+     "zero_rate": 0.528
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": "<run3>-gen2",
+   "entrant_id": "run:<run3>",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "\u03b5-greedy, evolved on classic",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "alpha": 0.489,
+      "decay": 294,
+      "epsilon": 0.053,
+      "initial": 0.814
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.55462,
+       "efficiency": 83.7390485729434,
+       "regret": 12.188793304543804,
+       "scores": {
+        "n": 500,
+        "sha256": "8b4f2ba52fe243fb503d34984ec9b67d90bc194426ea1005de430dfd45f1ad05",
+        "sum": 29628.30000000001
+       },
+       "skill": 59.25597881671194,
+       "skill_ci95": 1.3495027559193227
+      },
+      "close-call": {
+       "best_rate": 0.28318,
+       "efficiency": 88.56037705319365,
+       "regret": 6.291792620743481,
+       "scores": {
+        "n": 500,
+        "sha256": "fec434cb533a503ba4ce6569b2281e4a1c644f4dc1122aaedfaa918652ac79b4",
+        "sum": 6443.600000000005
+       },
+       "skill": 12.887519197088247,
+       "skill_ci95": 1.7888118319656532
+      },
+      "detour": {
+       "best_rate": 0.1703,
+       "efficiency": 53.25913946665515,
+       "regret": 56.08903264001388,
+       "scores": {
+        "n": 500,
+        "sha256": "8e362b641a53795bc586c6fdeab3bf13c6331ccf13bdabbdba205e4a89fdce7f",
+        "sum": 4245.0
+       },
+       "skill": 8.490892896820114,
+       "skill_ci95": 0.8202051068965738
+      },
+      "drifting": {
+       "best_rate": 0.58409,
+       "efficiency": 83.08037960923099,
+       "regret": 21.803572457440247,
+       "scores": {
+        "n": 500,
+        "sha256": "f47e9ce9ef233141a33cd1caecc6330b73de327fd01517ad782886513de0808d",
+        "sum": 30397.599999999995
+       },
+       "skill": 60.793696534145354,
+       "skill_ci95": 1.1345404230054352
+      },
+      "jackpot": {
+       "best_rate": 0.02024,
+       "efficiency": 77.54963226923743,
+       "regret": 22.450367730762572,
+       "scores": {
+        "n": 500,
+        "sha256": "7344cd7c3a2240ae281add02a7e92207c261bf45b931e76eaa067c6b3b0325f8",
+        "sum": 19606.499999999993
+       },
+       "skill": 39.214450646767915,
+       "skill_ci95": 0.44651753087300766
+      },
+      "lucky-start": {
+       "best_rate": 0.36822000000000005,
+       "efficiency": 86.5332142857143,
+       "regret": 94.2675,
+       "scores": {
+        "n": 500,
+        "sha256": "0d2808b3954d002853f77b90d3defce53a22a3cdfd0d6b7c175543174aa0866b",
+        "sum": 18577.5
+       },
+       "skill": 37.155,
+       "skill_ci95": 3.730419070077354
+      },
+      "too-many-arms": {
+       "best_rate": 0.1827,
+       "efficiency": 74.12096854928262,
+       "regret": 19.538561580076177,
+       "scores": {
+        "n": 500,
+        "sha256": "376b04eb874c59c9dc5bd712fc614d0adb831f6a18a08a6152f67ec96c526a48",
+        "sum": 20516.300000000017
+       },
+       "skill": 41.03190716619406,
+       "skill_ci95": 1.0885300326410832
+      },
+      "two-lamps": {
+       "best_rate": 0.21108000000000002,
+       "efficiency": 60.19679385189912,
+       "regret": 29.914542255631606,
+       "scores": {
+        "n": 500,
+        "sha256": "46b5c115e7aae4779b3382332ade4c138974a5228f5550487e23e9dbb5a9fd97",
+        "sum": 251.19999999999996
+       },
+       "skill": 0.502634083997549,
+       "skill_ci95": 0.6500045019431993
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.49960000000000004,
+       "efficiency": 80.36205834439902,
+       "regret": 14.7402259213991,
+       "scores": {
+        "n": 500,
+        "sha256": "693a245f7ecf385941c5cca3f7c722375f49b9491ace2d08091906062921cb9f",
+        "sum": 25409.299999999992
+       },
+       "skill": 50.81905104926097,
+       "skill_ci95": 1.0765205394852515
+      }
+     },
+     "strategy": "epsilon_greedy"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "\u03b5-greedy with settings evolved over 3 generations on classic: epsilon 0.053, decay 294, alpha 0.489, initial 0.814.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "\u03b5-greedy, evolved on classic"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.3495027559193227,
+     "generalization_gap": null,
+     "max": 86.7,
+     "mean": 59.25597881671194,
+     "mean_steps": 100.0,
+     "median": 61.849999999999994,
+     "min": -5.1,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "8b4f2ba52fe243fb503d34984ec9b67d90bc194426ea1005de430dfd45f1ad05",
+      "sum": 29628.30000000001
+     },
+     "train_mean": null,
+     "zero_rate": 0.002
+    },
+    "training": {
+     "env_steps": 180000,
+     "episodes": 1800,
+     "fitness_evaluations": 18,
+     "generations": 3,
+     "measured": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": "<run3>"
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:epsilon",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "\u03b5-greedy (\u03b5 0.1)",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "epsilon": 0.1
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.52332,
+       "efficiency": 82.79648289795168,
+       "regret": 12.92843244757485,
+       "scores": {
+        "n": 500,
+        "sha256": "4158faab33f71231121e5c219df5952968462f58200504b9db5570f04a03914d",
+        "sum": 28538.500000000007
+       },
+       "skill": 57.07554662305924,
+       "skill_ci95": 2.773632670282107
+      },
+      "close-call": {
+       "best_rate": 0.30138,
+       "efficiency": 88.84140275082673,
+       "regret": 6.137228487045292,
+       "scores": {
+        "n": 500,
+        "sha256": "821064ead19bb9cc91ab3ea2dd2e014f8badfdb40b6dfbc58185057d8862ab5d",
+        "sum": 7511.500000000004
+       },
+       "skill": 15.020223659518699,
+       "skill_ci95": 3.8160594116421587
+      },
+      "detour": {
+       "best_rate": 0.1465,
+       "efficiency": 51.23533551415284,
+       "regret": 58.51759738301666,
+       "scores": {
+        "n": 500,
+        "sha256": "1269d6e19f477f9a0f052b3cfd2bb5ba56899099acdc3ef381b42b24d9db28cf",
+        "sum": 2259.2
+       },
+       "skill": 4.516906463635274,
+       "skill_ci95": 1.5059985635609003
+      },
+      "drifting": {
+       "best_rate": 0.49044,
+       "efficiency": 75.33828025733644,
+       "regret": 31.765824063784574,
+       "scores": {
+        "n": 500,
+        "sha256": "9d45da22f189228e43605470db61a72e46d84b4c83d778917872168a1ff52494",
+        "sum": 21416.399999999976
+       },
+       "skill": 42.83174098580016,
+       "skill_ci95": 2.4089872404117845
+      },
+      "jackpot": {
+       "best_rate": 0.04304,
+       "efficiency": 71.13262534294188,
+       "regret": 28.86737465705812,
+       "scores": {
+        "n": 500,
+        "sha256": "64490b643e947f213973f50c0540371477aa9c5ef6bf6c33f6d72ebbe6b3d6f4",
+        "sum": 10959.100000000006
+       },
+       "skill": 21.91900758087779,
+       "skill_ci95": 2.261771268694743
+      },
+      "lucky-start": {
+       "best_rate": 0.42672000000000004,
+       "efficiency": 87.97942857142857,
+       "regret": 84.144,
+       "scores": {
+        "n": 500,
+        "sha256": "541438235bdf5085771645179b60e13fb57aa6ac49b6af9109237519fa4f3939",
+        "sum": 21952.0
+       },
+       "skill": 43.904,
+       "skill_ci95": 3.182604810275
+      },
+      "too-many-arms": {
+       "best_rate": 0.18206,
+       "efficiency": 78.4129694942292,
+       "regret": 16.34781013859897,
+       "scores": {
+        "n": 500,
+        "sha256": "42d2e524469209f996c3faaa2521e0c775461ffd9d027a0c25efb7f1866980ce",
+        "sum": 25477.20000000002
+       },
+       "skill": 50.95338001349215,
+       "skill_ci95": 2.6742594038871617
+      },
+      "two-lamps": {
+       "best_rate": 0.21281999999999998,
+       "efficiency": 59.95192098641898,
+       "regret": 30.103422371793496,
+       "scores": {
+        "n": 500,
+        "sha256": "25090c0f2dab38a43458dd9aad67fe63f29d937022b257fcc3a0b1a1005583a4",
+        "sum": -41.300000000000026
+       },
+       "skill": -0.08470740318623249,
+       "skill_ci95": 0.6129143261382669
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.43433999999999995,
+       "efficiency": 78.43976472518928,
+       "regret": 16.198712364208603,
+       "scores": {
+        "n": 500,
+        "sha256": "e0a8b1e198eea07236120ae17848a002868898dccef233006216c778f2b21f90",
+        "sum": 23041.299999999974
+       },
+       "skill": 46.08345729631632,
+       "skill_ci95": 2.5464417481325694
+      }
+     },
+     "strategy": "epsilon_greedy"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Greedy, but a random machine one pull in ten.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "\u03b5-greedy (\u03b5 0.1)"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 2.773632670282107,
+     "generalization_gap": null,
+     "max": 95.7,
+     "mean": 57.07554662305924,
+     "mean_steps": 100.0,
+     "median": 64.94999999999999,
+     "min": -77.8,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "4158faab33f71231121e5c219df5952968462f58200504b9db5570f04a03914d",
+      "sum": 28538.500000000007
+     },
+     "train_mean": null,
+     "zero_rate": 0.062
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:epsilon-decay",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "\u03b5-greedy, decaying",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "decay": 100,
+      "epsilon": 0.3
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.60222,
+       "efficiency": 85.62811772381555,
+       "regret": 10.795318041331745,
+       "scores": {
+        "n": 500,
+        "sha256": "896fdc341844c5e2b46b02f1440510ba3777cc5b09717fc4ff64a8bcd0e43da1",
+        "sum": 32056.699999999964
+       },
+       "skill": 64.11366971704582,
+       "skill_ci95": 2.002167745827942
+      },
+      "close-call": {
+       "best_rate": 0.3425,
+       "efficiency": 89.58886498885286,
+       "regret": 5.726124256130921,
+       "scores": {
+        "n": 500,
+        "sha256": "a0fb429bc2f24a54e9cdf0b6518104756b8d21617d9df90f4d2bd1163ef0874a",
+        "sum": 10400.999999999995
+       },
+       "skill": 20.80205902492003,
+       "skill_ci95": 3.5162650531103865
+      },
+      "detour": {
+       "best_rate": 0.17186,
+       "efficiency": 53.33121503429237,
+       "regret": 56.00254195884921,
+       "scores": {
+        "n": 500,
+        "sha256": "076012e44692b207bd61933c575d954a5a7a4c8aeadf9f96afe22f1a0cba2742",
+        "sum": 4318.999999999998
+       },
+       "skill": 8.6396059953418,
+       "skill_ci95": 1.1892877412471807
+      },
+      "drifting": {
+       "best_rate": 0.51361,
+       "efficiency": 75.63986367468728,
+       "regret": 31.367019000656203,
+       "scores": {
+        "n": 500,
+        "sha256": "89a4470d1362f800e2767039d104da6fb20045dfaa73d8c0cc274a723057b0dd",
+        "sum": 21725.299999999974
+       },
+       "skill": 43.45173438931647,
+       "skill_ci95": 2.948586253508792
+      },
+      "jackpot": {
+       "best_rate": 0.06674,
+       "efficiency": 74.59514499549174,
+       "regret": 25.404855004508256,
+       "scores": {
+        "n": 500,
+        "sha256": "57bdd88a28a95340c19690574a5d36dcbe597b69bc16b9e1fdcb4efd1fdce4d8",
+        "sum": 15614.500000000004
+       },
+       "skill": 31.230165296498935,
+       "skill_ci95": 1.474933667610627
+      },
+      "lucky-start": {
+       "best_rate": 0.501,
+       "efficiency": 90.17735714285715,
+       "regret": 68.7585,
+       "scores": {
+        "n": 500,
+        "sha256": "784299cf2692a4e1563e5bdad74ca4e28192f85cab513f8d2f225788220aeddd",
+        "sum": 27080.5
+       },
+       "skill": 54.161,
+       "skill_ci95": 2.3835234962313616
+      },
+      "too-many-arms": {
+       "best_rate": 0.21318,
+       "efficiency": 80.71022968400598,
+       "regret": 14.606282113777313,
+       "scores": {
+        "n": 500,
+        "sha256": "f0a087590f75871c290f38f819f51307c1416a0606d76fc2001979da94eb8785",
+        "sum": 27974.99999999997
+       },
+       "skill": 55.949807435689735,
+       "skill_ci95": 1.853678416797034
+      },
+      "two-lamps": {
+       "best_rate": 0.2072,
+       "efficiency": 60.08899119377574,
+       "regret": 29.998788646368588,
+       "scores": {
+        "n": 500,
+        "sha256": "b074699f3364ff7514a1325b0084efa79a1f4c201bbf14d5f93593df70d98aa6",
+        "sum": 123.70000000000003
+       },
+       "skill": 0.25006251096901433,
+       "skill_ci95": 0.6320898026233578
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.49478,
+       "efficiency": 81.09528411513668,
+       "regret": 14.204789854839309,
+       "scores": {
+        "n": 500,
+        "sha256": "e2cf1e353e42bb42e8e9daf3cd36dc886150fa251f2e8af5986b807af4776d02",
+        "sum": 26366.999999999985
+       },
+       "skill": 52.73456418428672,
+       "skill_ci95": 2.010720242056878
+      }
+     },
+     "strategy": "epsilon_greedy"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Explores a lot at first (\u03b5 0.3), then less and less, until it only exploits.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "\u03b5-greedy, decaying"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 2.002167745827942,
+     "generalization_gap": null,
+     "max": 93.6,
+     "mean": 64.11366971704582,
+     "mean_steps": 100.0,
+     "median": 72.5,
+     "min": -44.6,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "896fdc341844c5e2b46b02f1440510ba3777cc5b09717fc4ff64a8bcd0e43da1",
+      "sum": 32056.699999999964
+     },
+     "train_mean": null,
+     "zero_rate": 0.02
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:epsilon-tracking",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "\u03b5-greedy, constant step",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "alpha": 0.2,
+      "epsilon": 0.1
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.44942000000000004,
+       "efficiency": 80.63348198504907,
+       "regret": 14.579333212827523,
+       "scores": {
+        "n": 500,
+        "sha256": "f1c2fa6df18c0745ca3843c3410fae5beb508f5c7dfe9bc6e12de6dde1ff5fcd",
+        "sum": 25870.399999999976
+       },
+       "skill": 51.739814682103784,
+       "skill_ci95": 2.9642234432303756
+      },
+      "close-call": {
+       "best_rate": 0.29869999999999997,
+       "efficiency": 88.728368005516,
+       "regret": 6.199397596966188,
+       "scores": {
+        "n": 500,
+        "sha256": "6e4d6546613401089e198306ce51629679b44d4d8e81258cbe709f7e2394b07b",
+        "sum": 6929.4000000000015
+       },
+       "skill": 13.858826574311088,
+       "skill_ci95": 3.9817747160183594
+      },
+      "detour": {
+       "best_rate": 0.13698,
+       "efficiency": 50.28463256246458,
+       "regret": 59.65844092504256,
+       "scores": {
+        "n": 500,
+        "sha256": "516f0d8dc3fba0968f1eef7d38a13435ebe795e9a9a587bf6d9b19a5e9a977eb",
+        "sum": 1310.6999999999991
+       },
+       "skill": 2.6212884379909083,
+       "skill_ci95": 1.5788740157427532
+      },
+      "drifting": {
+       "best_rate": 0.518,
+       "efficiency": 80.62811483552711,
+       "regret": 24.979978769084116,
+       "scores": {
+        "n": 500,
+        "sha256": "d9a8870a72091fbf9e490080b6337513c91aac943a8f05d324733a8deae08963",
+        "sum": 27573.5
+       },
+       "skill": 55.145388857600395,
+       "skill_ci95": 1.87185915576855
+      },
+      "jackpot": {
+       "best_rate": 0.03056,
+       "efficiency": 66.61733561623791,
+       "regret": 33.382664383762084,
+       "scores": {
+        "n": 500,
+        "sha256": "1133e97ed55f7081cf24aeda7a067370be5ce902081e520569d1b5b1a91c5c02",
+        "sum": 4785.599999999997
+       },
+       "skill": 9.571565891361159,
+       "skill_ci95": 2.9306519649587144
+      },
+      "lucky-start": {
+       "best_rate": 0.2697,
+       "efficiency": 82.15771428571428,
+       "regret": 124.896,
+       "scores": {
+        "n": 500,
+        "sha256": "2444bcc268609a1184b8789bf33fc00f3e33cfb256b317eedecb5e93517037f2",
+        "sum": 8368.0
+       },
+       "skill": 16.736,
+       "skill_ci95": 4.767064747316005
+      },
+      "too-many-arms": {
+       "best_rate": 0.14682,
+       "efficiency": 76.75547948493495,
+       "regret": 17.62494614155236,
+       "scores": {
+        "n": 500,
+        "sha256": "953ab103bd6c2611102bc9e0313ae3d91d24f7e3a79111af97cfda44bddd7326",
+        "sum": 23503.100000000017
+       },
+       "skill": 47.009093482801816,
+       "skill_ci95": 2.963249558516603
+      },
+      "two-lamps": {
+       "best_rate": 0.20778,
+       "efficiency": 60.042690886899784,
+       "regret": 30.033216117454046,
+       "scores": {
+        "n": 500,
+        "sha256": "e08e6a0ef8895601e8b6c620f6e7a79d59dc23a8c60c87c85b8ead6792b1fce1",
+        "sum": 64.59999999999992
+       },
+       "skill": 0.13039290535645362,
+       "skill_ci95": 0.6176264579570503
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.38682,
+       "efficiency": 76.97016098571996,
+       "regret": 17.304028819422932,
+       "scores": {
+        "n": 500,
+        "sha256": "19192f42da430c461bb23dc7706c6ca3218d7d2ab443e59a5ab9005ee025765d",
+        "sum": 21208.000000000007
+       },
+       "skill": 42.417417350504074,
+       "skill_ci95": 2.7389297682356553
+      }
+     },
+     "strategy": "epsilon_greedy"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "\u03b5-greedy whose estimates weight recent payouts more (step 0.2), so it notices when a machine changes.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "\u03b5-greedy, constant step"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 2.9642234432303756,
+     "generalization_gap": null,
+     "max": 96.4,
+     "mean": 51.739814682103784,
+     "mean_steps": 100.0,
+     "median": 52.95,
+     "min": -50.2,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "f1c2fa6df18c0745ca3843c3410fae5beb508f5c7dfe9bc6e12de6dde1ff5fcd",
+      "sum": 25870.399999999976
+     },
+     "train_mean": null,
+     "zero_rate": 0.082
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:gradient",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Gradient bandit",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "alpha": 0.5
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.52912,
+       "efficiency": 81.2515715052046,
+       "regret": 14.058139215260843,
+       "scores": {
+        "n": 500,
+        "sha256": "bb7dd04550204dfe5ce50375c4658cc37f1632f753dae9a82a7f887c44973082",
+        "sum": 26531.0
+       },
+       "skill": 53.060209143106526,
+       "skill_ci95": 1.4739728799858727
+      },
+      "close-call": {
+       "best_rate": 0.27878000000000003,
+       "efficiency": 88.40458294172223,
+       "regret": 6.377479382052765,
+       "scores": {
+        "n": 500,
+        "sha256": "4da9510ccae37b33bef90753bd09cbc203b86bda9f6717c938196c44154448e5",
+        "sum": 5914.000000000002
+       },
+       "skill": 11.82664105771914,
+       "skill_ci95": 1.9127274294009753
+      },
+      "detour": {
+       "best_rate": 0.17554,
+       "efficiency": 52.610450076217354,
+       "regret": 56.867459908539225,
+       "scores": {
+        "n": 500,
+        "sha256": "acaae5694fc5f329542234d3a7fb5d8bd64787cdc9f4c3c6537832037e38a66c",
+        "sum": 3589.299999999999
+       },
+       "skill": 7.178696111595324,
+       "skill_ci95": 0.8337713757745768
+      },
+      "drifting": {
+       "best_rate": 0.5135,
+       "efficiency": 74.35356185873785,
+       "regret": 33.06727951907121,
+       "scores": {
+        "n": 500,
+        "sha256": "60aa87587fd007ddfa41f0f1cc9958fc66768971d8c811b01f66fdc8a6352802",
+        "sum": 20312.4
+       },
+       "skill": 40.62412738490558,
+       "skill_ci95": 2.231982736732624
+      },
+      "jackpot": {
+       "best_rate": 0.1088,
+       "efficiency": 71.96897845731405,
+       "regret": 28.031021542685945,
+       "scores": {
+        "n": 500,
+        "sha256": "dd89d0a5189ef969105775678b58e903a606067453d4f72cf2398e425fd6b352",
+        "sum": 12004.200000000008
+       },
+       "skill": 24.010421000818265,
+       "skill_ci95": 1.7919362657586217
+      },
+      "lucky-start": {
+       "best_rate": 0.43138,
+       "efficiency": 89.28785714285713,
+       "regret": 74.985,
+       "scores": {
+        "n": 500,
+        "sha256": "a03cbe4057e5491b5f1214a35ef6a1e4b274a433b8af3da6ef8aa53f1e0255c1",
+        "sum": 25005.0
+       },
+       "skill": 50.01,
+       "skill_ci95": 3.626376205366135
+      },
+      "too-many-arms": {
+       "best_rate": 0.12487999999999999,
+       "efficiency": 66.9835957150777,
+       "regret": 24.976272060677562,
+       "scores": {
+        "n": 500,
+        "sha256": "fda402d2d2122c76af2d3e85a64e79ff2c471c0811add243169c46798b5aec99",
+        "sum": 12384.40000000001
+       },
+       "skill": 24.767999145730972,
+       "skill_ci95": 1.0845310767240093
+      },
+      "two-lamps": {
+       "best_rate": 0.2095,
+       "efficiency": 60.06615235362279,
+       "regret": 30.01491452511484,
+       "scores": {
+        "n": 500,
+        "sha256": "0d47b547a559fef4efa58d9adc6c4cb2a0a9fa5e5dbb566714bb1a38156292fe",
+        "sum": 93.70000000000005
+       },
+       "skill": 0.18780282283173097,
+       "skill_ci95": 0.6371290272548833
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.38330000000000003,
+       "efficiency": 73.2895440662109,
+       "regret": 20.070302305419606,
+       "scores": {
+        "n": 500,
+        "sha256": "278ec3189de0e99abd463922eb56a52be759040e74fd852223f76e63d3ec8035",
+        "sum": 16604.799999999996
+       },
+       "skill": 33.21040348476766,
+       "skill_ci95": 1.1132972910403482
+      }
+     },
+     "strategy": "gradient"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Learns preferences, not values: a softmax nudged by payouts against a baseline.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Gradient bandit"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.4739728799858727,
+     "generalization_gap": null,
+     "max": 87.0,
+     "mean": 53.060209143106526,
+     "mean_steps": 100.0,
+     "median": 56.4,
+     "min": 0.9,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "bb7dd04550204dfe5ce50375c4658cc37f1632f753dae9a82a7f887c44973082",
+      "sum": 26531.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:optimistic",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Optimistic start",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.70114,
+       "efficiency": 91.19027584564195,
+       "regret": 6.588984746958879,
+       "scores": {
+        "n": 500,
+        "sha256": "20f0d588fbe8cf3625805a7d77789639f73099575b0aa74abe6c675c8afbfb74",
+        "sum": 38947.70000000005
+       },
+       "skill": 77.89333620773411,
+       "skill_ci95": 1.9275841270365697
+      },
+      "close-call": {
+       "best_rate": 0.34522,
+       "efficiency": 89.76765453205694,
+       "regret": 5.627790007368676,
+       "scores": {
+        "n": 500,
+        "sha256": "2f36b0e2f6882ecb04aeedcaa9005cf8535b08970ef1b5f0d7024498afcbe553",
+        "sum": 11083.299999999994
+       },
+       "skill": 22.16588902747446,
+       "skill_ci95": 3.7780300266719817
+      },
+      "detour": {
+       "best_rate": 0.17914000000000002,
+       "efficiency": 54.222086821436896,
+       "regret": 54.933495814275766,
+       "scores": {
+        "n": 500,
+        "sha256": "13b6f539ec0d6885fcae4037cfa8b31c8f8150ff1ca0a30638070a5923546f09",
+        "sum": 5185.999999999997
+       },
+       "skill": 10.374253027947173,
+       "skill_ci95": 0.7549623493046125
+      },
+      "drifting": {
+       "best_rate": 0.56313,
+       "efficiency": 78.13376176087647,
+       "regret": 28.166384663891286,
+       "scores": {
+        "n": 500,
+        "sha256": "38604c89373333bae5b9536500a7035b0b9c31fd64f3ff1b8cf78bb11d7cf74a",
+        "sum": 24653.2
+       },
+       "skill": 49.30584051054861,
+       "skill_ci95": 2.609591658040695
+      },
+      "jackpot": {
+       "best_rate": 0.21420000000000003,
+       "efficiency": 64.46348169390444,
+       "regret": 35.53651830609555,
+       "scores": {
+        "n": 500,
+        "sha256": "8163edb4289b023bf003733eae8165681c581bc98e78346ea2dc716f67a184ca",
+        "sum": 2081.700000000001
+       },
+       "skill": 4.162316744117555,
+       "skill_ci95": 0.8181987984855018
+      },
+      "lucky-start": {
+       "best_rate": 0.61446,
+       "efficiency": 92.73121428571429,
+       "regret": 50.8815,
+       "scores": {
+        "n": 500,
+        "sha256": "98006ebf830c7f65a1bb7ab659ca31053f97b95a347d6fd311a636f21ac34a57",
+        "sum": 33039.5
+       },
+       "skill": 66.079,
+       "skill_ci95": 1.664265662910307
+      },
+      "too-many-arms": {
+       "best_rate": 0.28128000000000003,
+       "efficiency": 83.38498350928278,
+       "regret": 12.530043480646174,
+       "scores": {
+        "n": 500,
+        "sha256": "9c45a213ba1819fdc326702855f0b648e0290d6d6eacacbc368377f55d62c5ec",
+        "sum": 30916.80000000002
+       },
+       "skill": 61.8345452271944,
+       "skill_ci95": 1.3069746721875202
+      },
+      "two-lamps": {
+       "best_rate": 0.20982,
+       "efficiency": 60.15940850228924,
+       "regret": 29.94877651072131,
+       "scores": {
+        "n": 500,
+        "sha256": "2740d3ad863fbf81b1be15b1158b17a5c7e6658b5c6552723a2df9e38ad52cc2",
+        "sum": 219.29999999999984
+       },
+       "skill": 0.43886900596284556,
+       "skill_ci95": 0.6110102751506439
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.61614,
+       "efficiency": 87.22287319871863,
+       "regret": 9.587029032887287,
+       "scores": {
+        "n": 500,
+        "sha256": "0e1a3eb25dfb6cf2f10fc966c53b5f085451c6717331f336cc2c7199286aaf0d",
+        "sum": 33990.200000000004
+       },
+       "skill": 67.97979269464291,
+       "skill_ci95": 1.476946412218337
+      }
+     },
+     "strategy": "optimistic"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Assumes every machine pays the maximum until it has tried it.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Optimistic start"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.9275841270365697,
+     "generalization_gap": null,
+     "max": 95.0,
+     "mean": 77.89333620773411,
+     "mean_steps": 100.0,
+     "median": 88.3,
+     "min": -16.1,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "20f0d588fbe8cf3625805a7d77789639f73099575b0aa74abe6c675c8afbfb74",
+      "sum": 38947.70000000005
+     },
+     "train_mean": null,
+     "zero_rate": 0.01
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:q-lookahead",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Q-learning, looking ahead",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "alpha": 0.5,
+      "epsilon": 0.0,
+      "gamma": 0.9,
+      "initial_q": 10.0
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.45872,
+       "efficiency": 77.60171164926064,
+       "regret": 16.788459112896962,
+       "scores": {
+        "n": 500,
+        "sha256": "8433134b3d81b478ee9151dd0ced62b0da1cbc00c89c8a52c3117e19df493dc2",
+        "sum": 21931.200000000015
+       },
+       "skill": 43.863297750335235,
+       "skill_ci95": 1.0076847076294781
+      },
+      "close-call": {
+       "best_rate": 0.24259999999999998,
+       "efficiency": 87.72906532221943,
+       "regret": 6.749014072779305,
+       "scores": {
+        "n": 500,
+        "sha256": "78837df032a731e2a43eea1a7ccb5f41aa706c8b8f5cffbab22e6dafef10dd56",
+        "sum": 3305.4
+       },
+       "skill": 6.6110327870097105,
+       "skill_ci95": 0.7836639241839134
+      },
+      "detour": {
+       "best_rate": 0.5221399999999999,
+       "efficiency": 77.07683137896589,
+       "regret": 27.507802345240954,
+       "scores": {
+        "n": 500,
+        "sha256": "12e9f992203036ba4bb070ce9f2cc7eba63788b1860d2d5b7f71702db6814542",
+        "sum": 27417.700000000004
+       },
+       "skill": 54.8356760509051,
+       "skill_ci95": 1.6396815888721437
+      },
+      "drifting": {
+       "best_rate": 0.49169999999999997,
+       "efficiency": 76.51304086686731,
+       "regret": 30.27852159542875,
+       "scores": {
+        "n": 500,
+        "sha256": "3582ca02968780b6d46381e45f93600adc169a05c1d15dacb1738d77b0782fed",
+        "sum": 22813.1
+       },
+       "skill": 45.6286274448558,
+       "skill_ci95": 0.8148571931253611
+      },
+      "jackpot": {
+       "best_rate": 0.07665999999999999,
+       "efficiency": 72.03210660810181,
+       "regret": 27.96789339189819,
+       "scores": {
+        "n": 500,
+        "sha256": "be925bdb523f68de04bf05e68f6749d6e0c3ca6099cad40aebfd3ed038070d41",
+        "sum": 12136.100000000011
+       },
+       "skill": 24.272190662310273,
+       "skill_ci95": 0.8815166936579876
+      },
+      "lucky-start": {
+       "best_rate": 0.25977999999999996,
+       "efficiency": 80.80792857142856,
+       "regret": 134.3445,
+       "scores": {
+        "n": 500,
+        "sha256": "f5ffae8f5f0b38512f32640cb49de84d7d8e2fc7e4b0ae2da4d7bec172bd2bf5",
+        "sum": 5218.5
+       },
+       "skill": 10.437,
+       "skill_ci95": 6.297393447215861
+      },
+      "too-many-arms": {
+       "best_rate": 0.13542,
+       "efficiency": 68.89083784482816,
+       "regret": 23.50253256243985,
+       "scores": {
+        "n": 500,
+        "sha256": "7933a15b4de0cdaa82ad1b70235e49a70a68b650d35cb389da954750638e6b47",
+        "sum": 14703.899999999985
+       },
+       "skill": 29.406699164165754,
+       "skill_ci95": 0.8843972955601369
+      },
+      "two-lamps": {
+       "best_rate": 0.20248,
+       "efficiency": 60.00566583421235,
+       "regret": 30.058480118432364,
+       "scores": {
+        "n": 500,
+        "sha256": "e16cf8a6cc05888e68df0c95910c860ef04090d852ff63398f4d13daabd755dd",
+        "sum": 12.699999999999962
+       },
+       "skill": 0.02607590743753945,
+       "skill_ci95": 0.5873515442603022
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.38576,
+       "efficiency": 73.71892476943616,
+       "regret": 19.731610941913168,
+       "scores": {
+        "n": 500,
+        "sha256": "b1418d8ba92211482666542c2aa57b5f1383544fc44174c97d989fefaf5d2758",
+        "sum": 17104.599999999995
+       },
+       "skill": 34.20681356690185,
+       "skill_ci95": 0.7930123152539765
+      }
+     },
+     "strategy": "q_table"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "The Q-learning update with a future: each value is the payout plus 0.9 of the best value of where it leads.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Q-learning, looking ahead"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.0076847076294781,
+     "generalization_gap": null,
+     "max": 77.5,
+     "mean": 43.863297750335235,
+     "mean_steps": 100.0,
+     "median": 43.4,
+     "min": 15.1,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "8433134b3d81b478ee9151dd0ced62b0da1cbc00c89c8a52c3117e19df493dc2",
+      "sum": 21931.200000000015
+     },
+     "train_mean": null,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:q-table",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Q-table (Q-learning's agent)",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.31244,
+       "efficiency": 72.5921420943856,
+       "regret": 20.5611349450877,
+       "scores": {
+        "n": 500,
+        "sha256": "38df8b99bae289c2e33443ce6aa8a8a90019c8886c79dc5baf6580d4f585930c",
+        "sum": 15716.599999999993
+       },
+       "skill": 31.433352043912574,
+       "skill_ci95": 4.001790804349097
+      },
+      "close-call": {
+       "best_rate": 0.22125999999999998,
+       "efficiency": 87.50139217085733,
+       "regret": 6.8742343060284545,
+       "scores": {
+        "n": 500,
+        "sha256": "d2e8a9a117d5a286c7316727568b1b5611e0967280c3ed37cc732389d68c451a",
+        "sum": 2439.1000000000035
+       },
+       "skill": 4.879373316709985,
+       "skill_ci95": 4.349760782484909
+      },
+      "detour": {
+       "best_rate": 0.16862,
+       "efficiency": 47.68192117076199,
+       "regret": 62.781694595085675,
+       "scores": {
+        "n": 500,
+        "sha256": "133afdb9c1a022aaa35c639d8074a322376c86bd613bfcf18e1c5514b6d67eff",
+        "sum": -1309.2999999999997
+       },
+       "skill": -2.617977163578185,
+       "skill_ci95": 2.1747169533262602
+      },
+      "drifting": {
+       "best_rate": 0.40419,
+       "efficiency": 74.49183442707134,
+       "regret": 32.93274467314504,
+       "scores": {
+        "n": 500,
+        "sha256": "e1dfc20e797e37375148bd1a42077d8e896d7d9734eca3c0ac3b1b61cdc27798",
+        "sum": 20530.900000000023
+       },
+       "skill": 41.058734516597674,
+       "skill_ci95": 2.7189025410261753
+      },
+      "jackpot": {
+       "best_rate": 0.08792,
+       "efficiency": 59.995516160099214,
+       "regret": 40.004483839900786,
+       "scores": {
+        "n": 500,
+        "sha256": "5c0cb8a44919dbc07695b09234729a665705e3414303183448ccd23d20ecf43a",
+        "sum": -3976.399999999999
+       },
+       "skill": -7.951038590371223,
+       "skill_ci95": 3.839316507508953
+      },
+      "lucky-start": {
+       "best_rate": 0.25986000000000004,
+       "efficiency": 81.1857142857143,
+       "regret": 131.7,
+       "scores": {
+        "n": 500,
+        "sha256": "709020cb3558f53372216c969820fbcdb58b9ebcb12e07ab1c942632bc687387",
+        "sum": 6100.0
+       },
+       "skill": 12.2,
+       "skill_ci95": 5.507175118222183
+      },
+      "too-many-arms": {
+       "best_rate": 0.10806,
+       "efficiency": 66.54349856121887,
+       "regret": 25.37643955306293,
+       "scores": {
+        "n": 500,
+        "sha256": "8601286224ebd26228123cae630e82c85000e324bfedee1d495754d4f16aef5c",
+        "sum": 11865.199999999993
+       },
+       "skill": 23.729584623351425,
+       "skill_ci95": 3.7800815938299044
+      },
+      "two-lamps": {
+       "best_rate": 0.17998,
+       "efficiency": 59.921938404489225,
+       "regret": 30.119827591337405,
+       "scores": {
+        "n": 500,
+        "sha256": "b51cdc427be02e5fd7f113e1bcbf880b968731dae0e8a306431b6ffa931015d6",
+        "sum": -94.29999999999998
+       },
+       "skill": -0.18876427296690557,
+       "skill_ci95": 0.570329860651891
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.25762,
+       "efficiency": 67.41608013969186,
+       "regret": 24.484196076201556,
+       "scores": {
+        "n": 500,
+        "sha256": "228db2140114281e1babca9a6171c80e1b1635e7c2602fabec1f0cf78ed41a89",
+        "sum": 9262.800000000007
+       },
+       "skill": 18.523786497273594,
+       "skill_ci95": 2.3803218717229684
+      }
+     },
+     "strategy": "q_table"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "The Q-learning chapter's agent itself: gamma 0, \u03b5 0.1, step 0.1.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Q-table (Q-learning's agent)"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 4.001790804349097,
+     "generalization_gap": null,
+     "max": 96.6,
+     "mean": 31.433352043912574,
+     "mean_steps": 100.0,
+     "median": 35.75,
+     "min": -89.2,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "38df8b99bae289c2e33443ce6aa8a8a90019c8886c79dc5baf6580d4f585930c",
+      "sum": 15716.599999999993
+     },
+     "train_mean": null,
+     "zero_rate": 0.276
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:thompson",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "Thompson sampling",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.6142000000000001,
+       "efficiency": 85.79348290959153,
+       "regret": 10.634860431405487,
+       "scores": {
+        "n": 500,
+        "sha256": "1a0fdb2f32551cd93c87d77ddac3a6fcec680cdbf49daee499188d11e2808570",
+        "sum": 32174.399999999998
+       },
+       "skill": 64.35064376029324,
+       "skill_ci95": 1.2708113328977044
+      },
+      "close-call": {
+       "best_rate": 0.284,
+       "efficiency": 88.56194539807883,
+       "regret": 6.290930031056633,
+       "scores": {
+        "n": 500,
+        "sha256": "ba101601122f2e9c7d343626998f3af38d0a334cff5f9b6d26a2cbb557df0b8e",
+        "sum": 6491.899999999998
+       },
+       "skill": 12.982685610872077,
+       "skill_ci95": 1.8195274720356571
+      },
+      "detour": {
+       "best_rate": 0.16518,
+       "efficiency": 50.34602139485551,
+       "regret": 59.58477432617345,
+       "scores": {
+        "n": 500,
+        "sha256": "1dc4c341b83f63c8624560f8282f596e53c2aa79a948eaac82d4f78706e6b0ff",
+        "sum": 1366.7999999999997
+       },
+       "skill": 2.737005954750912,
+       "skill_ci95": 0.5097151464767384
+      },
+      "drifting": {
+       "best_rate": 0.53992,
+       "efficiency": 77.2733991615736,
+       "regret": 29.277537875479982,
+       "scores": {
+        "n": 500,
+        "sha256": "17d481ba7ce877691cacc337c9e4377c7be20297fa64fd6a3eeed5a9fa0ee395",
+        "sum": 23657.300000000007
+       },
+       "skill": 47.315767830301766,
+       "skill_ci95": 1.4145577231938218
+      },
+      "jackpot": {
+       "best_rate": 0.21222,
+       "efficiency": 64.41474587854037,
+       "regret": 35.58525412145963,
+       "scores": {
+        "n": 500,
+        "sha256": "b9b9f5a14234e0273d55e94e61abf282aeaf27167a4c7dde34536b8bd83459d7",
+        "sum": 2010.099999999999
+       },
+       "skill": 4.019316646485931,
+       "skill_ci95": 1.061764470933466
+      },
+      "lucky-start": {
+       "best_rate": 0.50946,
+       "efficiency": 90.02864285714286,
+       "regret": 69.7995,
+       "scores": {
+        "n": 500,
+        "sha256": "d1507e93fed3664e14b10c4dac1e221873d05e91cdbcb8c41b4bceacf77c1861",
+        "sum": 26733.5
+       },
+       "skill": 53.467,
+       "skill_ci95": 1.5256741868577601
+      },
+      "too-many-arms": {
+       "best_rate": 0.17556,
+       "efficiency": 73.44739667959188,
+       "regret": 20.045986809274588,
+       "scores": {
+        "n": 500,
+        "sha256": "a90f596a57c96288240c1a04e12b58b3a8bfc2badf16b1e175b17cfaedb72f6a",
+        "sum": 19747.900000000012
+       },
+       "skill": 39.49712678364183,
+       "skill_ci95": 1.1123697052652965
+      },
+      "two-lamps": {
+       "best_rate": 0.2094,
+       "efficiency": 60.096431880743886,
+       "regret": 29.99566888944428,
+       "scores": {
+        "n": 500,
+        "sha256": "84a34b21376a2bb0f4e945b4190451efbeef485153cb03c4d52f5877da853611",
+        "sum": 140.40000000000046
+       },
+       "skill": 0.2808928389817311,
+       "skill_ci95": 0.601436931188601
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.49462,
+       "efficiency": 80.22065297985267,
+       "regret": 14.84497478821408,
+       "scores": {
+        "n": 500,
+        "sha256": "aba47a649c64790d683b1ffc02522281bb95a045dbfdf58aa32f1b7f669060ea",
+        "sum": 25226.59999999999
+       },
+       "skill": 50.45407906784336,
+       "skill_ci95": 1.11881852491409
+      }
+     },
+     "strategy": "thompson"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Samples a plausible value for every machine from its belief, pulls the best sample.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Thompson sampling"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.2708113328977044,
+     "generalization_gap": null,
+     "max": 91.2,
+     "mean": 64.35064376029324,
+     "mean_steps": 100.0,
+     "median": 67.1,
+     "min": 6.4,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "1a0fdb2f32551cd93c87d77ddac3a6fcec680cdbf49daee499188d11e2808570",
+      "sum": 32174.399999999998
+     },
+     "train_mean": null,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:ucb-tuned",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "UCB, tuned (c 0.5)",
+   "metrics": {
+    "bandit": {
+     "params": {
+      "c": 0.5
+     },
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.6618999999999999,
+       "efficiency": 88.37906589529877,
+       "regret": 8.702750297650093,
+       "scores": {
+        "n": 500,
+        "sha256": "f08293cf5c5c7b11ae39a0716048d480541c8ccbc487fba1254fc862dd744f96",
+        "sum": 35425.90000000001
+       },
+       "skill": 70.84978782172216,
+       "skill_ci95": 1.2120960284186488
+      },
+      "close-call": {
+       "best_rate": 0.31604000000000004,
+       "efficiency": 89.16973927729607,
+       "regret": 5.956643397487151,
+       "scores": {
+        "n": 500,
+        "sha256": "690170d0b738ba7ada527549cd9a2a49ebfdafba485fca3e9a50510398de0bf0",
+        "sum": 8789.299999999996
+       },
+       "skill": 17.577444277231837,
+       "skill_ci95": 2.1884821319858236
+      },
+      "detour": {
+       "best_rate": 0.17636000000000002,
+       "efficiency": 54.262651211732226,
+       "regret": 54.884818545921384,
+       "scores": {
+        "n": 500,
+        "sha256": "b17f7c0aeea18e78681ada3a063f1b0aeaefa3d9e6023a55c15e30ec18b5510a",
+        "sum": 5229.500000000006
+       },
+       "skill": 10.458618369923377,
+       "skill_ci95": 0.7953849004249494
+      },
+      "drifting": {
+       "best_rate": 0.61979,
+       "efficiency": 82.50354670741287,
+       "regret": 22.526186723399586,
+       "scores": {
+        "n": 500,
+        "sha256": "8f78c2d474c116ff0be7f459f4333301f579ace1b5f1ace29939e142fa3f9456",
+        "sum": 29700.5
+       },
+       "skill": 59.40080420900585,
+       "skill_ci95": 1.2525540120203575
+      },
+      "jackpot": {
+       "best_rate": 0.18181999999999998,
+       "efficiency": 64.97884071649965,
+       "regret": 35.02115928350034,
+       "scores": {
+        "n": 500,
+        "sha256": "0f036af0681aac37def3057e526bfe06aed55c129419d80f988c68658b347999",
+        "sum": 2693.600000000001
+       },
+       "skill": 5.387127884192073,
+       "skill_ci95": 1.3362469914293107
+      },
+      "lucky-start": {
+       "best_rate": 0.5681799999999999,
+       "efficiency": 92.44600000000001,
+       "regret": 52.878,
+       "scores": {
+        "n": 500,
+        "sha256": "d458532150e9292aaaea82db22fb9b277e6ae46713c2a7b51f49aa662777d568",
+        "sum": 32374.0
+       },
+       "skill": 64.748,
+       "skill_ci95": 2.3185629333315148
+      },
+      "too-many-arms": {
+       "best_rate": 0.18581999999999999,
+       "efficiency": 75.10324487828322,
+       "regret": 18.815314313279533,
+       "scores": {
+        "n": 500,
+        "sha256": "536fa0d97e5df620f466d63671401b6683b319f432fc90465b789a44bc4c7d67",
+        "sum": 21576.69999999999
+       },
+       "skill": 43.154695510333106,
+       "skill_ci95": 1.0083194473895785
+      },
+      "two-lamps": {
+       "best_rate": 0.20612,
+       "efficiency": 60.00841782324762,
+       "regret": 30.058583084311667,
+       "scores": {
+        "n": 500,
+        "sha256": "5a69b01ce93047e2b218861ac50629d650740b7264297ddaeb873a64ee9b7924",
+        "sum": 22.299999999999983
+       },
+       "skill": 0.04509457476621614,
+       "skill_ci95": 0.6009944963038466
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.55838,
+       "efficiency": 83.67103758606473,
+       "regret": 12.255017890008634,
+       "scores": {
+        "n": 500,
+        "sha256": "2da7f7b0f9bd5ee55c0c866990479c298ded96938aa5f933a885974d22ae1e5c",
+        "sum": 29548.599999999988
+       },
+       "skill": 59.095288987222176,
+       "skill_ci95": 1.130162111390489
+      }
+     },
+     "strategy": "ucb1"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "UCB with a smaller bonus, sized for a 100-pull game.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "UCB, tuned (c 0.5)"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 1.2120960284186488,
+     "generalization_gap": null,
+     "max": 90.0,
+     "mean": 70.84978782172216,
+     "mean_steps": 100.0,
+     "median": 73.95,
+     "min": -5.8,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "f08293cf5c5c7b11ae39a0716048d480541c8ccbc487fba1254fc862dd744f96",
+      "sum": 35425.90000000001
+     },
+     "train_mean": null,
+     "zero_rate": 0.002
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "strategy:ucb1",
+   "entrant_kind": "champion",
+   "game": "bandit",
+   "interface": "bandit/none.v1+arm.v1",
+   "label": "UCB1",
+   "metrics": {
+    "bandit": {
+     "params": {},
+     "scenarios": {
+      "classic": {
+       "best_rate": 0.40912,
+       "efficiency": 75.6590092747999,
+       "regret": 18.269886174351402,
+       "scores": {
+        "n": 500,
+        "sha256": "2ba102e7802d978e892e754344cf15cda1a5998c296a75d2d57d855532837a22",
+        "sum": 19542.49999999998
+       },
+       "skill": 39.086049394585096,
+       "skill_ci95": 0.6573540495414552
+      },
+      "close-call": {
+       "best_rate": 0.24159999999999998,
+       "efficiency": 87.71564003028718,
+       "regret": 6.756397983342036,
+       "scores": {
+        "n": 500,
+        "sha256": "8b14fdf00aa2be9509e21ef8bfe4b328ac42a659d05cc7038d3d13dba5a97e67",
+        "sum": 3256.8000000000025
+       },
+       "skill": 6.5168050580627925,
+       "skill_ci95": 0.7337821758713985
+      },
+      "detour": {
+       "best_rate": 0.166,
+       "efficiency": 50.080160810188254,
+       "regret": 59.90380702777415,
+       "scores": {
+        "n": 500,
+        "sha256": "bdb681652a43dff5ddc0e46c125b78904c1a05731e8d3e4fefda143fc10db7f6",
+        "sum": 1094.6999999999996
+       },
+       "skill": 2.190652482051727,
+       "skill_ci95": 0.4121924365018364
+      },
+      "drifting": {
+       "best_rate": 0.42857,
+       "efficiency": 72.71352282357329,
+       "regret": 35.20257465675874,
+       "scores": {
+        "n": 500,
+        "sha256": "f38c8bc25de6459554e8fb0cf0560f1a4042e306209d3954e40da994857507d7",
+        "sum": 18436.400000000012
+       },
+       "skill": 36.87244073922689,
+       "skill_ci95": 0.6105960722939003
+      },
+      "jackpot": {
+       "best_rate": 0.21081999999999998,
+       "efficiency": 64.33332697182038,
+       "regret": 35.66667302817961,
+       "scores": {
+        "n": 500,
+        "sha256": "bb16d0555d3642eeacedd1f4055abe1c3ae1d7ca999ea16838167583c1bbd493",
+        "sum": 1907.5000000000016
+       },
+       "skill": 3.8137990615776003,
+       "skill_ci95": 0.7846065168990468
+      },
+      "lucky-start": {
+       "best_rate": 0.51364,
+       "efficiency": 89.88785714285714,
+       "regret": 70.785,
+       "scores": {
+        "n": 500,
+        "sha256": "0954d636a4f7a16d7e2ce826df4eda72613c4c201d0ecafb93f972250f57c385",
+        "sum": 26405.0
+       },
+       "skill": 52.81,
+       "skill_ci95": 1.2212487316714882
+      },
+      "too-many-arms": {
+       "best_rate": 0.10076,
+       "efficiency": 64.33807892849394,
+       "regret": 26.984182872943734,
+       "scores": {
+        "n": 500,
+        "sha256": "d9765a4b37a893b2322326451fb58590eaf4e70bd2bf58156301ab9f3f505624",
+        "sum": 9503.199999999995
+       },
+       "skill": 19.005784512545468,
+       "skill_ci95": 0.5517252632851212
+      },
+      "two-lamps": {
+       "best_rate": 0.2007,
+       "efficiency": 59.76592105133312,
+       "regret": 30.240493330836486,
+       "scores": {
+        "n": 500,
+        "sha256": "cd361b21fb45ac2763c20b27d47b3461c616793b149abf5d0f37e47c4ff9aae4",
+        "sum": -281.6999999999998
+       },
+       "skill": -0.5627618560507944,
+       "skill_ci95": 0.5991732550405451
+      },
+      "two-lamps:lamp.v1": {
+       "best_rate": 0.35286,
+       "efficiency": 72.03729626595985,
+       "regret": 21.005040957768358,
+       "scores": {
+        "n": 500,
+        "sha256": "5ade1ce3a6b60503da20d982631612f79df008e732326a771a249701c1c3198e",
+        "sum": 15024.400000000009
+       },
+       "skill": 30.049848473974773,
+       "skill_ci95": 0.5557852578633264
+      }
+     },
+     "strategy": "ucb1"
+    },
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 5
+    },
+    "model": {
+     "description": "Adds an uncertainty bonus to each estimate: the textbook constant, c = \u221a2.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "UCB1"
+     }
+    },
+    "protocol": {
+     "board": {
+      "arms": 5
+     },
+     "episodes": 500,
+     "held_out_seeds": [
+      10000,
+      10499
+     ],
+     "max_steps": 100,
+     "metric": "skill"
+    },
+    "quality": {
+     "ci95": 0.6573540495414552,
+     "generalization_gap": null,
+     "max": 59.1,
+     "mean": 39.086049394585096,
+     "mean_steps": 100.0,
+     "median": 39.9,
+     "min": 15.9,
+     "n": 500,
+     "scores": {
+      "n": 500,
+      "sha256": "2ba102e7802d978e892e754344cf15cda1a5998c296a75d2d57d855532837a22",
+      "sum": 19542.49999999998
+     },
+     "train_mean": null,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "bandit.skill.v1",
+   "run_id": null
+  }
+ ],
+ "checkers.sprt": {
+  "a": "material-2",
+  "alpha": 0.05,
+  "b": "random",
+  "beta": 0.05,
+  "bounds": [
+   -2.944,
+   2.944
+  ],
+  "elo": 636.4,
+  "elo0": 0.0,
+  "elo1": 50.0,
+  "hi": 1600.0,
+  "llr": 111.614,
+  "lo": 484.7,
+  "openings_available": 174,
+  "openings_played": 20,
+  "pairs": 20,
+  "pentanomial": [
+   0,
+   0,
+   0,
+   2,
+   18
+  ],
+  "score": 0.975,
+  "verdict": "H1"
+ },
+ "checkers.static-round-robin": {
+  "first-legal vs material-1": {
+   "draws": 69,
+   "losses": 74,
+   "wins": 57
+  },
+  "first-legal vs material-2": {
+   "draws": 8,
+   "losses": 192,
+   "wins": 0
+  },
+  "first-legal vs material-3": {
+   "draws": 17,
+   "losses": 183,
+   "wins": 0
+  },
+  "first-legal vs material-4": {
+   "draws": 6,
+   "losses": 194,
+   "wins": 0
+  },
+  "material-1 vs material-2": {
+   "draws": 11,
+   "losses": 189,
+   "wins": 0
+  },
+  "material-1 vs material-3": {
+   "draws": 3,
+   "losses": 197,
+   "wins": 0
+  },
+  "material-1 vs material-4": {
+   "draws": 3,
+   "losses": 197,
+   "wins": 0
+  },
+  "material-2 vs material-3": {
+   "draws": 79,
+   "losses": 120,
+   "wins": 1
+  },
+  "material-2 vs material-4": {
+   "draws": 72,
+   "losses": 126,
+   "wins": 2
+  },
+  "material-3 vs material-4": {
+   "draws": 103,
+   "losses": 92,
+   "wins": 5
+  },
+  "random vs first-legal": {
+   "draws": 61,
+   "losses": 67,
+   "wins": 72
+  },
+  "random vs material-1": {
+   "draws": 22,
+   "losses": 94,
+   "wins": 84
+  },
+  "random vs material-2": {
+   "draws": 6,
+   "losses": 194,
+   "wins": 0
+  },
+  "random vs material-3": {
+   "draws": 6,
+   "losses": 194,
+   "wins": 0
+  },
+  "random vs material-4": {
+   "draws": 1,
+   "losses": 199,
+   "wins": 0
+  }
+ },
+ "checkers.versus.v2": [
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:first-legal",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "First legal",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "always the first legal move",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 61.2,
+     "generalization_gap": null,
+     "max": 73.2,
+     "mean": 15.1,
+     "mean_steps": 59.39,
+     "median": 15.1,
+     "min": -49.2,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "afac2c4ffbef32e3b6131feebb96c0bc2fec615805c16b785880c66b295644d4",
+      "sum": 50.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.5595
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:material-1": {
+       "draws": 9,
+       "losses": 10,
+       "wins": 5
+      },
+      "baseline:material-2": {
+       "draws": 3,
+       "losses": 21,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 3,
+       "losses": 21,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 12,
+       "losses": 6,
+       "wins": 6
+      },
+      "run:<run1>": {
+       "draws": 12,
+       "losses": 3,
+       "wins": 9
+      },
+      "run:<run2>": {
+       "draws": 7,
+       "losses": 11,
+       "wins": 6
+      }
+     },
+     "draws": 48,
+     "games_per_pair": 24,
+     "losses": 94,
+     "pentanomial": [
+      32,
+      20,
+      19,
+      10,
+      3
+     ],
+     "points": 0.2976,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 15.1,
+      "hi": 73.2,
+      "lo": -49.2,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 26
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-1",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 1-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "the move leaving the best material balance",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 59.3,
+     "generalization_gap": null,
+     "max": 111.2,
+     "mean": 52.3,
+     "mean_steps": 57.86,
+     "median": 52.3,
+     "min": -7.4,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "339e463080dca367fb726b18bc4dcbed66a13513428b9ca39a9f6c2e00e047f0",
+      "sum": 57.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.5714
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 9,
+       "losses": 5,
+       "wins": 10
+      },
+      "baseline:material-2": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 5,
+       "losses": 8,
+       "wins": 11
+      },
+      "run:<run1>": {
+       "draws": 5,
+       "losses": 6,
+       "wins": 13
+      },
+      "run:<run2>": {
+       "draws": 7,
+       "losses": 8,
+       "wins": 9
+      }
+     },
+     "draws": 29,
+     "games_per_pair": 24,
+     "losses": 96,
+     "pentanomial": [
+      37,
+      11,
+      12,
+      16,
+      8
+     ],
+     "points": 0.3423,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 52.3,
+      "hi": 111.2,
+      "lo": -7.4,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 43
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-2",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 2-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "assumes the opponent's best reply; a tiny minimax",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 61.7,
+     "generalization_gap": null,
+     "max": 485.2,
+     "mean": 426.5,
+     "mean_steps": 56.89,
+     "median": 426.5,
+     "min": 361.9,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "137b15a690842550628ef6eb9812c69b56c4169b1554d627b74ddee5a1f84509",
+      "sum": 124.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.1845
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 3,
+       "losses": 0,
+       "wins": 21
+      },
+      "baseline:material-1": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "baseline:material-3": {
+       "draws": 7,
+       "losses": 17,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 10,
+       "losses": 14,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "run:<run1>": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      },
+      "run:<run2>": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      }
+     },
+     "draws": 26,
+     "games_per_pair": 24,
+     "losses": 31,
+     "pentanomial": [
+      9,
+      13,
+      2,
+      9,
+      51
+     ],
+     "points": 0.7381,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 426.5,
+      "hi": 485.2,
+      "lo": 361.9,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 111
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-3",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 3-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "material, searched 3 plies with alpha-beta",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 68.8,
+     "generalization_gap": null,
+     "max": 620.6,
+     "mean": 547.8,
+     "mean_steps": 61.46,
+     "median": 547.8,
+     "min": 483.1,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "f0f6e0d49bbf901b26e33e61882789620c609fc9be2088da01f2bdc00ff85a2c",
+      "sum": 141.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.0774
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 3,
+       "losses": 0,
+       "wins": 21
+      },
+      "baseline:material-1": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "baseline:material-2": {
+       "draws": 7,
+       "losses": 0,
+       "wins": 17
+      },
+      "baseline:material-4": {
+       "draws": 11,
+       "losses": 13,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      },
+      "run:<run1>": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "run:<run2>": {
+       "draws": 3,
+       "losses": 0,
+       "wins": 21
+      }
+     },
+     "draws": 28,
+     "games_per_pair": 24,
+     "losses": 13,
+     "pentanomial": [
+      3,
+      7,
+      3,
+      15,
+      56
+     ],
+     "points": 0.8393,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 547.8,
+      "hi": 620.6,
+      "lo": 483.1,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 127
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-4",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 4-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "material, searched 4 plies with alpha-beta",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 75.4,
+     "generalization_gap": null,
+     "max": 747.8,
+     "mean": 664.2,
+     "mean_steps": 61.21,
+     "median": 664.2,
+     "min": 596.9,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "198aa94b2c21ff1f2d7459a61b2cdb48643d86e039f258937f0128f71f248b04",
+      "sum": 155.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      },
+      "baseline:material-1": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "baseline:material-2": {
+       "draws": 10,
+       "losses": 0,
+       "wins": 14
+      },
+      "baseline:material-3": {
+       "draws": 11,
+       "losses": 0,
+       "wins": 13
+      },
+      "baseline:random": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "run:<run1>": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      },
+      "run:<run2>": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      }
+     },
+     "draws": 26,
+     "games_per_pair": 24,
+     "losses": 0,
+     "pentanomial": [
+      0,
+      0,
+      3,
+      20,
+      61
+     ],
+     "points": 0.9226,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 664.2,
+      "hi": 747.8,
+      "lo": 596.9,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 142
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:random",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Random",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "a uniformly random legal move",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 0.0,
+     "generalization_gap": null,
+     "max": 0.0,
+     "mean": 0.0,
+     "mean_steps": 56.58,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "94da083e14452f51f5f1153d04104a12288df37bce16ed4ded8ea682a32d93e3",
+      "sum": 47.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.6369
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 12,
+       "losses": 6,
+       "wins": 6
+      },
+      "baseline:material-1": {
+       "draws": 5,
+       "losses": 11,
+       "wins": 8
+      },
+      "baseline:material-2": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "run:<run1>": {
+       "draws": 3,
+       "losses": 13,
+       "wins": 8
+      },
+      "run:<run2>": {
+       "draws": 5,
+       "losses": 8,
+       "wins": 11
+      }
+     },
+     "draws": 28,
+     "games_per_pair": 24,
+     "losses": 107,
+     "pentanomial": [
+      41,
+      14,
+      15,
+      6,
+      8
+     ],
+     "points": 0.2798,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 0.0,
+      "hi": 0.0,
+      "lo": 0.0,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 33
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": "<run1>-gen9",
+   "entrant_id": "run:<run1>",
+   "entrant_kind": "champion",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "TD(\u03bb) self-play 32 \u2192 8 \u2192 1",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 5852,
+     "parameters": 273
+    },
+    "model": {
+     "description": "MLP 32 \u2192 8 \u2192 1, tanh: a position evaluator, one ply, trained by TD(\u03bb) self-play",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": {
+      "algorithm": "TD(\u03bb) self-play",
+      "layer_sizes": [
+       32,
+       8,
+       1
+      ],
+      "selection": null
+     }
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 70.7,
+     "generalization_gap": null,
+     "max": 61.4,
+     "mean": -10.1,
+     "mean_steps": 60.23,
+     "median": -10.1,
+     "min": -79.9,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "87a2ebfc1597c27bc20cbb814140acd99d069672d2845a15b091d16bcadf788b",
+      "sum": 45.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.6131
+    },
+    "training": {
+     "env_steps": 3499,
+     "episodes": 50,
+     "fitness_evaluations": 10,
+     "generations": 10,
+     "measured": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 12,
+       "losses": 9,
+       "wins": 3
+      },
+      "baseline:material-1": {
+       "draws": 5,
+       "losses": 13,
+       "wins": 6
+      },
+      "baseline:material-2": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 3,
+       "losses": 8,
+       "wins": 13
+      },
+      "run:<run2>": {
+       "draws": 15,
+       "losses": 6,
+       "wins": 3
+      }
+     },
+     "draws": 40,
+     "games_per_pair": 24,
+     "losses": 103,
+     "pentanomial": [
+      39,
+      18,
+      14,
+      8,
+      5
+     ],
+     "points": 0.2679,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": -10.1,
+      "hi": 61.4,
+      "lo": -79.9,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 25
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": "<run1>"
+  },
+  {
+   "champion_ref": "<run2>-gen9",
+   "entrant_id": "run:<run2>",
+   "entrant_kind": "champion",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "TD(\u03bb) self-play 32 \u2192 8 \u2192 1",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 5815,
+     "parameters": 273
+    },
+    "model": {
+     "description": "MLP 32 \u2192 8 \u2192 1, tanh: a position evaluator, one ply, trained by TD(\u03bb) self-play",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": {
+      "algorithm": "TD(\u03bb) self-play",
+      "layer_sizes": [
+       32,
+       8,
+       1
+      ],
+      "selection": null
+     }
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 67.8,
+     "generalization_gap": null,
+     "max": 100.5,
+     "mean": 27.6,
+     "mean_steps": 58.95,
+     "median": 27.6,
+     "min": -35.2,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "8b9d2b76e4eaebd3fdc5c18abbd149af0c186bfed55355fcf60fbc3b1f9fccc0",
+      "sum": 52.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.5714
+    },
+    "training": {
+     "env_steps": 3080,
+     "episodes": 50,
+     "fitness_evaluations": 10,
+     "generations": 10,
+     "measured": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 7,
+       "losses": 6,
+       "wins": 11
+      },
+      "baseline:material-1": {
+       "draws": 7,
+       "losses": 9,
+       "wins": 8
+      },
+      "baseline:material-2": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 3,
+       "losses": 21,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 5,
+       "losses": 11,
+       "wins": 8
+      },
+      "run:<run1>": {
+       "draws": 15,
+       "losses": 3,
+       "wins": 6
+      }
+     },
+     "draws": 39,
+     "games_per_pair": 24,
+     "losses": 96,
+     "pentanomial": [
+      36,
+      15,
+      14,
+      14,
+      5
+     ],
+     "points": 0.3125,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 27.6,
+      "hi": 100.5,
+      "lo": -35.2,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 33
+    }
+   },
+   "protocol": "checkers.versus.v2",
+   "run_id": "<run2>"
+  }
+ ],
+ "publish.snake": [
+  {
+   "entry": {
+    "champion_ref": "<run0>-gen2",
+    "download_bytes": {
+     "fp32": 1387,
+     "fp64": 2479
+    },
+    "entrant_id": "run:<run0>",
+    "interface": "snake/features.v1+relative3.v1",
+    "label": "Neuroevolution 11 \u2192 16 \u2192 3 \u00b7 lexicase",
+    "run_id": "<run0>",
+    "variants": [
+     "fp64",
+     "fp32"
+    ]
+   },
+   "manifest": {
+    "assets": {},
+    "config": {},
+    "description": "MLP 11 \u2192 16 \u2192 3, tanh",
+    "format_version": 1,
+    "interface": "snake/features.v1+relative3.v1",
+    "kind": "policy",
+    "label": "Neuroevolution 11 \u2192 16 \u2192 3 \u00b7 lexicase",
+    "parameters": 243,
+    "parity_fixture": {
+     "bytes": 3979
+    },
+    "provenance": {
+     "champion_ref": "<run0>-gen2",
+     "exported_with": {
+      "modelpack": "0.1.0",
+      "numpy": "2.4.6",
+      "onnx": "1.23.0",
+      "onnxruntime": "1.30.0"
+     },
+     "run_id": "<run0>",
+     "source_format": "weight_vector.json",
+     "trainer": "evolve.neuro"
+    },
+    "variants": [
+     {
+      "dtype": "float64",
+      "graph": {
+       "bytes": 1071
+      },
+      "id": "fp64",
+      "inputs": [
+       {
+        "dtype": "float64",
+        "name": "observation",
+        "shape": [
+         "batch",
+         11
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "dtype": "float64",
+        "name": "outputs",
+        "shape": [
+         "batch",
+         3
+        ]
+       }
+      ],
+      "parity": {
+       "action_agreement": 1.0,
+       "decisions": 658,
+       "max_abs_error": 3.3306690738754696e-16,
+       "protocol": "snake.score.v2",
+       "reference": "evolve.neuro.WeightVector.forward (float64)",
+       "samples": 256,
+       "scores_match": true,
+       "tolerance": 1e-09
+      },
+      "requirements": {
+       "backends": [
+        "wasm"
+       ],
+       "download_bytes": 2479,
+       "max_tensor_bytes": 1408,
+       "peak_memory_bytes": 16781103,
+       "webgpu_features": []
+      },
+      "shards": [
+       {
+        "bytes": 1408,
+        "path": "weights/d1c786330ca50e03df42fc5bdc2a6f5affffdb00647c51497f1331963e1e31e7.bin"
+       }
+      ]
+     },
+     {
+      "dtype": "float32",
+      "graph": {
+       "bytes": 1387
+      },
+      "id": "fp32",
+      "inputs": [
+       {
+        "dtype": "float32",
+        "name": "observation",
+        "shape": [
+         "batch",
+         11
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "dtype": "float32",
+        "name": "outputs",
+        "shape": [
+         "batch",
+         3
+        ]
+       }
+      ],
+      "parity": {
+       "action_agreement": 1.0,
+       "decisions": 658,
+       "max_abs_error": 1.4958555727417888e-07,
+       "protocol": "snake.score.v2",
+       "reference": "evolve.neuro.WeightVector.forward (float64)",
+       "samples": 256,
+       "scores_match": true,
+       "tolerance": 0.0001
+      },
+      "requirements": {
+       "backends": [
+        "wasm",
+        "webgpu"
+       ],
+       "download_bytes": 1387,
+       "max_tensor_bytes": 704,
+       "peak_memory_bytes": 16778603,
+       "webgpu_features": []
+      },
+      "shards": []
+     }
+    ]
+   }
+  }
+ ],
+ "publish.tinylm": [
+  {
+   "entry": {
+    "champion_ref": "golden.npz",
+    "download_bytes": {
+     "fp32": 327253,
+     "int8": 130773
+    },
+    "entrant_id": "tinylm:golden",
+    "interface": "text/char.v1",
+    "label": "TinyLM golden \u00b7 78,795 params",
+    "run_id": null,
+    "variants": [
+     "fp32",
+     "int8"
+    ]
+   },
+   "manifest": {
+    "assets": {
+     "tokenizer": {
+      "bytes": 433
+     }
+    },
+    "config": {
+     "d_hidden": 128,
+     "d_model": 64,
+     "head_dim": 16,
+     "masked": -1000000000.0,
+     "max_seq_len": 32,
+     "n_heads": 4,
+     "n_layers": 2,
+     "vocab_size": 75
+    },
+    "description": "Character-level transformer, 2 layers x 4 heads, d_model 64, 32-character context; trained from scratch (libs/autodiff) on Alice in Wonderland, held-out loss 3.4398.",
+    "format_version": 1,
+    "interface": "text/char.v1",
+    "kind": "causal-lm",
+    "label": "TinyLM golden \u00b7 78,795 params",
+    "parameters": 78795,
+    "parity_fixture": {
+     "bytes": 102085
+    },
+    "provenance": {
+     "champion_ref": "golden.npz",
+     "exported_with": {
+      "modelpack": "0.1.0",
+      "numpy": "2.4.6",
+      "onnx": "1.23.0",
+      "onnxruntime": "1.30.0"
+     },
+     "run_id": null,
+     "source_format": "tinylm.npz",
+     "trainer": "tinylm (autodiff)"
+    },
+    "variants": [
+     {
+      "dtype": "float32",
+      "graph": {
+       "bytes": 18517
+      },
+      "id": "fp32",
+      "inputs": [
+       {
+        "dtype": "int64",
+        "name": "input_ids",
+        "shape": [
+         "batch",
+         "seq"
+        ]
+       },
+       {
+        "dtype": "int64",
+        "name": "position_ids",
+        "shape": [
+         "batch",
+         "seq"
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_key_0",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_value_0",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_key_1",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_value_1",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "dtype": "float32",
+        "name": "logits",
+        "shape": [
+         "batch",
+         "seq",
+         75
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_key_0",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_value_0",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_key_1",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_value_1",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       }
+      ],
+      "parity": {
+       "action_agreement": 1.0,
+       "decisions": 2048,
+       "max_abs_error": 1.0964273604585628e-06,
+       "protocol": "tinylm.held-out-top1.v1",
+       "reference": "tinylm.TinyLM (float64, autodiff)",
+       "samples": 7200,
+       "scores_match": null,
+       "tolerance": 0.001
+      },
+      "requirements": {
+       "backends": [
+        "wasm",
+        "webgpu"
+       ],
+       "download_bytes": 327253,
+       "max_tensor_bytes": 32768,
+       "peak_memory_bytes": 17413205,
+       "webgpu_features": []
+      },
+      "shards": [
+       {
+        "bytes": 308736,
+        "path": "weights/2a87aca65885f6b688ff509d412a59046fd885184d6b5a785f1232a1b9d54792.bin"
+       }
+      ]
+     },
+     {
+      "dtype": "int8",
+      "graph": {
+       "bytes": 33045
+      },
+      "id": "int8",
+      "inputs": [
+       {
+        "dtype": "int64",
+        "name": "input_ids",
+        "shape": [
+         "batch",
+         "seq"
+        ]
+       },
+       {
+        "dtype": "int64",
+        "name": "position_ids",
+        "shape": [
+         "batch",
+         "seq"
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_key_0",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_value_0",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_key_1",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "past_value_1",
+        "shape": [
+         "batch",
+         4,
+         "past",
+         16
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "dtype": "float32",
+        "name": "logits",
+        "shape": [
+         "batch",
+         "seq",
+         75
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_key_0",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_value_0",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_key_1",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       },
+       {
+        "dtype": "float32",
+        "name": "present_value_1",
+        "shape": [
+         "batch",
+         4,
+         "total",
+         16
+        ]
+       }
+      ],
+      "parity": {
+       "action_agreement": 1.0,
+       "decisions": 2048,
+       "max_abs_error": 0.030918677035721598,
+       "protocol": "tinylm.held-out-top1.v1",
+       "reference": "tinylm.TinyLM (float64, autodiff)",
+       "samples": 7200,
+       "scores_match": null,
+       "tolerance": 5.0
+      },
+      "requirements": {
+       "backends": [
+        "wasm"
+       ],
+       "download_bytes": 130773,
+       "max_tensor_bytes": 19200,
+       "peak_memory_bytes": 17005717,
+       "webgpu_features": []
+      },
+      "shards": [
+       {
+        "bytes": 97728,
+        "path": "weights/98b1df53d2895ff3a0e2126a0dd0318d903a4e480a624571c8ca86c6954c7a33.bin"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ "snake.score.v2": [
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:greedy",
+   "entrant_kind": "baseline",
+   "game": "snake",
+   "interface": "snake/features.v1+relative3.v1",
+   "label": "Greedy heuristic",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0,
+     "runtime": "python"
+    },
+    "model": {
+     "description": "Hand-written rule: head for the food unless that move is immediately fatal.",
+     "note": null,
+     "observer_level": 3,
+     "package_id": null,
+     "shape": null,
+     "variant": null,
+     "variants": null
+    },
+    "protocol": {
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "episodes": 20,
+     "held_out_seeds": [
+      10000,
+      10019
+     ],
+     "max_steps": 1000,
+     "metric": "score (food eaten)"
+    },
+    "quality": {
+     "ci95": 2.9639,
+     "generalization_gap": -2.75,
+     "max": 36,
+     "mean": 18.95,
+     "mean_steps": 155.35,
+     "median": 19.5,
+     "min": 9,
+     "n": 20,
+     "scores": [
+      27,
+      9,
+      23,
+      36,
+      10,
+      19,
+      20,
+      25,
+      16,
+      24,
+      11,
+      16,
+      20,
+      20,
+      24,
+      22,
+      16,
+      12,
+      19,
+      10
+     ],
+     "train_mean": 16.2,
+     "zero_rate": 0.0
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "snake.score.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:random",
+   "entrant_kind": "baseline",
+   "game": "snake",
+   "interface": "snake/features.v1+relative3.v1",
+   "label": "Random",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0,
+     "runtime": "python"
+    },
+    "model": {
+     "description": "Uniformly random turn every step.",
+     "note": null,
+     "observer_level": 3,
+     "package_id": null,
+     "shape": null,
+     "variant": null,
+     "variants": null
+    },
+    "protocol": {
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "episodes": 20,
+     "held_out_seeds": [
+      10000,
+      10019
+     ],
+     "max_steps": 1000,
+     "metric": "score (food eaten)"
+    },
+    "quality": {
+     "ci95": 0.2293,
+     "generalization_gap": 0.0,
+     "max": 2,
+     "mean": 0.2,
+     "mean_steps": 16.95,
+     "median": 0.0,
+     "min": 0,
+     "n": 20,
+     "scores": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+     ],
+     "train_mean": 0.2,
+     "zero_rate": 0.85
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "snake.score.v2",
+   "run_id": null
+  },
+  {
+   "champion_ref": "<run0>-gen2",
+   "entrant_id": "run:<run0>",
+   "entrant_kind": "champion",
+   "game": "snake",
+   "interface": "snake/features.v1+relative3.v1",
+   "label": "Neuroevolution 11 \u2192 16 \u2192 3 \u00b7 lexicase",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 5178,
+     "parameters": 243,
+     "runtime": "python"
+    },
+    "model": {
+     "description": "MLP 11 \u2192 16 \u2192 3, tanh (neuroevolution)",
+     "note": null,
+     "observer_level": 3,
+     "package_id": null,
+     "shape": {
+      "algorithm": "Neuroevolution",
+      "layer_sizes": [
+       11,
+       16,
+       3
+      ],
+      "selection": "lexicase"
+     },
+     "variant": null,
+     "variants": null
+    },
+    "protocol": {
+     "board": {
+      "height": 10,
+      "width": 10
+     },
+     "episodes": 20,
+     "held_out_seeds": [
+      10000,
+      10019
+     ],
+     "max_steps": 1000,
+     "metric": "score (food eaten)"
+    },
+    "quality": {
+     "ci95": 0.2504,
+     "generalization_gap": 0.1,
+     "max": 2,
+     "mean": 0.3,
+     "mean_steps": 32.9,
+     "median": 0.0,
+     "min": 0,
+     "n": 20,
+     "scores": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      2
+     ],
+     "train_mean": 0.4,
+     "zero_rate": 0.75
+    },
+    "training": {
+     "env_steps": 4374,
+     "episodes": 120,
+     "fitness_evaluations": 24,
+     "generations": 3,
+     "measured": true
+    }
+   },
+   "protocol": "snake.score.v2",
+   "run_id": "<run0>"
+  }
+ ]
+}

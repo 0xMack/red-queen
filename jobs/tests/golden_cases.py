@@ -261,8 +261,8 @@ def _anonymize(value: Any, names: dict[str, str]) -> Any:
         return value
     if isinstance(value, list):
         return [_anonymize(v, names) for v in value]
-    if isinstance(value, dict):
-        return {k: _anonymize(v, names) for k, v in value.items()}
+    if isinstance(value, dict):  # keys too: a versus record's per-opponent results are keyed by "run:<id>"
+        return {_anonymize(k, names): _anonymize(v, names) for k, v in value.items()}
     return value
 
 
