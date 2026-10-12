@@ -114,6 +114,21 @@ def test_an_experiment_that_cant_run_is_refused(api):
 def test_schemas_describe_every_kind(api):
     client, _, _, _ = api
     schemas = client.get("/specs/schemas").json()
-    assert set(schemas["kinds"]) == {"train", "evaluate", "publish", "experiment"}
+    assert set(schemas["kinds"]) == {"train", "evaluate", "publish", "experiment", "pipeline"}
     assert "neuroevolution@snake" in schemas["algorithms"] and "checkers.sprt" in schemas["protocols"]
     assert set(schemas["publish_targets"]) == {"snake", "tinylm", "scale-test"}
+
+
+def test_a_pipeline_is_a_job_and_a_broken_one_is_refused(api):
+    client, jobs, _, _ = api
+    stage = {"game": "snake", "algorithm": "neat", "budget": {"generations": 2}}
+    pipeline = {
+        "kind": "pipeline",
+        "name": "two",
+        "stages": [{"name": "a", "spec": stage}, {"name": "b", "spec": {**stage, "init_from": {"stage": "a"}}}],
+    }
+    response = client.post("/jobs", json=pipeline)
+    assert response.status_code == 201, response.text
+    assert response.json()["kind"] == "pipeline" and jobs.get(response.json()["job_id"]).status == "queued"
+    broken = {**pipeline, "stages": [{"name": "b", "spec": {**stage, "init_from": {"stage": "a"}}}]}
+    assert client.post("/jobs", json=broken).status_code == 422

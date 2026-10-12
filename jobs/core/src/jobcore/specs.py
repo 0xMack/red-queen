@@ -256,6 +256,56 @@ class ExperimentSpec(BaseModel):
         return spec
 
 
+class PipelineStage(BaseModel):
+    """One stage: a train, evaluate or publish spec. A train stage may continue an earlier stage's run with
+    `init_from: {stage: NAME}`, filled in with that run's id when the stage starts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    spec: dict[str, Any] = Field(..., description="The stage's payload, by its `kind` (default `train`).")
+
+
+class PipelineSpec(BaseModel):
+    """Stages run one after another (docs/design/0018, decision 2), each only once the last succeeded -- the TD then
+    TD-Leaf recipe is a two-stage pipeline. The scheduler advances it; the pipeline's result is every stage's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["pipeline"] = "pipeline"
+    name: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    stages: list[PipelineStage] = Field(..., min_length=1)
+
+    def stage_spec(self, index: int, results: dict[str, dict[str, Any]]) -> TrainSpec | EvalSpec | PublishSpec:
+        """Stage `index`'s payload, its `init_from: {stage: NAME}` replaced by the run that stage's result names."""
+        data = dict(self.stages[index].spec)
+        ref = (data.get("init_from") or {}).get("stage") if isinstance(data.get("init_from"), dict) else None
+        if ref is not None:
+            run_id = (results.get(ref) or {}).get("run_id")
+            if run_id is None:
+                raise ValueError(f"stage {self.stages[index].name} continues {ref}, which has no run yet")
+            data["init_from"] = {"run": run_id}
+        if data.get("kind", "train") not in ("train", "evaluate", "publish"):
+            raise ValueError(f"stage {self.stages[index].name}: a stage is a train, evaluate or publish spec")
+        return parse_spec(data)  # type: ignore[return-value]
+
+    def resolve(self) -> PipelineSpec:
+        """Checks stage names are unique, every `init_from: {stage}` names an earlier train stage, and every stage's
+        payload resolves."""
+        seen: dict[str, str] = {}
+        for index, stage in enumerate(self.stages):
+            if stage.name in seen:
+                raise ValueError(f"two stages are called {stage.name}")
+            init = stage.spec.get("init_from")
+            ref = init.get("stage") if isinstance(init, dict) else None
+            if ref is not None and seen.get(ref) != "train":
+                raise ValueError(f"stage {stage.name} continues {ref!r}, which isn't an earlier train stage")
+            spec = self.stage_spec(index, {name: {"run_id": f"<{name}>"} for name in seen})
+            spec.resolve()
+            seen[stage.name] = spec.kind
+        return self
+
+
 @dataclass(frozen=True)
 class Protocol:
     name: str
@@ -300,12 +350,13 @@ def register_publish_target(target: PublishTarget) -> PublishTarget:
     return _register(_TARGETS, "publish target", target)
 
 
-Spec = TrainSpec | EvalSpec | PublishSpec | ExperimentSpec
+Spec = TrainSpec | EvalSpec | PublishSpec | ExperimentSpec | PipelineSpec
 _KINDS: dict[str, type[BaseModel]] = {
     "train": TrainSpec,
     "evaluate": EvalSpec,
     "publish": PublishSpec,
     "experiment": ExperimentSpec,
+    "pipeline": PipelineSpec,
 }
 
 

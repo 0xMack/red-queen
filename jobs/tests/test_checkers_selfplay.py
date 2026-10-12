@@ -1,6 +1,8 @@
 """Checkers self-play runs (the trainer's `td_lambda` / `alphazero`) are recorded like any other Checkers run and join
 the versus leaderboard (evaluator `checkers.versus.v2`); the recipe chains two of them."""
 
+from pathlib import Path
+
 import evaluator.protocols.checkers_versus as evaluate_versus
 from evolve import WeightVector
 from telemetry import FileArtifactStore, FileMetricsStore, SqliteRunRegistry
@@ -78,18 +80,31 @@ def test_init_from_an_experiments_arm_continues_that_seeds_run(tmp_path):
     assert SqliteRunRegistry(tmp_path / "runs.db").get_run(child).config["init_run"] == parent
 
 
-def test_the_recipe_trains_td_then_fine_tunes_it(tmp_path):
-    import checkers_recipe_run
+def test_the_recipe_pipeline_trains_td_then_fine_tunes_it(tmp_path):
+    from jobcore.specs import PipelineSpec, deep_merge, load_spec
+    from trainer import train
 
-    td, leaf = checkers_recipe_run.main(
-        hidden=8, layers=1, td_games=40, leaf_games=4, leaf_depth=2, depth=1, games_per_iteration=20, monitor_games=2
+    recipe = load_spec(Path(__file__).resolve().parents[2] / "experiments" / "pipelines" / "checkers-recipe.yaml")
+    assert isinstance(recipe, PipelineSpec)
+    small = {
+        "budget": {"iterations": 2},
+        "held_out_every": 1,
+        "params": {
+            "games_per_iteration": 20,
+            "depth": 1,
+            "monitor_games": 2,
+            "agent": {"hidden": 8, "hidden_layers": 1},
+        },
+    }
+    leaf_depth = {"params": {"agent": {"search_depth": 2}}}
+    recipe = recipe.model_copy(
+        update={"stages": [s.model_copy(update={"spec": deep_merge(s.spec, small)}) for s in recipe.stages]}
     )
-    registry = SqliteRunRegistry(tmp_path / "runs.db")
-    child = registry.get_run(leaf).config
+    recipe.stages[1].spec = deep_merge(recipe.stages[1].spec, leaf_depth)
+    results: dict = {}
+    for index, stage in enumerate(recipe.resolve().stages):  # what the scheduler does, a stage at a time
+        results[stage.name] = {"run_id": train(recipe.stage_spec(index, results))}
+    td, leaf = results["td"]["run_id"], results["td-leaf"]["run_id"]
+    child = SqliteRunRegistry(tmp_path / "runs.db").get_run(leaf).config
     assert child["init_run"] == td and child["params"]["search_depth"] == 2 and child["layer_sizes"] == [32, 8, 1]
     assert "experiment" not in child  # recipe runs are leaderboard entrants
-    # an existing TD run is fine-tuned again (another depth's entrant) without retraining it
-    again = checkers_recipe_run.main(
-        hidden=8, layers=1, leaf_games=4, leaf_depth=2, depth=2, td_run=td, monitor_games=2
-    )
-    assert again[0] == td

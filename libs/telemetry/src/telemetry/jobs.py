@@ -1,10 +1,11 @@
 """Jobs and experiments (docs/design/0018, decision 2): what has been asked for, and how far it got.
 
-A job is one payload (a train, evaluate or publish spec) on its way through the scheduler: `queued` (submitted),
+A job is one payload (a train, evaluate or publish spec, or a pipeline of them) on its way through the scheduler: `queued` (submitted),
 `running` (claimed, a worker process started), then `succeeded`, `failed` or `cancelled`. The API records and serves
 jobs; only the scheduler claims and runs them, and it alone moves one to `running` (atomically, so two schedulers
 can't both take it). A cancel on a queued job cancels it outright; on a running one it sets `cancel_requested` for
-the scheduler to act on. An experiment is a named spec whose fan-out is jobs with that `parent`.
+the scheduler to act on. An experiment is a named spec whose fan-out is jobs with that `parent`; a pipeline is a job
+whose stages are jobs with its id as their `parent`, submitted one at a time (it has no worker of its own).
 
 Local-dev store: one SQLite file (`jobs.db`, beside `runs.db`), the same pattern as the run registry.
 """
@@ -20,7 +21,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
 
-JobKind = Literal["train", "evaluate", "publish"]
+JobKind = Literal["train", "evaluate", "publish", "pipeline"]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 FINISHED: frozenset[str] = frozenset({"succeeded", "failed", "cancelled"})
 

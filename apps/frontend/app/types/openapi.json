@@ -279,7 +279,8 @@
             "enum": [
               "train",
               "evaluate",
-              "publish"
+              "publish",
+              "pipeline"
             ],
             "title": "Kind",
             "type": "string"
@@ -1127,7 +1128,8 @@
                   "enum": [
                     "train",
                     "evaluate",
-                    "publish"
+                    "publish",
+                    "pipeline"
                   ],
                   "type": "string"
                 },

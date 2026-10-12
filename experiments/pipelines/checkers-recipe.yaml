@@ -1,0 +1,35 @@
+# The best Checkers self-play recipe, for leaderboard entrants (docs/design/0016): plain TD(λ) with the opponent pool
+# (the long, cheap phase), then a TD-Leaf(λ) fine-tune of that network searching 3 plies. Both runs are untagged, so
+# both join the versus leaderboard. The 0016 candidate: 2 x 128, 1M games, then 50k games of 3-ply TD-Leaf, seed 0
+# fixed in advance. Phase 1 measured ~9,300 active seconds; phase 2 roughly 1.5-3 hours.
+#
+#   uv run python -m scheduler --submit experiments/pipelines/checkers-recipe.yaml
+#
+# Training is deterministic, so entering the same network at another search depth needs only the fine-tune: submit
+# its spec alone as a train job, with `init_from: {run: <the td stage's run id>}` and `params.depth: 4`.
+kind: pipeline
+name: checkers-recipe
+stages:
+  - name: td
+    spec:
+      game: checkers
+      algorithm: td_lambda
+      seed: 0
+      budget: {iterations: 1000}
+      held_out_every: 50
+      params:
+        games_per_iteration: 1000
+        depth: 3
+        agent: {pool_every: 5000, pool_size: 10, pool_fraction: 0.5, hidden: 128, hidden_layers: 2}
+  - name: td-leaf
+    spec:
+      game: checkers
+      algorithm: td_lambda
+      seed: 0
+      budget: {iterations: 50}
+      held_out_every: 5
+      init_from: {stage: td}
+      params:
+        games_per_iteration: 1000
+        depth: 3
+        agent: {pool_every: 5000, pool_size: 10, pool_fraction: 0.5, hidden: 128, hidden_layers: 2, search_depth: 3}

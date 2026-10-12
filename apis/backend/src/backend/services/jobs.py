@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from jobcore.specs import EvalSpec, PublishSpec, TrainSpec, parse_spec
+from jobcore.specs import EvalSpec, PipelineSpec, PublishSpec, TrainSpec, parse_spec
 from telemetry import Job, JobStore, data_dir
 
-SUBMITTABLE = {"train": TrainSpec, "evaluate": EvalSpec, "publish": PublishSpec}
+SUBMITTABLE = {"train": TrainSpec, "evaluate": EvalSpec, "publish": PublishSpec, "pipeline": PipelineSpec}
 
 
 class InvalidSpec(ValueError):
@@ -22,7 +22,7 @@ def submit(store: JobStore, spec: dict[str, Any], parent: str | None = None) -> 
     data = {**spec, "kind": spec.get("kind", "train")}
     if data["kind"] not in SUBMITTABLE:
         raise InvalidSpec(
-            f"a job is a train, evaluate or publish spec, not {data['kind']!r} (experiments: /experiments)"
+            f"a job is a train, evaluate, publish or pipeline spec, not {data['kind']!r} (experiments: /experiments)"
         )
     try:
         parsed = parse_spec(data)

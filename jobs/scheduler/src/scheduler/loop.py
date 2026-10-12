@@ -8,7 +8,10 @@ One `tick()`:
    since (so a broken arm doesn't loop forever);
 2. **reap** -- each worker it started: cancelled if asked (the runner stops it), `succeeded` with its result or
    `failed` with its log's tail once it exits, its heartbeat refreshed while it runs;
-3. **claim** -- queued jobs, oldest first, up to `max_workers` running at once.
+3. **pipelines** -- each pipeline job's next stage is submitted (`parent` = the pipeline's job id) once the last
+   succeeded, its `init_from: {stage}` filled in with that stage's run; the pipeline fails with the first stage that
+   does, and succeeds with every stage's result. A pipeline has no worker of its own;
+4. **claim** -- queued jobs, oldest first, up to `max_workers` running at once.
 
 `recover()` runs once at start: a `running` job whose worker is gone (this scheduler restarted, or the machine did) is
 marked `failed` -- the crash rule `recorded_run()` has for runs, one level up.
@@ -19,12 +22,13 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from jobcore.specs import ExperimentSpec
+from jobcore.specs import ExperimentSpec, PipelineSpec
 from telemetry import Job, JobStore, RunRegistry
 
 from scheduler.runner import Handle, LocalProcessRunner, Runner, log_tail, pid_alive, read_result
 
 ACTIVE = frozenset({"queued", "running"})
+WORKER_KINDS = frozenset({"train", "evaluate", "publish"})  # a pipeline is advanced here, never given a worker
 
 
 @dataclass
@@ -40,6 +44,8 @@ class Scheduler:
         """Marks `running` jobs with no live worker `failed`; returns their ids."""
         lost = []
         for job in self.jobs.list(status="running"):
+            if job.kind == "pipeline":
+                continue  # no worker: its stages are jobs of their own, recovered like any other
             if job.job_id not in self.running and not (job.pid and pid_alive(job.pid)):
                 self.jobs.update(job.job_id, status="failed", error="the worker was gone when the scheduler started")
                 lost.append(job.job_id)
@@ -48,6 +54,7 @@ class Scheduler:
     def tick(self) -> None:
         self.fan_out_experiments()
         self.reap()
+        self.advance_pipelines()
         self.claim()
 
     def run_forever(self, poll_interval: float = 1.0) -> None:
@@ -128,9 +135,49 @@ class Scheduler:
                 self.jobs.update(job_id, status="failed", error=f"exit code {code}\n{log_tail(handle.log)}".strip())
             del self.running[job_id]
 
+    def advance_pipelines(self) -> list[Job]:
+        """Starts queued pipelines and moves running ones on a stage; returns the stage jobs it submitted."""
+        submitted = []
+        for pipeline in [
+            *self.jobs.list(status="queued", kind="pipeline"),
+            *self.jobs.list(status="running", kind="pipeline"),
+        ]:
+            if pipeline.status == "queued":
+                if pipeline.cancel_requested:
+                    self.jobs.update(pipeline.job_id, status="cancelled")
+                    continue
+                pipeline = self.jobs.update(pipeline.job_id, status="running", started_at=time.time())
+            spec = PipelineSpec.model_validate(pipeline.spec)
+            stages = self.jobs.list(parent=pipeline.job_id)  # oldest first: stage i is the i-th job
+            active = [s for s in stages if s.status in ACTIVE]
+            if pipeline.cancel_requested:
+                for stage in active:
+                    self.jobs.request_cancel(stage.job_id)
+                if not any(self.jobs.get(s.job_id).status in ACTIVE for s in active):
+                    self.jobs.update(pipeline.job_id, status="cancelled")
+                continue
+            if active:
+                continue
+            results = {spec.stages[i].name: s.result or {} for i, s in enumerate(stages)}
+            if stages and stages[-1].status != "succeeded":
+                name = spec.stages[len(stages) - 1].name
+                error = f"stage {name} {stages[-1].status}: {stages[-1].error or ''}".strip()
+                self.jobs.update(pipeline.job_id, status="failed", error=error, result={"stages": results})
+                continue
+            if len(stages) == len(spec.stages):
+                self.jobs.update(pipeline.job_id, status="succeeded", result={"stages": results})
+                continue
+            try:
+                stage = spec.stage_spec(len(stages), results)
+            except ValueError as e:
+                self.jobs.update(pipeline.job_id, status="failed", error=str(e), result={"stages": results})
+                continue
+            submitted.append(self.jobs.submit(stage.kind, stage.model_dump(mode="json"), parent=pipeline.job_id))
+        return submitted
+
     def claim(self) -> None:
         while len(self.running) < self.max_workers:
-            job = self.jobs.claim_next()
+            job = self.jobs.claim_next(set(WORKER_KINDS))
             if job is None:
                 return
             if job.cancel_requested:

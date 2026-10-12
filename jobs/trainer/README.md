@@ -48,7 +48,7 @@ returns the run id. Runs land in the data directory (`telemetry.data_dir()`) lik
 
 | `tinylm.yaml` | TinyLM on Alice (docs/design/0004), recorded as a run (`paradigm: supervised`): a generation per `log_every` steps, fitness = minus the training loss, held-out score = minus the loss on fixed held-out windows. Writes `<data dir>/tinylm/<checkpoint>` for `publisher.models`, and stores the final weights as `<run_id>-weights`. |
 
-Every training script is ported; `jobs/checkers_recipe_run.py` (two `td_lambda` stages) stays a script until the
-scheduler runs pipelines (docs/design/0018 stage 6).
+Every training script is ported; the recipe (two `td_lambda` stages) is the pipeline
+`experiments/pipelines/checkers-recipe.yaml`, run by the scheduler.
 
 Tests: `uv run pytest jobs/trainer` (and the golden runs, `uv run pytest jobs/tests/test_golden.py`).
