@@ -280,7 +280,9 @@ architectural change that might conflict with a decision already made.
   runs queued jobs (`POST /jobs`): worker processes logged under `<data dir>/jobs/`, cancelled by CTRL_BREAK/SIGTERM
   (never Ctrl-C), recovered after a restart; it also fans stored experiments out into jobs and runs each one's report when its cells
   are done (`--submit experiments/<name>.yaml` stores one without the backend), and advances **pipelines** (a job of
-  kind `pipeline`: stages run one after another, `init_from: {stage: NAME}` continuing an earlier stage's run). **Experiments** are checked-in specs,
+  kind `pipeline`: stages run one after another, `init_from: {stage: NAME}` continuing an earlier stage's run) and
+  **schedules** (`experiments/schedules/*.yaml`, POST /schedules: submit a job every interval and/or after a matching run
+  completes, never piling up behind its last one). **Experiments** are checked-in specs,
   `experiments/<name>.yaml` (every historical comparison, converted from and checked against its recorded runs): arms
   (partial `TrainSpec`s, optional per-arm `seeds`, `baseline`, `init_from`) × rng seeds, tagged `config.experiment`/
   `arm`, then a report protocol (`experiment.snake-report`, `.rl-report`, `.checkers-field`, `.checkers-h2h`). The

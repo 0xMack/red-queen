@@ -114,7 +114,7 @@ def test_an_experiment_that_cant_run_is_refused(api):
 def test_schemas_describe_every_kind(api):
     client, _, _, _ = api
     schemas = client.get("/specs/schemas").json()
-    assert set(schemas["kinds"]) == {"train", "evaluate", "publish", "experiment", "pipeline"}
+    assert set(schemas["kinds"]) == {"train", "evaluate", "publish", "experiment", "pipeline", "schedule"}
     assert "neuroevolution@snake" in schemas["algorithms"] and "checkers.sprt" in schemas["protocols"]
     assert set(schemas["publish_targets"]) == {"snake", "tinylm", "scale-test"}
 
@@ -132,3 +132,20 @@ def test_a_pipeline_is_a_job_and_a_broken_one_is_refused(api):
     assert response.json()["kind"] == "pipeline" and jobs.get(response.json()["job_id"]).status == "queued"
     broken = {**pipeline, "stages": [{"name": "b", "spec": {**stage, "init_from": {"stage": "a"}}}]}
     assert client.post("/jobs", json=broken).status_code == 422
+
+
+def test_schedules_are_stored_listed_and_deleted(api):
+    client, _, _, _ = api
+    schedule = {"name": "nightly", "every": "1d", "submit": {"kind": "evaluate", "protocol": "bandit.skill.v1"}}
+    created = client.post("/schedules", json=schedule)
+    assert created.status_code == 201, created.text
+    assert created.json()["spec"]["every"] == "1d" and created.json()["fired_at"] is None
+    assert [s["name"] for s in client.get("/schedules").json()] == ["nightly"]
+    assert client.get("/schedules/nightly").json()["name"] == "nightly"
+    assert client.post("/schedules", json={**schedule, "every": None}).status_code == 422
+    assert (
+        client.post("/schedules", json={**schedule, "submit": {"kind": "evaluate", "protocol": "nope"}}).status_code
+        == 422
+    )
+    assert client.delete("/schedules/nightly").status_code == 204
+    assert client.get("/schedules/nightly").status_code == 404

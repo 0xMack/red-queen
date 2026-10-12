@@ -1,6 +1,7 @@
 """The scheduler's decisions, with a runner that only pretends: what gets claimed, submitted, reaped and recovered."""
 
 import itertools
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -228,3 +229,37 @@ def test_recover_leaves_a_running_pipeline_alone(world):
     pipeline = jobs.submit("pipeline", PIPELINE)
     scheduler.advance_pipelines()
     assert scheduler.recover() == [] and jobs.get(pipeline.job_id).status == "running"
+
+
+RERANK = {"kind": "schedule", "name": "rerank", "submit": {"kind": "evaluate", "protocol": "checkers.versus.v2"}}
+
+
+def test_an_interval_schedule_fires_when_due_and_never_piles_up(world):
+    scheduler, jobs, _, _ = world
+    stored = jobs.put_schedule("rerank", {**RERANK, "every": "1h"})
+    assert scheduler.fire_schedules(now=stored.updated_at + 60) == []  # not yet an hour since it was submitted
+    (job,) = scheduler.fire_schedules(now=stored.updated_at + 3600)
+    assert job.kind == "evaluate" and job.parent == "schedule:rerank"
+    assert scheduler.fire_schedules(now=stored.updated_at + 9 * 3600) == []  # its last job is still queued
+    jobs.update(job.job_id, status="succeeded")
+    assert scheduler.fire_schedules(now=stored.updated_at + 9 * 3600) != []
+
+
+def test_a_run_triggered_schedule_fires_once_per_new_matching_run(world):
+    scheduler, jobs, registry, _ = world
+    before = registry.create_run({"game": "checkers"})
+    registry.update_status(before, "completed")
+    jobs.put_schedule("rerank", {**RERANK, "on_run_completed": {"game": "checkers"}})
+    assert scheduler.fire_schedules() == []  # completed before the schedule existed
+
+    for config in ({"game": "snake"}, {"game": "checkers", "experiment": "e", "arm": "a"}):  # not entrants of its game
+        registry.update_status(registry.create_run(config), "completed")
+    assert scheduler.fire_schedules() == []
+    registry.create_run({"game": "checkers"})  # still running
+    assert scheduler.fire_schedules() == []
+
+    time.sleep(0.01)
+    registry.update_status(registry.create_run({"game": "checkers"}), "completed")
+    (job,) = scheduler.fire_schedules()
+    jobs.update(job.job_id, status="succeeded")
+    assert scheduler.fire_schedules() == []  # that run has been counted
