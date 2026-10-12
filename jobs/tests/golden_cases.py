@@ -39,18 +39,54 @@ JOBS = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class Case:
-    """Either a TrainSpec run by the trainer (`spec`: a ported job), or a script not yet ported: `module.main(**kwargs)`
-    with `patches` (module attribute -> value) applied first. A ported case's spec is what the script's kwargs and
-    patches meant, so its digest is unchanged."""
+    """A TrainSpec run by the trainer (`spec`: a ported job), a PipelineSpec whose stages run one after another
+    (`pipeline`), or a script not yet ported: `module.main(**kwargs)` with `patches` (module attribute -> value)
+    applied first. A ported case's spec is what the script's kwargs and patches meant, so its digest is unchanged."""
 
     module: str = ""
     kwargs: dict[str, Any] = field(default_factory=dict)
     patches: dict[str, Any] = field(default_factory=dict)  # "module.ATTR" -> value
     spec: dict[str, Any] | None = None
+    pipeline: dict[str, Any] | None = None
 
 
 def train(game: str, algorithm: str, generations: int, **fields: Any) -> Case:
     return Case(spec={"game": game, "algorithm": algorithm, "budget": {"generations": generations}, **fields})
+
+
+def _recipe_stage(iterations: int, agent: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "game": "checkers",
+        "algorithm": "td_lambda",
+        "budget": {"iterations": iterations},
+        "seed": 0,
+        "held_out_every": 1,
+        "params": {
+            "games_per_iteration": 20,
+            "depth": 1,
+            "monitor_games": 2,
+            "agent": {
+                "pool_every": 5000,
+                "pool_size": 10,
+                "pool_fraction": 0.5,
+                "hidden": 8,
+                "hidden_layers": 1,
+                **agent,
+            },
+        },
+    }
+
+
+def run_pipeline(pipeline: dict[str, Any]) -> tuple[str, ...]:
+    """A pipeline's stages run in order, as the scheduler runs them; returns each stage's run id."""
+    from jobcore.specs import PipelineSpec
+    from trainer import train as run_spec
+
+    spec = PipelineSpec.model_validate(pipeline).resolve()
+    results: dict[str, dict[str, Any]] = {}
+    for index, stage in enumerate(spec.stages):
+        results[stage.name] = {"run_id": run_spec(spec.stage_spec(index, results))}
+    return tuple(r["run_id"] for r in results.values())
 
 
 CASES: dict[str, Case] = {
@@ -210,19 +246,17 @@ CASES: dict[str, Case] = {
             },
         }
     ),
-    # A pipeline (docs/design/0018: scheduler): a TD run, then a TD-Leaf fine-tune continuing its network.
+    # A pipeline (docs/design/0018: scheduler): a TD run, then a TD-Leaf fine-tune continuing its network. Recorded from
+    # checkers_recipe_run.py (hidden 8, 1 layer, 40 + 4 games, 20 a iteration, leaf depth 2, depth 1, 2 monitor games).
     "recipe": Case(
-        "checkers_recipe_run",
-        {
-            "hidden": 8,
-            "layers": 1,
-            "td_games": 40,
-            "leaf_games": 4,
-            "leaf_depth": 2,
-            "depth": 1,
-            "games_per_iteration": 20,
-            "monitor_games": 2,
-        },
+        pipeline={
+            "kind": "pipeline",
+            "name": "recipe",
+            "stages": [
+                {"name": "td", "spec": _recipe_stage(2, {})},
+                {"name": "td-leaf", "spec": {**_recipe_stage(1, {"search_depth": 2}), "init_from": {"stage": "td"}}},
+            ],
+        }
     ),
     # Recorded as a run since 0018 stage 3c; the digest is still the checkpoint, so it must match the script's exactly.
     "tinylm": train("text", "tinylm", 0, budget={"steps": 3}, params={"checkpoint": "golden"}),
@@ -326,6 +360,8 @@ def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str
         from trainer import train as run_spec
 
         runner = runner or (lambda c: run_spec(c.spec))
+    elif case.pipeline is not None:
+        runner = runner or (lambda c: run_pipeline(c.pipeline))
     else:
         importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
     with tempfile.TemporaryDirectory() as scratch, _env("REDQUEEN_DATA_DIR", scratch), _patched(case.patches):

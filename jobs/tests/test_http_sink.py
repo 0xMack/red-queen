@@ -7,7 +7,7 @@ HTTP and lands identically.
 """
 
 import pytest
-from golden_cases import CASES, load_fixture, run_case
+from golden_cases import CASES, TOLERANT, close, load_fixture, run_case
 from golden_eval import EVAL_CASES, EvalCase, matches
 from golden_eval import load_fixture as load_eval_fixture
 from golden_eval import run_case as run_eval_case
@@ -32,7 +32,8 @@ def test_a_training_run_over_http_is_its_golden_run(name):
     from trainer import train
 
     expected = load_fixture()[name]
-    assert run_case(name, runner=lambda case: train(case.spec, sink=_http_sink())) == expected
+    actual = run_case(name, runner=lambda case: train(case.spec, sink=_http_sink()))
+    assert close(actual, expected) if name in TOLERANT else actual == expected  # TinyLM: last-bit noise per CPU
 
 
 @pytest.mark.parametrize("name", EVALUATIONS)

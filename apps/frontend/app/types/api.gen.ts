@@ -655,7 +655,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "train" | "evaluate" | "publish";
+            kind: "train" | "evaluate" | "publish" | "pipeline";
             /**
              * Log
              * @description The worker's log file, relative to the data directory.
@@ -1147,7 +1147,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | null;
-                kind?: ("train" | "evaluate" | "publish") | null;
+                kind?: ("train" | "evaluate" | "publish" | "pipeline") | null;
                 parent?: string | null;
             };
             header?: never;

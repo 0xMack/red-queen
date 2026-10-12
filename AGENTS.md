@@ -279,14 +279,15 @@ architectural change that might conflict with a decision already made.
   target on a small field. **`jobs/scheduler`** (`uv run python -m scheduler [--workers N]`) is the only thing that
   runs queued jobs (`POST /jobs`): worker processes logged under `<data dir>/jobs/`, cancelled by CTRL_BREAK/SIGTERM
   (never Ctrl-C), recovered after a restart; it also fans stored experiments out into jobs and runs each one's report when its cells
-  are done (`--submit experiments/<name>.yaml` stores one without the backend). **Experiments** are checked-in specs,
+  are done (`--submit experiments/<name>.yaml` stores one without the backend), and advances **pipelines** (a job of
+  kind `pipeline`: stages run one after another, `init_from: {stage: NAME}` continuing an earlier stage's run). **Experiments** are checked-in specs,
   `experiments/<name>.yaml` (every historical comparison, converted from and checked against its recorded runs): arms
   (partial `TrainSpec`s, optional per-arm `seeds`, `baseline`, `init_from`) × rng seeds, tagged `config.experiment`/
   `arm`, then a report protocol (`experiment.snake-report`, `.rl-report`, `.checkers-field`, `.checkers-h2h`). The
   remaining scripts (exports, the recipe) run with `uv run python jobs/<script>.py`.
   The trainer's `td_lambda` trains a Checkers evaluator by TD(λ) self-play (`params.agent.search_depth` > 1: TD-Leaf;
   `init_from` continues a network) and records it as an ordinary Checkers run (`representation: td_lambda`;
-  `alphazero` for 0017's learner), and `checkers_recipe_run.py` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `experiment.checkers-field` compares variants by points per game against a fixed
+  `alphazero` for 0017's learner), and the pipeline `experiments/pipelines/checkers-recipe.yaml` chains the best recipe (plain TD, then a TD-Leaf fine-tune) for leaderboard entrants; `experiment.checkers-field` compares variants by points per game against a fixed
   field (material-2/3/4 and the best evolved evaluator) -- a two-player game has no held-out *score* to rank by -- and,
   better, `experiment.checkers-h2h` (each arm against its baseline arm, head to head, docs/design/0013). The trainer's `pbt` is a
   population of self-play learners whose settings evolve (`params.exploit: false` is its random-search control), with

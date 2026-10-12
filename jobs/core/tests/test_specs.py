@@ -100,3 +100,34 @@ def test_schemas_describe_every_kind_and_algorithm():
     assert toy["budget_units"] == ["generations"] and set(toy["params"]["properties"]) == {"hidden", "sigma"}
     # a name registered per game is keyed by game too
     assert {"neuroevolution@checkers", "neuroevolution@snake", "gp"} <= set(described["algorithms"])
+
+
+def _pipeline(*stages):
+    return {"kind": "pipeline", "name": "p", "stages": [{"name": n, "spec": s} for n, s in stages]}
+
+
+GP = {"game": "symbolic-regression", "algorithm": "gp", "budget": {"generations": 2}}
+
+
+def test_a_pipeline_stage_continues_an_earlier_train_stage():
+    from jobcore.specs import PipelineSpec
+
+    spec = PipelineSpec.model_validate(_pipeline(("a", GP), ("b", {**GP, "init_from": {"stage": "a"}}))).resolve()
+    assert spec.stage_spec(1, {"a": {"run_id": "r1"}}).init_from == InitFrom(run="r1")
+    with pytest.raises(ValueError, match="no run yet"):
+        spec.stage_spec(1, {})
+
+
+@pytest.mark.parametrize(
+    ("stages", "error"),
+    [
+        ((("a", {**GP, "init_from": {"stage": "b"}}), ("b", GP)), "earlier train stage"),
+        ((("a", GP), ("a", GP)), "two stages"),
+        ((("a", {"kind": "experiment", "name": "x", "seeds": [0], "arms": {"a": {}}}),), "train, evaluate or publish"),
+    ],
+)
+def test_a_pipeline_that_cant_run_is_refused(stages, error):
+    from jobcore.specs import PipelineSpec
+
+    with pytest.raises(ValueError, match=error):
+        PipelineSpec.model_validate(_pipeline(*stages)).resolve()

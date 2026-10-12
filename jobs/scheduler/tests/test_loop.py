@@ -161,3 +161,70 @@ def test_submit_stores_an_experiment_file(tmp_path, monkeypatch):
     (experiment,) = open_job_store().list_experiments()
     assert experiment.name == "probe"
     assert [j.spec["tags"]["arm"] for j in open_job_store().list(parent="probe")] == ["a"]
+
+
+PIPELINE = {
+    "kind": "pipeline",
+    "name": "recipe",
+    "stages": [
+        {"name": "td", "spec": {"game": "checkers", "algorithm": "td_lambda", "budget": {"iterations": 2}}},
+        {
+            "name": "leaf",
+            "spec": {
+                "game": "checkers",
+                "algorithm": "td_lambda",
+                "budget": {"iterations": 1},
+                "init_from": {"stage": "td"},
+            },
+        },
+    ],
+}
+
+
+def test_a_pipeline_runs_its_stages_in_order_each_continuing_the_last(world):
+    scheduler, jobs, _, runner = world
+    pipeline = jobs.submit("pipeline", PIPELINE)
+    scheduler.tick()
+    (td,) = jobs.list(parent=pipeline.job_id)
+    assert jobs.get(pipeline.job_id).status == "running" and runner.started == [td.job_id]  # the pipeline: no worker
+    scheduler.tick()
+    assert len(jobs.list(parent=pipeline.job_id)) == 1  # the next stage waits
+
+    runner.finish(td.job_id, 0, {"run_id": "td-run"})
+    scheduler.tick()
+    _, leaf = jobs.list(parent=pipeline.job_id)
+    assert leaf.spec["init_from"] == {"run": "td-run", "experiment": None, "arm": None, "seed": None}
+    runner.finish(leaf.job_id, 0, {"run_id": "leaf-run"})
+    scheduler.tick()
+    scheduler.tick()
+    done = jobs.get(pipeline.job_id)
+    assert done.status == "succeeded"
+    assert done.result == {"stages": {"td": {"run_id": "td-run"}, "leaf": {"run_id": "leaf-run"}}}
+
+
+def test_a_pipeline_fails_with_its_first_failing_stage_and_a_cancel_stops_the_running_one(world):
+    scheduler, jobs, _, runner = world
+    failing = jobs.submit("pipeline", PIPELINE)
+    scheduler.tick()
+    (td,) = jobs.list(parent=failing.job_id)
+    runner.finish(td.job_id, 2)
+    scheduler.tick()
+    scheduler.tick()
+    assert jobs.get(failing.job_id).status == "failed" and jobs.get(failing.job_id).error.startswith("stage td failed")
+    assert len(jobs.list(parent=failing.job_id)) == 1
+
+    cancelled = jobs.submit("pipeline", PIPELINE)
+    scheduler.tick()
+    (td,) = jobs.list(parent=cancelled.job_id)
+    jobs.request_cancel(cancelled.job_id)
+    scheduler.tick()
+    scheduler.tick()
+    assert td.job_id in runner.stopped and jobs.get(td.job_id).status == "cancelled"
+    assert jobs.get(cancelled.job_id).status == "cancelled"
+
+
+def test_recover_leaves_a_running_pipeline_alone(world):
+    scheduler, jobs, _, _ = world
+    pipeline = jobs.submit("pipeline", PIPELINE)
+    scheduler.advance_pipelines()
+    assert scheduler.recover() == [] and jobs.get(pipeline.job_id).status == "running"

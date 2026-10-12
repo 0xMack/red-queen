@@ -25,7 +25,12 @@ Each tick (`scheduler.loop.Scheduler.tick`):
 2. **Reap** — each worker it started: stopped if cancelled; `succeeded` with its result (the workload's `--result`
    file: `{"run_id": ...}`, a summary or a report) or `failed` with its exit code and log tail when it exits;
    heartbeat refreshed while it runs.
-3. **Claim** — queued jobs, oldest first (an atomic claim in the job store: two schedulers never share a job), up to
+3. **Pipelines** — a job of kind `pipeline` (`kind: pipeline`, `stages: [{name, spec}]`, e.g.
+   `experiments/pipelines/checkers-recipe.yaml`) has no worker of its own: each stage becomes a job (`parent` = the
+   pipeline's job id) once the last succeeded, a train stage's `init_from: {stage: NAME}` filled in with that stage's
+   run. The pipeline fails with the first stage that fails, succeeds with every stage's result
+   (`{"stages": {name: result}}`), and a cancel stops its running stage.
+4. **Claim** — queued jobs, oldest first (an atomic claim in the job store: two schedulers never share a job), up to
    `--workers` at a time.
 
 On start, `recover()` marks `running` jobs whose worker is gone `failed` — the crash rule `recorded_run()` has for
@@ -37,7 +42,7 @@ Stopping never relies on Ctrl-C, which a console-less child often never receives
 elsewhere — turned into KeyboardInterrupt by the workload (`jobcore.cli`), so its run is marked `failed` — then a kill
 after `grace` seconds. A Kubernetes runner would implement the same `start`/`poll`/`stop`.
 
-Not yet (stage 6c): pipelines (the TD → TD-Leaf recipe), schedules.
+Not yet: schedules.
 
 Tests: `uv run pytest jobs/scheduler` — the decisions with a fake runner, and real worker processes (a job run end to
 end; a cancel that stops the worker cleanly, its run marked `failed`).

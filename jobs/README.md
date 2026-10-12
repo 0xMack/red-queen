@@ -42,8 +42,8 @@ themselves — see docs/design/0001) get wired to it for a real run.
   write real runs as the Learn chapters' recorded fallbacks.
 - **Checkers self-play** (docs/design/0010 Phase 4, 0014-0017): the trainer's `td_lambda` trains a position evaluator
   by TD(λ) or TD-Leaf(λ) (`params.agent.search_depth: N`), `alphazero` by AlphaZero-style search targets, each recorded
-  as an ordinary Checkers run; the tracked arms are `experiments/rl-selfplay-v1.yaml` and `selfplay-v2` ... `v8`; `checkers_recipe_run.py` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one command, for leaderboard
-  entrants (a pipeline of two trainer runs); the trainer's `pbt` is population-based training over self-play learners,
+  as an ordinary Checkers run; the tracked arms are `experiments/rl-selfplay-v1.yaml` and `selfplay-v2` ... `v8`; `experiments/pipelines/checkers-recipe.yaml` is the best recipe (plain TD, then a TD-Leaf fine-tune) as one pipeline
+  for leaderboard entrants; the trainer's `pbt` is population-based training over self-play learners,
   and `export_pbt_history.py` writes
   one run's population history for the Learn chapter.
 - **Bandits** (docs/design/0011): the evaluator's `bandit.skill.v1` is the bandit leaderboard;

@@ -3,8 +3,8 @@
 It claims queued jobs (POST /jobs) and runs each as a worker process, at most `--workers` at a time, and fans stored
 experiments (POST /experiments) out into jobs. Ctrl-C stops it and, cleanly, the workers it started. `--once` runs a
 single tick (recover, fan out, reap, claim) and returns -- for scripts and tests; workers it starts keep running.
-`--submit experiments/<name>.yaml` stores (or resubmits) an experiment first, as POST /experiments would, for working
-without the backend.
+`--submit FILE` stores (or resubmits) an experiment first, as POST /experiments would, or submits a pipeline (or any
+job spec) as POST /jobs would -- for working without the backend.
 """
 
 import argparse
@@ -20,16 +20,20 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--workers", type=int, default=1, help="jobs running at once")
     parser.add_argument("--poll", type=float, default=1.0, help="seconds between ticks")
     parser.add_argument("--once", action="store_true", help="one tick, then exit")
-    parser.add_argument("--submit", metavar="FILE", action="append", default=[], help="store this experiment first")
+    parser.add_argument(
+        "--submit", metavar="FILE", action="append", default=[], help="submit this experiment or job spec first"
+    )
     args = parser.parse_args(argv)
     jobs = open_job_store()
     for path in args.submit:
         spec = load_spec(path)
-        if not isinstance(spec, ExperimentSpec):
-            parser.error(f"{path} is a {spec.kind} spec, not an experiment")
         spec.resolve()
-        jobs.put_experiment(spec.name, spec.model_dump(mode="json"))
-        print(f"scheduler: submitted experiment {spec.name}", flush=True)
+        if isinstance(spec, ExperimentSpec):
+            jobs.put_experiment(spec.name, spec.model_dump(mode="json"))
+            print(f"scheduler: submitted experiment {spec.name}", flush=True)
+        else:
+            job = jobs.submit(spec.kind, spec.model_dump(mode="json"))
+            print(f"scheduler: submitted {spec.kind} job {job.job_id}", flush=True)
     scheduler = Scheduler(jobs, open_stores().registry, max_workers=args.workers)
     if args.once:
         scheduler.recover()

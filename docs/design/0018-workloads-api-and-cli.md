@@ -1,12 +1,14 @@
 # 0018 — Workloads, a job API, and the `redqueen` CLI
 
-Status: **Accepted; stages 1-6b built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
+Status: **Accepted; stages 1-6c (pipelines) built** (2026-10-12). Agreed with Mack in an interview on 2026-10-10 (the
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
 3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
 stage 5 (the backend's write endpoints, the HTTP sink, the job store and the job API), stage 6a (the scheduler's
 core) and stage 6b (experiments as specs: the report protocols, every historical experiment as `experiments/*.yaml`
-checked against its recorded runs, per-arm seeds, report jobs). Stages 6c-8 are not.
+checked against its recorded runs, per-arm seeds, report jobs) and stage 6c's pipelines (a `pipeline` job the
+scheduler advances a stage at a time; the recipe is `experiments/pipelines/checkers-recipe.yaml`). Schedules and
+stages 7-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -232,7 +234,7 @@ misread our arguments -- there is no graceful fallback to rely on. So:
 | `checkers_selfplay_run` | trainer `td_lambda`, `alphazero` |
 | `checkers_pbt_run` | trainer `pbt` |
 | `tinylm_run` | trainer `tinylm` |
-| `checkers_recipe_run` | `experiments/pipelines/checkers-recipe.yaml` |
+| `checkers_recipe_run` | `experiments/pipelines/checkers-recipe.yaml` (built) |
 | `snake_experiment`, `rl_experiment`, `checkers_selfplay_experiment` | scheduler fan-out + `experiments/*.yaml`; reports → evaluator `experiment.{snake-report,rl-report,checkers-field,checkers-h2h}` (built) |
 | `evaluate`, `evaluate_versus`, `evaluate_bandit` | evaluator protocols (definitions in arena) |
 | `checkers_sprt`, `checkers_round_robin` | evaluator `checkers_sprt`, `round_robin` |
