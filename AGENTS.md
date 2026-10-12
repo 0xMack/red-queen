@@ -276,8 +276,10 @@ architectural change that might conflict with a decision already made.
   measuring agreement on the protocol's games (the Snake evaluation then scores published champions *as their
   packages*: a variant that plays differently is its own `run:<id>@<variant>` entrant); `scale-test` publishes a large
   random model for the big-model path. `jobs/tests/test_golden_eval.py` pins every protocol, report and publish
-  target on a small field. The remaining scripts (experiments, exports, the recipe) run with
-  `uv run python jobs/<script>.py`.
+  target on a small field. **`jobs/scheduler`** (`uv run python -m scheduler [--workers N]`) is the only thing that
+  runs queued jobs (`POST /jobs`): worker processes logged under `<data dir>/jobs/`, cancelled by CTRL_BREAK/SIGTERM
+  (never Ctrl-C), recovered after a restart; it also fans stored experiments out into jobs. The remaining scripts
+  (experiments, exports, the recipe) run with `uv run python jobs/<script>.py`.
   `snake_experiment.py` runs a tagged (arm × rng seed) comparison of Snake neuroevolution and NEAT (each arm a
   partial `TrainSpec`, run by the trainer) and aggregates it (`GenerationStats.extras`,
   `config.experiment`/`arm` are how NEAT-specific curves and experiment groups are tracked).

@@ -4,7 +4,8 @@ Status: **Accepted; stages 1-4 built** (2026-10-10). Agreed with Mack in an inte
 decisions below record the answers). Built: stage 1 (foundations: `telemetry.data_dir()`/`open_stores()`, `libs/arena`,
 the deletions and moves), stage 2 (`jobcore`: the sink, run lifecycle, `TrainSpec` + registry; golden runs) and stages
 3a-3c (the trainer: the evolution family, RL, self-play, PBT and TinyLM), stage 4 (the evaluator and publisher) and
-stage 5 (the backend's write endpoints, the HTTP sink, the job store and the job API). Stages 6-8 are not.
+stage 5 (the backend's write endpoints, the HTTP sink, the job store and the job API) and stage 6a (the scheduler's
+core). Stages 6b-8 are not.
 Relates to: [0001](0001-fast-cpp-gp-pybind11.md) (algorithm libs never import `telemetry`),
 [0002](0002-realtime-visualization-architecture.md) (log-then-serve; distributed compute),
 [0005](0005-frontend-and-api-contracts.md) (one API module, reuse pydantic models, extract a module when something forces
@@ -273,8 +274,14 @@ misread our arguments -- there is no graceful fallback to rely on. So:
    records and serves: an experiment's matrix is *derived* from tagged runs and its jobs, so experiments run by the old
    scripts show as completed, and nothing goes stale if the scheduler restarts. Logs are polled by byte offset, not
    streamed: simple for a CLI to follow and for MCP to page. OpenAPI snapshot and frontend types regenerated each time.
-6. **scheduler:** queue claiming, `LocalProcessRunner`, experiment fan-out and reports, pipelines, cron. Every existing
-   experiment converted to YAML under its existing name, and the `*_experiment.py` scripts deleted.
+6. **scheduler**, in three PRs: (a) *built* -- claiming, `LocalProcessRunner` (worker processes in their own group,
+   logs under `<data dir>/jobs/`, results through the workloads' `--result` file; cancel by CTRL_BREAK/SIGTERM, which
+   `jobcore.cli` turns into KeyboardInterrupt so the run is marked `failed`), restart recovery, and experiment fan-out
+   (a continuing arm waits for its parent run; a failed cell is retried only after a resubmission). Workers run on the
+   scheduler's own interpreter, not `uv run --package`: one workspace venv has every workload, and a `uv run` per job
+   would re-resolve the environment each time. (b) experiment reports as evaluator protocols; every experiment
+   converted to YAML under its existing name, and the `*_experiment.py` scripts deleted. (c) pipelines (the recipe)
+   and schedules.
 7. **`redqueen` CLI:** every group above, `export` and `dev` included. AGENTS.md, the READMEs and the design docs'
    "run with" lines rewritten to CLI commands. `jobs/README.md` becomes a workload index.
 8. **MCP:** `redqueen mcp serve`.

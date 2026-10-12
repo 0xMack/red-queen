@@ -22,6 +22,8 @@ themselves — see docs/design/0001) get wired to it for a real run.
   `uv run python -m evaluator evaluator/specs/<protocol>.yaml [--set key=value ...]`. Replaced `evaluate.py`,
   `evaluate_versus.py`, `evaluate_bandit.py`, `checkers_sprt.py` and `checkers_round_robin.py`; see
   `evaluator/README.md`.
+- **`scheduler/` — the scheduler**: `uv run python -m scheduler`; claims queued jobs (`POST /jobs`) and runs them as
+  worker processes, and fans stored experiments out into jobs. See `scheduler/README.md`.
 - **`publisher/` — the publisher workload**: one `PublishSpec` (target `snake`, `tinylm` or `scale-test`) in, packages in
   the model store out. Replaced `publish_models.py` and `scale_test_package.py`; see `publisher/README.md`.
 - `snake_experiment.py` — a tracked *comparison*, each arm a partial `TrainSpec` run by the trainer: arms
