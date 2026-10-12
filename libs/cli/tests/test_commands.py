@@ -156,3 +156,29 @@ def test_set_needs_a_key_and_a_value(cli, tmp_path, bad):
     spec = tmp_path / "gp.yaml"
     spec.write_bytes(TRAIN.encode())
     assert cli("jobs", "submit", str(spec), "--set", bad).exit_code == 2
+
+
+def test_export_submits_the_frontend_publish_targets(cli):
+    run = _run(cli, {"game": "snake", "representation": "q_learning"})
+    ballot = json.loads(cli("--json", "export", "ballot", "--no-wait").output)
+    assert ballot["kind"] == "publish" and ballot["spec"]["target"] == "frontend.ballot"
+    curves = json.loads(cli("--json", "export", "rl-curves", "dqn-snake", "--no-wait").output)
+    assert curves["spec"]["params"]["names"] == ["dqn-snake"]
+    recording = json.loads(cli("--json", "export", "rl-recording", run[:6], "--label", "x", "--no-wait").output)
+    assert recording["spec"]["params"] == {"run": run, "label": "x"}
+    pbt = json.loads(cli("--json", "export", "pbt-history", "--seed", "2", "--no-wait").output)
+    assert pbt["spec"]["params"]["seed"] == 2 and pbt["spec"]["params"]["arm"] == "g-pbt"
+
+
+def test_dev_finds_the_repo_root(monkeypatch, tmp_path):
+    import typer
+
+    from redqueen_cli.commands.local import repo_root
+
+    root = repo_root()
+    assert (root / "libs" / "cli").is_dir()
+    monkeypatch.chdir(root / "libs" / "cli" / "src")
+    assert repo_root() == root
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(typer.BadParameter):
+        repo_root()

@@ -1,0 +1,4 @@
+# A tabular run as the Q-learning chapter's no-WASM fallback. `redqueen export rl-recording RUN`.
+kind: publish
+target: frontend.rl-recording
+params: {run: b3f9c2a1}

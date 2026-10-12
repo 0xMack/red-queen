@@ -1,0 +1,4 @@
+# One PBT run's population history as pbtHistory.ts (the "Who to Play" chapter). `redqueen export pbt-history`.
+kind: publish
+target: frontend.pbt-history
+params: {experiment: selfplay-v4, arm: g-pbt, seed: 0}

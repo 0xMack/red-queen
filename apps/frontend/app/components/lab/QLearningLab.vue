@@ -9,7 +9,7 @@ import { greedyBarTerms, greedyValues } from "~/data/math/rl-shared"
 // greedy policy playing, move by move, with the table row it's in and the three values it's choosing between.
 // Right: the knobs, and the learning curve (unseen games, against env steps) next to the greedy baseline and the
 // best evolved champion. Below: the whole reachable Q-table. Without WebAssembly, a recorded run of the same
-// algorithm (jobs/export_rl_recording.py) stands in.
+// algorithm (redqueen export rl-recording) stands in.
 
 const GREEDY = 17.89 // greedy heuristic, snake.score.v2
 const NEAT = 37.95 // best evolved champion (NEAT, 409M env steps)

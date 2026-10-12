@@ -39,12 +39,10 @@ JOBS = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class Case:
-    """A TrainSpec run by the trainer (`spec`: a ported job), a PipelineSpec whose stages run one after another
-    (`pipeline`), or a script not yet ported: `module.main(**kwargs)` with `patches` (module attribute -> value)
-    applied first. A ported case's spec is what the script's kwargs and patches meant, so its digest is unchanged."""
+    """A TrainSpec run by the trainer (`spec`) or a PipelineSpec whose stages run one after another (`pipeline`), with
+    `patches` (module attribute -> value) applied first. Each was recorded from the script it replaced; a case's spec
+    is what that script's kwargs and patches meant, so its digest is unchanged."""
 
-    module: str = ""
-    kwargs: dict[str, Any] = field(default_factory=dict)
     patches: dict[str, Any] = field(default_factory=dict)  # "module.ATTR" -> value
     spec: dict[str, Any] | None = None
     pipeline: dict[str, Any] | None = None
@@ -353,19 +351,15 @@ def close(actual: Any, expected: Any, rel: float = 1e-9, abs_tol: float = 1e-9) 
 
 
 def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str, Any]:
-    """Runs one case in a fresh data directory and returns its digest. `runner` replaces calling the old script's
-    `main` -- how a ported adapter is checked against the same fixture."""
+    """Runs one case in a fresh data directory and returns its digest. `runner` replaces the trainer -- how the same
+    case is checked over another path (the HTTP sink)."""
     case = CASES[name]
-    if case.spec is not None:
+    if runner is None:
         from trainer import train as run_spec
 
-        runner = runner or (lambda c: run_spec(c.spec))
-    elif case.pipeline is not None:
-        runner = runner or (lambda c: run_pipeline(c.pipeline))
-    else:
-        importlib.import_module(case.module)  # bound before patching, so a patch always lands on the live binding
+        runner = (lambda c: run_spec(c.spec)) if case.spec is not None else (lambda c: run_pipeline(c.pipeline))
     with tempfile.TemporaryDirectory() as scratch, _env("REDQUEEN_DATA_DIR", scratch), _patched(case.patches):
-        result = runner(case) if runner else importlib.import_module(case.module).main(**case.kwargs)
+        result = runner(case)
         if case.spec is not None and case.spec["algorithm"] == "tinylm":
             return digest_tinylm(case.spec["params"]["checkpoint"])
         run_ids = result if isinstance(result, tuple) else (result,)
