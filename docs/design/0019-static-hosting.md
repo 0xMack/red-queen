@@ -1,7 +1,7 @@
 # 0019 — Hosting the site with no server
 
-Status: **Accepted; being built** (2026-10-17): the snapshot (`site` target) is built. The frontend's static mode and
-the deploy command are not.
+Status: **Accepted; being built** (2026-10-17): the snapshot (`site` target) and the frontend's static mode
+(`pnpm generate:static`) are built. The deploy command is not.
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one app, one API; `useApi` is the only door to the backend),
 [0009](0009-client-side-inference-at-scale.md) (everything a visitor runs, runs in their browser; model packages are
 content-addressed blobs, and whether R2 or the HF Hub hosts them was left open),
@@ -50,6 +50,8 @@ be reachable from the internet.
   Both remain available locally.
 - The frontend needs a static mode. `useApi` maps a path to its `.json` file and refuses non-GETs; `/watch` reads
   the pre-built package; the metrics store doesn't open a stream; run control is hidden.
+- ONNX Runtime's own `.mjs`/`.wasm` are served from the data host, not the site: its WebGPU build (~26 MB) is over
+  Pages' 25 MiB per-file limit. The static build fails if any file is over the limit.
 - The page must be cross-origin isolated (`Cross-Origin-Opener-Policy`/`-Embedder-Policy`) for multithreaded ONNX
   Runtime. The data host must then send CORS headers, and third-party resources the page loads (Google Fonts today)
   must allow it, or be served from the site itself.

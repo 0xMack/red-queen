@@ -75,6 +75,9 @@ const progress = computed(() =>
 // Generation pinning (watchable runs): click the chart or a table row to watch that generation's
 // champion; the WatchChampion panel's "follow latest" clears it.
 const pinned = ref<number | null>(null)
+// Only a live backend can package an older generation's champion: the public site's static copy holds each run's latest
+// (docs/design/0019), so there the chart and table aren't clickable and the latest champion plays.
+const pinnable = computed(() => api.live && (meta.value?.watchable ?? false))
 const markerGeneration = computed(() => pinned.value ?? (meta.value?.watchable ? latest.value?.generation ?? null : null))
 
 // Training fitness vs. the champion's score on unseen games, at the generations the job checked --
@@ -134,7 +137,9 @@ function displayValue(value: unknown): string {
 // Pause/resume/step (POST /runs/{id}/control) -- only offered while a job is actually listening.
 const controlBusy = ref(false)
 const controlError = ref<string | null>(null)
-const controllable = computed(() => run.value && !stale.value && (run.value.status === "running" || run.value.status === "paused"))
+const controllable = computed(
+  () => api.live && run.value && !stale.value && (run.value.status === "running" || run.value.status === "paused"),
+)
 async function control(action: "pause" | "resume" | "step") {
   controlBusy.value = true
   controlError.value = null
@@ -222,13 +227,13 @@ async function copyId() {
       <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <div class="flex min-w-0 flex-col gap-6">
           <UiPanel :title="`${capitalize(terms.fitness)} over ${terms.unit}s`">
-            <template v-if="meta?.watchable" #actions><span class="text-xs text-fg-subtle">Click the chart to watch that {{ terms.unit }}'s champion.</span></template>
+            <template v-if="pinnable" #actions><span class="text-xs text-fg-subtle">Click the chart to watch that {{ terms.unit }}'s champion.</span></template>
             <FitnessChart
               :x-label="terms.unit"
               :history="history"
               :height="320"
               :marker="markerGeneration"
-              :clickable="meta?.watchable ?? false"
+              :clickable="pinnable"
               @select="pinned = $event"
             />
           </UiPanel>
@@ -307,7 +312,7 @@ async function copyId() {
             <UiKeyValues :entries="summaryEntries" />
           </template>
         </UiPanel>
-        <RunGenerationsTable class="min-w-0" :history="history" :terms="terms" :pinned="pinned" :clickable="meta?.watchable ?? false" @pin="pinned = $event" />
+        <RunGenerationsTable class="min-w-0" :history="history" :terms="terms" :pinned="pinned" :clickable="pinnable" @pin="pinned = $event" />
       </div>
     </template>
   </main>

@@ -396,6 +396,35 @@ pnpm dev
 
 Then open `http://localhost:3000`.
 
+## The public site (static mode)
+
+redqueen.mackinations.ca runs with no server (docs/design/0019).
+
+```bash
+pnpm generate:static
+```
+
+This builds a single-page app (`scripts/build-static.mjs`) that reads the API's static copy (`redqueen publish site`)
+from `https://redqueen-data.mackinations.ca/api`. Three environment variables control it, and each can be overridden,
+for example to point at a local copy for testing: `NUXT_PUBLIC_API_MODE=static`, `NUXT_PUBLIC_API_BASE` and
+`NUXT_PUBLIC_ORT_BASE`. The build writes `.output/public` (for Cloudflare Pages) and `.output/ort/<version>/`
+(ONNX Runtime's files, for the data host).
+
+What static mode changes:
+- **`useApi` reads `<base><path>.json`** and refuses anything but GET. `api.live` is false, so pages hide what needs a
+  server: run control, the metrics stream, and pinning an older generation (only each run's latest champion is
+  published). `api.packageChampion` reads the export the snapshot ran ahead of time instead of POSTing for one.
+- **ONNX Runtime's `.mjs`/`.wasm` load from the data host** (`__ORT_BASE__`, a build-time constant, because
+  `inference/runtime.ts` runs in workers), not from the bundle: its WebGPU build is over Pages' 25 MiB per-file limit.
+  The build deletes the copies Vite emits anyway (ORT's own bundle references them), and fails if any file is over the
+  limit.
+- **`public/_headers`** makes the page cross-origin isolated (COOP/COEP), so ONNX Runtime can run multithreaded; the
+  data host must send CORS. That's also why the fonts are bundled (`@fontsource*`) rather than loaded from Google
+  Fonts.
+- **No `404.html`**, so Pages answers deep links (`/runs/<id>`) with the app.
+
+Development is unchanged: `pnpm dev` is `live` against `apis/backend`, with ONNX Runtime bundled.
+
 ## Notes
 
 - Package manager is `pnpm` (this app's own `node_modules`/lockfile -- separate from the repo's

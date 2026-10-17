@@ -6,12 +6,16 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
+    "generate:static": "node scripts/build-static.mjs",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "gen:api-types": "openapi-typescript app/types/openapi.json -o app/types/api.gen.ts",
     "typecheck": "nuxi typecheck"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
     "@pinia/nuxt": "^1.0.2",
     "@vue/devtools-api": "^8.2.1",
     "katex": "^0.18.9",

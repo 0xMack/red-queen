@@ -33,6 +33,8 @@ export const useMetricsStreamStore = defineStore("metricsStream", () => {
       return
     }
 
+    if (!api.live) return // the public site: a static copy holds only finished runs, so there's nothing to follow
+
     const lastSeen = history.value.at(-1)
     const sinceGeneration = lastSeen ? lastSeen.generation + 1 : 0
     const url = api.url(`/runs/${id}/metrics/stream?since_generation=${sinceGeneration}`)
