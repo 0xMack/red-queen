@@ -75,10 +75,7 @@ export function useWatchSession(runId: string, options: WatchOptions = {}) {
   // A champion that was never published (a still-training run's latest, a pinned generation) is
   // exported on demand by the backend -- the same package format, so it runs the same way.
   async function onDemand(ref: string): Promise<Availability> {
-    const exported = await api.fetch<{ base_url: string; package_id: string; variants: string[] }>(
-      `/runs/${runId}/artifacts/${ref}/package`,
-      { method: "POST" },
-    )
+    const exported = await api.packageChampion<{ base_url: string; package_id: string; variants: string[] }>(runId, ref)
     const [manifest, profile] = await Promise.all([
       $fetch<ModelManifest>(`${exported.base_url}/manifests/${exported.package_id}.json`),
       probeDevice(),

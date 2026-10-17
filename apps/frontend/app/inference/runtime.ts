@@ -8,10 +8,6 @@
 // main thread (app/inference/match.ts) and hand the worker a ModelSpec.
 
 import type * as OrtNamespace from "onnxruntime-web"
-import ortWasmMjs from "onnxruntime-web/ort-wasm-simd-threaded.mjs?url"
-import ortWasm from "onnxruntime-web/ort-wasm-simd-threaded.wasm?url"
-import ortWebGpuMjs from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url"
-import ortWebGpuWasm from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url"
 import { fetchBlob, fetchBlobs } from "~/inference/blobs"
 import type { Backend, ModelSpec, TensorDtype } from "~/types/modelpack"
 
@@ -24,12 +20,38 @@ const THREADS_ABOVE_BYTES = 4 * 1024 * 1024
 
 const runtimes = new Map<Backend, Promise<Ort>>()
 
+// Where ORT's own runtime files come from. A build-time constant (nuxt.config.ts, NUXT_PUBLIC_ORT_BASE): empty in
+// development, so they're bundled with the app; the public site sets it to the data host (docs/design/0019), because
+// the WebGPU build (~26 MB) is over Cloudflare Pages' 25 MiB per-file limit. Set, the bundled branch below is dead
+// code, and the bundler emits neither file. Cross-origin is fine: the data host sends CORS, and ORT starts its worker
+// threads from a blob it fetched.
+declare const __ORT_BASE__: string
+
+async function wasmPaths(backend: Backend): Promise<{ mjs: string; wasm: string }> {
+  if (__ORT_BASE__) {
+    const name = backend === "webgpu" ? "ort-wasm-simd-threaded.asyncify" : "ort-wasm-simd-threaded"
+    return { mjs: `${__ORT_BASE__}/${name}.mjs`, wasm: `${__ORT_BASE__}/${name}.wasm` }
+  } else {
+    const [mjs, wasm] =
+      backend === "webgpu"
+        ? await Promise.all([
+            import("onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url"),
+            import("onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url"),
+          ])
+        : await Promise.all([
+            import("onnxruntime-web/ort-wasm-simd-threaded.mjs?url"),
+            import("onnxruntime-web/ort-wasm-simd-threaded.wasm?url"),
+          ])
+    return { mjs: mjs.default, wasm: wasm.default }
+  }
+}
+
 function loadOrt(backend: Backend, downloadBytes: number): Promise<Ort> {
   let runtime = runtimes.get(backend)
   if (!runtime) {
     runtime = (async () => {
       const ort = (backend === "webgpu" ? await import("onnxruntime-web/webgpu") : await import("onnxruntime-web/wasm")) as Ort
-      ort.env.wasm.wasmPaths = backend === "webgpu" ? { mjs: ortWebGpuMjs, wasm: ortWebGpuWasm } : { mjs: ortWasmMjs, wasm: ortWasm }
+      ort.env.wasm.wasmPaths = await wasmPaths(backend)
       ort.env.wasm.proxy = false // already off the main thread
       ort.env.logLevel = "error"
       return ort

@@ -1,0 +1,14 @@
+# Cloudflare Pages response headers for the public site (docs/design/0019). Ignored by `pnpm dev`.
+#
+# Cross-origin isolation (COOP/COEP) enables SharedArrayBuffer, so ONNX Runtime can run multithreaded
+# (inference/runtime.ts checks `crossOriginIsolated`). Everything the page loads from elsewhere must then allow it:
+# the data host (redqueen-data.mackinations.ca) sends CORS headers.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Vite's output is content-hashed: a changed file is a new name, so these never need revalidating.
+/_nuxt/*
+  Cache-Control: public, max-age=31536000, immutable
