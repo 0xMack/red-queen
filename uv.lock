@@ -215,6 +215,7 @@ dependencies = [
     { name = "evolve" },
     { name = "fastapi" },
     { name = "games" },
+    { name = "httpx" },
     { name = "jobcore" },
     { name = "modelpack" },
     { name = "sse-starlette" },
@@ -227,6 +228,7 @@ requires-dist = [
     { name = "evolve", editable = "libs/evolve" },
     { name = "fastapi", specifier = ">=0.141" },
     { name = "games", editable = "libs/games" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "jobcore", editable = "jobs/core" },
     { name = "modelpack", editable = "libs/modelpack" },
     { name = "sse-starlette", specifier = ">=2.2" },
@@ -2559,6 +2561,7 @@ version = "0.1.0"
 source = { editable = "jobs/publisher" }
 dependencies = [
     { name = "arena" },
+    { name = "backend" },
     { name = "evaluator" },
     { name = "jobcore" },
     { name = "modelpack" },
@@ -2569,6 +2572,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "arena", editable = "libs/arena" },
+    { name = "backend", editable = "apis/backend" },
     { name = "evaluator", editable = "jobs/evaluator" },
     { name = "jobcore", editable = "jobs/core" },
     { name = "modelpack", editable = "libs/modelpack" },

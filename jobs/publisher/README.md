@@ -21,6 +21,16 @@ uv run redqueen export ballot                                   # a frontend.* t
 - **`scale-test`** (was `scale_test_package.py`) — TinyLM's architecture at GPT-2-small proportions with random weights,
   for the big-model path (`/dev/inference`): download, shards, caching, WebGPU. Its text is noise, and it's labelled so.
 
+**`site`** (docs/design/0019) is the public site's data, with no server. It writes `<data dir>/site/` (or
+`params.out`), which `redqueen dev deploy` uploads to R2:
+- `api/<route>.json` for every GET route the frontend reads, rendered through the API itself (`backend.static_site`),
+  so each file is exactly what the API answers. `tests/test_site.py` checks every one against the live route.
+- `models/` holds the model files those responses refer to.
+- `index.json` lists every file's sha256, for incremental uploads.
+
+Each Snake run's latest champion is packaged ahead of time, standing in for the on-demand export. Live runs,
+unreferenced champions and the scale-test model are left out.
+
 **Frontend data files** (`publisher/frontend.py`, was `jobs/export_*.py`). The Learn chapters draw these from real
 results. They are generated, written under `apps/frontend/app/data/` (or `params.out`), and committed. Garbage
 collection doesn't apply to them, since they aren't in the model store. Each target has a `redqueen export` command:

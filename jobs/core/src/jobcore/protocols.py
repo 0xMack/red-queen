@@ -105,10 +105,21 @@ class RlRecordingParams(FrontendParams):
     label: str | None = Field(None, description="How the chapter describes it (default: built from its config).")
 
 
+class SiteParams(_Params):
+    out: str | None = Field(None, description="Where to write it (default: <data dir>/site).")
+    models_base_url: str = Field(
+        "https://redqueen-data.mackinations.ca/models", description="Where the uploaded model files are served from."
+    )
+    include_scale_test: bool = Field(False, description="Also the ~340 MB scale-test model (/dev/inference).")
+
+
 register_publish_target(PublishTarget("snake", PublishParams, "the Snake leaderboard's champions, fp64 + fp32"))
 register_publish_target(PublishTarget("tinylm", PublishParams, "every TinyLM checkpoint, fp32 + int8"))
 register_publish_target(
     PublishTarget("scale-test", ScaleTestPublishParams, "a large random-weight model for the big-model path")
+)
+register_publish_target(
+    PublishTarget("site", SiteParams, "the API's public GET routes as static files, for hosting with no server")
 )
 # Frontend data files the Learn chapters draw (publisher.frontend): written into the repo, then committed.
 register_publish_target(PublishTarget("frontend.ballot", FrontendParams, "the Checkers ballot, checkersBallot.ts"))

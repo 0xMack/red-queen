@@ -11,6 +11,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
+    "backend",  # the `site` target renders the API's own routes to static files (backend.static_site)
     "arena",
     "evaluator",
     "jobcore",
@@ -21,6 +22,7 @@ dependencies = [
 
 [tool.uv.sources]
 arena = { workspace = true }
+backend = { workspace = true }
 evaluator = { workspace = true }
 jobcore = { workspace = true }
 modelpack = { workspace = true }

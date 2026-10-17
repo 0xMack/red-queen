@@ -30,7 +30,8 @@ def target(name: str) -> Callable[[Target], Target]:
 def publish(spec: PublishSpec | dict[str, Any], sink: Sink | None = None) -> dict[str, Any]:
     import publisher.frontend
     import publisher.models
-    import publisher.scale_test  # noqa: F401
+    import publisher.scale_test
+    import publisher.site  # noqa: F401
 
     spec = spec if isinstance(spec, PublishSpec) else PublishSpec.model_validate(spec)
     _target, params = spec.resolve()
