@@ -40,8 +40,8 @@ Two groups produce files in the repo:
   command submits a publisher job (`frontend.*` targets), so it still goes through the API, and the file is written
   in the checkout the scheduler runs from.
 - **`dev`** is the only local-only group. `up` starts the backend, the scheduler and the frontend together, and
-  Ctrl-C stops them cleanly. `build-wasm [games|rl]`, `openapi`, `bench-rl` and `screenshots RUN` run the repo's own
-  scripts as subprocesses; the CLI still imports none of them.
+  Ctrl-C stops them cleanly. `deploy` publishes redqueen.mackinations.ca (docs/deploying.md). `build-wasm [games|rl]`, `openapi`,
+  `bench-rl` and `screenshots RUN` run the repo's own scripts as subprocesses; the CLI still imports none of them.
 
 **`redqueen mcp serve`** serves the same API as MCP tools for agents. Install it with
 `uv sync --all-packages --all-extras` (it is the optional `mcp` extra), then add it to an agent, for example

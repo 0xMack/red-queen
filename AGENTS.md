@@ -15,7 +15,7 @@ both ways to the demos; 0013: measuring two-player strength — ballot openings,
 training regimes — opponent pools, leagues, PFSP, population-based training; 0015: TD-Leaf from the start vs. as a
 fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider network; 0017: AlphaZero-style self-play --
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
-server -- a static copy of the API's public reads on Cloudflare) — read the relevant one before an
+server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout

@@ -1,7 +1,8 @@
 # 0019 — Hosting the site with no server
 
-Status: **Accepted; being built** (2026-10-17): the snapshot (`site` target) and the frontend's static mode
-(`pnpm generate:static`) are built. The deploy command is not.
+Status: **Accepted; built** (2026-10-17): the snapshot (`site` target), the frontend's static mode
+(`pnpm generate:static`) and `redqueen dev deploy`. The one-time Cloudflare setup and the release loop are in
+[docs/deploying.md](../deploying.md).
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one app, one API; `useApi` is the only door to the backend),
 [0009](0009-client-side-inference-at-scale.md) (everything a visitor runs, runs in their browser; model packages are
 content-addressed blobs, and whether R2 or the HF Hub hosts them was left open),
@@ -43,6 +44,10 @@ be reachable from the internet.
    - Data and site deploy separately: a new training result is a data upload, not a site rebuild.
 5. **Incremental uploads:** `index.json` lists every file with its sha256, and a deploy uploads only the files whose
    hash differs from the bucket's copy of the index. Model blobs are named by their hash, so they never re-upload.
+   The uploader (`jobs/publisher/scripts/deploy_r2.py`, R2's S3 API) is a standalone `uv run --script` with its own
+   boto3, so no workspace package depends on it. The site goes to Pages by direct upload (Wrangler), not a git-driven
+   build, because its data is local anyway. `redqueen dev deploy` runs the three steps in order -- build, upload data,
+   deploy site -- so a new site never asks for files that aren't there yet.
 
 ## Consequences
 
