@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Annotated
@@ -131,11 +132,10 @@ WRANGLER = "wrangler@4"
 @dev.command()
 def deploy(
     data: Annotated[bool, typer.Option("--data/--no-data", help="Upload the snapshot and ONNX Runtime to R2.")] = True,
-    site: Annotated[bool, typer.Option("--site/--no-site", help="Build the site and deploy it to Pages.")] = True,
+    site: Annotated[bool, typer.Option("--site/--no-site", help="Build the site and deploy its Worker.")] = True,
     snapshot: Annotated[
         Path | None, typer.Option(help="`redqueen publish site`'s output (default: <data dir>/site).")
     ] = None,
-    project: Annotated[str, typer.Option(help="The Cloudflare Pages project.")] = "redqueen",
     prune: Annotated[bool, typer.Option(help="Delete bucket objects the new snapshot no longer lists.")] = False,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Build, and say what would upload; deploy nothing.")
@@ -144,10 +144,10 @@ def deploy(
     """Publishes redqueen.mackinations.ca (docs/design/0019; one-time setup: docs/deploying.md).
 
     In order: build the static site (`pnpm generate:static`), upload the data (the snapshot from `redqueen publish
-    site`, plus ONNX Runtime) to R2, then deploy the site to Cloudflare Pages. Data goes first, so a new site never asks
-    for files that aren't there yet. Credentials come from the environment: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and
-    R2_SECRET_ACCESS_KEY for R2; CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (or a one-time `wrangler login`) for
-    Pages."""
+    site`, plus ONNX Runtime) to R2, then deploy the site (`wrangler deploy`: a static-assets Worker, apps/frontend/
+    wrangler.jsonc, which also connects redqueen.mackinations.ca). Data goes first, so a new site never asks for files
+    that aren't there yet. Credentials come from the environment: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and
+    R2_SECRET_ACCESS_KEY for R2; a one-time `wrangler login` (or CLOUDFLARE_API_TOKEN) for the Worker."""
     root = repo_root()
     frontend = root / "apps" / "frontend"
     if site or not (frontend / ".output" / "ort").exists():
@@ -164,10 +164,78 @@ def deploy(
         _run(*command, *(["--prune"] if prune else []), *(["--dry-run"] if dry_run else []))
     if site:
         if dry_run:
-            typer.echo(f"dry run: would deploy {frontend / '.output' / 'public'} to Pages project {project}", err=True)
+            _run(_pnpm(), "dlx", WRANGLER, "deploy", "--dry-run", cwd=frontend)  # checks wrangler.jsonc and the assets
             return
-        _run(_pnpm(), "dlx", WRANGLER, "pages", "deploy", ".output/public", "--project-name", project,
-             "--branch", "main", cwd=frontend)  # fmt: skip
+        _run(_pnpm(), "dlx", WRANGLER, "deploy", cwd=frontend)
+
+
+def _listed(output: str, field: str) -> set[str]:
+    """The values of a Wrangler list's `field:` lines (`name:           redqueen-data` -> {"redqueen-data"})."""
+    return {line.split(":", 1)[1].strip() for line in output.splitlines() if line.startswith(f"{field}:")}
+
+
+def _wrangler_output(frontend: Path, *args: str) -> str:
+    """A Wrangler command's output, for checking what already exists (a failure is an empty answer)."""
+    done = subprocess.run(
+        [_pnpm(), "dlx", WRANGLER, *args],
+        cwd=frontend, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+    )  # fmt: skip
+    return done.stdout if done.returncode == 0 else ""
+
+
+@dev.command("cloudflare-setup")
+def cloudflare_setup(
+    bucket: Annotated[str, typer.Option(help="The R2 bucket the data is served from.")] = "redqueen-data",
+    domain: Annotated[str, typer.Option(help="The bucket's public domain.")] = "redqueen-data.mackinations.ca",
+    zone_id: Annotated[
+        str | None,
+        typer.Option(help="mackinations.ca's zone ID (dashboard: the zone's Overview), to connect the domain."),
+    ] = None,
+) -> None:
+    """The one-time Cloudflare setup, through Wrangler (docs/deploying.md); safe to re-run -- each step is skipped if
+    it's already done. Needs `wrangler login` (or CLOUDFLARE_API_TOKEN) first.
+
+    Creates the R2 bucket, disables its r2.dev URL (the custom domain is the only way in), connects the custom domain
+    and sets the CORS rule (the uploader's, `deploy_r2.py --print-cors`). The site's Worker needs no setup: the first
+    `redqueen dev deploy` creates it and connects redqueen.mackinations.ca (wrangler.jsonc). Not Wrangler's to do, and
+    so left to the dashboard: the R2 upload token (S3 keys)."""
+    root = repo_root()
+    frontend = root / "apps" / "frontend"
+
+    def wrangler(*args: str) -> None:
+        _run(_pnpm(), "dlx", WRANGLER, *args, cwd=frontend)
+
+    if bucket in _listed(_wrangler_output(frontend, "r2", "bucket", "list"), "name"):
+        typer.echo(f"bucket {bucket}: exists")
+    else:
+        wrangler("r2", "bucket", "create", bucket)
+    wrangler("r2", "bucket", "dev-url", "disable", bucket, "--force")
+
+    if domain in _listed(_wrangler_output(frontend, "r2", "bucket", "domain", "list", bucket), "domain"):
+        typer.echo(f"domain {domain}: connected")
+    elif zone_id is None:
+        raise typer.BadParameter(f"{domain} isn't connected to {bucket} yet: pass --zone-id (the zone's Overview page)")
+    else:
+        wrangler("r2", "bucket", "domain", "add", bucket, "--domain", domain, "--zone-id", zone_id,
+                 "--min-tls", "1.2", "--force")  # fmt: skip
+
+    policy = subprocess.run(
+        [shutil.which("uv") or "uv", "run", "--script", str(root / "jobs" / "publisher" / "scripts" / "deploy_r2.py"),
+         "--print-cors", "--format", "wrangler"],
+        capture_output=True, text=True, check=True, cwd=root,
+    ).stdout  # fmt: skip
+    with tempfile.TemporaryDirectory() as scratch:
+        rules = Path(scratch) / "cors.json"
+        rules.write_text(policy, encoding="utf-8")
+        wrangler("r2", "bucket", "cors", "set", bucket, "--file", str(rules), "--force")
+
+    missing = [v for v in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY") if not os.environ.get(v)]
+    if missing:
+        typer.echo(
+            f"left for the dashboard: an R2 upload token -- set {', '.join(missing)} (docs/deploying.md)", err=True
+        )
+    else:
+        typer.echo("set up: next, `redqueen publish site --wait` and `redqueen dev deploy`", err=True)
 
 
 @dev.command()

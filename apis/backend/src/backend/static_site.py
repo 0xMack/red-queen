@@ -14,6 +14,12 @@ asks for exactly those paths. What a static host can't do is done ahead of time 
 - of the model store, only what a catalog or an exported package refers to is copied, and catalogs' `base_url` is the
   public models URL. The `scale-test` catalog (~340 MB, for the unlinked /dev/inference page) is left out unless asked.
 
+Nothing about the machine leaves it. Every `hardware` block (the training-cost meter's CPU model, core count, OS and
+Python version: a fingerprint of this computer) is reduced to its `engine` and a generic `hardware_class` -- the only
+transformation of an API answer -- and before anything is kept, every file is checked for this machine's identifiers
+(home directory, username, hostname, the repo's path, the CPU's name): one found fails the export (`PrivacyError`),
+naming the file. Local records keep the full detail.
+
 `index.json` lists every file with its sha256, so a deploy uploads only what changed.
 """
 
@@ -23,17 +29,84 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from modelpack import LocalModelStore
-from telemetry import models_dir
+from telemetry import models_dir, workspace_root
 
 LIVE = frozenset({"running", "paused"})
 GAMES = ("snake", "checkers", "bandit")  # the game pages: a leaderboard and interfaces each
 SKIPPED_CATALOGS = frozenset({"scale-test"})
+# What a published `hardware` block says instead of the machine's own description (the game page's cost caption reads
+# "Timings are from <hardware_class> -- only compare them within the same hardware class").
+PUBLIC_HARDWARE_CLASS = "one desktop computer"
+
+
+class PrivacyError(ValueError):
+    """A file about to be published contains one of this machine's identifiers."""
+
+
+def redact(value: Any) -> Any:
+    """`value` with every `hardware` block reduced to its `engine` (rust / pure-python: what the code ran on, which a
+    reader needs to compare timings) and the generic `hardware_class`."""
+    if isinstance(value, dict):
+        return {
+            k: (
+                {**({"engine": v["engine"]} if "engine" in v else {}), "hardware_class": PUBLIC_HARDWARE_CLASS}
+                if k == "hardware" and isinstance(v, dict)
+                else redact(v)
+            )
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [redact(v) for v in value]
+    return value
+
+
+def redact_json(data: bytes) -> bytes:
+    """An API answer as published: unchanged bytes if there's nothing to redact, else re-serialized as the API
+    serializes (FastAPI: compact, UTF-8, not ASCII-escaped). Not JSON (a linear-GP champion is a plain-text program):
+    unchanged -- the privacy check still reads it."""
+    try:
+        value = json.loads(data)
+    except ValueError:
+        return data
+    redacted = redact(value)
+    if redacted == value:
+        return data
+    return json.dumps(redacted, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def local_identifiers() -> list[str]:
+    """What would identify this machine or its owner, as it would appear in a file: the home directory and the repo's
+    path (both slash styles, and JSON-escaped), the username, the hostname, the CPU's name. Read from the machine at
+    export time, so nothing personal is written into the code."""
+    from arena.costs import hardware_fingerprint
+
+    found: set[str] = set()
+    for path in (Path.home(), workspace_root()):
+        text = str(path)
+        found |= {text, text.replace("\\", "/"), text.replace("\\", "\\\\")}
+    for word in (Path.home().name, socket.gethostname(), hardware_fingerprint().get("cpu", "")):
+        if len(word) >= 4 and word.lower() not in {"user", "root", "unknown", "localhost"}:
+            found.add(word)
+    return sorted(found)
+
+
+def check_private(root: Path, files: list[str], identifiers: list[str] | None = None) -> None:
+    """Raises PrivacyError if any of `files` (under `root`) contains one of `identifiers` (case-insensitive)."""
+    needles = [n.lower().encode() for n in (identifiers if identifiers is not None else local_identifiers())]
+    leaks = []
+    for path in files:
+        data = (root / path).read_bytes().lower()
+        leaks += [f"{path}: {needle.decode()!r}" for needle in needles if needle in data]
+    if leaks:
+        listing = "\n  ".join(leaks[:20])
+        raise PrivacyError(f"{len(leaks)} local identifier(s) in the site's files:\n  {listing}")
 
 
 @contextmanager
@@ -55,6 +128,8 @@ class _Writer:
         self.files: dict[str, str] = {}
 
     def write(self, path: str, data: bytes) -> None:
+        if path.startswith("api/"):
+            data = redact_json(data)
         target = self.root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
@@ -145,6 +220,11 @@ def export(
                 blobs += 1
 
     index = dict(sorted(writer.files.items()))
+    try:
+        check_private(out, list(index))
+    except PrivacyError:
+        shutil.rmtree(out)  # never leave a leaking copy where a deploy could pick it up
+        raise
     (out / "index.json").write_bytes(json.dumps(index, indent=0).encode())
     summary = {
         "out": str(out),

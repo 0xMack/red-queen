@@ -58,3 +58,6 @@ run-data/
 # secrets as ${ENV_VAR}); an IDE's localhost MCP endpoint (e.g. PyCharm's, on a port it picks) is per-machine --
 # register it with `claude mcp add --scope local` instead, which keeps it out of the repo entirely.
 .mcp.json
+
+# Wrangler's local cache and state (docs/deploying.md)
+.wrangler/

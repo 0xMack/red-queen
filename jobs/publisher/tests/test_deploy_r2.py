@@ -55,3 +55,10 @@ def test_the_bucket_is_readable_from_the_site_only():
 
 def test_the_printed_policy_is_the_rule_the_dashboard_takes():
     assert json.loads(deploy.cors_policy_json()) == deploy.cors_rules()
+
+
+def test_wrangler_gets_the_same_rule_in_the_cloudflare_api_shape():
+    (rule,) = json.loads(deploy.cors_policy_json("wrangler"))["rules"]
+    (s3,) = deploy.cors_rules()
+    assert rule["allowed"] == {"origins": s3["AllowedOrigins"], "methods": s3["AllowedMethods"], "headers": ["*"]}
+    assert rule["maxAgeSeconds"] == s3["MaxAgeSeconds"]

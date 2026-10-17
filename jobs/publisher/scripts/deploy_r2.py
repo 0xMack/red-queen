@@ -10,7 +10,8 @@ uploaded. `index.json` goes last, so an interrupted upload is redone next time. 
 index no longer lists.
 
 The bucket also needs a CORS rule so the site can read it -- set once, in the dashboard (R2 -> redqueen-data ->
-Settings -> CORS Policy): `--print-cors` prints the JSON to paste. The upload token is deliberately object-only (it
+Settings -> CORS Policy, or `redqueen dev cloudflare-setup`): `--print-cors` prints the JSON to paste
+(`--format wrangler` for `wrangler r2 bucket cors set`). The upload token is deliberately object-only (it
 can't change bucket settings); `--configure-cors` applies the rule itself only with an Admin Read & Write token.
 
     uv run --script jobs/publisher/scripts/deploy_r2.py --snapshot data/site --ort apps/frontend/.output/ort [--dry-run]
@@ -83,9 +84,25 @@ def cors_rules() -> list[dict]:
     ]
 
 
-def cors_policy_json() -> str:
-    """The rule as the R2 dashboard's CORS Policy editor takes it (the same fields the S3 API does)."""
-    return json.dumps(cors_rules(), indent=2)
+def cors_policy_json(fmt: str = "s3") -> str:
+    """The rule as the R2 dashboard's CORS Policy editor takes it (`s3`: the S3 API's fields), or as
+    `wrangler r2 bucket cors set --file` does (`wrangler`: the Cloudflare API's shape)."""
+    rules = cors_rules()
+    if fmt == "wrangler":
+        rules = {
+            "rules": [
+                {
+                    "allowed": {
+                        "origins": r["AllowedOrigins"],
+                        "methods": r["AllowedMethods"],
+                        "headers": r["AllowedHeaders"],
+                    },
+                    "maxAgeSeconds": r["MaxAgeSeconds"],
+                }
+                for r in rules
+            ]
+        }
+    return json.dumps(rules, indent=2)
 
 
 def _client():
@@ -111,11 +128,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--prune", action="store_true", help="delete objects the new index no longer lists")
     parser.add_argument("--dry-run", action="store_true", help="say what would change; upload nothing")
     parser.add_argument("--print-cors", action="store_true", help="print the CORS policy to paste in the dashboard")
+    parser.add_argument("--format", choices=["s3", "wrangler"], default="s3", help="--print-cors's shape")
     parser.add_argument("--configure-cors", action="store_true", help="apply the CORS rule (needs an admin token)")
     args = parser.parse_args(argv)
 
     if args.print_cors:
-        print(cors_policy_json())
+        print(cors_policy_json(args.format))
         return
     s3 = _client()
     if args.configure_cors:

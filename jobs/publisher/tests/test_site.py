@@ -39,8 +39,10 @@ def site(tmp_path, monkeypatch):
 
 
 def test_every_file_is_what_the_api_answers(site, monkeypatch):
+    """...after redaction, the one transformation (backend.static_site.redact)."""
     from backend.dependencies import _model_store, _stores
     from backend.main import app
+    from backend.static_site import redact, redact_json
     from fastapi.testclient import TestClient
 
     out, summary, _ = site
@@ -57,16 +59,16 @@ def test_every_file_is_what_the_api_answers(site, monkeypatch):
             continue
         path = _api_path(file)
         if path.endswith("/package"):  # a POST, run ahead of time: the same export again answers the same
-            assert http.post(path).content == data, file
+            assert redact_json(http.post(path).content) == data, file
         elif path == "/runs/summaries":  # the live run is filtered out of the copy
             continue
         else:
             response = http.get(path)
             assert response.status_code == 200, file
             if path == "/runs":
-                assert [r for r in response.json() if r["status"] != "running"] == json.loads(data)
+                assert redact([r for r in response.json() if r["status"] != "running"]) == json.loads(data)
             else:
-                assert response.content == data, file
+                assert redact_json(response.content) == data, file
 
 
 def test_only_what_pages_ask_for_is_copied(site):
@@ -104,3 +106,50 @@ def test_a_new_snapshot_replaces_the_old_one(site):
     stale.write_bytes(b"{}")
     publish({"target": "site", "params": {"out": str(out), "models_base_url": MODELS}})
     assert not stale.exists()
+
+
+def test_no_machine_detail_is_published(site):
+    """The training-cost meter records this computer's CPU, cores, OS and Python; the copy keeps only `engine`."""
+    from arena.costs import hardware_fingerprint
+    from backend.static_site import PUBLIC_HARDWARE_CLASS
+
+    out, _, runs = site
+    published = json.loads((out / f"api/runs/{runs['snake']}.json").read_bytes())
+    hardware = published["summary"]["cost"]["hardware"]
+    assert set(hardware) <= {"engine", "hardware_class"} and hardware["hardware_class"] == PUBLIC_HARDWARE_CLASS
+    cpu = hardware_fingerprint()["cpu"].encode()
+    index = json.loads((out / "index.json").read_bytes())
+    assert not [f for f in index if cpu in (out / f).read_bytes()]
+
+
+def test_a_local_identifier_fails_the_export(site, monkeypatch):
+    """A file carrying the home directory (or username, hostname, CPU name...) is never kept."""
+    from backend import static_site
+
+    out, _, runs = site
+    leak = "someones-desktop-7f3a"  # stands in for a username or hostname
+    monkeypatch.setattr(static_site, "local_identifiers", lambda: [leak])
+    real_write = static_site._Writer.write
+
+    def write_with_leak(self, path, data):
+        if path == f"api/runs/{runs['snake']}.json":
+            data = data.replace(b'"game":"snake"', json.dumps({"game": "snake", "path": leak})[1:-1].encode(), 1)
+        real_write(self, path, data)
+
+    monkeypatch.setattr(static_site._Writer, "write", write_with_leak)
+    with pytest.raises(static_site.PrivacyError, match=runs["snake"]):
+        publish({"target": "site", "params": {"out": str(out), "models_base_url": MODELS}})
+    assert not out.exists()  # nothing left for a deploy to pick up
+
+
+def test_redaction_leaves_everything_else_alone():
+    from backend.static_site import PUBLIC_HARDWARE_CLASS, redact_json
+
+    program = b"r0 = r1 + r2\nr1 = r0 * x\n"  # a linear-GP champion: not JSON, published as is
+    assert redact_json(program) == program
+    untouched = b'{"label":"NEAT 33 \xe2\x86\x92 3","hardware_class":"kept: not inside a hardware block"}'
+    assert redact_json(untouched) == untouched  # byte for byte, when there's nothing to redact
+    record = {"metrics": {"training": {"hardware": {"cpu": "Some CPU", "os": "An OS", "engine": "rust"}}}}
+    assert json.loads(redact_json(json.dumps(record).encode())) == {
+        "metrics": {"training": {"hardware": {"engine": "rust", "hardware_class": PUBLIC_HARDWARE_CLASS}}}
+    }
