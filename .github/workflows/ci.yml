@@ -107,3 +107,5 @@ jobs:
         run: pnpm typecheck
       - name: Build
         run: pnpm build
+      - name: Build the public site (static mode; fails on a file over Pages' 25 MiB limit)
+        run: pnpm generate:static

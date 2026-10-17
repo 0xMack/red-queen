@@ -8,6 +8,7 @@ with this interpreter, from the repo root, and imports none of them.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -122,6 +123,51 @@ def screenshots(run: Annotated[str, typer.Argument(help="A trained Snake run id.
     """Recaptures the app's real screenshots (needs `redqueen dev up` and Playwright's browser)."""
     _run(shutil.which("uv") or "uv", "run", "--with", "playwright", "python",
          "apps/frontend/scripts/capture_screenshots.py", run)  # fmt: skip
+
+
+WRANGLER = "wrangler@4"
+
+
+@dev.command()
+def deploy(
+    data: Annotated[bool, typer.Option("--data/--no-data", help="Upload the snapshot and ONNX Runtime to R2.")] = True,
+    site: Annotated[bool, typer.Option("--site/--no-site", help="Build the site and deploy it to Pages.")] = True,
+    snapshot: Annotated[
+        Path | None, typer.Option(help="`redqueen publish site`'s output (default: <data dir>/site).")
+    ] = None,
+    project: Annotated[str, typer.Option(help="The Cloudflare Pages project.")] = "redqueen",
+    prune: Annotated[bool, typer.Option(help="Delete bucket objects the new snapshot no longer lists.")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Build, and say what would upload; deploy nothing.")
+    ] = False,
+) -> None:
+    """Publishes redqueen.mackinations.ca (docs/design/0019; one-time setup: docs/deploying.md).
+
+    In order: build the static site (`pnpm generate:static`), upload the data (the snapshot from `redqueen publish
+    site`, plus ONNX Runtime) to R2, then deploy the site to Cloudflare Pages. Data goes first, so a new site never asks
+    for files that aren't there yet. Credentials come from the environment: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and
+    R2_SECRET_ACCESS_KEY for R2; CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (or a one-time `wrangler login`) for
+    Pages."""
+    root = repo_root()
+    frontend = root / "apps" / "frontend"
+    if site or not (frontend / ".output" / "ort").exists():
+        _run(_pnpm(), "generate:static", cwd=frontend)  # the site, and the ONNX Runtime files the data host serves
+    if data:
+        data_dir = Path(os.environ.get("REDQUEEN_DATA_DIR") or os.environ.get("REDQUEEN_RUN_DATA_DIR") or root / "data")
+        command: list[str | Path] = [shutil.which("uv") or "uv", "run", "--script"]
+        command += [
+            root / "jobs" / "publisher" / "scripts" / "deploy_r2.py",
+            "--snapshot",
+            snapshot or data_dir / "site",
+        ]
+        command += ["--ort", frontend / ".output" / "ort"]
+        _run(*command, *(["--prune"] if prune else []), *(["--dry-run"] if dry_run else []))
+    if site:
+        if dry_run:
+            typer.echo(f"dry run: would deploy {frontend / '.output' / 'public'} to Pages project {project}", err=True)
+            return
+        _run(_pnpm(), "dlx", WRANGLER, "pages", "deploy", ".output/public", "--project-name", project,
+             "--branch", "main", cwd=frontend)  # fmt: skip
 
 
 @dev.command()
