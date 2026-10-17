@@ -75,8 +75,12 @@ for (const path of [homedir(), process.cwd()]) {
   identifiers.add(path.replaceAll("\\", "/"))
   identifiers.add(path.replaceAll("\\", "\\\\"))
 }
-for (const word of [userInfo().username, hostname()]) {
-  if (word.length >= 4 && !["user", "root", "localhost"].includes(word.toLowerCase())) identifiers.add(word)
+// The bare username and hostname protect the machine that publishes. On CI they're the runner's (`runner`, an ordinary
+// word in bundled code), so there only the paths are checked.
+if (!process.env.CI) {
+  for (const word of [userInfo().username, hostname()]) {
+    if (word.length >= 4 && !["user", "root", "localhost"].includes(word.toLowerCase())) identifiers.add(word)
+  }
 }
 const needles = [...identifiers].map((s) => Buffer.from(s.toLowerCase()))
 const leaks = []
