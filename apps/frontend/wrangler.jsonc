@@ -1,0 +1,14 @@
+// The public site as a Cloudflare Worker that only serves static files (docs/design/0019): `redqueen dev deploy` runs
+// `wrangler deploy` here after `pnpm generate:static`. No Worker script -- every request is a static asset (free, not
+// a billed Worker invocation), headers from .output/public/_headers.
+{
+  "name": "redqueen",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": ".output/public",
+    // a deep link (/runs/<id>, /watch/<id>) gets the app, with a 200
+    "not_found_handling": "single-page-application"
+  },
+  // the first deploy creates the DNS record and certificate; mackinations.ca is a zone on this account
+  "routes": [{ "pattern": "redqueen.mackinations.ca", "custom_domain": true }]
+}

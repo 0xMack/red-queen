@@ -36,7 +36,9 @@ be reachable from the internet.
      `/dev/inference`);
    - everything live: the metrics stream, run control, jobs, experiments, schedules, the write endpoints.
 4. **Hosting:**
-   - **Cloudflare Pages** serves the Nuxt app at `redqueen.mackinations.ca`.
+   - **A Cloudflare Worker with only static assets** serves the Nuxt app at `redqueen.mackinations.ca`
+     (`apps/frontend/wrangler.jsonc`: no script, single-page fallback, the custom domain). This was Pages at first;
+     Wrangler now routes Pages to Workers, where the whole setup, domain included, is scriptable.
    - **Cloudflare R2** serves the snapshot and the model files at `redqueen-data.mackinations.ca`, because R2 has
      no egress fees. Catalogs' `base_url` is `https://redqueen-data.mackinations.ca/models`.
    - The data host is `redqueen-data.`, not `data.redqueen.`, because Cloudflare's free Universal SSL certificate
@@ -45,8 +47,9 @@ be reachable from the internet.
 5. **Incremental uploads:** `index.json` lists every file with its sha256, and a deploy uploads only the files whose
    hash differs from the bucket's copy of the index. Model blobs are named by their hash, so they never re-upload.
    The uploader (`jobs/publisher/scripts/deploy_r2.py`, R2's S3 API) is a standalone `uv run --script` with its own
-   boto3, so no workspace package depends on it. The site goes to Pages by direct upload (Wrangler), not a git-driven
-   build, because its data is local anyway. `redqueen dev deploy` runs the three steps in order -- build, upload data,
+   boto3, so no workspace package depends on it. The site is deployed from this machine (`wrangler deploy`), not built
+   from git, because its data is local anyway. `redqueen dev cloudflare-setup` does the rest of the setup through
+   Wrangler, except the R2 upload token. `redqueen dev deploy` runs the three steps in order -- build, upload data,
    deploy site -- so a new site never asks for files that aren't there yet.
 
 ## Consequences
@@ -56,7 +59,7 @@ be reachable from the internet.
 - The frontend needs a static mode. `useApi` maps a path to its `.json` file and refuses non-GETs; `/watch` reads
   the pre-built package; the metrics store doesn't open a stream; run control is hidden.
 - ONNX Runtime's own `.mjs`/`.wasm` are served from the data host, not the site: its WebGPU build (~26 MB) is over
-  Pages' 25 MiB per-file limit. The static build fails if any file is over the limit.
+  Cloudflare's 25 MiB per-asset limit. The static build fails if any file is over the limit.
 - The page must be cross-origin isolated (`Cross-Origin-Opener-Policy`/`-Embedder-Policy`) for multithreaded ONNX
   Runtime. The data host must then send CORS headers, and third-party resources the page loads (Google Fonts today)
   must allow it, or be served from the site itself.

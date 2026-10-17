@@ -1,4 +1,5 @@
-# Cloudflare Pages response headers for the public site (docs/design/0019). Ignored by `pnpm dev`.
+# Response headers for the public site's static assets on Cloudflare (docs/design/0019, wrangler.jsonc). Ignored by
+# `pnpm dev`.
 #
 # Cross-origin isolation (COOP/COEP) enables SharedArrayBuffer, so ONNX Runtime can run multithreaded
 # (inference/runtime.ts checks `crossOriginIsolated`). Everything the page loads from elsewhere must then allow it:
