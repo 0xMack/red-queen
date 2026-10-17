@@ -12,6 +12,7 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141",
+    "httpx>=0.28",  # TestClient: static_site renders the API through itself
     "uvicorn[standard]>=0.34",
     "sse-starlette>=2.2",
     "telemetry",

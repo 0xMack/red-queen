@@ -1,0 +1,4 @@
+# The API's public GET routes as static files under <data dir>/site, for redqueen.mackinations.ca (docs/design/0019).
+# Then `redqueen dev deploy` uploads them.
+kind: publish
+target: site
