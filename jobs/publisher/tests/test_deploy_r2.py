@@ -51,3 +51,7 @@ def test_the_bucket_is_readable_from_the_site_only():
     (rule,) = deploy.cors_rules()
     assert "https://redqueen.mackinations.ca" in rule["AllowedOrigins"] and "*" not in rule["AllowedOrigins"]
     assert rule["AllowedMethods"] == ["GET", "HEAD"]
+
+
+def test_the_printed_policy_is_the_rule_the_dashboard_takes():
+    assert json.loads(deploy.cors_policy_json()) == deploy.cors_rules()

@@ -20,14 +20,20 @@ nameservers to Cloudflare first; custom domains on R2 and Pages need the zone on
 4. **Create an API token.** Go to **R2 → Manage R2 API Tokens → Create API token**, with permission **Object Read &
    Write**, limited to the `redqueen-data` bucket. Note the **Access Key ID**, the **Secret Access Key**, and your
    **Account ID** (shown on the R2 overview).
-5. **Set the CORS rule.** The page is cross-origin isolated, so the bucket must allow the site to read it:
+5. **Set the CORS rule, once, in the dashboard.** The page is cross-origin isolated, so the bucket must allow the
+   site to read it. Print the policy:
 
    ```bash
-   uv run --script jobs/publisher/scripts/deploy_r2.py --configure-cors
+   uv run --script jobs/publisher/scripts/deploy_r2.py --print-cors
    ```
 
-   Every upload re-applies this rule. It allows `GET`/`HEAD` from `https://redqueen.mackinations.ca` and the local
-   dev and test ports.
+   Then go to **R2 → redqueen-data → Settings → CORS Policy → Add CORS policy**, paste the JSON, and save. It allows
+   `GET`/`HEAD` from `https://redqueen.mackinations.ca` and the local dev and test ports.
+
+   The upload token from step 4 can't do this itself. An **Object Read & Write** token can read and write objects but
+   not change bucket settings, and that limit is deliberate: the credentials on your machine can't reconfigure the
+   bucket. (`--configure-cors` applies the rule from the command line, but only with an **Admin Read & Write**
+   token.)
 
 ### 2. The Pages project
 
@@ -87,6 +93,7 @@ What `dev deploy` does:
 - **https://redqueen.mackinations.ca/games/snake.** A champion should play, and the browser console should report
   `crossOriginIsolated === true`.
 - **If models don't load**, open the browser's network tab. A blocked request to `redqueen-data.mackinations.ca`
-  means the CORS rule is missing: run `deploy_r2.py --configure-cors` again.
+  means the CORS rule is missing or doesn't list the site: check **R2 → redqueen-data → Settings → CORS Policy**
+  against `deploy_r2.py --print-cors`.
 - **If a deep link** (`/runs/<id>`) returns Pages' 404 page instead of the app, check that `404.html` didn't end up in
   `.output/public`. `pnpm generate:static` removes it.

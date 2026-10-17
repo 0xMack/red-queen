@@ -7,7 +7,11 @@ Runtime's files (`pnpm generate:static`), into the bucket served at https://redq
 
 Incremental: the bucket keeps the last upload's `index.json` (path -> sha256), and only files whose hash differs are
 uploaded. `index.json` goes last, so an interrupted upload is redone next time. `--prune` deletes objects the new
-index no longer lists. `--configure-cors` (also run on every upload) lets the site read the bucket.
+index no longer lists.
+
+The bucket also needs a CORS rule so the site can read it -- set once, in the dashboard (R2 -> redqueen-data ->
+Settings -> CORS Policy): `--print-cors` prints the JSON to paste. The upload token is deliberately object-only (it
+can't change bucket settings); `--configure-cors` applies the rule itself only with an Admin Read & Write token.
 
     uv run --script jobs/publisher/scripts/deploy_r2.py --snapshot data/site --ort apps/frontend/.output/ort [--dry-run]
 
@@ -79,6 +83,11 @@ def cors_rules() -> list[dict]:
     ]
 
 
+def cors_policy_json() -> str:
+    """The rule as the R2 dashboard's CORS Policy editor takes it (the same fields the S3 API does)."""
+    return json.dumps(cors_rules(), indent=2)
+
+
 def _client():
     import boto3
 
@@ -101,12 +110,27 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--bucket", default=os.environ.get("R2_BUCKET", "redqueen-data"))
     parser.add_argument("--prune", action="store_true", help="delete objects the new index no longer lists")
     parser.add_argument("--dry-run", action="store_true", help="say what would change; upload nothing")
-    parser.add_argument("--configure-cors", action="store_true", help="only apply the bucket's CORS rule")
+    parser.add_argument("--print-cors", action="store_true", help="print the CORS policy to paste in the dashboard")
+    parser.add_argument("--configure-cors", action="store_true", help="apply the CORS rule (needs an admin token)")
     args = parser.parse_args(argv)
 
+    if args.print_cors:
+        print(cors_policy_json())
+        return
     s3 = _client()
     if args.configure_cors:
-        s3.put_bucket_cors(Bucket=args.bucket, CORSConfiguration={"CORSRules": cors_rules()})
+        from botocore.exceptions import ClientError
+
+        try:
+            s3.put_bucket_cors(Bucket=args.bucket, CORSConfiguration={"CORSRules": cors_rules()})
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") != "AccessDenied":
+                raise
+            sys.exit(
+                "this token can't change bucket settings (an Object Read & Write token can't, by design). Set the "
+                f"policy in the dashboard instead -- R2 -> {args.bucket} -> Settings -> CORS Policy -> Add CORS policy "
+                f"-- and paste:\n\n{cors_policy_json()}"
+            )
         print(f"CORS: {args.bucket} readable from {', '.join(SITE_ORIGINS)}")
         return
     if not (args.snapshot / INDEX).exists():
@@ -147,7 +171,6 @@ def main(argv: list[str] | None = None) -> None:
         ContentType=content_type(INDEX),
         CacheControl=cache_control(INDEX),
     )
-    s3.put_bucket_cors(Bucket=args.bucket, CORSConfiguration={"CORSRules": cors_rules()})
     print(f"{args.bucket}: uploaded {len(uploads)}, deleted {len(deletes)}; serving {len(local)} files")
 
 
