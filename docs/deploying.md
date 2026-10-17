@@ -65,6 +65,41 @@ What `dev deploy` does:
 - **Has partial forms.** `--no-site` uploads only data (new results; the app is unchanged). `--no-data` redeploys only
   the app (a frontend change). `--prune` also deletes bucket objects the new snapshot no longer lists.
 
+## Automatic deploys (the site, on every merge to `main`)
+
+CI's `deploy` job (`.github/workflows/ci.yml`) runs after the tests pass on every push to `main`:
+1. It builds the site statically. The local-identifier check runs here too, on paths only.
+2. It uploads any ONNX Runtime files a dependency upgrade added (`deploy_r2.py --ort-only`).
+3. It runs `wrangler deploy`.
+
+It never runs for pull requests, so forks never see the secrets. A second merge waits for a running deploy rather than
+interrupting it.
+
+**The data stays a local step.** It comes from the local stores, which CI can't reach. After training, run
+`uv run redqueen publish site --wait` and then `uv run redqueen dev deploy --no-site`. If a frontend change needs new
+data (a new route, a new field), upload the data first, then merge, so the new site never asks for files that aren't
+there yet.
+
+**Setup: four repository secrets.** Until they're set, the job skips with a notice.
+
+1. **Create a Cloudflare API token for deploying the Worker.** Go to **My Profile → API Tokens → Create Token** and use
+   the **Edit Cloudflare Workers** template. Set **Account Resources** to your account and **Zone Resources** to
+   `mackinations.ca` only. If a deploy then fails on the custom domain, add **Zone → DNS → Edit** for
+   `mackinations.ca`.
+2. **Store the secrets in GitHub**, in your own terminal (PowerShell). The first command prompts for the token; paste
+   it there, not into a file or a chat. The other three copy from the environment variables you already set:
+
+   ```powershell
+   gh secret set CLOUDFLARE_API_TOKEN
+   gh secret set CLOUDFLARE_ACCOUNT_ID --body "$env:R2_ACCOUNT_ID"
+   gh secret set R2_ACCESS_KEY_ID --body "$env:R2_ACCESS_KEY_ID"
+   gh secret set R2_SECRET_ACCESS_KEY --body "$env:R2_SECRET_ACCESS_KEY"
+   ```
+
+   The R2 pair is the same Object Read & Write upload token; CI only adds versioned ONNX Runtime files with it.
+3. **Optional:** in **Settings → Environments → production**, add protection rules (for example, required reviewers)
+   to gate each deploy.
+
 ## What gets published
 
 - **Data:** the API's public reads (runs and their configs, curves, champions, leaderboards, catalogs) and the model

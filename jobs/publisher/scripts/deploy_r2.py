@@ -50,12 +50,19 @@ def cache_control(path: str) -> str:
     return "public, max-age=300"  # api/: a new snapshot shows within five minutes
 
 
+def ort_index(ort: Path) -> dict[str, str]:
+    """ONNX Runtime's files (`pnpm generate:static`'s .output/ort), as served under `ort/<version>/`: path -> sha256."""
+    return {
+        f"ort/{file.relative_to(ort).as_posix()}": hashlib.sha256(file.read_bytes()).hexdigest()
+        for file in sorted(p for p in ort.rglob("*") if p.is_file())
+    }
+
+
 def local_index(snapshot: Path, ort: Path | None) -> dict[str, str]:
     """Every file to serve, path -> sha256: the snapshot's own index, plus ONNX Runtime's files under `ort/`."""
     index = json.loads((snapshot / INDEX).read_text(encoding="utf-8"))
     if ort is not None:
-        for file in sorted(p for p in ort.rglob("*") if p.is_file()):
-            index[f"ort/{file.relative_to(ort).as_posix()}"] = hashlib.sha256(file.read_bytes()).hexdigest()
+        index.update(ort_index(ort))
     return index
 
 
@@ -120,6 +127,32 @@ def _client():
     )
 
 
+def upload_missing_ort(s3, bucket: str, ort: Path | None, dry_run: bool, parser: argparse.ArgumentParser) -> None:
+    """A site deploy from CI, where the snapshot isn't: the new build asks for ONNX Runtime at `ort/<its version>/`, so
+    upload whichever of those files the bucket lacks (they're versioned: one that's there is right). The bucket's
+    index isn't touched -- the next data upload lists them, unchanged."""
+    if ort is None:
+        parser.error("--ort-only needs --ort")
+    missing = []
+    for path in ort_index(ort):
+        try:
+            s3.head_object(Bucket=bucket, Key=path)
+        except Exception as e:  # botocore's ClientError, read by its code (so this runs without botocore in tests)
+            if getattr(e, "response", {}).get("Error", {}).get("Code") not in {"404", "NoSuchKey", "NotFound"}:
+                raise
+            missing.append(path)
+    print(
+        f"{bucket}: ONNX Runtime -- {len(missing)} file(s) missing" + (", uploading" if missing and not dry_run else "")
+    )
+    for path in [] if dry_run else missing:
+        s3.upload_file(
+            str(source(path, Path("."), ort)),
+            bucket,
+            path,
+            ExtraArgs={"ContentType": content_type(path), "CacheControl": cache_control(path)},
+        )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--snapshot", type=Path, default=Path("data/site"), help="`redqueen publish site`'s output")
@@ -130,6 +163,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--print-cors", action="store_true", help="print the CORS policy to paste in the dashboard")
     parser.add_argument("--format", choices=["s3", "wrangler"], default="s3", help="--print-cors's shape")
     parser.add_argument("--configure-cors", action="store_true", help="apply the CORS rule (needs an admin token)")
+    parser.add_argument(
+        "--ort-only", action="store_true", help="only upload ONNX Runtime files the bucket lacks (CI's site deploys)"
+    )
     args = parser.parse_args(argv)
 
     if args.print_cors:
@@ -150,6 +186,9 @@ def main(argv: list[str] | None = None) -> None:
                 f"-- and paste:\n\n{cors_policy_json()}"
             )
         print(f"CORS: {args.bucket} readable from {', '.join(SITE_ORIGINS)}")
+        return
+    if args.ort_only:
+        upload_missing_ort(s3, args.bucket, args.ort, args.dry_run, parser)
         return
     if not (args.snapshot / INDEX).exists():
         sys.exit(f"no snapshot at {args.snapshot} (run `redqueen publish site` first)")

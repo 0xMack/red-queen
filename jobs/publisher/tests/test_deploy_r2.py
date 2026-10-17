@@ -62,3 +62,32 @@ def test_wrangler_gets_the_same_rule_in_the_cloudflare_api_shape():
     (s3,) = deploy.cors_rules()
     assert rule["allowed"] == {"origins": s3["AllowedOrigins"], "methods": s3["AllowedMethods"], "headers": ["*"]}
     assert rule["maxAgeSeconds"] == s3["MaxAgeSeconds"]
+
+
+class FakeBucket:
+    """head_object / upload_file over a dict, raising like botocore for a missing key."""
+
+    def __init__(self, keys):
+        self.keys, self.uploaded = set(keys), []
+
+    def head_object(self, Bucket, Key):
+        if Key not in self.keys:
+            error = Exception("not found")
+            error.response = {"Error": {"Code": "404"}}
+            raise error
+
+    def upload_file(self, filename, bucket, key, ExtraArgs):
+        self.uploaded.append((key, ExtraArgs["ContentType"], ExtraArgs["CacheControl"]))
+
+
+def test_a_site_deploy_uploads_only_the_onnx_runtime_files_the_bucket_lacks(tmp_path):
+    ort = tmp_path / "ort"
+    (ort / "1.31.0").mkdir(parents=True)
+    for name in ("ort-wasm-simd-threaded.wasm", "ort-wasm-simd-threaded.mjs"):
+        (ort / "1.31.0" / name).write_bytes(b"x")
+    bucket = FakeBucket({"ort/1.31.0/ort-wasm-simd-threaded.mjs"})
+    deploy.upload_missing_ort(bucket, "b", ort, dry_run=False, parser=None)
+    assert bucket.uploaded == [("ort/1.31.0/ort-wasm-simd-threaded.wasm", "application/wasm", deploy.IMMUTABLE)]
+    dry = FakeBucket(set())
+    deploy.upload_missing_ort(dry, "b", ort, dry_run=True, parser=None)
+    assert dry.uploaded == []
