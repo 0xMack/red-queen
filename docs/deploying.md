@@ -65,6 +65,15 @@ What `dev deploy` does:
 - **Has partial forms.** `--no-site` uploads only data (new results; the app is unchanged). `--no-data` redeploys only
   the app (a frontend change). `--prune` also deletes bucket objects the new snapshot no longer lists.
 
+## What gets published
+
+- **Data:** the API's public reads (runs and their configs, curves, champions, leaderboards, catalogs) and the model
+  files. Timestamps (when each run trained) are part of that.
+- **Never:** live endpoints, jobs or experiments, unreferenced champions, and nothing about this machine. Training
+  cost's `hardware` block is reduced to `engine` plus "one desktop computer".
+- **The guard:** both `redqueen publish site` and `pnpm generate:static` fail, naming the file, if anything they'd
+  publish contains this machine's home directory, username, hostname, repo path or CPU name.
+
 ## Checking it
 
 - **https://redqueen.mackinations.ca/games/snake.** A champion should play, and the browser console should report

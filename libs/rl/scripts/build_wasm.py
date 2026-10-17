@@ -13,6 +13,7 @@ Run from anywhere: uv run python libs/rl/scripts/build_wasm.py
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -47,8 +48,30 @@ def source_hash() -> str:
     return digest.hexdigest()
 
 
+SEPARATOR = chr(0x1F)  # how CARGO_ENCODED_RUSTFLAGS separates flags
+
+
+def remapped_env() -> dict[str, str]:
+    """The build environment with local paths remapped (`--remap-path-prefix`): Rust embeds source paths in panic
+    messages, and this WASM is public (served by the site, checked into the repo), so without it the binary carries
+    the builder's home directory -- username and folder layout. Appended to any rustflags already set, in Cargo's
+    encoded form (paths may contain spaces)."""
+    env = dict(os.environ)
+    repo = Path(__file__).resolve().parents[3]
+    existing = env.pop("CARGO_ENCODED_RUSTFLAGS", None) or SEPARATOR.join(env.pop("RUSTFLAGS", "").split())
+    # the last matching prefix wins: the repo (inside home) after home
+    remaps = [f"--remap-path-prefix={Path.home()}=~", f"--remap-path-prefix={repo}=red-queen"]
+    env["CARGO_ENCODED_RUSTFLAGS"] = SEPARATOR.join(f for f in [existing, *remaps] if f)
+    return env
+
+
 def main() -> None:
-    subprocess.run(["cargo", "build", "-p", "rl-wasm", "--target", TARGET, "--profile", PROFILE], cwd=HERE, check=True)
+    subprocess.run(
+        ["cargo", "build", "-p", "rl-wasm", "--target", TARGET, "--profile", PROFILE],
+        cwd=HERE,
+        check=True,
+        env=remapped_env(),
+    )
     wasm = HERE / "target" / TARGET / PROFILE / "rl_wasm.wasm"
     if OUT.exists():
         shutil.rmtree(OUT)

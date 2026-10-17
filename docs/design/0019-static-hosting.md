@@ -44,7 +44,13 @@ be reachable from the internet.
    - The data host is `redqueen-data.`, not `data.redqueen.`, because Cloudflare's free Universal SSL certificate
      covers only one level of subdomain.
    - Data and site deploy separately: a new training result is a data upload, not a site rebuild.
-5. **Incremental uploads:** `index.json` lists every file with its sha256, and a deploy uploads only the files whose
+5. **Nothing about the machine is published.** The training-cost meter's `hardware` block (CPU model, cores, OS, Python
+   version) is reduced to its `engine` and a generic `hardware_class` in the copy -- the only change to an API answer;
+   local records keep it. Both builds then refuse to keep a file containing one of this machine's identifiers (home
+   directory, username, hostname, the repo's path, the CPU's name -- read from the machine, never written in code):
+   the snapshot (`PrivacyError`, `backend.static_site.check_private`) and `pnpm generate:static` (which caught the Rust
+   WASM carrying its absolute source paths; the WASM builds now remap them).
+6. **Incremental uploads:** `index.json` lists every file with its sha256, and a deploy uploads only the files whose
    hash differs from the bucket's copy of the index. Model blobs are named by their hash, so they never re-upload.
    The uploader (`jobs/publisher/scripts/deploy_r2.py`, R2's S3 API) is a standalone `uv run --script` with its own
    boto3, so no workspace package depends on it. The site is deployed from this machine (`wrangler deploy`), not built

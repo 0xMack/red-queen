@@ -12,6 +12,7 @@
 // is removed: deep links (/runs/<id>) get the app from wrangler.jsonc's single-page fallback, never a 404 page.
 import { spawnSync } from "node:child_process"
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import { homedir, hostname, userInfo } from "node:os"
 import { join } from "node:path"
 
 const DATA_HOST = "https://redqueen-data.mackinations.ca"
@@ -62,6 +63,37 @@ const walk = (dir) => {
 walk(site)
 if (tooBig.length) {
   console.error(`static build: over Cloudflare's 25 MiB per-asset limit:\n  ${tooBig.join("\n  ")}`)
+  process.exit(1)
+}
+
+// Nothing about this machine goes public (docs/design/0019): fail on its home directory, username or hostname in any
+// file the site or the data host will serve -- e.g. a WASM build that kept its source paths (the WASM builds remap
+// them; this catches one that didn't). Read from the machine, so nothing personal is written here.
+const identifiers = new Set()
+for (const path of [homedir(), process.cwd()]) {
+  identifiers.add(path)
+  identifiers.add(path.replaceAll("\\", "/"))
+  identifiers.add(path.replaceAll("\\", "\\\\"))
+}
+for (const word of [userInfo().username, hostname()]) {
+  if (word.length >= 4 && !["user", "root", "localhost"].includes(word.toLowerCase())) identifiers.add(word)
+}
+const needles = [...identifiers].map((s) => Buffer.from(s.toLowerCase()))
+const leaks = []
+const scan = (dir) => {
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry)
+    if (statSync(path).isDirectory()) scan(path)
+    else {
+      const data = Buffer.from(readFileSync(path).toString("latin1").toLowerCase(), "latin1")
+      for (const needle of needles) if (data.includes(needle)) leaks.push(`${path}: ${needle.toString()}`)
+    }
+  }
+}
+scan(site)
+scan(join(".output", "ort"))
+if (leaks.length) {
+  console.error(`static build: local identifiers in published files:\n  ${leaks.slice(0, 20).join("\n  ")}`)
   process.exit(1)
 }
 console.log(`static build: ${site} ready (404.html removed: single-page fallback); ONNX Runtime ${ortVersion} in ${ortOut}`)
