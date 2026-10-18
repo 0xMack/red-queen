@@ -1,0 +1,34 @@
+# selfplay-v10 (docs/design/0020, after selfplay-v9): selfplay-v8's question, asked with the value target that didn't
+# lose. v9 found the outcome-only target was what made AlphaZero fine-tuning lose (4k games against the parent: m = 0
+# -324 Elo, m = 1 -29). Here each arm fine-tunes the same 1M-game 2 x 64 TD networks for 40k games, as v8's `z-az-ft`
+# did, and meets the TD-Leaf fine-tune of that parent (`selfplay-v6/l-1m-ft2`, also 40k games; ~2.4x less compute at 50
+# simulations), seed for seed. `x-mix1` trains the value on the search's value alone; `x-mix075` keeps a quarter of the
+# outcome.
+kind: experiment
+name: selfplay-v10
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: alphazero
+  budget: {iterations: 40}
+  held_out_every: 4
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent: {hidden: 64, hidden_layers: 2, simulations: 50}
+arms:
+  x-mix1:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_target_mix: 1}
+    baseline: selfplay-v6/l-1m-ft2
+    init_from: selfplay-v2/pool-2x64-1m
+  x-mix075:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_target_mix: 0.75}
+    baseline: selfplay-v6/l-1m-ft2
+    init_from: selfplay-v2/pool-2x64-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}

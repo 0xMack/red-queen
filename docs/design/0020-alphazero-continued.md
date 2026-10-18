@@ -1,7 +1,8 @@
 # 0020 — AlphaZero, continued: train it, make the search a player, then scale
 
-Status: **Proposed; Phase 0 run** (2026-10-18). The AlphaZero fine-tune lost, because of its outcome-only value
-target; see "Phase 0 results". Nothing from Phases 1-4 is built.
+Status: **Phase 0 done; Phases 2-3 not going ahead as planned** (2026-10-18). With its outcome-only value target the
+fine-tune lost; with a searched value it held but never improved. See "Phase 0 results". Nothing from Phases 1-4 is
+built.
 Relates to: [0017](0017-alphazero-checkers.md) (the learner this continues: built, never trained),
 [0016](0016-selfplay-scaling.md) (the current best recipe, 2 x 128 TD then TD-Leaf, and its unrun follow-ups),
 [0013](0013-measuring-two-player-strength.md) (h2h SPRT, Elo), [0015](0015-td-leaf-from-the-start.md) (fine-tuning beat
@@ -126,6 +127,39 @@ question asked again: `value_target_mix: 1` (and 0.75, keeping a little of the o
 `selfplay-v6/l-1m-ft2`. If it can't beat TD-Leaf at equal training compute, AlphaZero-style training doesn't pay at this
 network size. The MCTS player (Phase 1) would then be justified only as a way to search TD networks, not as
 AlphaZero's payoff.
+
+**`selfplay-v10`** (5 seeds, 40k games each, from the same parent as `l-1m-ft2`, against `l-1m-ft2`, the whole
+ballot). To place both on one scale, each parent was also played against its own TD-Leaf fine-tune (a `checkers.sprt`
+per seed over the whole ballot, 174 pairs each).
+
+| | Elo vs `l-1m-ft2` | Per seed | So, vs the parent |
+|---|---|---|---|
+| the parent, `pool-2x64-1m` | **-78** (per-seed 95% CIs about +/-27) | -78 -83 -88 -59 -81 | 0 |
+| `x-mix075` (`value_target_mix: 0.75`) | **-77 [-88, -65]** | -82 -60 -95 -76 -71 | ~+1 |
+| `x-mix1` (`value_target_mix: 1`) | **-109 [-121, -96]** | -98 -104 -91 -113 -139 | ~-31 |
+
+Each AlphaZero run took ~2,530 active seconds, sharing the machine with nine others.
+
+- **40k games of AlphaZero training added nothing.** 40k games of TD-Leaf from the same parent added ~78 Elo. With the
+  outcome kept at a quarter weight, AlphaZero ends where its parent started. With the search's value alone, it ends
+  ~30 below, the same as after 4k games (v9). Neither target makes the TD network a better evaluator, and both cost more
+  per game than TD-Leaf.
+- **The policy still hasn't learned.** Its loss stayed at ~1.65-1.69 over 40k games, and its targets (50 simulations
+  with root noise over ~8 legal moves) are themselves nearly flat. A flat policy makes the search close to uniform-prior
+  MCTS, so its targets can't sharpen either. AlphaZero escapes that loop with orders of magnitude more games than this
+  budget.
+
+**Conclusion of Phase 0.** At 2 x 64 and 50 simulations, AlphaZero-style fine-tuning doesn't beat TD-Leaf at equal (or
+2-3x) training compute, under any value target tested. By this doc's decision point, Phases 2 and 3 (scaling AlphaZero)
+don't go ahead as planned. What's left that is worth testing, in order of cost:
+
+1. **Break the flat-policy loop with supervision.** Train the policy head on alpha-beta's move choices (the
+   `material-N` / TD-Leaf searcher as teacher) before self-play, so the search starts with a useful prior. This is the
+   one change aimed at the cause.
+2. **Sharper targets for the same games:** more simulations (200), or Gumbel AlphaZero (Phase 2), which is designed for
+   few-simulation policy improvement.
+3. **Phase 1 for TD networks only:** an MCTS player is still a useful measurement (Elo against time per move), but it
+   no longer has an AlphaZero network to show off.
 
 ### Phase 1 — the MCTS player, where strategies live
 
