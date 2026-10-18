@@ -1,0 +1,36 @@
+# selfplay-v8-diag (docs/design/0020, after Phase 0): why AlphaZero fine-tuning made its TD parent weaker. selfplay-v8's
+# fine-tunes lost ~325 Elo to the TD-Leaf baseline and lost to their own parent (`selfplay-v2/pool-2x64-1m`) too, within
+# the first 1k games. Each arm fine-tunes that parent for 4k games and is played against it, seed for seed:
+# `d-repeat` is v8's settings (is the early damage reproducible?), `d-lr1e-4` a tenth of the learning rate (a fine-tune
+# stepping too far), `d-vw10` the value loss weighted 10x (policy gradients disturbing the trunk the value relies on).
+kind: experiment
+name: selfplay-v8-diag
+seeds: [0, 1, 2]
+defaults:
+  game: checkers
+  algorithm: alphazero
+  budget: {iterations: 4}
+  held_out_every: 1
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent: {hidden: 64, hidden_layers: 2, simulations: 50}
+arms:
+  d-repeat:
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+  d-lr1e-4:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, learning_rate: 0.0001}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+  d-vw10:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_weight: 10}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}

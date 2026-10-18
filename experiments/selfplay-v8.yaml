@@ -1,9 +1,9 @@
-# selfplay-v8 (prepared, not yet run; docs/design/0017): AlphaZero-style search targets. Each value head is compared with
+# selfplay-v8 (docs/design/0017, 0020 Phase 0): AlphaZero-style search targets. Each value head is compared with
 # the TD-trained network it would replace, both searched by alpha-beta at 3 plies -- the question is whether a value
 # learned from MCTS self-play is a better *evaluator*. `z-az-ft` fine-tunes the same 1M-game 2 x 64 TD networks TD-Leaf
 # fine-tuned in `l-1m-ft2` (equal games: 40k; ~2.4x its compute at 50 simulations), and `z-az-ft-16k` matches that
-# compute instead. `z-az-200k` learns from scratch, against TD-Leaf from scratch for the same 200k games (`s-leaf2`;
-# ~1.75x its compute).
+# compute instead. The from-scratch arm (`z-az-200k`, against `selfplay-v5/s-leaf2`) moved to 0020's Phase 2, to run
+# once with whichever search savings are kept.
 kind: experiment
 name: selfplay-v8
 seeds: [0, 1, 2, 3, 4]
@@ -27,11 +27,6 @@ arms:
       held_out_every: 1
     baseline: selfplay-v6/l-1m-ft2
     init_from: selfplay-v2/pool-2x64-1m
-  z-az-200k:
-    train:
-      budget: {iterations: 200}
-      held_out_every: 20
-    baseline: selfplay-v5/s-leaf2
 report:
   protocol: experiment.checkers-h2h
   params: {full: true}

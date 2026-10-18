@@ -1,6 +1,7 @@
 # 0020 — AlphaZero, continued: train it, make the search a player, then scale
 
-Status: **Proposed** (2026-10-18). Nothing in this plan has been run or built yet.
+Status: **Proposed; Phase 0 run** (2026-10-18). The AlphaZero fine-tune lost; see "Phase 0 results". Nothing from
+Phases 1-4 is built.
 Relates to: [0017](0017-alphazero-checkers.md) (the learner this continues: built, never trained),
 [0016](0016-selfplay-scaling.md) (the current best recipe, 2 x 128 TD then TD-Leaf, and its unrun follow-ups),
 [0013](0013-measuring-two-player-strength.md) (h2h SPRT, Elo), [0015](0015-td-leaf-from-the-start.md) (fine-tuning beat
@@ -54,12 +55,52 @@ after both.
    left is `z-az-ft` (~30 min per run) and `z-az-ft-16k` (~12 min per run), plus the full-ballot h2h report.
 3. **Read the draw rate before changing the target.** 0017 named mixing the search's root value into the target,
    `z' = (1 - m) z + m q`, as the fix if the outcome-only target is too noisy. The case for it is that strong play draws
-   often, so `z` is mostly 0 and carries little signal. Nobody has measured that. v8's per-iteration draw counts
-   (`TrainStats.draws`) measure it.
+   often, so `z` is mostly 0 and carries little signal. Nobody has measured that. v8's per-iteration `draw_rate` extra
+   measures it.
    - If draws dominate the fine-tune's games, the mixed target becomes `selfplay-v9`. It needs a param with `m = 0` as
      today's update, so the golden runs and the `alphazero` digest hold. `az_gradients` takes the mixed target as an
      input, covered by its finite-difference check. The RL WASM is rebuilt, since `alphazero.rs` is part of it.
    - If draws don't dominate, the mixed target waits until a result points at it.
+
+### Phase 0 results (2026-10-18)
+
+**`selfplay-v8`** (5 seeds; each arm's five final networks against the baseline's, seed for seed, over the whole ballot
+from both seats, both searching 3 plies):
+
+| Arm | Against | Elo | Seeds positive |
+|---|---|---|---|
+| `z-az-ft` (40k games, ~2.4x compute) | `selfplay-v6/l-1m-ft2` | **-323 [-342, -304]** | 0 of 5 |
+| `z-az-ft-16k` (16k games, ~1x compute) | `selfplay-v6/l-1m-ft2` | **-328 [-348, -310]** | 0 of 5 |
+
+The fine-tunes also lost to the TD network they started from. Seeding is exact (`set_value_network` reproduces the
+parent to 0.0), so the strength is lost in training. It is lost early: the 16k arm is no better than the 40k one.
+Draws were 59-73% of self-play games throughout. The policy hardly learned: over 40k games its loss went only from
+~1.63 to ~1.56, and its entropy at the start position stayed ~1.8 nats, close to uniform over ~8 moves. The fixed-opponent
+monitor (held-out score, `mcts_points`) stayed at 0.6-0.9 and noticed none of this. That confirms it saturates.
+
+**`selfplay-v8-diag`** (3 seeds, 4k games each, played against the parent `selfplay-v2/pool-2x64-1m`, the whole
+ballot):
+
+| Arm | What it tests | Elo vs the parent | Per seed |
+|---|---|---|---|
+| `d-repeat` | v8's settings | **-324 [-348, -302]** | -365 -252 -375 |
+| `d-lr1e-4` | a tenth of the learning rate | **-88 [-103, -73]** | -34 -104 -130 |
+| `d-vw10` | the value loss weighted 10x | **-330 [-356, -306]** | -350 -278 -373 |
+
+- **The damage is reproducible and immediate.** 4k games already cost all of v8's loss.
+- **The policy gradients aren't the cause.** With the value loss weighted 10x, it is just as bad.
+- **A smaller step only slows it.** At a tenth of the learning rate it still loses on every seed, so the network is
+  moved steadily *toward* something worse than what TD taught it. That points at what the value is trained on: game
+  outcomes, two-thirds of them draws, from exploratory self-play (root noise, sampled early moves, random openings).
+
+**Next: `selfplay-v9`**, at v8's learning rate, against the parent, to separate the target from the data:
+
+- the mixed target `z' = (1 - m) z + m q` at `m = 0.5` and `m = 1` (the search's value alone). This needs the
+  `m = 0`-default param from step 3 above;
+- exploration off (`dirichlet_weight: 0`, `temperature_plies: 0`), which existing params cover. If outcomes from noisy
+  play are the problem, this arm recovers.
+
+Phase 1 waits for v9. A player built on this policy would be measuring a policy that barely learned.
 
 ### Phase 1 — the MCTS player, where strategies live
 
