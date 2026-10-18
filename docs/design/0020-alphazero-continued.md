@@ -1,8 +1,9 @@
 # 0020 — AlphaZero, continued: train it, make the search a player, then scale
 
-Status: **Phase 0 done; Phases 2-3 not going ahead as planned** (2026-10-18). With its outcome-only value target the
-fine-tune lost; with a searched value it held but never improved. See "Phase 0 results". Nothing from Phases 1-4 is
-built.
+Status: **Phase 0 done; Phases 2-3 not going ahead as planned; policy pretraining failed its gates** (2026-10-18). With
+its outcome-only value target the fine-tune lost; with a searched value it held but never improved; a policy pretrained
+from alpha-beta didn't make the search stronger. See "Phase 0 results" and "Next: policy pretraining". Nothing from
+Phases 1-4 is built.
 Relates to: [0017](0017-alphazero-checkers.md) (the learner this continues: built, never trained),
 [0016](0016-selfplay-scaling.md) (the current best recipe, 2 x 128 TD then TD-Leaf, and its unrun follow-ups),
 [0013](0013-measuring-two-player-strength.md) (h2h SPRT, Elo), [0015](0015-td-leaf-from-the-start.md) (fine-tuning beat
@@ -229,6 +230,42 @@ The `-0` arms run first and decide whether the 40k arms run at all.
 **Cost.** Labelling a position takes one 3-ply alpha-beta search of a 2 x 64 network, about milliseconds, so 100k
 positions take minutes. The 40k arms cost what v10's did (~2,500 active seconds per run). Building the four parts is
 the larger cost.
+
+**Built and run (2026-10-18).** `pretrain_policy`, `points_against_evaluator` and `params.policy_pretrain` exist and
+are tested. With `freeze_trunk` the trunk and value unit stay bit-identical, and with pretraining off the golden runs
+and the `alphazero` digest are unchanged. A one-seed calibration through the binding chose the settings: 100k positions,
+10 epochs, T 0.03, which gives target entropy ~1.0 nat. 20k positions or 5 epochs gave lower agreement.
+
+**`selfplay-v11`'s `-0` arms** (5 seeds; pretraining, then 1k games of self-play at `value_target_mix: 0.75`; ~135 s of
+pretraining per run):
+
+| | `p-probe-0` (trunk frozen) | `p-full-0` (whole network) |
+|---|---|---|
+| Held-out agreement with the teacher's best move | 0.185 -> **0.41** (0.40-0.42) | 0.185 -> **0.45** (0.44-0.46) |
+| Policy entropy at the start position (was ~1.8) | 1.58-1.74 | 1.44-1.63 |
+| Search (50 simulations) vs the teacher, before -> after (100 games per seed) | **0.463 -> 0.474** | **0.463 -> 0.440** |
+| Elo vs the parent after the 1k games (whole ballot) | **-11 [-23, 0]** | **-60 [-71, -48]** |
+
+- **Gate 1, partly passed.** Agreement more than doubles over the untrained policy, which agrees with the teacher 0.185
+  of the time (ties go to the first move, so that's above 1/8). But it stops at 0.41-0.45, and the start position's
+  entropy hardly falls. The policy head learns some of the teacher's choices from TD's features, not most of them.
+- **Gate 2, failed.** With the pretrained prior, the search scores no better against the teacher than with a uniform
+  one. The probe is +0.011, and the full network -0.023, against a standard error of about 0.02 over 500 games. This was
+  the hypothesis itself. A prior that agrees with alpha-beta 41-45% of the time doesn't make 50 simulations stronger.
+- **Gate 3, failed for `full`.** The probe's value is exactly the parent's after pretraining, so its -11 is the cost of
+  1k self-play games alone. `full` loses 60, so roughly 50 of that is pretraining moving the value, even though the
+  value target held it at its own outputs.
+
+**Conclusion.** By the gates, the 40k-game arms don't run. At 2 x 64 and 50 simulations, this policy prior doesn't
+help the search, so it can't be what rescues AlphaZero training here. Three things could still change that, none of
+them cheap:
+- a policy head with more capacity than one linear layer on a value network's features (for example its own hidden
+  layer);
+- a far larger simulation budget, which makes self-play much slower;
+- a different network size altogether.
+
+The finding that holds across v8-v11 is that at this scale TD-Leaf is the better way to spend self-play games. Phase 1
+stays useful as a measurement for TD networks, not as AlphaZero's payoff.
 
 ### Phase 1 — the MCTS player, where strategies live
 

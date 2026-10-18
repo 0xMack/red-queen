@@ -1,0 +1,35 @@
+# selfplay-v11 (docs/design/0020, "Next: policy pretraining"): does an alpha-beta teacher's policy break AlphaZero's
+# flat-policy loop? Each arm starts from `selfplay-v2/pool-2x64-1m`, teaches the policy head that network's 3-ply
+# alpha-beta move choices (`policy_pretrain`, 100k positions, a softmax at T 0.03 over its move scores), then plays 1k
+# games of self-play at `value_target_mix: 0.75` (v10's least-bad target). These are the cheap `-0` arms, which decide
+# gates 1-3; the 40k-game arms (`p-probe`, `p-full`, against `selfplay-v6/l-1m-ft2`) are added only if they pass.
+# `p-probe-0` freezes the trunk and the value unit (only the policy rows learn); `p-full-0` trains the whole network with
+# the value held at its own, so it is played against the parent to see whether pretraining moved the value (gate 3).
+kind: experiment
+name: selfplay-v11
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: alphazero
+  budget: {iterations: 1}
+  held_out_every: 1
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_target_mix: 0.75}
+arms:
+  p-probe-0:
+    train:
+      params:
+        policy_pretrain: {positions: 100000, teacher_depth: 3, temperature: 0.03, epochs: 10, freeze_trunk: true}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+  p-full-0:
+    train:
+      params:
+        policy_pretrain: {positions: 100000, teacher_depth: 3, temperature: 0.03, epochs: 10, freeze_trunk: false}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}
