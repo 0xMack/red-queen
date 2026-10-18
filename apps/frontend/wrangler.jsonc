@@ -1,6 +1,6 @@
-// The public site as a Cloudflare Worker that only serves static files (docs/design/0019): `redqueen dev deploy` runs
-// `wrangler deploy` here after `pnpm generate:static`. No Worker script -- every request is a static asset (free, not
-// a billed Worker invocation), headers from .output/public/_headers.
+// The public site as a Cloudflare Worker that only serves static files (docs/design/0019): CI's deploy job (and
+// `redqueen dev deploy`) runs `wrangler deploy` here after `pnpm generate:static`. No Worker script -- every request
+// is a static asset (free, not a billed Worker invocation), headers from .output/public/_headers.
 {
   "name": "redqueen",
   "compatibility_date": "2026-10-01",

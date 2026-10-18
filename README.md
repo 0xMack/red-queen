@@ -10,6 +10,12 @@ Genetic programming, neuroevolution, NEAT, Q-learning, DQN, PPO, self-play, band
 implemented by hand. They compete on purpose-built games under one leaderboard, and you can watch every one of them
 think, live in the browser.
 
+[![Tests](https://github.com/0xMack/red-queen/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/0xMack/red-queen/actions/workflows/ci.yml?query=branch%3Amain)
+[![Deploy](https://img.shields.io/github/deployments/0xMack/red-queen/production?label=deploy)](https://github.com/0xMack/red-queen/deployments/production)
+[![Site](https://img.shields.io/website?url=https%3A%2F%2Fredqueen.mackinations.ca&label=site&up_message=online&down_message=offline)](https://redqueen.mackinations.ca)
+
+**[redqueen.mackinations.ca](https://redqueen.mackinations.ca)**
+
 </div>
 
 ![PPO, the Snake leader, playing live in the browser: its network lights up with every move, beside the ranked standings of every algorithm](docs/images/snake.gif)

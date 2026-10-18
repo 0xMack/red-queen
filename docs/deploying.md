@@ -55,7 +55,7 @@ API and scheduler running (`uv run redqueen dev up`):
 ```bash
 uv run redqueen publish site --wait     # the snapshot: <data dir>/site (about 15 s)
 uv run redqueen dev deploy --dry-run    # optional: what would upload, and a check of the Worker config
-uv run redqueen dev deploy              # build the site, upload the data, deploy the Worker
+uv run redqueen dev deploy --no-site    # upload the data (the site deploys itself on merge, below)
 ```
 
 What `dev deploy` does:
@@ -67,25 +67,28 @@ What `dev deploy` does:
 
 ## Automatic deploys (the site, on every merge to `main`)
 
-CI's `deploy` job (`.github/workflows/ci.yml`) runs after the tests pass on every push to `main`:
-1. It builds the site statically. The local-identifier check runs here too, on paths only.
-2. It uploads any ONNX Runtime files a dependency upgrade added (`deploy_r2.py --ort-only`).
-3. It runs `wrangler deploy`.
+CI's `deploy` job (`.github/workflows/ci.yml`) deploys the site. The whole pipeline is in the repo, and its logs are
+readable with `gh run view --log`. After `python`, `rust` and `frontend` pass on a push to `main`, it:
+1. **uploads ONNX Runtime if a dependency upgrade brought a new version** (`build-static.mjs --stage-ort`, then
+   `deploy_r2.py --ort-only`, which uploads only files the bucket lacks), so the new site never asks for files the data
+   host doesn't have;
+2. **builds the site** (`pnpm generate:static`). The build is strict here: it fails if the data host doesn't serve its
+   ONNX Runtime version. It also runs the size check and the local-identifier check (paths only on a build server);
+3. **deploys the Worker** (`wrangler deploy`, from `apps/frontend/wrangler.jsonc`).
 
-It never runs for pull requests, so forks never see the secrets. A second merge waits for a running deploy rather than
-interrupting it.
+It never runs for pull requests, so forks never see the secrets. A PR's own static build only *warns* about a missing
+ONNX Runtime version (`ORT_CHECK=warn`), since the upload happens when it merges. A second merge waits for a running
+deploy rather than interrupting it. The **deploy** badge in the README shows the latest production deployment.
 
 **The data stays a local step.** It comes from the local stores, which CI can't reach. After training, run
 `uv run redqueen publish site --wait` and then `uv run redqueen dev deploy --no-site`. If a frontend change needs new
-data (a new route, a new field), upload the data first, then merge, so the new site never asks for files that aren't
-there yet.
+data (a new route, a new field), upload the data before merging.
 
 **Setup: four repository secrets.** Until they're set, the job skips with a notice.
 
 1. **Create a Cloudflare API token for deploying the Worker.** Go to **My Profile → API Tokens → Create Token** and use
    the **Edit Cloudflare Workers** template. Set **Account Resources** to your account and **Zone Resources** to
-   `mackinations.ca` only. If a deploy then fails on the custom domain, add **Zone → DNS → Edit** for
-   `mackinations.ca`.
+   `mackinations.ca` only. If a deploy fails on the custom domain, add **Zone → DNS → Edit** for `mackinations.ca`.
 2. **Store the secrets in GitHub**, in your own terminal (PowerShell). The first command prompts for the token; paste
    it there, not into a file or a chat. The other three copy from the environment variables you already set:
 
@@ -97,7 +100,10 @@ there yet.
    ```
 
    The R2 pair is the same Object Read & Write upload token; CI only adds versioned ONNX Runtime files with it.
-3. **Optional:** in **Settings → Environments → production**, add protection rules (for example, required reviewers)
+3. **Don't also connect Cloudflare's Git integration** (Workers Builds). It would deploy alongside this job, and inside
+   Cloudflare's build Nitro picks a different preset unless it's pinned (`build-static.mjs` pins it). If it's
+   connected, disconnect it under **Workers & Pages → redqueen → Settings → Build**.
+4. **Optional:** in **Settings → Environments → production**, add protection rules (for example, required reviewers)
    to gate each deploy.
 
 ## What gets published
