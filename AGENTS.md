@@ -363,7 +363,9 @@ Each directory has its own README with specifics — this file is the map, not t
   `wasm-bindgen-cli` matching `rust/wasm`'s pinned version); `tests/test_wasm_build.py` fails until you do. Rust embeds
   absolute source paths (panic locations) in the binary -- the builder's home directory, i.e. username and folder layout
   -- and this WASM is public, so both build scripts remap them (`--remap-path-prefix`, `remapped_env()`); a build made
-  any other way fails `pnpm generate:static`'s local-identifier check.
+  any other way fails `pnpm generate:static`'s local-identifier check. Inside Cloudflare's build (`WORKERS_CI`), Nitro silently switches
+  to its `cloudflare-module` preset and writes a `.wrangler/deploy/config.json` redirect that makes `wrangler deploy`
+  ignore `apps/frontend/wrangler.jsonc`; `build-static.mjs` pins `NITRO_PRESET=static` for that reason.
 - Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
   default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
   actual CMake/pybind11 build once the compiler is on PATH.

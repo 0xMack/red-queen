@@ -31,7 +31,14 @@ const env = {
   NUXT_PUBLIC_API_MODE: process.env.NUXT_PUBLIC_API_MODE ?? "static",
   NUXT_PUBLIC_API_BASE: process.env.NUXT_PUBLIC_API_BASE ?? `${DATA_HOST}/api`,
   NUXT_PUBLIC_ORT_BASE: process.env.NUXT_PUBLIC_ORT_BASE ?? `${DATA_HOST}/ort/${ortVersion}`,
+  // Always plain static files. Inside Cloudflare's build (WORKERS_CI) Nitro would otherwise pick its
+  // `cloudflare-module` preset: a server Worker, with a generated wrangler.json that a .wrangler/deploy redirect makes
+  // Wrangler use instead of ours -- losing our `previews` block, and serving something other than these files.
+  NITRO_PRESET: "static",
 }
+// A leftover .wrangler/deploy redirect (from any earlier Cloudflare-preset build) would make `wrangler deploy` ignore
+// wrangler.jsonc: never let one survive into a deploy.
+rmSync(join(".wrangler", "deploy"), { recursive: true, force: true })
 console.log(`static build: API ${env.NUXT_PUBLIC_API_MODE} at ${env.NUXT_PUBLIC_API_BASE}; ONNX Runtime from ${env.NUXT_PUBLIC_ORT_BASE}`)
 const result = spawnSync("pnpm", ["exec", "nuxt", "generate"], { env, stdio: "inherit", shell: process.platform === "win32" })
 if (result.status !== 0) process.exit(result.status ?? 1)
