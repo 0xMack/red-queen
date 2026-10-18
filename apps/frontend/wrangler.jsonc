@@ -1,6 +1,6 @@
-// The public site as a Cloudflare Worker that only serves static files (docs/design/0019): `redqueen dev deploy` runs
-// `wrangler deploy` here after `pnpm generate:static`. No Worker script -- every request is a static asset (free, not
-// a billed Worker invocation), headers from .output/public/_headers.
+// The public site as a Cloudflare Worker that only serves static files (docs/design/0019): CI's deploy job (and
+// `redqueen dev deploy`) runs `wrangler deploy` here after `pnpm generate:static`. No Worker script -- every request
+// is a static asset (free, not a billed Worker invocation), headers from .output/public/_headers.
 {
   "name": "redqueen",
   "compatibility_date": "2026-10-01",
@@ -10,9 +10,5 @@
     "not_found_handling": "single-page-application"
   },
   // the first deploy creates the DNS record and certificate; mackinations.ca is a zone on this account
-  "routes": [{ "pattern": "redqueen.mackinations.ca", "custom_domain": true }],
-  // Workers Builds runs `wrangler preview` for a pull request's branch, which needs this block. Empty: the Worker has
-  // no bindings or settings for a preview to override. (A preview's workers.dev URL isn't an origin the data host's
-  // CORS rule allows, so models don't load there -- a preview proves the build, production is the custom domain.)
-  "previews": {}
+  "routes": [{ "pattern": "redqueen.mackinations.ca", "custom_domain": true }]
 }

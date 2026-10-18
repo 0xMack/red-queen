@@ -67,33 +67,44 @@ What `dev deploy` does:
 
 ## Automatic deploys (the site, on every merge to `main`)
 
-Cloudflare's Git integration (Workers Builds) deploys the site itself. Its settings are in **Workers & Pages →
-redqueen → Settings → Build**:
+CI's `deploy` job (`.github/workflows/ci.yml`) deploys the site. The whole pipeline is in the repo, and its logs are
+readable with `gh run view --log`. After `python`, `rust` and `frontend` pass on a push to `main`, it:
+1. **uploads ONNX Runtime if a dependency upgrade brought a new version** (`build-static.mjs --stage-ort`, then
+   `deploy_r2.py --ort-only`, which uploads only files the bucket lacks), so the new site never asks for files the data
+   host doesn't have;
+2. **builds the site** (`pnpm generate:static`). The build is strict here: it fails if the data host doesn't serve its
+   ONNX Runtime version. It also runs the size check and the local-identifier check (paths only on a build server);
+3. **deploys the Worker** (`wrangler deploy`, from `apps/frontend/wrangler.jsonc`).
 
-| Setting | Value |
-|---|---|
-| Repository / production branch | `0xMack/red-queen`, `main` |
-| Root directory | `apps/frontend` |
-| Build command | `pnpm install --frozen-lockfile && pnpm generate:static` |
-| Deploy command | `npx wrangler deploy` (reads `wrangler.jsonc`) |
-| Build watch paths | `apps/frontend/*` (a merge that doesn't touch the frontend doesn't rebuild) |
+It never runs for pull requests, so forks never see the secrets. A PR's own static build only *warns* about a missing
+ONNX Runtime version (`ORT_CHECK=warn`), since the upload happens when it merges. A second merge waits for a running
+deploy rather than interrupting it. The **deploy** badge in the README shows the latest production deployment.
 
-- **Versions are pinned** (`apps/frontend/.node-version` and `package.json`'s `packageManager`), so Cloudflare's build
-  and CI's use the same Node and pnpm. The static build's checks run in both: file sizes, local identifiers (paths
-  only on a build server), and ONNX Runtime (below).
-- **Upgrading `onnxruntime-web`?** The site loads ONNX Runtime from the data host at `ort/<version>/`, and
-  `pnpm generate:static` fails if that version isn't there. That stops Cloudflare from deploying a site whose models
-  can't load, and makes the upgrade's PR fail CI. Upload the new version from your machine (after a local
-  `pnpm generate:static`), then re-run the PR's checks:
-
-  ```bash
-  uv run --script jobs/publisher/scripts/deploy_r2.py --ort-only --ort apps/frontend/.output/ort
-  ```
-
-**The data stays a local step.** It comes from the local stores, which no build server can reach. After training, run
+**The data stays a local step.** It comes from the local stores, which CI can't reach. After training, run
 `uv run redqueen publish site --wait` and then `uv run redqueen dev deploy --no-site`. If a frontend change needs new
-data (a new route, a new field), upload the data before merging, so the new site never asks for files that aren't
-there yet.
+data (a new route, a new field), upload the data before merging.
+
+**Setup: four repository secrets.** Until they're set, the job skips with a notice.
+
+1. **Create a Cloudflare API token for deploying the Worker.** Go to **My Profile → API Tokens → Create Token** and use
+   the **Edit Cloudflare Workers** template. Set **Account Resources** to your account and **Zone Resources** to
+   `mackinations.ca` only. If a deploy fails on the custom domain, add **Zone → DNS → Edit** for `mackinations.ca`.
+2. **Store the secrets in GitHub**, in your own terminal (PowerShell). The first command prompts for the token; paste
+   it there, not into a file or a chat. The other three copy from the environment variables you already set:
+
+   ```powershell
+   gh secret set CLOUDFLARE_API_TOKEN
+   gh secret set CLOUDFLARE_ACCOUNT_ID --body "$env:R2_ACCOUNT_ID"
+   gh secret set R2_ACCESS_KEY_ID --body "$env:R2_ACCESS_KEY_ID"
+   gh secret set R2_SECRET_ACCESS_KEY --body "$env:R2_SECRET_ACCESS_KEY"
+   ```
+
+   The R2 pair is the same Object Read & Write upload token; CI only adds versioned ONNX Runtime files with it.
+3. **Don't also connect Cloudflare's Git integration** (Workers Builds). It would deploy alongside this job, and inside
+   Cloudflare's build Nitro picks a different preset unless it's pinned (`build-static.mjs` pins it). If it's
+   connected, disconnect it under **Workers & Pages → redqueen → Settings → Build**.
+4. **Optional:** in **Settings → Environments → production**, add protection rules (for example, required reviewers)
+   to gate each deploy.
 
 ## What gets published
 

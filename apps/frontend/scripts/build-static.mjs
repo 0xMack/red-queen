@@ -31,11 +31,27 @@ const env = {
   NUXT_PUBLIC_API_MODE: process.env.NUXT_PUBLIC_API_MODE ?? "static",
   NUXT_PUBLIC_API_BASE: process.env.NUXT_PUBLIC_API_BASE ?? `${DATA_HOST}/api`,
   NUXT_PUBLIC_ORT_BASE: process.env.NUXT_PUBLIC_ORT_BASE ?? `${DATA_HOST}/ort/${ortVersion}`,
-  // Always plain static files. Inside Cloudflare's build (WORKERS_CI) Nitro would otherwise pick its
+  // Always plain static files. Anywhere Nitro detects a Cloudflare build (WORKERS_CI) it would otherwise pick its
   // `cloudflare-module` preset: a server Worker, with a generated wrangler.json that a .wrangler/deploy redirect makes
-  // Wrangler use instead of ours -- losing our `previews` block, and serving something other than these files.
+  // Wrangler use instead of wrangler.jsonc -- serving something other than these files.
   NITRO_PRESET: "static",
 }
+
+// ONNX Runtime's files as the data host serves them, at ort/<version>/ (for deploy_r2.py --ort-only to upload).
+function stageOrt() {
+  const out = join(".output", "ort", ortVersion)
+  rmSync(join(".output", "ort"), { recursive: true, force: true })
+  mkdirSync(out, { recursive: true })
+  for (const file of ORT_FILES) copyFileSync(join(ortDist, file), join(out, file))
+  return out
+}
+
+// `--stage-ort`: only stage ONNX Runtime, so a deploy can upload a new version before the build checks for it.
+if (process.argv.includes("--stage-ort")) {
+  console.log(`static build: ONNX Runtime ${ortVersion} staged in ${stageOrt()}`)
+  process.exit(0)
+}
+
 // A leftover .wrangler/deploy redirect (from any earlier Cloudflare-preset build) would make `wrangler deploy` ignore
 // wrangler.jsonc: never let one survive into a deploy.
 rmSync(join(".wrangler", "deploy"), { recursive: true, force: true })
@@ -52,15 +68,12 @@ for (const file of readdirSync(join(site, "_nuxt"))) {
   if (file.startsWith("ort-wasm-simd-threaded")) rmSync(join(site, "_nuxt", file))
 }
 
-const ortOut = join(".output", "ort", ortVersion)
-rmSync(join(".output", "ort"), { recursive: true, force: true })
-mkdirSync(ortOut, { recursive: true })
-for (const file of ORT_FILES) copyFileSync(join(ortDist, file), join(ortOut, file))
+const ortOut = stageOrt()
 
 // The site loads ONNX Runtime from the data host, at this version's path: a build whose version isn't there yet (an
 // onnxruntime-web upgrade) would deploy a site whose models never load. So check the host serves every file, at the
-// right size, and fail otherwise -- Cloudflare's build then refuses to deploy, and the upgrade's PR fails CI until
-// the files are uploaded. Only for an https base (a local copy for testing, at localhost, is the tester's business).
+// right size. A deploy fails without it (CI's deploy job uploads a new version first); ORT_CHECK=warn (pull requests,
+// which upload nothing) only warns. Only for an https base (a local copy for testing is the tester's business).
 if (env.NUXT_PUBLIC_ORT_BASE.startsWith("https://")) {
   const missing = []
   for (const file of ORT_FILES) {
@@ -77,14 +90,18 @@ if (env.NUXT_PUBLIC_ORT_BASE.startsWith("https://")) {
     }
   }
   if (missing.length) {
-    console.error(
+    const warnOnly = process.env.ORT_CHECK === "warn"
+    ;(warnOnly ? console.warn : console.error)(
       `static build: the data host doesn't serve ONNX Runtime ${ortVersion}:\n  ${missing.join("\n  ")}\n` +
-        "Upload it first (from the repo root, after this build): " +
-        "uv run --script jobs/publisher/scripts/deploy_r2.py --ort-only --ort apps/frontend/.output/ort",
+        (warnOnly
+          ? "(warning only: the deploy after merging uploads it)"
+          : "Upload it first (from the repo root, after this build): " +
+            "uv run --script jobs/publisher/scripts/deploy_r2.py --ort-only --ort apps/frontend/.output/ort"),
     )
-    process.exit(1)
+    if (!warnOnly) process.exit(1)
+  } else {
+    console.log(`static build: the data host serves ONNX Runtime ${ortVersion}`)
   }
-  console.log(`static build: the data host serves ONNX Runtime ${ortVersion}`)
 }
 
 // Cloudflare refuses a deploy with any asset over 25 MiB: fail here, with the name, instead.
