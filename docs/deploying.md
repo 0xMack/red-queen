@@ -55,7 +55,7 @@ API and scheduler running (`uv run redqueen dev up`):
 ```bash
 uv run redqueen publish site --wait     # the snapshot: <data dir>/site (about 15 s)
 uv run redqueen dev deploy --dry-run    # optional: what would upload, and a check of the Worker config
-uv run redqueen dev deploy              # build the site, upload the data, deploy the Worker
+uv run redqueen dev deploy --no-site    # upload the data (the site deploys itself on merge, below)
 ```
 
 What `dev deploy` does:
@@ -67,38 +67,33 @@ What `dev deploy` does:
 
 ## Automatic deploys (the site, on every merge to `main`)
 
-CI's `deploy` job (`.github/workflows/ci.yml`) runs after the tests pass on every push to `main`:
-1. It builds the site statically. The local-identifier check runs here too, on paths only.
-2. It uploads any ONNX Runtime files a dependency upgrade added (`deploy_r2.py --ort-only`).
-3. It runs `wrangler deploy`.
+Cloudflare's Git integration (Workers Builds) deploys the site itself. Its settings are in **Workers & Pages →
+redqueen → Settings → Build**:
 
-It never runs for pull requests, so forks never see the secrets. A second merge waits for a running deploy rather than
-interrupting it.
+| Setting | Value |
+|---|---|
+| Repository / production branch | `0xMack/red-queen`, `main` |
+| Root directory | `apps/frontend` |
+| Build command | `pnpm install --frozen-lockfile && pnpm generate:static` |
+| Deploy command | `npx wrangler deploy` (reads `wrangler.jsonc`) |
+| Build watch paths | `apps/frontend/*` (a merge that doesn't touch the frontend doesn't rebuild) |
 
-**The data stays a local step.** It comes from the local stores, which CI can't reach. After training, run
+- **Versions are pinned** (`apps/frontend/.node-version` and `package.json`'s `packageManager`), so Cloudflare's build
+  and CI's use the same Node and pnpm. The static build's checks run in both: file sizes, local identifiers (paths
+  only on a build server), and ONNX Runtime (below).
+- **Upgrading `onnxruntime-web`?** The site loads ONNX Runtime from the data host at `ort/<version>/`, and
+  `pnpm generate:static` fails if that version isn't there. That stops Cloudflare from deploying a site whose models
+  can't load, and makes the upgrade's PR fail CI. Upload the new version from your machine (after a local
+  `pnpm generate:static`), then re-run the PR's checks:
+
+  ```bash
+  uv run --script jobs/publisher/scripts/deploy_r2.py --ort-only --ort apps/frontend/.output/ort
+  ```
+
+**The data stays a local step.** It comes from the local stores, which no build server can reach. After training, run
 `uv run redqueen publish site --wait` and then `uv run redqueen dev deploy --no-site`. If a frontend change needs new
-data (a new route, a new field), upload the data first, then merge, so the new site never asks for files that aren't
+data (a new route, a new field), upload the data before merging, so the new site never asks for files that aren't
 there yet.
-
-**Setup: four repository secrets.** Until they're set, the job skips with a notice.
-
-1. **Create a Cloudflare API token for deploying the Worker.** Go to **My Profile → API Tokens → Create Token** and use
-   the **Edit Cloudflare Workers** template. Set **Account Resources** to your account and **Zone Resources** to
-   `mackinations.ca` only. If a deploy then fails on the custom domain, add **Zone → DNS → Edit** for
-   `mackinations.ca`.
-2. **Store the secrets in GitHub**, in your own terminal (PowerShell). The first command prompts for the token; paste
-   it there, not into a file or a chat. The other three copy from the environment variables you already set:
-
-   ```powershell
-   gh secret set CLOUDFLARE_API_TOKEN
-   gh secret set CLOUDFLARE_ACCOUNT_ID --body "$env:R2_ACCOUNT_ID"
-   gh secret set R2_ACCESS_KEY_ID --body "$env:R2_ACCESS_KEY_ID"
-   gh secret set R2_SECRET_ACCESS_KEY --body "$env:R2_SECRET_ACCESS_KEY"
-   ```
-
-   The R2 pair is the same Object Read & Write upload token; CI only adds versioned ONNX Runtime files with it.
-3. **Optional:** in **Settings → Environments → production**, add protection rules (for example, required reviewers)
-   to gate each deploy.
 
 ## What gets published
 

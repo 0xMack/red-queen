@@ -50,6 +50,36 @@ rmSync(join(".output", "ort"), { recursive: true, force: true })
 mkdirSync(ortOut, { recursive: true })
 for (const file of ORT_FILES) copyFileSync(join(ortDist, file), join(ortOut, file))
 
+// The site loads ONNX Runtime from the data host, at this version's path: a build whose version isn't there yet (an
+// onnxruntime-web upgrade) would deploy a site whose models never load. So check the host serves every file, at the
+// right size, and fail otherwise -- Cloudflare's build then refuses to deploy, and the upgrade's PR fails CI until
+// the files are uploaded. Only for an https base (a local copy for testing, at localhost, is the tester's business).
+if (env.NUXT_PUBLIC_ORT_BASE.startsWith("https://")) {
+  const missing = []
+  for (const file of ORT_FILES) {
+    const url = `${env.NUXT_PUBLIC_ORT_BASE}/${file}`
+    const size = statSync(join(ortOut, file)).size
+    try {
+      // identity: a compressed response (fetch asks for one by default) carries no Content-Length to compare
+      const response = await fetch(url, { method: "HEAD", headers: { "accept-encoding": "identity" } })
+      const served = Number(response.headers.get("content-length"))
+      if (!response.ok) missing.push(`${url}: HTTP ${response.status}`)
+      else if (served !== size) missing.push(`${url}: ${served} bytes served, ${size} built`)
+    } catch (error) {
+      missing.push(`${url}: ${error.message}`)
+    }
+  }
+  if (missing.length) {
+    console.error(
+      `static build: the data host doesn't serve ONNX Runtime ${ortVersion}:\n  ${missing.join("\n  ")}\n` +
+        "Upload it first (from the repo root, after this build): " +
+        "uv run --script jobs/publisher/scripts/deploy_r2.py --ort-only --ort apps/frontend/.output/ort",
+    )
+    process.exit(1)
+  }
+  console.log(`static build: the data host serves ONNX Runtime ${ortVersion}`)
+}
+
 // Cloudflare refuses a deploy with any asset over 25 MiB: fail here, with the name, instead.
 const tooBig = []
 const walk = (dir) => {

@@ -56,9 +56,11 @@ be reachable from the internet.
    boto3, so no workspace package depends on it. The site is deployed from this machine (`wrangler deploy`), not built
    from git, because its data is local anyway. `redqueen dev cloudflare-setup` does the rest of the setup through
    Wrangler, except the R2 upload token. `redqueen dev deploy` runs the three steps in order -- build, upload data,
-   deploy site -- so a new site never asks for files that aren't there yet. The site also deploys from CI on every
-   merge to `main` (after the tests; ONNX Runtime files a new version adds go to the data host first); the data stays
-   a local step, because it is a snapshot of the training machine's stores.
+   deploy site -- so a new site never asks for files that aren't there yet. The site also deploys on every merge to
+   `main`, through Cloudflare's Git integration (Workers Builds: root `apps/frontend`, `pnpm generate:static`, then
+   `npx wrangler deploy`). The build fails if the data host lacks its ONNX Runtime version, so an upgrade can't ship a
+   site whose models don't load. The data stays a local step, because it is a snapshot of the training machine's
+   stores.
 
 ## Consequences
 
