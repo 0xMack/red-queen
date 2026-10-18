@@ -161,6 +161,75 @@ don't go ahead as planned. What's left that is worth testing, in order of cost:
 3. **Phase 1 for TD networks only:** an MCTS player is still a useful measurement (Elo against time per move), but it
    no longer has an AlphaZero network to show off.
 
+### Next: policy pretraining (`selfplay-v11`, proposed, not built)
+
+**The hypothesis.** AlphaZero training fails here because it starts from a flat policy. The search spreads 50
+simulations over ~8 moves almost evenly, so its visit counts are nearly flat too, and the policy has nothing sharp to
+learn from. Give the policy a useful prior first, by supervised learning from an alpha-beta teacher, and the search
+should produce sharper targets. Then self-play has something to improve on.
+
+**The teacher: the parent TD network, searched 3 plies.** That is the evaluator under `Strategy::scores` in
+`checkers_strategies.rs`: exact minimax values per legal move, the same search that ranks every Checkers entrant. Using
+the parent keeps the policy consistent with the value it starts from: the policy learns "what alpha-beta on this value
+would play". A deeper teacher (5 plies) is the next arm if this one works. Starting with the strongest teacher would
+mix up "does a prior help?" with "does a stronger prior help?".
+
+**Targets.** For each position, the policy target is a softmax over the teacher's move scores at temperature `T`,
+summed into the 128 policy indices as visit counts are. A soft target carries the teacher's ranking of every move, not
+only its best. `T` is set so a typical position's target has an entropy around 1 nat, against ~1.8 for today's visit
+targets; the trainer logs it. The value target is the parent's own value of the position. A pretraining step therefore
+asks the value to stay where it is, never to move toward a game outcome, which v9 showed is what does damage.
+
+**Positions.** The teacher plays itself from `random_opening_plies` random moves (as `distill` builds its pool): roughly
+the positions AlphaZero self-play will visit. They come from their own RNG stream, so a seed gives the same pool every
+time. A held-out tenth measures agreement.
+
+**Two ways to train**, as two arms:
+- **`probe`:** only the 128 policy output rows learn, with the trunk and value unit frozen (their gradients zeroed).
+  The value is bit-for-bit the parent's, so any change in strength comes from the policy and the search. It's a linear
+  probe on TD's features, so its capacity is limited.
+- **`full`:** the whole network learns, with policy cross-entropy plus the value held at the parent's. This gives more
+  capacity, but it can move the value. Its pretrain-only checkpoint is measured against the parent for that reason.
+
+**What gets built** (each part is off by default, so the golden runs and the `alphazero` digest don't move):
+1. **Rust** (`alphazero.rs`): `pretrain_policy(teacher, positions, temperature, epochs, freeze_trunk)` generates and
+   labels positions, runs Adam epochs through the existing `az_gradients`, and returns held-out top-1 agreement plus
+   both losses. Also `points_against` takes an evaluator opponent (the parent searched `depth` plies), not just a fixed
+   strategy. That is the diagnostic that doesn't saturate: MCTS with this policy against the TD network it came from,
+   with no Phase 1 needed.
+2. **Tests:** labels are distributions over the legal moves; with `freeze_trunk` the trunk and value unit are
+   bit-identical after training; pretraining raises agreement on a small network. The RL WASM is rebuilt.
+3. **Workload:** `AlphaZeroParams.policy_pretrain` (`positions`, `temperature`, `epochs`, `freeze_trunk`,
+   `teacher_depth`) runs after `set_value_network` and needs `init_from`. It logs the pretraining extras (agreement,
+   losses, target entropy, wall time) and counts the labelling and training in `cost`, so "equal training compute"
+   includes them.
+
+**`selfplay-v11`** (5 seeds, from `selfplay-v2/pool-2x64-1m`, `value_target_mix: 0.75` like the v10 control):
+
+| Arm | Pretraining | Then | Against | Compared with |
+|---|---|---|---|---|
+| `p-probe-0` | probe | 1k games (nearly a pretrain-only checkpoint) | the parent | 0 |
+| `p-full-0` | full | 1k games | the parent | 0 |
+| `p-probe` | probe | 40k games | `selfplay-v6/l-1m-ft2` | v10's `x-mix075`, -77 |
+| `p-full` | full | 40k games | `selfplay-v6/l-1m-ft2` | v10's `x-mix075`, -77 |
+
+The `-0` arms run first and decide whether the 40k arms run at all.
+
+**Gates, in order:**
+1. **Pretraining learns.** Held-out top-1 agreement with the teacher is well above the uniform policy's (~1/8), and
+   the start position's policy entropy falls well below 1.8. If not, fix it before spending self-play games.
+2. **The prior helps the search.** MCTS at 50 simulations with the pretrained policy scores more against the parent
+   (searched 3 plies) than the same value with a uniform policy. This is the hypothesis itself: if it fails, stop.
+3. **`full` didn't damage the value.** `p-full-0` against the parent is within noise of 0.
+4. **Self-play now learns.** In the 40k arms, the policy loss and the visit targets' entropy fall over training, which
+   they never did in v8-v10.
+5. **What counts as a win.** A 40k arm beats `l-1m-ft2` on the h2h SPRT. A smaller loss than `x-mix075`'s -77 counts
+   as progress but not as a win.
+
+**Cost.** Labelling a position takes one 3-ply alpha-beta search of a 2 x 64 network, about milliseconds, so 100k
+positions take minutes. The 40k arms cost what v10's did (~2,500 active seconds per run). Building the four parts is
+the larger cost.
+
 ### Phase 1 — the MCTS player, where strategies live
 
 1. **The search goes into `libs/games/rust/core`, written once against a small policy-value trait** (a position and its
