@@ -24,7 +24,8 @@
 //! - **Learn.** Each searched position is stored with its visit distribution and, once the game ends, its outcome from
 //!   its mover's side. After every game, `updates_per_game` Adam steps on minibatches of `batch_size` drawn from the
 //!   last `buffer_size` positions: `value_weight (v - z)^2` plus the cross-entropy of the policy (a softmax over the
-//!   legal moves' indices only) against the visit distribution.
+//!   legal moves' indices only) against the visit distribution. `value_target_mix` m (default 0: the outcome alone)
+//!   replaces `z` with `(1 - m) z + m q`, `q` the search's value of that position (docs/design/0020).
 
 use redqueen_games::checkers::{playable_squares, Checkers, Move, Square};
 use redqueen_rl::agent::Params;
@@ -343,6 +344,7 @@ pub struct AlphaZero {
     batch_size: usize,
     updates_per_game: u32,
     value_weight: f64,
+    value_target_mix: f64,
     max_moves_without_capture: u32,
     max_plies: u32,
     buffer: Vec<Example>,
@@ -371,7 +373,7 @@ pub struct TrainStats {
 }
 
 impl AlphaZero {
-    pub const PARAMS: [&'static str; 14] = [
+    pub const PARAMS: [&'static str; 15] = [
         "hidden",
         "hidden_layers",
         "learning_rate",
@@ -385,6 +387,7 @@ impl AlphaZero {
         "batch_size",
         "updates_per_game",
         "value_weight",
+        "value_target_mix",
         "seed_offset",
     ];
 
@@ -413,6 +416,10 @@ impl AlphaZero {
         if !(0.0..=1.0).contains(&dirichlet_weight) {
             return Err(format!("dirichlet_weight must be in [0, 1], got {dirichlet_weight}"));
         }
+        let value_target_mix = params.get("value_target_mix", 0.0);
+        if !(0.0..=1.0).contains(&value_target_mix) {
+            return Err(format!("value_target_mix must be in [0, 1], got {value_target_mix}"));
+        }
         let net = Mlp::init(Self::shape(&hidden), &mut Rng::new(seed, Stream::Init));
         Ok(AlphaZero {
             adam: Adam::new(net.params.len(), positive("learning_rate", 1e-3)?),
@@ -427,6 +434,7 @@ impl AlphaZero {
             batch_size: whole("batch_size", 64.0, 1.0)?,
             updates_per_game: whole("updates_per_game", 4.0, 0.0)? as u32,
             value_weight: positive("value_weight", 1.0)?,
+            value_target_mix,
             max_moves_without_capture,
             max_plies,
             buffer: Vec::new(),
@@ -539,7 +547,8 @@ impl AlphaZero {
     /// One self-play game: its training examples, plies, winner, positions searched and summed search shift.
     fn play(&mut self) -> (Vec<Example>, u32, Option<u8>, f64) {
         let mut game = Checkers::new(self.max_moves_without_capture);
-        let mut searched: Vec<(Example, u8)> = Vec::new(); // and its mover, until the outcome is known
+        // and its mover and the search's value of it (mover's side), until the outcome is known
+        let mut searched: Vec<(Example, u8, f64)> = Vec::new();
         let mut shift = 0.0;
         let mut plies = 0;
         while !game.done && plies < self.max_plies {
@@ -566,6 +575,7 @@ impl AlphaZero {
                         outcome: 0.0,
                     },
                     game.current_player,
+                    result.value,
                 ));
                 if plies < self.random_opening_plies + self.temperature_plies {
                     let mut target = self.explore.uniform() * total as f64;
@@ -586,15 +596,24 @@ impl AlphaZero {
             plies += 1;
         }
         let winner = if game.done { game.winner } else { None };
+        let mix = self.value_target_mix;
         let examples = searched
             .into_iter()
-            .map(|(example, mover)| Example {
-                outcome: match winner {
+            .map(|(example, mover, searched_value)| {
+                let z = match winner {
                     Some(w) if w == mover => 1.0,
                     Some(_) => -1.0,
                     None => 0.0,
-                },
-                ..example
+                };
+                Example {
+                    // m = 0 is the outcome exactly, as before the mix existed (the determinism digest pins it)
+                    outcome: if mix == 0.0 {
+                        z
+                    } else {
+                        (1.0 - mix) * z + mix * searched_value
+                    },
+                    ..example
+                }
             })
             .collect::<Vec<_>>();
         (examples, plies, winner, shift)
@@ -779,15 +798,33 @@ mod tests {
                 policy: vec![0.0, 1.0],
                 outcome: -1.0,
             },
+            // a mixed target (`value_target_mix`): any value in [-1, 1], not just an outcome
+            Example {
+                observation: vec![],
+                indices: vec![3, 64],
+                policy: vec![0.6, 0.4],
+                outcome: 0.37,
+            },
         ];
-        let outputs: Vec<f64> = (0..2 * width).map(|_| rng.normal()).collect();
+        let outputs: Vec<f64> = (0..3 * width).map(|_| rng.normal()).collect();
         let (_, _, grad) = az_gradients(&outputs, &examples, 0.7);
         let loss = |o: &[f64]| {
             let (v, p, _) = az_gradients(o, &examples, 0.7);
             v + p
         };
         let h = 1e-6;
-        for i in [0, 5, 18, 100, width, width + 1, width + 128, width + 50] {
+        for i in [
+            0,
+            5,
+            18,
+            100,
+            width,
+            width + 1,
+            width + 128,
+            width + 50,
+            2 * width,
+            2 * width + 4,
+        ] {
             let (mut up, mut down) = (outputs.clone(), outputs.clone());
             up[i] += h;
             down[i] -= h;
@@ -892,5 +929,28 @@ mod tests {
         assert!(AlphaZero::new(0, &params(&[("dirichlet_weight", 1.5)]), 40, 200).is_err());
         assert!(AlphaZero::new(0, &params(&[("c_puct", -1.0)]), 40, 200).is_err());
         assert!(AlphaZero::new(0, &params(&[("lambda", 0.5)]), 40, 200).is_err());
+        assert!(AlphaZero::new(0, &params(&[("value_target_mix", 1.5)]), 40, 200).is_err());
+        assert!(AlphaZero::new(0, &params(&[("value_target_mix", -0.1)]), 40, 200).is_err());
+    }
+
+    #[test]
+    fn value_targets_mix_the_outcome_with_the_searched_value() {
+        // the first game doesn't depend on the target (nothing has been learned yet), so the same seed plays it
+        // identically at every mix: m = 1 gives each position's searched value, m = 0 its outcome
+        let first_game = |mix: f64| {
+            let mut pairs = vec![("hidden", 16.0), ("hidden_layers", 1.0), ("simulations", 12.0)];
+            pairs.push(("value_target_mix", mix));
+            AlphaZero::new(3, &params(&pairs), 40, 200).unwrap().play().0
+        };
+        let (outcome, searched, half) = (first_game(0.0), first_game(1.0), first_game(0.5));
+        assert!(!outcome.is_empty() && outcome.len() == searched.len() && outcome.len() == half.len());
+        assert!(outcome.iter().all(|e| [-1.0, 0.0, 1.0].contains(&e.outcome)));
+        assert!(searched.iter().all(|e| (-1.0..=1.0).contains(&e.outcome)));
+        assert!(searched.iter().zip(&outcome).any(|(s, o)| s.outcome != o.outcome));
+        for ((o, s), h) in outcome.iter().zip(&searched).zip(&half) {
+            assert_eq!(o.observation, h.observation);
+            assert_eq!(o.policy, h.policy);
+            assert!((h.outcome - (0.5 * o.outcome + 0.5 * s.outcome)).abs() < 1e-12);
+        }
     }
 }
