@@ -1,0 +1,44 @@
+# selfplay-v9 (docs/design/0020, after selfplay-v8-diag): is it the value target or the data? v8-diag's `d-repeat` (these
+# settings, 4k games) lost -324 Elo to its parent, `selfplay-v2/pool-2x64-1m`. Each arm here changes one thing, at v8's
+# learning rate, and is played against the same parent, seed for seed:
+# - `v-mix05`, `v-mix1`: the value target mixes in the search's value of the position, `(1 - m) z + m q`
+#   (`value_target_mix`); m = 1 is the search's value alone.
+# - `v-greedy`: the outcome target, but from play with no exploration: no root noise, no sampled early moves. Four
+#   random opening plies (not searched, not learned from) stand in for them, or every game from one network would be
+#   the same game.
+kind: experiment
+name: selfplay-v9
+seeds: [0, 1, 2]
+defaults:
+  game: checkers
+  algorithm: alphazero
+  budget: {iterations: 4}
+  held_out_every: 1
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent: {hidden: 64, hidden_layers: 2, simulations: 50}
+arms:
+  v-mix05:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_target_mix: 0.5}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+  v-mix1:
+    train:
+      params:
+        agent: {hidden: 64, hidden_layers: 2, simulations: 50, value_target_mix: 1}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+  v-greedy:
+    train:
+      params:
+        agent:
+          {hidden: 64, hidden_layers: 2, simulations: 50, dirichlet_weight: 0, temperature_plies: 0,
+           random_opening_plies: 4}
+    baseline: selfplay-v2/pool-2x64-1m
+    init_from: selfplay-v2/pool-2x64-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}

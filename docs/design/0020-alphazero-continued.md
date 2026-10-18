@@ -1,7 +1,7 @@
 # 0020 — AlphaZero, continued: train it, make the search a player, then scale
 
-Status: **Proposed; Phase 0 run** (2026-10-18). The AlphaZero fine-tune lost; see "Phase 0 results". Nothing from
-Phases 1-4 is built.
+Status: **Proposed; Phase 0 run** (2026-10-18). The AlphaZero fine-tune lost, because of its outcome-only value
+target; see "Phase 0 results". Nothing from Phases 1-4 is built.
 Relates to: [0017](0017-alphazero-checkers.md) (the learner this continues: built, never trained),
 [0016](0016-selfplay-scaling.md) (the current best recipe, 2 x 128 TD then TD-Leaf, and its unrun follow-ups),
 [0013](0013-measuring-two-player-strength.md) (h2h SPRT, Elo), [0015](0015-td-leaf-from-the-start.md) (fine-tuning beat
@@ -101,6 +101,31 @@ ballot):
   play are the problem, this arm recovers.
 
 Phase 1 waits for v9. A player built on this policy would be measuring a policy that barely learned.
+
+**`selfplay-v9`** (3 seeds, 4k games each, played against the parent, the whole ballot; `d-repeat` is v8-diag's arm with
+the same settings and `m = 0`):
+
+| Arm | Change | Elo vs the parent | Per seed |
+|---|---|---|---|
+| `d-repeat` | (none: `m = 0`) | -324 [-348, -302] | -365 -252 -375 |
+| `v-mix05` | `value_target_mix: 0.5` | **-98 [-114, -82]** | -138 -76 -81 |
+| `v-mix1` | `value_target_mix: 1` (the search's value alone) | **-29 [-43, -14]** | -23 -26 -37 |
+| `v-greedy` | no root noise or sampled moves (4 random opening plies instead) | **-430 [-465, -400]** | -372 -574 -397 |
+
+- **The outcome target is the cause.** The loss shrinks steadily as the searched value replaces the outcome: -324,
+  -98, -29.
+- **Exploring wasn't the problem.** Without it the loss is worse. With less varied games, draws climbed to 83-91%, and
+  the policy's loss fell fast (1.5 to 0.95 in 4k games), which is overfitting to repeated games.
+- **No setting beat the parent.** The best, `m = 1`, still loses 29 Elo on every seed, and its value loss (~0.006)
+  shows the network has learned to agree with a 50-simulation search of itself. That kind of target keeps what TD
+  taught; it doesn't add to it. Throughout, the policy learned almost nothing (loss ~1.69 to ~1.65).
+
+**Where this leaves the plan.** The outcome-only value target is ruled out at this scale. The open question is whether
+a searched-value target *improves* on TD with more games, as TD-Leaf's fine-tune did over 40k. The next run is v8's
+question asked again: `value_target_mix: 1` (and 0.75, keeping a little of the outcome) for 40k games against
+`selfplay-v6/l-1m-ft2`. If it can't beat TD-Leaf at equal training compute, AlphaZero-style training doesn't pay at this
+network size. The MCTS player (Phase 1) would then be justified only as a way to search TD networks, not as
+AlphaZero's payoff.
 
 ### Phase 1 — the MCTS player, where strategies live
 
