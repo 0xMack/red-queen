@@ -1,8 +1,8 @@
 """A pure-Python linear (register-machine) GP genome.
 
-A from-scratch reimplementation of the same idea as libs/RedQueenCbind, not a port of it -- this
-package exists to validate the Population/FitnessEvaluator/SelectionStrategy/VariationStrategy
-abstractions (docs/design/0001) before committing anything to C++ (docs/design/0003 phase 1).
+Written from scratch to validate the Population/FitnessEvaluator/SelectionStrategy/VariationStrategy
+abstractions (docs/design/0001, 0003 phase 1); it has since become the repo's GP implementation (the C++ engine
+0001 planned was removed).
 """
 
 from __future__ import annotations
@@ -55,8 +55,7 @@ class LinearProgram:
         """Executes the program against `inputs`, returning the final register state.
 
         Reads registers directly rather than copying them into a combined buffer each
-        instruction -- that per-instruction copy was a real perf bug fixed in RedQueenCbind's
-        C++ version (docs/CODING_GUIDELINES.md).
+        instruction -- that per-instruction copy was a real perf bug in the original C++ engine.
         """
         registers = [0.0] * self.num_registers
         for instr in self.instructions:

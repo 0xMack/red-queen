@@ -24,7 +24,7 @@ mcp = ["mcp>=2.3"]
 
 [project.scripts]
 redqueen = "redqueen_cli.main:run"
-# The import name is redqueen_cli: `redqueen` is RedQueenCbind's C++ extension module.
+# The import name is redqueen_cli, chosen when the old C++ GP engine owned `redqueen`.
 # A convenience alias nothing depends on (docs/design/0018, decision 8): docs, CI and scripts call `redqueen`.
 rq = "redqueen_cli.main:run"
 

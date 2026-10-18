@@ -1,8 +1,10 @@
 # 0001 — Fast C++ Genetic Programming Engine, exposed to Python via pybind11
 
-Status: **Draft** — first pass, open for discussion.
+Status: **Superseded; the engine was removed** (2026-10-18). The pure-Python `libs/evolve`, written to prototype
+this doc's abstractions (0003 phase 1), became the repo's GP implementation, and the Rust cores (0009) took over
+where native speed mattered. `libs/RedQueenCbind` is in git history. Kept as the record of where the repo started.
 Owner: mack
-Relates to: `libs/RedQueenCbind`
+Related code: `libs/evolve`
 
 ## Context
 

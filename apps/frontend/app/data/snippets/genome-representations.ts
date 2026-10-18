@@ -1,7 +1,7 @@
 import type { Snippet } from "~/types/code"
 
 // Genome Representations' snippets. Python is libs/evolve's own; Rust is a translation (both genomes exist only in
-// Python here -- RedQueenCbind's engine is C++).
+// Python here).
 
 export const linearRun: Snippet = {
   pseudo: `function run(program, inputs)

@@ -8,8 +8,7 @@ where they're cheap to iterate on and easy to introspect, before anything is com
 
 ## Contents
 
-- `genome.py` — `LinearProgram`: a fixed-length register-machine individual (from-scratch Python
-  reimplementation of the same idea as `libs/RedQueenCbind`, not a port of it), plus
+- `genome.py` — `LinearProgram`: a fixed-length register-machine individual, plus
   `effective_instruction_count()` — a standard linear-GP "structural intron" analysis giving a
   naturally-varying complexity measure with no representation change needed.
 - `fitness.py` — `FitnessEvaluator` protocol + `SymbolicRegressionFitness` (dataset-based, genome-

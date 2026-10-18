@@ -41,21 +41,6 @@ what belongs here and how to add to it). Read before writing code, not after.
   between tests. Test files need **unique basenames across `libs/*/tests`** (they're rootdir-imported without
   `__init__.py`): a second `test_bandit.py` fails collection with "import file mismatch".
 
-## C++
-
-- Never construct a `random_device`/`mt19937` (or any RNG) per call — reuse a `static` engine.
-  Real perf bug we hit: it was happening 4x per instruction, 16 instructions per individual.
-- A constructor parameter shadowing a member (`mutationRate = mutationRate;`) silently discards
-  the argument — use `this->member = param` or distinct names. The compiler won't warn you.
-- Don't `new` a value type just to `push_back` a copy into a container — construct in place
-  (`emplace_back()`). The `new` here was an unfreed leak, one per program instruction.
-- If a buffer is sized once and then only ever appended to via `back_inserter`/`push_back`, the
-  initial size is dead weight and misleading — either size it correctly and write in place, or
-  don't preallocate.
-- Any per-item state that persists across items in a loop (e.g. registers across dataset rows)
-  must be explicitly reset at the start of each item unless carrying over is intended — it was
-  silently carrying over here and produced wrong predictions for every row after the first.
-
 ## Simulations / RL environments
 
 - An environment's observation must contain enough information to determine the correct action —
@@ -303,8 +288,9 @@ what belongs here and how to add to it). Read before writing code, not after.
 Freeform notes that don't fit a section above yet. Once a pattern shows up twice, fold it into the
 relevant section instead of leaving it here.
 
-- The C++ bugs above were all found by actually building and running the code, not by reading it —
-  verify an implementation runs before trusting that it looks correct.
+- Verify an implementation runs before trusting that it looks correct: every bug in the original C++ GP engine
+  (an RNG constructed per call, a parameter shadowing its member, per-row state never reset) was found by running
+  it, not by reading it.
 - `apps/frontend` pages under a transitioned `<NuxtPage>` need exactly **one** template root — a
   sibling HTML comment counts as a second root in dev and silently blanks the page on client-side
   navigation (Nuxt warns `NUXT_E4004` in the console; direct loads look fine). Found by clicking
