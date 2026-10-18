@@ -2,8 +2,8 @@
 
 The `redqueen` command (docs/design/0018, decisions 1, 5 and 8): the backend's API from the command line. An HTTP
 client only, with no jobcore, no games and nothing native. The API validates every spec and refuses one that can't run
-(422, with the reason), so the CLI runs anywhere the API is reachable. Its import name is `redqueen_cli`, because
-`redqueen` is RedQueenCbind's C++ extension.
+(422, with the reason), so the CLI runs anywhere the API is reachable. Its import name is `redqueen_cli`, chosen
+when the repo's old C++ GP engine owned `redqueen`.
 
 ```bash
 uv run redqueen --help

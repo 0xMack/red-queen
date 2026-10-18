@@ -5,7 +5,6 @@ simulations they run against, and common utilities used across `../apps`, `../ap
 
 ## Contents
 
-- `RedQueenCbind/` — C++/pybind11 linear genetic programming (LGP) implementation
 - `autodiff/` — a reverse-mode automatic differentiation engine, built from scratch (docs/design/0004)
 - `evolve/` — pure-Python evolution loop prototype (genome, fitness, selection, variation),
   telemetry-agnostic

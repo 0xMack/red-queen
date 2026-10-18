@@ -85,7 +85,7 @@ only values the next payout scores ≤ 15.
 
 | Family | What | Code | Learn chapter · design doc |
 |---|---|---|---|
-| Genetic programming | Linear (register machine) and tree GP; tournament, lexicase and Pareto selection | [`libs/evolve`](libs/evolve), [`libs/RedQueenCbind`](libs/RedQueenCbind) (C++) | 1–3 · [0001](docs/design/0001-fast-cpp-gp-pybind11.md), [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) |
+| Genetic programming | Linear (register machine) and tree GP; tournament, lexicase and Pareto selection | [`libs/evolve`](libs/evolve) | 1–3 · [0001](docs/design/0001-fast-cpp-gp-pybind11.md), [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) |
 | Neuroevolution | Fixed-shape networks as weight vectors, Gaussian mutation | [`libs/evolve`](libs/evolve) | 4 · [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) |
 | NEAT | Innovation numbers, structural mutation, speciation | [`libs/evolve/neat.py`](libs/evolve) | 5 · [0008](docs/design/0008-neat-and-tracked-comparisons.md) |
 | Bandits | Greedy, ε-greedy, optimistic, UCB, Thompson, gradient, a Q-table with γ | [`libs/rl`](libs/rl) (Rust) | 6 · [0011](docs/design/0011-multi-armed-bandits.md) |
@@ -167,7 +167,6 @@ Runs land in `data/`, which is gitignored. The same checks CI runs are listed in
 | [`libs/autodiff`](libs/autodiff) · [`libs/tinylm`](libs/tinylm) | Autodiff from scratch, and a small transformer built on it |
 | [`libs/modelpack`](libs/modelpack) | Champions exported to ONNX with measured parity, as content-addressed model packages |
 | [`libs/telemetry`](libs/telemetry) | Run registry, metrics stream, artifact store, leaderboard evaluations |
-| [`libs/RedQueenCbind`](libs/RedQueenCbind) | The original C++/pybind11 linear GP engine this repo started from |
 | [`jobs`](jobs) | Training runs, experiments and leaderboard evaluations |
 | [`notebooks`](notebooks) | Algorithm comparisons with baked-in output (tournament vs. lexicase, Pareto, linear vs. tree, …) |
 | [`docs/design`](docs/design) | Numbered design docs: one per major decision, with the hypotheses and what the results said |
@@ -178,7 +177,7 @@ Every directory has its own README with the specifics.
 
 | # | Decision |
 |---|---|
-| [0001](docs/design/0001-fast-cpp-gp-pybind11.md) | A fast C++ GP engine, exposed to Python via pybind11 |
+| [0001](docs/design/0001-fast-cpp-gp-pybind11.md) | A fast C++ GP engine, exposed to Python via pybind11 (since removed: `libs/evolve` is the GP implementation) |
 | [0002](docs/design/0002-realtime-visualization-architecture.md) | Connecting evolving populations to real-time visualization |
 | [0003](docs/design/0003-algorithm-landscape-and-roadmap.md) | The algorithm landscape, built toward incrementally |
 | [0004](docs/design/0004-small-transformer-from-scratch.md) | A small transformer LM, from scratch |

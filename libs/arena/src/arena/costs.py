@@ -45,8 +45,8 @@ def hardware_fingerprint() -> dict[str, Any]:
         "logical_cores": os.cpu_count(),
         "os": f"{platform.system()} {platform.release()}",
         "python": f"{impl} {version}",
-        # Everything in libs/evolve + libs/games is pure Python today; RedQueenCbind runs would say
-        # "c++". Timings across these are not comparable even on the same CPU.
+        # The default; a job whose inner loop is the Rust core says so (e.g. the bandit evaluation's "rust").
+        # Timings across engines are not comparable even on the same CPU.
         "engine": "pure-python",
         # What timings are grouped by in UIs.
         "hardware_class": f"{cpu} · {impl} {'.'.join(version.split('.')[:2])}",

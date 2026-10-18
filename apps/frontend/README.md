@@ -309,8 +309,8 @@ single-language. `Callout.vue` (`variant: "note" | "warning" | "finding"` -- `"f
 prose references, e.g. Snake's reward-hacking or its representation-ceiling result).
 
 Deliberately **not** `@nuxt/content`: it pulls in a SQLite-backed content database
-(`better-sqlite3`) as a peer dependency, real native-binding risk on this Windows machine given the
-already-documented MSVC/`RedQueenCbind` build friction, for what's currently ~6-10 pages. Hand-
+(`better-sqlite3`) as a peer dependency, real native-binding risk on this Windows machine (native
+builds here need an MSVC environment), for what's currently ~6-10 pages. Hand-
 authored Vue pages + the component library above both sidesteps that risk and makes "reusable
 components" the literal mechanism rather than something hidden behind a markdown-rendering layer.
 Revisit if the chapter count grows enough that hand-authoring markup becomes the bottleneck.

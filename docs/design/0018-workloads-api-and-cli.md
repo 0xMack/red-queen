@@ -176,7 +176,7 @@ The CLI is an **HTTP client only** (`REDQUEEN_API_URL`, default `http://localhos
 neither `telemetry` nor `jobcore`*: it sends specs as plain YAML/JSON and prints the API's JSON, so the API is the one
 validator (a bad spec is a 422 with the reason) and the OpenAPI snapshot the one contract, and the CLI installs with
 three pure-Python dependencies (httpx2, PyYAML, Typer) -- nothing native, runnable anywhere the API is. Its import name
-is `redqueen_cli` (distribution `redqueen-cli`): `redqueen` is RedQueenCbind's C++ extension. Command groups follow the
+is `redqueen_cli` (distribution `redqueen-cli`), chosen when the old C++ GP engine owned `redqueen`. Command groups follow the
 schema slices, and verbs wrap multi-call work:
 
 ```

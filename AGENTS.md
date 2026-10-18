@@ -111,7 +111,6 @@ architectural change that might conflict with a decision already made.
     before the API count); `GET /specs/schemas` is every payload's JSON Schema. The write endpoints (`POST /runs`,
     `PATCH /runs/{id}`, metrics, artifacts, evaluations) are the HTTP sink's.
 - `libs/` — shared libraries
-  - `RedQueenCbind/` — C++/pybind11 linear GP engine
   - `autodiff/` — reverse-mode automatic differentiation, built from scratch (docs/design/0004).
     The first `libs/` package another package depends on (`tinylm` depends on it) — every other
     package is a leaf.
@@ -191,8 +190,8 @@ architectural change that might conflict with a decision already made.
     definition of where local data lives and how it's opened (docs/design/0018). `JobStore` (`jobs.db`,
     `open_job_store()`) holds jobs (`queued` → `running` → `succeeded`/`failed`/`cancelled`; `claim_next()` is the
     scheduler's atomic claim) and submitted experiment specs -- the API's and the scheduler's, never a workload's.
-  - `cli/` — the `redqueen` command (alias `rq`, which nothing may depend on; import name `redqueen_cli`, since
-    `redqueen` is RedQueenCbind's extension), docs/design/0018: an HTTP client of the API only (httpx2, PyYAML, Typer
+  - `cli/` — the `redqueen` command (alias `rq`, which nothing may depend on; import name `redqueen_cli`, chosen when
+    the old C++ engine owned `redqueen`), docs/design/0018: an HTTP client of the API only (httpx2, PyYAML, Typer
     -- no jobcore, nothing native), a group per schema slice (`runs`, `jobs`, `experiments`, `pipeline`, `schedules`,
     `leaderboard`, `models`) plus `train`/`evaluate`/`h2h`/`publish`/`schemas`/`doctor`; `--json` everywhere, `--wait`
     on anything that starts work. Nothing runs unless the scheduler is up (`uv run redqueen dev up`). `redqueen mcp
@@ -335,8 +334,8 @@ Each directory has its own README with specifics — this file is the map, not t
 - **Python tooling is `uv`**, as a workspace (root `pyproject.toml`, `[tool.uv.workspace]`, one
   shared `.venv`/`uv.lock` for every `libs/*` package). `uv sync --all-packages` installs
   everything into that one venv — plain `uv sync` only installs the (virtual, package-less) root
-  project, since nothing declares the members as dependencies. Add `--extra examples` to also pull
-  in `RedQueenCbind`'s example dependencies (numpy/scikit-learn). Workspace `members` is
+  project, since nothing declares the members as dependencies. Add `--extra mcp` for the CLI's MCP server
+  (`redqueen mcp serve`). Workspace `members` is
   `["libs/*", "apis/*", "jobs/core", "jobs/trainer", "jobs/evaluator", "jobs/publisher", "jobs/scheduler"]` — a new
   `libs/` or `apis/` package joins automatically; a new workload is added to the list.
 - **`apps/frontend` is a separate `pnpm` project**, not part of the `uv` workspace — its own
@@ -357,7 +356,7 @@ Each directory has its own README with specifics — this file is the map, not t
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
   allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;
   it's gitignored meanwhile). Note `uv sync --all-packages`
-  *uninstalls* whatever isn't named — pass `--group notebooks --extra examples` if they were installed.
+  *uninstalls* whatever isn't named — pass `--group notebooks --extra mcp` if they were installed.
   After changing `rust/core` or `rust/wasm`, run
   `uv run redqueen dev build-wasm` (both cores; `libs/{games,rl}/scripts/build_wasm.py`; needs the `wasm32-unknown-unknown` target and
   `wasm-bindgen-cli` matching `rust/wasm`'s pinned version); `tests/test_wasm_build.py` fails until you do. Rust embeds
@@ -366,9 +365,6 @@ Each directory has its own README with specifics — this file is the map, not t
   any other way fails `pnpm generate:static`'s local-identifier check. If it's ever built inside Cloudflare's build (`WORKERS_CI`), Nitro silently switches
   to its `cloudflare-module` preset and writes a `.wrangler/deploy/config.json` redirect that makes `wrangler deploy`
   ignore `apps/frontend/wrangler.jsonc`; `build-static.mjs` pins `NITRO_PRESET=static` for that reason.
-- Building `RedQueenCbind` on Windows needs an MSVC dev environment (no `cl.exe` on PATH by
-  default) — run `uv sync`/`uv run` through `vcvarsall.bat x64`; scikit-build-core handles the
-  actual CMake/pybind11 build once the compiler is on PATH.
 - Writing LaTeX or other backslash-heavy source through a Bash heredoc on this Windows setup can collapse `\\` to `\`
   (so a TS `"\\beta"` lands as `"\beta"` -- a backspace plus `eta`). Use the Write/Edit tools for such files, or a
   script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas.
