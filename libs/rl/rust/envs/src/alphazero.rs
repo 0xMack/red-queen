@@ -372,6 +372,39 @@ pub struct TrainStats {
     pub search_shift: f64,
 }
 
+/// How `pretrain_policy` teaches the policy head (docs/design/0020, `selfplay-v11`).
+#[derive(Clone, Debug)]
+pub struct Pretrain {
+    /// Positions to label (a tenth held out to measure agreement).
+    pub positions: usize,
+    /// Plies the teacher (an evaluator) searches when it scores moves.
+    pub teacher_depth: u32,
+    /// The soft target is a softmax over the teacher's move scores at this temperature.
+    pub temperature: f64,
+    /// Passes over the labelled positions.
+    pub epochs: u32,
+    /// Only the policy's output rows learn; the trunk and the value unit stay exactly as they were.
+    pub freeze_trunk: bool,
+    /// Uniformly random plies at the start of every teacher game, so the games (and positions) differ.
+    pub random_opening_plies: u32,
+}
+
+/// What `pretrain_policy` did.
+#[derive(Clone, Debug, Default)]
+pub struct PretrainStats {
+    pub positions: u64,
+    pub held_out: u64,
+    /// Held-out top-1 agreement of the policy with the teacher's best move, before and after.
+    pub agreement_before: f64,
+    pub agreement: f64,
+    /// Mean entropy (nats) of the soft targets: how sure the teacher is.
+    pub target_entropy: f64,
+    /// Mean losses over the last epoch's updates.
+    pub policy_loss: f64,
+    pub value_loss: f64,
+    pub updates: u64,
+}
+
 impl AlphaZero {
     pub const PARAMS: [&'static str; 15] = [
         "hidden",
@@ -685,10 +718,45 @@ impl AlphaZero {
     /// deterministic, so without them every game against a deterministic opponent would be the same one).
     pub fn points_against(&self, opponent: &str, simulations: u32, games: u32, seed: u64) -> Result<f64, String> {
         use redqueen_games::checkers_strategies::Strategy;
+        self.points_against_with(|s| Strategy::parse(opponent, s, None), simulations, games, seed)
+    }
+
+    /// `points_against` an evaluator (`weights` + `layer_sizes`, an `evolve.WeightVector`) searching `depth` plies:
+    /// e.g. the TD network a run started from, an opponent that doesn't saturate the way `material-2` does.
+    pub fn points_against_evaluator(
+        &self,
+        weights: &[f64],
+        layer_sizes: &[usize],
+        depth: u32,
+        simulations: u32,
+        games: u32,
+        seed: u64,
+    ) -> Result<f64, String> {
+        use redqueen_games::checkers_strategies::Strategy;
+        let build = |s| {
+            Strategy::build(
+                "evaluator",
+                s,
+                Some(weights.to_vec()),
+                Some(layer_sizes.to_vec()),
+                depth,
+                None,
+            )
+        };
+        self.points_against_with(build, simulations, games, seed)
+    }
+
+    fn points_against_with(
+        &self,
+        opponent: impl Fn(u64) -> Result<redqueen_games::checkers_strategies::Strategy, String>,
+        simulations: u32,
+        games: u32,
+        seed: u64,
+    ) -> Result<f64, String> {
         let mut points = 0.0;
         for g in 0..games {
             let game_seed = seed + g as u64;
-            let mut other = Strategy::parse(opponent, game_seed + 7919, None)?;
+            let mut other = opponent(game_seed + 7919)?;
             let mut opening = Rng::new(game_seed, Stream::Data);
             let mut game = Checkers::new(self.max_moves_without_capture);
             let seat = (g % 2) as u8;
@@ -714,6 +782,163 @@ impl AlphaZero {
             };
         }
         Ok(points / games.max(1) as f64)
+    }
+
+    /// Which parameters are the policy's output rows (weights and biases of output units 1..): the only ones
+    /// `freeze_trunk` lets learn.
+    fn policy_mask(&self) -> Vec<bool> {
+        let sizes = &self.net.shape.layer_sizes;
+        let hidden = &sizes[..sizes.len() - 1];
+        let trunk: usize = hidden.windows(2).map(|w| w[1] * (w[0] + 1)).sum();
+        let last = *hidden.last().unwrap();
+        let biases = trunk + (1 + POLICY_SIZE) * last;
+        (0..self.net.params.len())
+            .map(|i| (i >= trunk + last && i < biases) || i > biases)
+            .collect()
+    }
+
+    /// The share of `examples` whose policy argmax (over their legal moves; ties to the first) is `best`.
+    fn agreement(&self, examples: &[Example], best: &[usize]) -> f64 {
+        let hits = examples
+            .iter()
+            .zip(best)
+            .filter(|(example, &best)| {
+                let out = self.net.forward(&example.observation);
+                let mut top = example.indices[0];
+                for &i in &example.indices {
+                    if out[1 + i] > out[1 + top] {
+                        top = i;
+                    }
+                }
+                top == best
+            })
+            .count();
+        hits as f64 / examples.len().max(1) as f64
+    }
+
+    /// Teach the policy head an alpha-beta teacher's move choices before self-play (docs/design/0020): the teacher
+    /// (an evaluator, `teacher_weights` + `teacher_sizes`, searching `teacher_depth` plies) plays itself from
+    /// `random_opening_plies` random moves; every position it scores becomes an example whose policy target is a
+    /// softmax over its move scores at `temperature` and whose value target is the network's own value of it now (so
+    /// the value is asked to stay where it is). Adam epochs over them through `az_gradients`; `freeze_trunk` zeroes
+    /// every gradient but the policy rows'. Positions and shuffles come from `seed`'s own stream, so a seed labels the
+    /// same pool every time. Self-play's optimizer starts fresh afterwards.
+    pub fn pretrain_policy(
+        &mut self,
+        teacher_weights: &[f64],
+        teacher_sizes: &[usize],
+        config: &Pretrain,
+        seed: u64,
+    ) -> Result<PretrainStats, String> {
+        use redqueen_games::checkers_strategies::Strategy;
+        if config.positions < 10 || config.epochs == 0 || config.teacher_depth == 0 || config.temperature <= 0.0 {
+            return Err(format!(
+                "pretraining needs positions >= 10, epochs >= 1, teacher_depth >= 1 and temperature > 0, got {config:?}"
+            ));
+        }
+        let teacher = Strategy::build(
+            "evaluator",
+            seed,
+            Some(teacher_weights.to_vec()),
+            Some(teacher_sizes.to_vec()),
+            config.teacher_depth,
+            None,
+        )?;
+        let mut rng = Rng::new(seed, Stream::Episodes);
+        let mut examples: Vec<Example> = Vec::new();
+        let mut best: Vec<usize> = Vec::new(); // the teacher's best move's policy index, per example
+        let mut entropy = 0.0;
+        while examples.len() < config.positions {
+            let mut game = Checkers::new(self.max_moves_without_capture);
+            let mut plies = 0;
+            while !game.done && plies < self.max_plies && examples.len() < config.positions {
+                let moves = game.legal_moves();
+                let index = if plies < config.random_opening_plies {
+                    rng.below(moves.len() as u32) as usize
+                } else if moves.len() == 1 {
+                    0
+                } else {
+                    let scores = teacher.scores(&game).expect("an evaluator scores its moves");
+                    let mut pick = 0;
+                    for (i, &score) in scores.iter().enumerate() {
+                        if score > scores[pick] {
+                            pick = i;
+                        }
+                    }
+                    let (unique, slots) = unique_indices(&moves);
+                    let exps: Vec<f64> = scores
+                        .iter()
+                        .map(|s| libm::exp((s - scores[pick]) / config.temperature))
+                        .collect();
+                    let total: f64 = exps.iter().sum();
+                    let mut policy = vec![0.0; unique.len()];
+                    for (&slot, e) in slots.iter().zip(&exps) {
+                        policy[slot] += e / total;
+                    }
+                    entropy -= policy
+                        .iter()
+                        .filter(|&&p| p > 0.0)
+                        .map(|p| p * libm::log(*p))
+                        .sum::<f64>();
+                    let observation = game.observation();
+                    let value = libm::tanh(self.net.forward(&observation)[0]);
+                    best.push(unique[slots[pick]]);
+                    examples.push(Example {
+                        observation,
+                        indices: unique,
+                        policy,
+                        outcome: value,
+                    });
+                    pick
+                };
+                game.step(&moves[index])?;
+                plies += 1;
+            }
+        }
+        let held = (examples.len() / 10).max(1);
+        let split = examples.len() - held;
+        let mut stats = PretrainStats {
+            positions: examples.len() as u64,
+            held_out: held as u64,
+            agreement_before: self.agreement(&examples[split..], &best[split..]),
+            target_entropy: entropy / examples.len() as f64,
+            ..PretrainStats::default()
+        };
+        let mask = config.freeze_trunk.then(|| self.policy_mask());
+        let mut adam = Adam::new(self.net.params.len(), self.adam.learning_rate);
+        let mut order: Vec<usize> = (0..split).collect();
+        for epoch in 0..config.epochs {
+            for i in (1..order.len()).rev() {
+                order.swap(i, rng.below(i as u32 + 1) as usize);
+            }
+            let (mut value_loss, mut policy_loss, mut updates) = (0.0, 0.0, 0u64);
+            for chunk in order.chunks(self.batch_size) {
+                let batch: Vec<Example> = chunk.iter().map(|&i| examples[i].clone()).collect();
+                let flat: Vec<f64> = batch.iter().flat_map(|e| e.observation.iter().copied()).collect();
+                let cache = self.net.forward_batch(&flat, batch.len());
+                let (v, p, grad) = az_gradients(cache.outputs(), &batch, self.value_weight);
+                let mut grads = self.net.backward(&cache, &grad);
+                if let Some(mask) = &mask {
+                    for (g, &learns) in grads.iter_mut().zip(mask) {
+                        if !learns {
+                            *g = 0.0;
+                        }
+                    }
+                }
+                adam.step(&mut self.net.params, &grads);
+                value_loss += v;
+                policy_loss += p;
+                updates += 1;
+            }
+            stats.updates += updates;
+            if epoch + 1 == config.epochs {
+                stats.value_loss = value_loss / updates.max(1) as f64;
+                stats.policy_loss = policy_loss / updates.max(1) as f64;
+            }
+        }
+        stats.agreement = self.agreement(&examples[split..], &best[split..]);
+        self.adam = Adam::new(self.net.params.len(), self.adam.learning_rate);
+        Ok(stats)
     }
 
     /// The value of the starting position for the side to move, and of a position one side is a king up (as
@@ -931,6 +1156,70 @@ mod tests {
         assert!(AlphaZero::new(0, &params(&[("lambda", 0.5)]), 40, 200).is_err());
         assert!(AlphaZero::new(0, &params(&[("value_target_mix", 1.5)]), 40, 200).is_err());
         assert!(AlphaZero::new(0, &params(&[("value_target_mix", -0.1)]), 40, 200).is_err());
+    }
+
+    fn pretrain_config(freeze_trunk: bool) -> Pretrain {
+        Pretrain {
+            positions: 400,
+            teacher_depth: 2,
+            temperature: 0.1,
+            epochs: 20,
+            freeze_trunk,
+            random_opening_plies: 4,
+        }
+    }
+
+    /// A small value network to teach from, of the shape `small()`'s trunk holds (32 -> 16 -> 1).
+    fn teacher(seed: u64) -> (Vec<f64>, Vec<usize>) {
+        let mut rng = Rng::new(seed, Stream::Data);
+        ((0..16 * 33 + 17).map(|_| 0.3 * rng.normal()).collect(), vec![32, 16, 1])
+    }
+
+    #[test]
+    fn pretraining_teaches_the_policy_and_freezing_keeps_the_trunk() {
+        let (weights, sizes) = teacher(5);
+        for freeze in [true, false] {
+            let mut trainer = AlphaZero::new(1, &small(), 40, 200).unwrap();
+            trainer.set_value_network(&weights, &sizes).unwrap();
+            let value_before = trainer.value_network();
+            let stats = trainer
+                .pretrain_policy(&weights, &sizes, &pretrain_config(freeze), 9)
+                .unwrap();
+            assert_eq!((stats.positions, stats.held_out), (400, 40));
+            assert!(stats.target_entropy > 0.0 && stats.policy_loss.is_finite() && stats.value_loss.is_finite());
+            assert!(stats.agreement > stats.agreement_before + 0.2, "{stats:?}");
+            if freeze {
+                // the trunk and the value unit didn't move by a single bit
+                assert_eq!(trainer.value_network(), value_before);
+            } else {
+                assert!(trainer.value_network() != value_before);
+            }
+        }
+        // a seed labels the same pool and trains the same network
+        let run = || {
+            let mut trainer = AlphaZero::new(1, &small(), 40, 200).unwrap();
+            trainer.set_value_network(&weights, &sizes).unwrap();
+            trainer
+                .pretrain_policy(&weights, &sizes, &pretrain_config(true), 9)
+                .unwrap();
+            trainer.network_json()
+        };
+        assert_eq!(run(), run());
+        let mut trainer = AlphaZero::new(1, &small(), 40, 200).unwrap();
+        let mut bad = pretrain_config(true);
+        bad.temperature = 0.0;
+        assert!(trainer.pretrain_policy(&weights, &sizes, &bad, 9).is_err());
+    }
+
+    #[test]
+    fn points_against_an_evaluator() {
+        let (weights, sizes) = teacher(5);
+        let trainer = AlphaZero::new(1, &small(), 40, 200).unwrap();
+        let points = trainer.points_against_evaluator(&weights, &sizes, 1, 8, 4, 0).unwrap();
+        assert!((0.0..=1.0).contains(&points));
+        assert!(trainer
+            .points_against_evaluator(&weights, &[32, 8, 1], 1, 8, 4, 0)
+            .is_err());
     }
 
     #[test]

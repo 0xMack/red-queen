@@ -278,6 +278,64 @@ impl CheckersAlphaZero {
             .map_err(value_error)
     }
 
+    /// `points_against` an evaluator (an `evolve.WeightVector`'s weights and layer sizes) searching `depth` plies.
+    #[allow(clippy::too_many_arguments)]
+    fn points_against_evaluator(
+        &self,
+        weights: Vec<f64>,
+        layer_sizes: Vec<usize>,
+        depth: u32,
+        simulations: u32,
+        games: u32,
+        seed: u64,
+    ) -> PyResult<f64> {
+        self.inner
+            .points_against_evaluator(&weights, &layer_sizes, depth, simulations, games, seed)
+            .map_err(value_error)
+    }
+
+    /// Teach the policy head an alpha-beta teacher's move choices (docs/design/0020): {positions, held_out,
+    /// agreement_before, agreement, target_entropy, policy_loss, value_loss, updates}.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (teacher_weights, teacher_sizes, *, positions, teacher_depth, temperature, epochs, freeze_trunk,
+                        random_opening_plies, seed))]
+    fn pretrain_policy<'py>(
+        &mut self,
+        py: Python<'py>,
+        teacher_weights: Vec<f64>,
+        teacher_sizes: Vec<usize>,
+        positions: usize,
+        teacher_depth: u32,
+        temperature: f64,
+        epochs: u32,
+        freeze_trunk: bool,
+        random_opening_plies: u32,
+        seed: u64,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let config = envs::alphazero::Pretrain {
+            positions,
+            teacher_depth,
+            temperature,
+            epochs,
+            freeze_trunk,
+            random_opening_plies,
+        };
+        let s = self
+            .inner
+            .pretrain_policy(&teacher_weights, &teacher_sizes, &config, seed)
+            .map_err(value_error)?;
+        let d = PyDict::new(py);
+        d.set_item("positions", s.positions)?;
+        d.set_item("held_out", s.held_out)?;
+        d.set_item("agreement_before", s.agreement_before)?;
+        d.set_item("agreement", s.agreement)?;
+        d.set_item("target_entropy", s.target_entropy)?;
+        d.set_item("policy_loss", s.policy_loss)?;
+        d.set_item("value_loss", s.value_loss)?;
+        d.set_item("updates", s.updates)?;
+        Ok(d)
+    }
+
     /// The value of the starting position, of the same position a king up, and the policy's entropy at the start.
     fn probe(&self) -> (f64, f64, f64) {
         self.inner.probe()
