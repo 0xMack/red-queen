@@ -13,6 +13,9 @@ search's visit counts and the game's outcome as targets. Its champion is still t
 two-headed network (`<champion_ref>-net`). Extras add the value and policy losses, how far search moved the root's
 value (`search_shift`), the policy's entropy at the start, and, at held-out iterations, the network playing *by
 search* against material-2 (`mcts_points`). `init_from` a TD run starts its trunk and value unit from that network.
+`policy_pretrain` (docs/design/0020) then teaches the policy head that network's alpha-beta move choices before self-play,
+inside the run so its cost is counted, and records in the config what it did and how the search fared against the
+teacher before and after (`policy_pretrain.result`).
 
 Each iteration trains `games_per_iteration` games and records, in the fields every run has (Decision 3):
 - best/mean/worst fitness: the *return* of self-play -- the first mover's mean outcome (+1 win, 0 draw, -1 loss)
@@ -31,7 +34,7 @@ from arena.checkers import INTERFACE, MONITOR_SEED_BASE
 from arena.costs import TrainingCostMeter
 from evolve import WeightVector
 from jobcore import Sink, recorded_run
-from jobcore.algorithms.reinforcement import AlphaZeroParams, SelfPlayParams
+from jobcore.algorithms.reinforcement import AlphaZeroParams, PolicyPretrainParams, SelfPlayParams
 from jobcore.specs import TrainSpec
 from telemetry import GenerationStats
 
@@ -62,6 +65,10 @@ def train_selfplay(spec: TrainSpec, params: SelfPlayParams, sink: Sink) -> str:
         spec.seed, params=agent, max_moves_without_capture=MAX_MOVES_WITHOUT_CAPTURE, max_plies=MAX_MOVES
     )
     init_run = resolve_init_from(spec, sink)
+    pretrain = params.policy_pretrain if isinstance(params, AlphaZeroParams) else None
+    if pretrain and not init_run:
+        raise ValueError("policy_pretrain needs init_from: the teacher is the network the run starts from")
+    parent = None
     if init_run:
         parent_ref = sink.metrics.history(init_run)[-1].champion_ref
         parent = WeightVector.from_json(sink.artifacts.get_program(parent_ref).decode())
@@ -108,6 +115,11 @@ def train_selfplay(spec: TrainSpec, params: SelfPlayParams, sink: Sink) -> str:
     cost = TrainingCostMeter(population_size=1, fitness=counters)
 
     with recorded_run(config, sink) as run:
+        if pretrain:
+            assert parent is not None
+            run.registry.update_config(
+                run.run_id, {"policy_pretrain": _pretrain(trainer, parent, pretrain, simulations, spec.seed)}
+            )
         control = run.control_callback(cost)
         for iteration in range(iterations):
             stats = trainer.train(params.games_per_iteration)
@@ -183,3 +195,44 @@ def train_selfplay(spec: TrainSpec, params: SelfPlayParams, sink: Sink) -> str:
                 )
         run.set_training_summary(cost)
     return run.run_id
+
+
+def _pretrain(
+    trainer: rl.CheckersAlphaZero, parent: WeightVector, pretrain: PolicyPretrainParams, simulations: int, seed: int
+) -> dict:
+    """Policy pretraining, bracketed by the search (no noise) playing the teacher: the before is the same value with a
+    uniform policy, so the difference is what the prior bought (0020's gate 2)."""
+    weights, sizes = list(parent.weights), list(parent.layer_sizes)
+
+    def against_teacher() -> float:
+        return trainer.points_against_evaluator(
+            weights, sizes, pretrain.teacher_depth, simulations, pretrain.check_games, MONITOR_SEED_BASE
+        )
+
+    started = time.perf_counter()
+    before = against_teacher()
+    stats = trainer.pretrain_policy(
+        weights,
+        sizes,
+        positions=pretrain.positions,
+        teacher_depth=pretrain.teacher_depth,
+        temperature=pretrain.temperature,
+        epochs=pretrain.epochs,
+        freeze_trunk=pretrain.freeze_trunk,
+        random_opening_plies=pretrain.random_opening_plies,
+        seed=seed,
+    )
+    after = against_teacher()
+    _, _, start_entropy = trainer.probe()
+    result = dict(stats) | {
+        "mcts_vs_teacher_before": before,
+        "mcts_vs_teacher_after": after,
+        "policy_entropy_start": start_entropy,
+        "seconds": time.perf_counter() - started,
+    }
+    print(
+        f"pretrain  agreement {stats['agreement_before']:.3f} -> {stats['agreement']:.3f}  "
+        f"target entropy {stats['target_entropy']:.2f}  search vs teacher {before:.3f} -> {after:.3f}",
+        flush=True,
+    )
+    return pretrain.model_dump() | {"result": result}

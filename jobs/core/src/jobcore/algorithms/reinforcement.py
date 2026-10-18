@@ -43,8 +43,28 @@ class SelfPlayParams(_Params):
     monitor_games: PositiveInt = Field(10, description="Held-out games per opponent, seats alternating.")
 
 
+class PolicyPretrainParams(BaseModel):
+    """Supervised policy pretraining before AlphaZero self-play (docs/design/0020): the `init_from` network, searched
+    `teacher_depth` plies, labels positions from its own games with a softmax over its move scores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    positions: PositiveInt = Field(100_000, description="Positions labelled (a tenth held out for agreement).")
+    teacher_depth: PositiveInt = Field(3, description="Plies the teacher searches when it scores moves.")
+    temperature: float = Field(0.1, gt=0, description="Of the softmax over the teacher's move scores.")
+    epochs: PositiveInt = 5
+    freeze_trunk: bool = Field(True, description="Only the policy's output rows learn (the value stays exact).")
+    random_opening_plies: int = Field(6, ge=0, description="Random plies opening each teacher game.")
+    check_games: PositiveInt = Field(
+        100, description="Games the search plays against the teacher before and after, to see what the prior bought."
+    )
+
+
 class AlphaZeroParams(SelfPlayParams):
     mcts_games: PositiveInt = Field(20, description="Games the search-and-policy player plays at held-out points.")
+    policy_pretrain: PolicyPretrainParams | None = Field(
+        None, description="Teach the policy head alpha-beta's move choices first (needs `init_from`)."
+    )
 
 
 class PbtParams(BaseModel):

@@ -1,7 +1,8 @@
 # 0017 — AlphaZero-style self-play for Checkers: search results as training targets
 
-Status: **Built, not yet trained** (2026-10-06). The learner, its tests and the experiment arms exist; no run has been
-trained, so there are no results yet. See "Experiment (prepared)".
+Status: **Built; trained in [0020](0020-alphazero-continued.md)** (2026-10-18). As prepared here (`selfplay-v8`), the
+fine-tunes lost ~325 Elo to TD-Leaf. 0020 traces that to the outcome-only value target, and finds that no target or
+policy prior tried makes AlphaZero-style training beat TD-Leaf at this scale.
 Relates to: [0010](0010-reinforcement-learning.md) Phase 4 (TD(λ) self-play) and 4c (TD-Leaf),
 [0013](0013-measuring-two-player-strength.md) (head-to-head measurement), [0015](0015-td-leaf-from-the-start.md) (which named
 this the larger build), [0016](0016-selfplay-scaling.md) (the current recipe).
