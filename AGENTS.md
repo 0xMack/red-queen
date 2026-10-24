@@ -17,7 +17,8 @@ fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider netw
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
-score a position mid-exchange, in the players and in TD-Leaf) — read the relevant one before an
+score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (proposed) -- recover the clean, layered SVG
+behind a generated logo or icon, scored against known clean answers) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
