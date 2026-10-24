@@ -127,9 +127,11 @@ def champion_entrants(
         depth = int(run.config.get("search_depth", 1))
         neat = isinstance(champion, NeatGenome)
         # how it was trained: evolved (NEAT or a fixed network), or learned by self-play (docs/design/0010 Phase 4)
-        # (TD-Leaf is TD(λ) trained through its own search: `search_depth` > 1 among the self-play params)
+        # (TD-Leaf is TD(λ) trained through its own search: `search_depth` > 1, or any `quiescence`, which searches
+        # even at one ply (docs/design/0021), among the self-play params)
         # (an AlphaZero run's champion is its value head: the trunk and value unit, docs/design/0017)
-        leaf = int((run.config.get("params") or {}).get("search_depth", 1)) > 1
+        params = run.config.get("params") or {}
+        leaf = int(params.get("search_depth", 1)) > 1 or int(params.get("quiescence", 0)) > 0
         representation = run.config.get("representation")
         if neat:
             kind = "NEAT"

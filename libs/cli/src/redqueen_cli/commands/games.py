@@ -17,11 +17,11 @@ models = typer.Typer(help="Models: published packages, and packaging a run's cha
 def show_leaderboard(
     ctx: typer.Context,
     game: str,
-    protocol: Annotated[str | None, typer.Option(help="The protocol, if not the game's default.")] = None,
+    protocol: Annotated[str | None, typer.Option(help="The protocol; the newest one recorded if omitted.")] = None,
 ) -> None:
     """A game's leaderboard, best first: score (with its 95% interval), entrant kind and interface."""
     st = state(ctx)
-    records = st.client.get(f"/games/{game}/leaderboard", protocol=protocol)
+    records = st.client.leaderboard(game, protocol)
 
     def human(rows: list[dict[str, Any]]) -> None:
         ranked = sorted(rows, key=lambda r: r["metrics"].get("quality", {}).get("mean", float("-inf")), reverse=True)

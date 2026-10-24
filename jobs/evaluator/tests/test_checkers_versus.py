@@ -97,10 +97,13 @@ def test_champion_entrants_reads_neat_and_layered_runs_with_their_search_depth_a
     neat = make_run(10, neat_json, representation="neat", search_depth=3, selection="speciation")
     layered = make_run(10, layered_json, representation="neuroevolution", selection="lexicase")
     make_run(3, layered_json, representation="neuroevolution")  # a smoke test: too short to be an entrant
+    # trained through a quiet 1-ply search (docs/design/0021): TD-Leaf, though its search_depth is 1
+    quiet = make_run(10, layered_json, representation="td_lambda", params={"search_depth": 1, "quiescence": 4})
 
     entrants = {e["entrant_id"]: e for e in evaluate_versus.champion_entrants(registry, metrics, artifacts)}
 
-    assert set(entrants) == {f"run:{neat}", f"run:{layered}"}
+    assert set(entrants) == {f"run:{neat}", f"run:{layered}", f"run:{quiet}"}
+    assert "TD-Leaf" in entrants[f"run:{quiet}"]["label"]
     assert (
         entrants[f"run:{neat}"]["search_depth"] == 3
         and "NEAT" in entrants[f"run:{neat}"]["label"]

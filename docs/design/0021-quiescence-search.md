@@ -1,7 +1,8 @@
 # 0021 — Quiescence search: never score a position mid-exchange
 
-Status: **Built; pilot, `selfplay-v12` and `-v13` done. Quiescence wins at play time; the best recipe is now plain TD
-then a long 1-ply quiet fine-tune. `checkers.versus.v3` ranks with it; `selfplay-v14` is running** (2026-10-24).
+Status: **Built; pilot, `selfplay-v12` to `-v14` done, the quiet recipe leads `checkers.versus.v3`. Quiescence wins at
+play time; the best recipe is plain TD then a 200k-game 1-ply quiet fine-tune. `selfplay-v15` (width) is running**
+(2026-10-24).
 Relates to: [0013](0013-measuring-two-player-strength.md) (game pairs, Elo), [0015](0015-td-leaf-from-the-start.md) and
 [0016](0016-selfplay-scaling.md) (TD-Leaf, the recipe), [0020](0020-alphazero-continued.md) (its conclusion: at this
 scale, alpha-beta over a TD network is what to improve).
@@ -129,12 +130,43 @@ Both sides at 3 plies + quiescence 4, the whole ballot from both seats (870 game
   played at 3 plies + quiescence 4. Chained through the baselines it is ~+90 over 0016's `l-2x128-ft2` under the same
   search.
 
+### `selfplay-v14` results (2026-10-24)
+
+`q1-ft-1m`, the same quiet fine-tune for 1M games instead of 200k, against `q1-ft-200k`: **+16 [6, 27]** (both at
+3 plies + quiescence 4, 870 game pairs), for 14,521 active s per run against 2,918. Five times the games buys a sixth of
+what the first 200k did. At 2 x 128 the fine-tune has stopped paying; the gain left is likely capacity (`selfplay-v15`).
+
+### The quiet recipe on the leaderboard (2026-10-24)
+
+The recipe's TD network (`d428cb8f`, seed 0, 1M games of plain TD) with a 200k-game quiet fine-tune: `629f90bd` (the
+3-ply entrant) and a byte-identical 4-ply twin. Against the TD-Leaf recipe's entrants (`6964337b` at 3 plies,
+`a6b88c8b` at 4), every side with quiescence 4 (`checkers.sprt`, elo0 0, elo1 50):
+
+| Head to head | Elo | Verdict |
+|---|---|---|
+| quiet at 3 plies vs TD-Leaf recipe at 3 plies | **+53 [13, 96]** | H1, 46 pairs |
+| quiet at 4 plies vs TD-Leaf recipe at 4 plies | **+40 [9, 72]** | H1, 70 pairs |
+| quiet at 3 plies vs TD-Leaf recipe at 4 plies | -53 [-104, -3] | H0, 20 pairs |
+
+The quiet fine-tune is the stronger network at either depth, for 2,910 active s against the TD-Leaf fine-tune's
+10,067. A whole ply still beats it. `checkers.versus.v3`, the whole field:
+
+| # | Entrant | Elo (± 95%) |
+|---|---|---|
+| 1 | **quiet recipe, 2 x 128, 4 plies** (`a29018d6`) | **983 ± 43** |
+| 2 | TD-Leaf recipe, 2 x 128, 4 plies (`a6b88c8b`) | 967 ± 43 |
+| 3 | 0016's 2 x 64 TD-Leaf, 4 plies (`672890ba`) | 928 ± 43 |
+| 4 | quiet recipe, 3 plies (`629f90bd`) | 904 ± 49 |
+| 5 | TD-Leaf recipe, 3 plies (`6964337b`) | 877 ± 44 |
+| 8 | the recipe's plain TD parent, 3 plies (`d428cb8f`) | 749 ± 40 |
+| 10 | Material, 4 plies | 670 ± 40 |
+
+The round robin orders them as the SPRTs did, but its intervals overlap at the top: a round robin spreads its games
+over 25 entrants, and the head-to-heads are what separate neighbours.
+
 ### Next (running)
 
-- **`selfplay-v14`**: the same quiet fine-tune for 1M games, against `q1-ft-200k`: where does it stop paying?
-- **A leaderboard candidate**: the recipe's TD network (`d428cb8f`, seed 0) with a 200k-game quiet fine-tune, ranked
-  under `checkers.versus.v3` against the recipe's TD-Leaf entrants.
-- **`selfplay-v7`** (0016's width arms) is running beside them. If width still pays, its parents take the quiet
-  fine-tune too.
-- **`checkers.versus.v3`** (built; see "Decision"): v2 can't rank what this doc found, since its entrants search
-  plainly. Under v3 every searching entrant plays with quiescence 4.
+- **`selfplay-v15`**: the quiet fine-tune (200k games) on `selfplay-v7`'s 2 x 256 networks, against `q1-ft-200k`
+  (2 x 128). v14 says the 2 x 128 fine-tune is nearly spent, so width is the next thing to try. Each run waits for
+  its v7 parent.
+- **`selfplay-v7`** (0016's width arms, plain TD) is still running; v15 reads its 2 x 256 arm.
