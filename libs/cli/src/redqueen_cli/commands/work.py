@@ -4,10 +4,12 @@ the short forms."""
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any
 
 import typer
 
+from redqueen_cli.client import natural_key
 from redqueen_cli.state import apply_sets, state, submit_job
 
 ParamOpt = Annotated[
@@ -59,7 +61,9 @@ def train(
 def evaluate(
     ctx: typer.Context,
     game: Annotated[str, typer.Argument(help="The game whose leaderboard to (re)build.")],
-    protocol: Annotated[str | None, typer.Option(help="The protocol, if the game has more than one.")] = None,
+    protocol: Annotated[
+        str | None, typer.Option(help="The protocol; the newest version of the game's leaderboard protocol if omitted.")
+    ] = None,
     param: ParamOpt = None,
     wait: WaitOpt = False,
 ) -> None:
@@ -67,11 +71,12 @@ def evaluate(
     if protocol is None:
         protocols = state(ctx).client.get("/specs/schemas")["protocols"]
         boards = sorted(n for n, p in protocols.items() if p["game"] == game and p["output"] == "leaderboard")
-        if len(boards) != 1:
+        # versions of one protocol (checkers.versus.v2, .v3) mean the newest; different protocols need a choice
+        if len({re.sub(r"\.v\d+$", "", b) for b in boards}) != 1:
             raise typer.BadParameter(
                 f"{game} has {len(boards)} leaderboard protocols ({', '.join(boards) or 'none'}): pick one with --protocol"
             )
-        protocol = boards[0]
+        protocol = max(boards, key=natural_key)
     submit_job(ctx, _with_params({"kind": "evaluate", "protocol": protocol}, param, None), wait)
 
 
