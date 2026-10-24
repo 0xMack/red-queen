@@ -74,7 +74,7 @@ class Client:
         ("checkers.versus.v10" is newer than "v9") -- the API returns every protocol's, which aren't comparable."""
         records = self.get(f"/games/{game}/leaderboard", protocol=protocol)
         if protocol is None and records:
-            latest = max({r["protocol"] for r in records}, key=_natural)
+            latest = max({r["protocol"] for r in records}, key=natural_key)
             records = [r for r in records if r["protocol"] == latest]
         return records
 
@@ -101,6 +101,6 @@ class Client:
             time.sleep(poll)
 
 
-def _natural(text: str) -> list[Any]:
+def natural_key(text: str) -> list[Any]:
     """A sort key that orders the numbers in `text` by value: v9 < v10."""
     return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", text)]

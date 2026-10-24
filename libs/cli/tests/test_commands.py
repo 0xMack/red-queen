@@ -80,6 +80,9 @@ def test_evaluate_picks_the_games_leaderboard_protocol(cli):
     result = cli("--json", "evaluate", "bandit")
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["spec"]["protocol"] == "bandit.skill.v1"
+    checkers = cli("--json", "evaluate", "checkers")  # v2 and v3 are registered: versions mean the newest
+    assert checkers.exit_code == 0, checkers.output
+    assert json.loads(checkers.output)["spec"]["protocol"] == "checkers.versus.v3"
     h2h = cli("--json", "h2h", "material-3", "material-2", "--no-wait")
     assert json.loads(h2h.output)["spec"]["params"]["a"] == "material-3"
 

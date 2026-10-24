@@ -1,8 +1,8 @@
 # 0021 — Quiescence search: never score a position mid-exchange
 
-Status: **Built; pilot and `selfplay-v12` to `-v15` done, the quiet recipe leads `checkers.versus.v3`. Quiescence wins
-at play time; the best recipe is plain TD then a 200k-game 1-ply quiet fine-tune, and width still pays under it. A
-2 x 256 leaderboard candidate is training** (2026-10-24).
+Status: **Done** (2026-10-24). Quiescence wins at play time; the best recipe is plain TD then a 200k-game 1-ply quiet
+fine-tune, and `checkers.versus.v3` ranks with it. Width still pays a little under the recipe, but not as much as a ply
+of search, so the next lever is a cheaper search (see "Next").
 Relates to: [0013](0013-measuring-two-player-strength.md) (game pairs, Elo), [0015](0015-td-leaf-from-the-start.md) and
 [0016](0016-selfplay-scaling.md) (TD-Leaf, the recipe), [0020](0020-alphazero-continued.md) (its conclusion: at this
 scale, alpha-beta over a TD network is what to improve).
@@ -184,9 +184,44 @@ ballot from both seats (870 game pairs). `selfplay-v15` was read like v13 and v1
   position also costs ~3.6x as much to evaluate (74k weights against 21k), which the leaderboard's inference
   column will show.
 
-### Next (running)
+### The 2 x 256 candidate on the leaderboard (2026-10-24)
 
-- **A 2 x 256 leaderboard candidate:** `selfplay-v7/w-2x256-1m`'s seed-0 network with the 200k-game quiet fine-tune,
-  as two entrants (3 and 4 plies, byte-identical networks). It is then ranked under `checkers.versus.v3` and SPRTed
-  against the 2 x 128 quiet entrants at the same depth. If the 3-ply 2 x 256 matches the 4-ply 2 x 128 at less time per
-  move, width is the better buy for the site.
+`selfplay-v7/w-2x256-1m`'s seed-0 network (1M games of plain TD) with the 200k-game quiet fine-tune, as a 3-ply entrant
+(`30a00fe3`) and a byte-identical 4-ply one (`f3bf0ae8`). Against the 2 x 128 quiet entrants (`checkers.sprt`, elo0 0,
+elo1 50, every side with quiescence 4):
+
+| Head to head | Elo | Verdict |
+|---|---|---|
+| 2 x 256 vs 2 x 128, both at 3 plies | **+41 [11, 72]** | H1, 55 pairs |
+| 2 x 256 vs 2 x 128, both at 4 plies | +15 [-10, 39] | H0, 108 pairs |
+| 2 x 256 at 3 plies vs 2 x 128 at 4 plies | **-108 [-191, -35]** | H0, 20 pairs |
+
+`checkers.versus.v3` after the rerank, with the time per move from the leaderboard's inference column:
+
+| # | Entrant | Elo (± 95%) | ms per move | Model size |
+|---|---|---|---|---|
+| 1 | 2 x 256 quiet, 4 plies (`f3bf0ae8`) | **951 ± 41** | 25.0 | 1.5 MB |
+| 2 | 2 x 128 TD-Leaf recipe, 4 plies (`a6b88c8b`) | 917 ± 38 | 9.5 | 437 KB |
+| 3 | 2 x 128 quiet, 4 plies (`a29018d6`) | 914 ± 41 | 9.5 | 437 KB |
+| 4 | 2 x 256 quiet, 3 plies (`30a00fe3`) | 890 ± 39 | 6.0 | 1.5 MB |
+| 5 | 0016's 2 x 64 TD-Leaf, 4 plies (`672890ba`) | 866 ± 36 | 4.5 | 133 KB |
+| 6 | 2 x 128 quiet, 3 plies (`629f90bd`) | 832 ± 41 | 2.2 | 437 KB |
+
+- **Width does not buy back a ply.** At 3 plies the wider network is clearly stronger (+41). But 2 x 128 searched one ply
+  deeper beats it by 108, and at 4 plies the extra width is worth +15 at most (H0: not 50 stronger).
+- **The new #1 is the 2 x 256 network at 4 plies,** but within its interval of the next two, and the SPRT doesn't
+  separate it from the 2 x 128 quiet entrant. It costs 2.6x the time per move and 3.5x the download. For the site, the
+  2 x 128 quiet entrant at 4 plies is the better buy.
+- **The round robin swaps #2 and #3** (917 vs 914, well inside each other's intervals), though the SPRT put the quiet
+  network +40 ahead. Neighbours on a 30-entrant round robin are not resolved; the head-to-heads are the evidence.
+- **Search depth is worth far more than width per millisecond.** One more ply is ~100 Elo for 4.3x the time. Doubling
+  the width is +15-41 for 2.6x.
+
+### Next
+
+- **Make the search cheaper,** so 4 and 5 plies fit the time 3 plies take now. Alpha-beta here has no move ordering
+  beyond the generator's, no transposition table and no iterative deepening. All three are standard, all three leave
+  the searched value unchanged (so every network, golden and digest stays valid), and each one speeds up both play and
+  TD-Leaf training. That is a design doc of its own.
+- **Width is parked at 2 x 128** for the site. 2 x 256 stays on the leaderboard as the strongest entrant per move,
+  not per millisecond.
