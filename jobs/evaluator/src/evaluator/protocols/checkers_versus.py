@@ -17,6 +17,10 @@ anchored so Random is 0, with a bootstrap 95% interval over game pairs. `quality
 leaderboard component ranks by it unchanged; points per game, the pentanomial pair counts and the per-opponent
 win/draw/loss (the head-to-head matrix) are in `metrics.versus`. Overlapping intervals show as ties.
 
+Protocol `checkers.versus.v3` (docs/design/0021) is the same round robin with every searching entrant extended by a
+quiescence search (`arena.checkers.QUIESCENCE_BY_PROTOCOL`): its records carry `metrics.model.quiescence`, and the game
+page plays each entrant with it. Both protocols stay registered; the page shows the latest.
+
 Why a rating rather than points per game (v1): points against the field saturate -- a leader that beats a field of
 much weaker entrants scores ~0.94 whatever it is -- while a rating is set by the games it played against opponents
 near its strength. It is still relative to the field (re-run this job whenever entrants change; it replaces the old
@@ -37,7 +41,7 @@ from arena.checkers import (
     INTERFACE,
     MAX_PLIES,
     OPENINGS_PER_PAIR,
-    PROTOCOL,
+    QUIESCENCE_BY_PROTOCOL,
     VERSUS_SEED_BASE,
     Factory,
     openings_for,
@@ -52,6 +56,7 @@ from games import interfaces
 from games.checkers import Checkers
 from games.checkers_openings import ballot
 from games.checkers_strategies import STRATEGIES, evaluator, graph_evaluator
+from games.checkers_strategies import strategy as fixed_strategy
 from jobcore import Sink
 from jobcore.specs import EvalSpec
 from telemetry import (
@@ -76,26 +81,33 @@ BASELINES: dict[str, tuple[str, str]] = {
     "material-4": ("Material, 4-ply", "material, searched 4 plies with alpha-beta"),
 }
 
+# The baselines a quiescence search extends: the ones that search (`material-1`/`-2` aren't alpha-beta searches).
+SEARCHING_BASELINES = {"material-3", "material-4"}
+
 # A run shorter than this is a smoke test, not an entrant: its "champion" is the first generation's best.
 MIN_GENERATIONS = 10
 
 
-def baseline_entrants() -> list[dict[str, Any]]:
-    return [
-        {
-            "entrant_id": f"baseline:{name}",
-            "label": label,
-            "factory": STRATEGIES[name],
-            "model": description,
-            "parameters": 0,
-            "artifact_bytes": 0,
-        }
-        for name, (label, description) in BASELINES.items()
-    ]
+def baseline_entrants(quiescence: int = 0) -> list[dict[str, Any]]:
+    entrants = []
+    for name, (label, description) in BASELINES.items():
+        q = quiescence if name in SEARCHING_BASELINES else 0
+        entrants.append(
+            {
+                "entrant_id": f"baseline:{name}",
+                "label": label + (" + quiescence" if q else ""),
+                "factory": fixed_strategy(name, q) if q else STRATEGIES[name],
+                "model": description + (f", extended up to {q} plies through captures" if q else ""),
+                "quiescence": q,
+                "parameters": 0,
+                "artifact_bytes": 0,
+            }
+        )
+    return entrants
 
 
 def champion_entrants(
-    registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore
+    registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore, quiescence: int = 0
 ) -> list[dict[str, Any]]:
     entrants = []
     for run in registry.list_runs():
@@ -127,16 +139,20 @@ def champion_entrants(
             kind = "AlphaZero self-play"
         else:
             kind = "Neuroevolution"
-        searching = f"{depth}-ply search" if depth > 1 else "one ply"
+        searching = (f"{depth}-ply search" if depth > 1 else "one ply") + (
+            f" + quiescence {quiescence}" if quiescence else ""
+        )
         entrants.append(
             {
                 "entrant_id": f"run:{run.run_id}",
                 "label": f"{kind} {network}"
                 + (f" · {selection}" if selection else "")
-                + (f" · {depth}-ply" if depth > 1 else ""),
-                "factory": graph_evaluator(champion.graph_encoding(), depth)
+                + (f" · {depth}-ply" if depth > 1 else "")
+                + (" + quiescence" if quiescence else ""),
+                "factory": graph_evaluator(champion.graph_encoding(), depth, quiescence)
                 if neat
-                else evaluator(champion.weights, champion.layer_sizes, depth),
+                else evaluator(champion.weights, champion.layer_sizes, depth, quiescence),
+                "quiescence": quiescence,
                 "run": run,
                 "champion_ref": champion_ref,
                 "model": f"{'evolved graph' if neat else 'MLP'} {network}, tanh: a position evaluator, {searching}"
@@ -253,6 +269,7 @@ def evaluate_all(
     hardware: dict[str, Any],
     per_pair: int = OPENINGS_PER_PAIR,
     replicates: int = 200,
+    protocol: str = "checkers.versus.v2",
 ) -> list[EvaluationRecord]:
     results = round_robin(entrants, per_pair)
     rated = ratings(results, replicates)
@@ -270,7 +287,7 @@ def evaluate_all(
         records.append(
             EvaluationRecord(
                 game=GAME,
-                protocol=PROTOCOL,
+                protocol=protocol,
                 entrant_id=entrant["entrant_id"],
                 entrant_kind="champion" if run else "baseline",
                 label=entrant["label"],
@@ -289,6 +306,8 @@ def evaluate_all(
                         "shape": entrant.get("shape"),
                         "observer_level": interface.observer.level,
                         "note": entrant.get("note"),
+                        # only under a protocol that extends searches, so v2's records are exactly what they were
+                        **({"quiescence": entrant["quiescence"]} if entrant.get("quiescence") else {}),
                     },
                     "protocol": {
                         "held_out_seeds": [VERSUS_SEED_BASE, VERSUS_SEED_BASE + 2 * per_pair * pairings - 1],
@@ -307,10 +326,12 @@ def evaluate_all(
 
 
 @protocol("checkers.versus.v2")
+@protocol("checkers.versus.v3")
 def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
     registry, metrics, artifacts, store = sink.registry, sink.metrics, sink.artifacts, sink.evaluations
-    entrants = [*baseline_entrants(), *champion_entrants(registry, metrics, artifacts)]
-    records = evaluate_all(entrants, metrics, hardware_fingerprint())
+    protocol_name, quiescence = spec.protocol, QUIESCENCE_BY_PROTOCOL[spec.protocol]
+    entrants = [*baseline_entrants(quiescence), *champion_entrants(registry, metrics, artifacts, quiescence)]
+    records = evaluate_all(entrants, metrics, hardware_fingerprint(), protocol=protocol_name)
     for record in sorted(records, key=lambda r: -r.metrics["quality"]["mean"]):
         store.put(record)
         q, v = record.metrics["quality"], record.metrics["versus"]
@@ -320,7 +341,7 @@ def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
             f"{record.metrics['inference']['total_us']:>8.1f} µs/decision"
         )
     # A versus score is relative to the field, so a stale record (an entrant that no longer qualifies) is wrong twice.
-    removed = store.prune(GAME, PROTOCOL, {r.entrant_id for r in records})
+    removed = store.prune(GAME, protocol_name, {r.entrant_id for r in records})
     for entrant_id in removed:
         print(f"removed {entrant_id}: no longer an entrant")
-    return {"protocol": PROTOCOL, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}
+    return {"protocol": protocol_name, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}

@@ -69,6 +69,8 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
       description: string
       // Alpha-beta plies a trained evaluator searches (1 = one ply); absent on records that predate search.
       search_depth?: number
+      /** Plies the search extends through captures (checkers.versus.v3, docs/design/0021). */
+      quiescence?: number
       observer_level: number
       note: string | null
       shape?: import("~/utils/modelLabel").ModelShape | null // absent on records evaluated before it existed

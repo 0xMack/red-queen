@@ -3330,6 +3330,986 @@
    "run_id": "<run2>"
   }
  ],
+ "checkers.versus.v3": [
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:first-legal",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "First legal",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "always the first legal move",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 60.4,
+     "generalization_gap": null,
+     "max": 93.7,
+     "mean": 35.0,
+     "mean_steps": 67.55,
+     "median": 35.0,
+     "min": -27.0,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "dfa89380ca18b601d27ede59fc4cbe33e13e89717b523baf2c5fdf8dce9370c3",
+      "sum": 49.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.5
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:material-1": {
+       "draws": 9,
+       "losses": 10,
+       "wins": 5
+      },
+      "baseline:material-2": {
+       "draws": 3,
+       "losses": 21,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 4,
+       "losses": 20,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 12,
+       "losses": 6,
+       "wins": 6
+      },
+      "run:<run1>": {
+       "draws": 18,
+       "losses": 4,
+       "wins": 2
+      },
+      "run:<run2>": {
+       "draws": 21,
+       "losses": 1,
+       "wins": 2
+      }
+     },
+     "draws": 69,
+     "games_per_pair": 24,
+     "losses": 84,
+     "pentanomial": [
+      30,
+      20,
+      24,
+      9,
+      1
+     ],
+     "points": 0.2946,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 35.0,
+      "hi": 93.7,
+      "lo": -27.0,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 15
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-1",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 1-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "the move leaving the best material balance",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 63.7,
+     "generalization_gap": null,
+     "max": 102.7,
+     "mean": 37.5,
+     "mean_steps": 59.45,
+     "median": 37.5,
+     "min": -24.7,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "753e1a40722a4910aaa346971e2af949d948d821e82210c2e3d69a5b37c11039",
+      "sum": 50.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.6071
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 9,
+       "losses": 5,
+       "wins": 10
+      },
+      "baseline:material-2": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 5,
+       "losses": 8,
+       "wins": 11
+      },
+      "run:<run1>": {
+       "draws": 9,
+       "losses": 8,
+       "wins": 7
+      },
+      "run:<run2>": {
+       "draws": 8,
+       "losses": 10,
+       "wins": 6
+      }
+     },
+     "draws": 32,
+     "games_per_pair": 24,
+     "losses": 102,
+     "pentanomial": [
+      38,
+      13,
+      15,
+      15,
+      3
+     ],
+     "points": 0.2976,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 37.5,
+      "hi": 102.7,
+      "lo": -24.7,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 34
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-2",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 2-ply",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "assumes the opponent's best reply; a tiny minimax",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 62.2,
+     "generalization_gap": null,
+     "max": 451.7,
+     "mean": 391.1,
+     "mean_steps": 62.48,
+     "median": 391.1,
+     "min": 327.2,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "6f052a88eec576a08ea5f30b8ccfdf96c5469d09546ca8c601dac672fc8e105b",
+      "sum": 117.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.1905
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 3,
+       "losses": 0,
+       "wins": 21
+      },
+      "baseline:material-1": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "baseline:material-3": {
+       "draws": 7,
+       "losses": 17,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 8,
+       "losses": 15,
+       "wins": 1
+      },
+      "baseline:random": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      },
+      "run:<run1>": {
+       "draws": 9,
+       "losses": 0,
+       "wins": 15
+      },
+      "run:<run2>": {
+       "draws": 8,
+       "losses": 0,
+       "wins": 16
+      }
+     },
+     "draws": 37,
+     "games_per_pair": 24,
+     "losses": 32,
+     "pentanomial": [
+      10,
+      12,
+      5,
+      15,
+      42
+     ],
+     "points": 0.6994,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 391.1,
+      "hi": 451.7,
+      "lo": 327.2,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 99
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-3",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 3-ply + quiescence",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "material, searched 3 plies with alpha-beta, extended up to 4 plies through captures",
+     "note": null,
+     "observer_level": 1,
+     "quiescence": 4,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 63.4,
+     "generalization_gap": null,
+     "max": 657.7,
+     "mean": 591.6,
+     "mean_steps": 63.08,
+     "median": 591.6,
+     "min": 530.9,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "ed3fa9f6130ae21af7552d637c641714696d04c239c3d75acce7a0a793277d59",
+      "sum": 146.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.0357
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      },
+      "baseline:material-1": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "baseline:material-2": {
+       "draws": 7,
+       "losses": 0,
+       "wins": 17
+      },
+      "baseline:material-4": {
+       "draws": 17,
+       "losses": 6,
+       "wins": 1
+      },
+      "baseline:random": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "run:<run1>": {
+       "draws": 3,
+       "losses": 0,
+       "wins": 21
+      },
+      "run:<run2>": {
+       "draws": 2,
+       "losses": 0,
+       "wins": 22
+      }
+     },
+     "draws": 31,
+     "games_per_pair": 24,
+     "losses": 6,
+     "pentanomial": [
+      0,
+      6,
+      5,
+      15,
+      58
+     ],
+     "points": 0.872,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 591.6,
+      "hi": 657.7,
+      "lo": 530.9,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 131
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:material-4",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Material, 4-ply + quiescence",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "material, searched 4 plies with alpha-beta, extended up to 4 plies through captures",
+     "note": null,
+     "observer_level": 1,
+     "quiescence": 4,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 73.7,
+     "generalization_gap": null,
+     "max": 707.9,
+     "mean": 628.3,
+     "mean_steps": 62.21,
+     "median": 628.3,
+     "min": 560.5,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "4f86d360aa6634a1c1960cb7bfad810e9e9eaada9352f9006aa6ff7653ec99ea",
+      "sum": 151.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.0119
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 4,
+       "losses": 0,
+       "wins": 20
+      },
+      "baseline:material-1": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "baseline:material-2": {
+       "draws": 8,
+       "losses": 1,
+       "wins": 15
+      },
+      "baseline:material-3": {
+       "draws": 17,
+       "losses": 1,
+       "wins": 6
+      },
+      "baseline:random": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "run:<run1>": {
+       "draws": 0,
+       "losses": 0,
+       "wins": 24
+      },
+      "run:<run2>": {
+       "draws": 1,
+       "losses": 0,
+       "wins": 23
+      }
+     },
+     "draws": 30,
+     "games_per_pair": 24,
+     "losses": 2,
+     "pentanomial": [
+      0,
+      2,
+      6,
+      16,
+      60
+     ],
+     "points": 0.8988,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 628.3,
+      "hi": 707.9,
+      "lo": 560.5,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 136
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:random",
+   "entrant_kind": "baseline",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "Random",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 0,
+     "parameters": 0
+    },
+    "model": {
+     "description": "a uniformly random legal move",
+     "note": null,
+     "observer_level": 1,
+     "search_depth": 1,
+     "shape": null
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 0.0,
+     "generalization_gap": null,
+     "max": 0.0,
+     "mean": 0.0,
+     "mean_steps": 60.74,
+     "median": 0.0,
+     "min": 0.0,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "c8fb28bcec65deed2968dc569a56028176f8c165e47f0c0c91c420a5b4ddb829",
+      "sum": 42.5
+     },
+     "train_mean": null,
+     "zero_rate": 0.6429
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 12,
+       "losses": 6,
+       "wins": 6
+      },
+      "baseline:material-1": {
+       "draws": 5,
+       "losses": 11,
+       "wins": 8
+      },
+      "baseline:material-2": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "run:<run1>": {
+       "draws": 10,
+       "losses": 8,
+       "wins": 6
+      },
+      "run:<run2>": {
+       "draws": 7,
+       "losses": 12,
+       "wins": 5
+      }
+     },
+     "draws": 35,
+     "games_per_pair": 24,
+     "losses": 108,
+     "pentanomial": [
+      42,
+      15,
+      15,
+      8,
+      4
+     ],
+     "points": 0.253,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 0.0,
+      "hi": 0.0,
+      "lo": 0.0,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 25
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": null
+  },
+  {
+   "champion_ref": "<run1>-gen9",
+   "entrant_id": "run:<run1>",
+   "entrant_kind": "champion",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "TD(\u03bb) self-play 32 \u2192 8 \u2192 1 + quiescence",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 5852,
+     "parameters": 273
+    },
+    "model": {
+     "description": "MLP 32 \u2192 8 \u2192 1, tanh: a position evaluator, one ply + quiescence 4, trained by TD(\u03bb) self-play",
+     "note": null,
+     "observer_level": 1,
+     "quiescence": 4,
+     "search_depth": 1,
+     "shape": {
+      "algorithm": "TD(\u03bb) self-play",
+      "layer_sizes": [
+       32,
+       8,
+       1
+      ],
+      "selection": null
+     }
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 58.5,
+     "generalization_gap": null,
+     "max": 122.0,
+     "mean": 61.9,
+     "mean_steps": 70.4,
+     "median": 61.9,
+     "min": 4.9,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "509766f44bdb4c2d9f26b53955f6933d4d436103a1d7cfb8971fcb38030ee59d",
+      "sum": 55.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.4702
+    },
+    "training": {
+     "env_steps": 3499,
+     "episodes": 50,
+     "fitness_evaluations": 10,
+     "generations": 10,
+     "measured": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 18,
+       "losses": 2,
+       "wins": 4
+      },
+      "baseline:material-1": {
+       "draws": 9,
+       "losses": 7,
+       "wins": 8
+      },
+      "baseline:material-2": {
+       "draws": 9,
+       "losses": 15,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 3,
+       "losses": 21,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 0,
+       "losses": 24,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 10,
+       "losses": 6,
+       "wins": 8
+      },
+      "run:<run2>": {
+       "draws": 19,
+       "losses": 4,
+       "wins": 1
+      }
+     },
+     "draws": 68,
+     "games_per_pair": 24,
+     "losses": 79,
+     "pentanomial": [
+      27,
+      21,
+      22,
+      11,
+      3
+     ],
+     "points": 0.3274,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 61.9,
+      "hi": 122.0,
+      "lo": 4.9,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 21
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": "<run1>"
+  },
+  {
+   "champion_ref": "<run2>-gen9",
+   "entrant_id": "run:<run2>",
+   "entrant_kind": "champion",
+   "game": "checkers",
+   "interface": "checkers/board32.v1+evaluate1ply.v1",
+   "label": "TD(\u03bb) self-play 32 \u2192 8 \u2192 1 + quiescence",
+   "metrics": {
+    "inference": {
+     "artifact_bytes": 5815,
+     "parameters": 273
+    },
+    "model": {
+     "description": "MLP 32 \u2192 8 \u2192 1, tanh: a position evaluator, one ply + quiescence 4, trained by TD(\u03bb) self-play",
+     "note": null,
+     "observer_level": 1,
+     "quiescence": 4,
+     "search_depth": 1,
+     "shape": {
+      "algorithm": "TD(\u03bb) self-play",
+      "layer_sizes": [
+       32,
+       8,
+       1
+      ],
+      "selection": null
+     }
+    },
+    "protocol": {
+     "board": {
+      "height": 8,
+      "width": 8
+     },
+     "episodes": 168,
+     "held_out_seeds": [
+      30000,
+      30671
+     ],
+     "max_steps": 300,
+     "metric": "Elo (Bradley-Terry over every game, Random = 0), from game pairs on ballot openings against every other entrant",
+     "openings": {
+      "ballot": 174,
+      "per_pair": 12
+     }
+    },
+    "quality": {
+     "ci95": 55.8,
+     "generalization_gap": null,
+     "max": 140.5,
+     "mean": 86.1,
+     "mean_steps": 68.74,
+     "median": 86.1,
+     "min": 29.0,
+     "n": 168,
+     "scores": {
+      "n": 168,
+      "sha256": "2dbde11ae5610700f9518a07efee34596473310665acdd699e7c71a3b17bca7d",
+      "sum": 60.0
+     },
+     "train_mean": null,
+     "zero_rate": 0.4464
+    },
+    "training": {
+     "env_steps": 3080,
+     "episodes": 50,
+     "fitness_evaluations": 10,
+     "generations": 10,
+     "measured": true
+    },
+    "versus": {
+     "by_opponent": {
+      "baseline:first-legal": {
+       "draws": 21,
+       "losses": 2,
+       "wins": 1
+      },
+      "baseline:material-1": {
+       "draws": 8,
+       "losses": 6,
+       "wins": 10
+      },
+      "baseline:material-2": {
+       "draws": 8,
+       "losses": 16,
+       "wins": 0
+      },
+      "baseline:material-3": {
+       "draws": 2,
+       "losses": 22,
+       "wins": 0
+      },
+      "baseline:material-4": {
+       "draws": 1,
+       "losses": 23,
+       "wins": 0
+      },
+      "baseline:random": {
+       "draws": 7,
+       "losses": 5,
+       "wins": 12
+      },
+      "run:<run1>": {
+       "draws": 19,
+       "losses": 1,
+       "wins": 4
+      }
+     },
+     "draws": 66,
+     "games_per_pair": 24,
+     "losses": 75,
+     "pentanomial": [
+      28,
+      15,
+      22,
+      15,
+      4
+     ],
+     "points": 0.3571,
+     "rating": {
+      "anchor": "baseline:random",
+      "elo": 86.1,
+      "hi": 140.5,
+      "lo": 29.0,
+      "scale": "Elo (Bradley-Terry)"
+     },
+     "wins": 27
+    }
+   },
+   "protocol": "checkers.versus.v3",
+   "run_id": "<run2>"
+  }
+ ],
  "experiment.checkers-field": {
   "arms": {
    "a": {

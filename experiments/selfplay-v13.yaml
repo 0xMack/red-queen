@@ -1,0 +1,38 @@
+# selfplay-v13 (docs/design/0021): how far does training through a quiescent search go? selfplay-v12 found a 1-ply
+# TD-Leaf fine-tune with quiescence 4 (40k games, ~600 active s) +42 Elo over l-2x128-ft2 when both are searched 3 plies
+# + quiescence 4, at a third of its training compute. Here: a longer fine-tune, and the whole TD phase trained that way.
+# Every comparison is read with both sides searching 3 plies + quiescence 4, how these networks are meant to play.
+kind: experiment
+name: selfplay-v13
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 128
+      hidden_layers: 2
+      search_depth: 1
+      quiescence: 4
+arms:
+  # v12's q-ft1-q4, five times as long: does the quiet fine-tune keep paying?
+  q1-ft-200k:
+    train:
+      budget: {iterations: 200}
+      held_out_every: 20
+    baseline: selfplay-v12/q-ft1-q4
+    init_from: selfplay-v6/l-2x128-1m
+  # 1M games from scratch with quiet leaves, against 1M games of plain TD (the recipe's TD phase)
+  q1-1m:
+    train:
+      budget: {iterations: 1000}
+      held_out_every: 100
+    baseline: selfplay-v6/l-2x128-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true, quiescence: 4}

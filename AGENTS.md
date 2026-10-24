@@ -166,7 +166,7 @@ architectural change that might conflict with a decision already made.
     evaluation-trace diagnostics for free. Checkers only supplies `utils/checkersEngine.ts` +
     `CheckersBoard` + `CheckersStage` (its `GameModule` is `app/games/checkers.ts`; the run viewer
     `CheckersWatch` is the same stage on a run's champion). Its leaderboard is a round robin
-    (the evaluator's `checkers.versus.v2`, docs/design/0013: game pairs over a ballot of level
+    (the evaluator's `checkers.versus.v3` -- v2 with every searching entrant extended by quiescence 4, docs/design/0021 -- docs/design/0013: game pairs over a ballot of level
     openings, `games.checkers_openings`, ranked by a Bradley–Terry Elo rating, Random = 0, `arena.versus_stats`);
     "is A stronger than B" is a head-to-head SPRT (the evaluator's `checkers.sprt`; `experiment.checkers-h2h` for an experiment's arms), not
     points against a fixed field. A search extends through captures with `quiescence` (docs/design/0021: `with_quiescence`, `+qN` in a head-to-head,
@@ -284,7 +284,7 @@ architectural change that might conflict with a decision already made.
   `init_from` continues a network. `pbt` is a population of self-play learners whose settings evolve, with
   `params.exploit: false` as its random-search control. `bandit_evolve` evolves ε-greedy's four settings.
   **`jobs/evaluator` runs one `EvalSpec`** (`redqueen evaluate GAME`, `redqueen h2h A B`):
-  - The leaderboard protocols `snake.score.v2`, `checkers.versus.v2` and `bandit.skill.v1` (docs/design/0007) score
+  - The leaderboard protocols `snake.score.v2`, `checkers.versus.v3` (and the older v2) and `bandit.skill.v1` (docs/design/0007) score
     every finished game run's champion plus fixed baselines, on held-out seeds under a versioned protocol defined in
     `libs/arena`, with inference and training cost, and never training fitness. Checkers is a round robin ranked by
     Elo.

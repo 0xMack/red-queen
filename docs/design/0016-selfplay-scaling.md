@@ -1,6 +1,6 @@
 # 0016 — Scaling the self-play recipe: a longer TD phase, or a bigger network?
 
-Status: **Done** (2026-10-06). See "Results".
+Status: **Done** (2026-10-06). See "Results". The leaderboard candidate ran on 2026-10-24 and is #1; see 0021.
 Relates to: [0010](0010-reinforcement-learning.md) Phase 4b (one hidden layer was the ceiling; 2 x 64 broke it) and 4c
 (TD-Leaf), [0013](0013-measuring-two-player-strength.md) (head-to-head measurement), [0015](0015-td-leaf-from-the-start.md)
 (the recipe: plain TD, then a TD-Leaf fine-tune; its conclusion names this probe).

@@ -112,3 +112,27 @@ def test_champion_entrants_reads_neat_and_layered_runs_with_their_search_depth_a
     env.reset()
     for entrant in entrants.values():
         assert entrant["factory"](env, evaluate_versus.random.Random(0))(None, env.legal_moves()) in env.legal_moves()
+
+
+def test_v3_extends_only_searching_entrants_and_records_it(monkeypatch):
+    monkeypatch.setattr(
+        evaluate_versus, "measure_inference", lambda factory: {"encode_us": 0.0, "decide_us": 1.0, "total_us": 1.0}
+    )
+    by_id = {e["entrant_id"]: e for e in evaluate_versus.baseline_entrants(quiescence=4)}
+    assert {i for i, e in by_id.items() if e["quiescence"]} == {"baseline:material-3", "baseline:material-4"}
+    assert by_id["baseline:material-4"]["label"] == "Material, 4-ply + quiescence"
+    entrants = [by_id["baseline:random"], by_id["baseline:material-3"]]
+
+    v3 = evaluate_versus.evaluate_all(
+        entrants, None, {"cpu": "test"}, per_pair=1, replicates=5, protocol="checkers.versus.v3"
+    )
+    v2 = evaluate_versus.evaluate_all(
+        evaluate_versus.baseline_entrants()[:2], None, {"cpu": "test"}, per_pair=1, replicates=5
+    )
+
+    assert {r.protocol for r in v3} == {"checkers.versus.v3"}
+    assert {r.entrant_id: r.metrics["model"].get("quiescence") for r in v3} == {
+        "baseline:random": None,
+        "baseline:material-3": 4,
+    }
+    assert "quiescence" not in v2[0].metrics["model"]  # v2's records are exactly what they were

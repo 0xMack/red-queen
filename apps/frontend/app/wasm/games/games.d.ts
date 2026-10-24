@@ -52,9 +52,10 @@ export class CheckersStrategy {
     /**
      * `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
      * `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
-     * deep (1 = one ply; omit for the default).
+     * deep (1 = one ply; omit for the default). `quiescence` extends a search (material-N, evaluator) up to that
+     * many plies through captures (docs/design/0021; omit or 0 for none).
      */
-    constructor(name: string, seed: number, weights?: Float64Array | null, layer_sizes?: Uint32Array | null, depth?: number | null, graph?: Float64Array | null);
+    constructor(name: string, seed: number, weights?: Float64Array | null, layer_sizes?: Uint32Array | null, depth?: number | null, graph?: Float64Array | null, quiescence?: number | null);
     pick(game: CheckersGame): number;
     /**
      * One score per legal move (higher = better), or undefined for a strategy that doesn't score moves.
@@ -146,7 +147,7 @@ export interface InitOutput {
     readonly checkersgame_step: (a: number, b: number) => [number, number, number];
     readonly checkersgame_winner: (a: number) => number;
     readonly checkersstrategy_activations: (a: number, b: number, c: number) => [number, number];
-    readonly checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
     readonly checkersstrategy_pick: (a: number, b: number) => [number, number, number];
     readonly checkersstrategy_scores: (a: number, b: number) => [number, number];
     readonly decodeRelative3: (a: number, b: number) => number;

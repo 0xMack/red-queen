@@ -1,0 +1,30 @@
+# selfplay-v14 (docs/design/0021): does the 1-ply quiet fine-tune keep paying? selfplay-v13 found 200k games of it
+# +48 Elo over 40k, and plain TD then the quiet fine-tune +45 over 1M games of quiet TD from scratch (for less
+# compute). Here: the same fine-tune for 1M games, from the same 1M-game plain TD parents. Read at 3 plies + quiescence 4.
+kind: experiment
+name: selfplay-v14
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 128
+      hidden_layers: 2
+      search_depth: 1
+      quiescence: 4
+arms:
+  q1-ft-1m:
+    train:
+      budget: {iterations: 1000}
+      held_out_every: 100
+    baseline: selfplay-v13/q1-ft-200k
+    init_from: selfplay-v6/l-2x128-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true, quiescence: 4}

@@ -315,6 +315,7 @@ function resolveEntrant(ref: ExplainRef, ctx: ExplainContext): ResolvedExplainer
     if (shape.selection) facts.push({ label: "selection", value: shape.selection })
   }
   if (r.metrics.model.search_depth && r.metrics.model.search_depth > 1) facts.push({ label: "search", value: `${r.metrics.model.search_depth} plies, alpha-beta` })
+  if (r.metrics.model.quiescence) facts.push({ label: "quiescence", value: `up to ${r.metrics.model.quiescence} plies through captures` })
   if (!bandit) facts.push({ label: "sees", value: `${observerName(r.interface)}${info ? ` · ${info.observer.size} inputs` : ""}` })
   const t = r.metrics.training
   if (t.none) facts.push({ label: "training", value: bandit ? "none: learns as it plays" : "none" })

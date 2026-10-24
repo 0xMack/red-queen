@@ -159,6 +159,7 @@ EVAL_CASES: dict[str, EvalCase] = {
         {"arena.snake.HELD_OUT_SEEDS": SNAKE_20, "evaluator.protocols.snake_score.HELD_OUT_SEEDS": SNAKE_20},
     ),
     "checkers.versus.v2": EvalCase(_evaluate("checkers.versus.v2"), _records("checkers")),
+    "checkers.versus.v3": EvalCase(_evaluate("checkers.versus.v3"), _records("checkers")),
     "bandit.skill.v1": EvalCase(_evaluate("bandit.skill.v1"), _records("bandit")),
     # the result as the script wrote it with --out: what a report returns
     "checkers.sprt": EvalCase(_evaluate("checkers.sprt", a="material-2", b="random"), _report),
