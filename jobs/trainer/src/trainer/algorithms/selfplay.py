@@ -5,7 +5,8 @@ in libs/rl/rust/envs/src/selfplay.rs) -- no opponents, no fitness function, no p
 network the evolved Checkers runs produce (a `WeightVector`, 32 -> H -> 1, tanh), used the same way: scored from the
 side to move and searched `depth` plies. So its champions join the versus leaderboard and the Checkers page exactly as
 the evolved ones do. `agent: {search_depth: N}` (N > 1) trains by TD-Leaf(λ): self-play searches N plies and each
-position learns at its principal variation's leaf.
+position learns at its principal variation's leaf. `agent: {quiescence: Q}` searches on through captures, up to Q more
+plies, so that leaf is never mid-exchange.
 
 `alphazero` (`rl.CheckersAlphaZero`, docs/design/0017): a policy-and-value network, PUCT search on every move, the
 search's visit counts and the game's outcome as targets. Its champion is still the trunk and value unit as a
@@ -87,6 +88,7 @@ def train_selfplay(spec: TrainSpec, params: SelfPlayParams, sink: Sink) -> str:
             + (", opponent pool" if agent.get("pool_every") else "")
             + (", prioritized opponents" if agent.get("pfsp") else "")
             + (f", TD-Leaf searching {leaf} plies" if leaf > 1 else "")
+            + (f", quiescence {agent['quiescence']}" if agent.get("quiescence") else "")
         )
     config = {
         "representation": spec.algorithm,

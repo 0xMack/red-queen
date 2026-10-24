@@ -21,7 +21,7 @@
 //! to one score: either a fixed-topology `Network` (`evolve.WeightVector`'s flat layout, tanh on every layer)
 //! or a `GraphNet` (a NEAT genome compiled to its evaluation plan, tanh on every node).
 
-use crate::checkers::{encode, Checkers};
+use crate::checkers::{encode, is_capture, Checkers};
 use crate::pcg::Pcg32;
 
 /// Score of a move that wins outright, in the material searches.
@@ -66,7 +66,12 @@ impl Eval {
 
 /// The value of `game` for the player to move, searching `depth` more plies (negamax with alpha-beta). A
 /// finished game is worth +/- `WIN_SCORE` (plus the depth left, so a quicker win is worth more), a draw 0.
-fn search(game: &Checkers, eval: &Eval, depth: u32, mut alpha: f64, beta: f64) -> f64 {
+///
+/// `extend` is a quiescence search: at depth 0, while the side to move has a capture, keep searching (at most
+/// `extend` more plies) instead of scoring the position. Captures are mandatory, so a position mid-exchange is
+/// one whose static score misses the reply it forces; checkers has no "stand pat", so every capture is searched.
+/// `extend` 0 is plain fixed-depth alpha-beta, exactly.
+fn search(game: &Checkers, eval: &Eval, depth: u32, extend: u32, mut alpha: f64, beta: f64) -> f64 {
     if game.done {
         return match game.winner {
             Some(w) if w == game.current_player => WIN_SCORE + depth as f64,
@@ -74,14 +79,20 @@ fn search(game: &Checkers, eval: &Eval, depth: u32, mut alpha: f64, beta: f64) -
             None => 0.0,
         };
     }
-    if depth == 0 {
+    if depth == 0 && extend == 0 {
         return eval.value(game);
     }
+    let moves = game.legal_moves();
+    let (depth, extend) = match depth {
+        0 if !is_capture(&moves[0]) => return eval.value(game),
+        0 => (0, extend - 1),
+        d => (d - 1, extend),
+    };
     let mut best = f64::NEG_INFINITY;
-    for mv in game.legal_moves() {
+    for mv in moves {
         let mut child = game.clone();
         child.step(&mv).unwrap();
-        let value = -search(&child, eval, depth - 1, -beta, -alpha);
+        let value = -search(&child, eval, depth, extend, -beta, -alpha);
         best = best.max(value);
         alpha = alpha.max(value);
         if alpha >= beta {
@@ -99,10 +110,11 @@ pub enum Kind {
     Material2,
     /// A layered network, one ply ahead (the original evaluator strategy).
     Evaluator(Network),
-    /// Alpha-beta to `depth` plies with `eval` at the leaves.
+    /// Alpha-beta to `depth` plies with `eval` at the leaves, extended up to `quiescence` plies through captures.
     Search {
         depth: u32,
         eval: Eval,
+        quiescence: u32,
     },
 }
 
@@ -134,6 +146,7 @@ impl Strategy {
                 Some(depth) if depth >= 3 => Kind::Search {
                     depth,
                     eval: Eval::Material,
+                    quiescence: 0,
                 },
                 _ => return Err(format!("no such checkers strategy: {other}")),
             },
@@ -181,12 +194,35 @@ impl Strategy {
             (brain, depth) => Kind::Search {
                 depth,
                 eval: Eval::Brain(brain),
+                quiescence: 0,
             },
         };
         Ok(Strategy {
             kind,
             rng: Pcg32::new(seed),
         })
+    }
+
+    /// The same player, its search extended up to `plies` more plies past its depth while the side to move must
+    /// capture (see `search`). 0 changes nothing; only a searching strategy (`material-N`, `evaluator`) extends.
+    pub fn with_quiescence(self, plies: u32) -> Result<Strategy, String> {
+        if plies == 0 {
+            return Ok(self);
+        }
+        let kind = match self.kind {
+            Kind::Evaluator(network) => Kind::Search {
+                depth: 1,
+                eval: Eval::Brain(Brain::Layered(network)),
+                quiescence: plies,
+            },
+            Kind::Search { depth, eval, .. } => Kind::Search {
+                depth,
+                eval,
+                quiescence: plies,
+            },
+            _ => return Err("only a searching strategy (material-N, evaluator) has a quiescence search".into()),
+        };
+        Ok(Strategy { kind, ..self })
     }
 
     /// Index into `game.legal_moves()`. The game must have at least one legal move.
@@ -237,13 +273,17 @@ impl Strategy {
                         .collect(),
                 )
             }
-            Kind::Search { depth, eval } => Some(
+            Kind::Search {
+                depth,
+                eval,
+                quiescence,
+            } => Some(
                 moves
                     .iter()
                     .map(|m| {
                         let mut child = game.clone();
                         child.step(m).unwrap();
-                        -search(&child, eval, depth - 1, f64::NEG_INFINITY, f64::INFINITY)
+                        -search(&child, eval, depth - 1, *quiescence, f64::NEG_INFINITY, f64::INFINITY)
                     })
                     .collect(),
             ),
@@ -370,8 +410,9 @@ mod tests {
 
     #[test]
     fn alpha_beta_equals_plain_minimax_and_depth_pays() {
-        // Alpha-beta must return exactly the value of an unpruned minimax at the same depth.
-        fn minimax(game: &Checkers, depth: u32) -> f64 {
+        // Alpha-beta must return exactly the value of an unpruned minimax at the same depth (and the same
+        // quiescence extension: past depth 0, only positions where the mover must capture are expanded).
+        fn minimax(game: &Checkers, depth: u32, extend: u32) -> f64 {
             if game.done {
                 return match game.winner {
                     Some(w) if w == game.current_player => WIN_SCORE + depth as f64,
@@ -379,24 +420,32 @@ mod tests {
                     None => 0.0,
                 };
             }
-            if depth == 0 {
+            let moves = game.legal_moves();
+            if depth == 0 && (extend == 0 || !is_capture(&moves[0])) {
                 return Eval::Material.value(game);
             }
-            game.legal_moves()
+            let (depth, extend) = if depth == 0 {
+                (0, extend - 1)
+            } else {
+                (depth - 1, extend)
+            };
+            moves
                 .iter()
                 .map(|m| {
                     let mut child = game.clone();
                     child.step(m).unwrap();
-                    -minimax(&child, depth - 1)
+                    -minimax(&child, depth, extend)
                 })
                 .fold(f64::NEG_INFINITY, f64::max)
         }
         let mut game = Checkers::new(40);
         let mut rng = Pcg32::new(5);
-        for _ in 0..12 {
+        for _ in 0..40 {
             for depth in 1..=3 {
-                let pruned = search(&game, &Eval::Material, depth, f64::NEG_INFINITY, f64::INFINITY);
-                assert_eq!(pruned, minimax(&game, depth), "depth {depth}");
+                for extend in [0, 1, 4] {
+                    let pruned = search(&game, &Eval::Material, depth, extend, f64::NEG_INFINITY, f64::INFINITY);
+                    assert_eq!(pruned, minimax(&game, depth, extend), "depth {depth}, extend {extend}");
+                }
             }
             let moves = game.legal_moves();
             if moves.is_empty() || game.step(&moves[rng.bounded(moves.len() as u32) as usize]).unwrap() {
@@ -410,6 +459,51 @@ mod tests {
             wins += (play(&mut material(2, seed + 9), &mut material(4, seed)) == Some(1)) as u32;
         }
         assert!(wins >= 5, "material-4 won only {wins}/8 against material-2");
+    }
+
+    #[test]
+    fn quiescence_sees_the_recapture_a_fixed_depth_misses() {
+        // Red (0) must capture, two ways: (1,4)x(2,5) is safe; (7,0)x(6,1) lands on (5,2), where black's (4,3)
+        // recaptures ((3,4) stops red's chain from going on over (4,3)). One ply scores both as one piece up.
+        let mut game = Checkers::new(40);
+        let man = |owner| Piece { owner, king: false };
+        game.board = Board::from_cells(vec![
+            ((1, 4), man(0)),
+            ((7, 0), man(0)),
+            ((2, 5), man(1)),
+            ((6, 1), man(1)),
+            ((4, 3), man(1)),
+            ((3, 4), man(1)),
+        ]);
+        let moves = game.legal_moves();
+        let safe = moves.iter().position(|m| m[0] == (1, 4)).unwrap();
+        let risky = moves.iter().position(|m| m[0] == (7, 0)).unwrap();
+        let scores = |q| {
+            let strategy = Strategy::parse("material-3", 0, None).unwrap();
+            let Kind::Search { eval, .. } = strategy.kind else {
+                unreachable!()
+            };
+            let strategy = Strategy {
+                kind: Kind::Search {
+                    depth: 1,
+                    eval,
+                    quiescence: 0,
+                },
+                ..strategy
+            };
+            strategy.with_quiescence(q).unwrap().scores(&game).unwrap()
+        };
+        assert_eq!(scores(0)[safe], scores(0)[risky]);
+        assert!(scores(1)[safe] > scores(1)[risky], "{:?}", scores(1));
+
+        // 0 changes nothing, and only a searching strategy extends.
+        let start = Checkers::new(40);
+        let plain = material(3, 1);
+        assert_eq!(
+            plain.clone().with_quiescence(0).unwrap().scores(&start),
+            plain.scores(&start)
+        );
+        assert!(Strategy::parse("random", 0, None).unwrap().with_quiescence(2).is_err());
     }
 
     #[test]

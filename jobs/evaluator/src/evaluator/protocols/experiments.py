@@ -407,7 +407,10 @@ def checkers_h2h(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
         if not seeds:
             continue
         couples = [
-            (run_factory(by_arm[arm][s], metrics, artifacts, depth), run_factory(theirs[s], metrics, artifacts, depth))
+            (
+                run_factory(by_arm[arm][s], metrics, artifacts, depth, params.quiescence),
+                run_factory(theirs[s], metrics, artifacts, depth, params.quiescence),
+            )
             for s in seeds
         ]
         # full: bounds no finite LLR reaches, so the whole ballot is played
@@ -426,10 +429,12 @@ def checkers_h2h(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
             "across_seeds": across_seeds(per_seed),
         }
     return _write(
-        f"{name}-h2h-full" if full else f"{name}-h2h",
+        (f"{name}-h2h-full" if full else f"{name}-h2h") + (f"-q{params.quiescence}" if params.quiescence else ""),
         {
             "name": name,
-            "protocol": f"head to head at {depth}-ply, game pairs over the {len(ballot())}-opening ballot, "
+            "protocol": f"head to head at {depth}-ply"
+            + (f" + quiescence {params.quiescence}" if params.quiescence else "")
+            + f", game pairs over the {len(ballot())}-opening ballot, "
             + ("the whole ballot" if full else f"SPRT elo0 0, elo1 {elo1}, alpha = beta = 0.05"),
             "arms": out,
         },

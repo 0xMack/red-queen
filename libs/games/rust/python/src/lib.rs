@@ -347,8 +347,9 @@ struct CheckersStrategy {
 impl CheckersStrategy {
     /// Only the "evaluator" strategy takes a network: `weights` + `layer_sizes` (an `evolve.WeightVector`'s) or
     /// `graph` (a compiled NEAT genome, see `GraphNet::from_flat`), searched to `depth` plies (1 = one ply).
+    /// `quiescence` > 0 extends a search (`material-N`, `evaluator`) up to that many plies through captures.
     #[new]
-    #[pyo3(signature = (name, seed, weights=None, layer_sizes=None, depth=1, graph=None))]
+    #[pyo3(signature = (name, seed, weights=None, layer_sizes=None, depth=1, graph=None, quiescence=0))]
     fn new(
         name: &str,
         seed: u64,
@@ -356,10 +357,12 @@ impl CheckersStrategy {
         layer_sizes: Option<Vec<usize>>,
         depth: u32,
         graph: Option<Vec<f64>>,
+        quiescence: u32,
     ) -> PyResult<Self> {
-        Ok(CheckersStrategy {
-            inner: Strategy::build(name, seed, weights, layer_sizes, depth, graph).map_err(PyValueError::new_err)?,
-        })
+        let inner = Strategy::build(name, seed, weights, layer_sizes, depth, graph)
+            .and_then(|s| s.with_quiescence(quiescence))
+            .map_err(PyValueError::new_err)?;
+        Ok(CheckersStrategy { inner })
     }
 
     /// One score per legal move (higher = better), or None for a strategy that doesn't score moves.

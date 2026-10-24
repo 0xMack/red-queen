@@ -128,6 +128,11 @@ fn capture_chains(pos: Square, player: u8, king: bool, board: &Board) -> Vec<Vec
     chains
 }
 
+/// Whether `mv` captures: its first step jumps (a simple move steps one square, a capture two).
+pub fn is_capture(mv: &[Square]) -> bool {
+    mv.len() >= 2 && (mv[1].0 - mv[0].0).abs() == 2
+}
+
 /// (resulting board, pieces captured). Errors on a move that doesn't start at a piece.
 pub fn apply(board: &Board, mv: &[Square]) -> Result<(Board, u32), String> {
     if mv.len() < 2 {
