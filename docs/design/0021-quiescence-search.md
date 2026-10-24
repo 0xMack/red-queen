@@ -1,7 +1,7 @@
 # 0021 — Quiescence search: never score a position mid-exchange
 
-Status: **Built; pilot and `selfplay-v12` done: quiescence wins at play time, and a cheap 1-ply quiet fine-tune wins
-when played that way; `selfplay-v13` is running** (2026-10-24).
+Status: **Built; pilot, `selfplay-v12` and `-v13` done. Quiescence wins at play time; the best recipe is now plain TD
+then a long 1-ply quiet fine-tune. `checkers.versus.v3` ranks with it; `selfplay-v14` is running** (2026-10-24).
 Relates to: [0013](0013-measuring-two-player-strength.md) (game pairs, Elo), [0015](0015-td-leaf-from-the-start.md) and
 [0016](0016-selfplay-scaling.md) (TD-Leaf, the recipe), [0020](0020-alphazero-continued.md) (its conclusion: at this
 scale, alpha-beta over a TD network is what to improve).
@@ -112,11 +112,29 @@ deterministic: the two runs' networks are byte-identical).
 On `checkers.versus.v2` the recipe's 4-ply entrant is the new **#1 (1024)**, ahead of `672890ba` (978); its 3-ply
 entrant is #3 (904). The cheaper search with quiescence (3 + q4, ~2.2 ms per move) beats the old #1's 4 plies (~7 ms).
 
+### `selfplay-v13` results (2026-10-24)
+
+Both sides at 3 plies + quiescence 4, the whole ballot from both seats (870 game pairs):
+
+| Comparison | Active s per run | Elo | Seeds positive |
+|---|---|---|---|
+| `q1-ft-200k` (quiet fine-tune, 200k games) vs v12's `q-ft1-q4` (40k) | 2,918 vs 594 | **+48 [38, 59]** | 5 of 5 |
+| `q1-1m` (1M games of quiet TD from scratch) vs `selfplay-v6/l-2x128-1m` (1M of plain TD) | 15,279 vs 9,272 | **+144 [133, 156]** | 5 of 5 |
+| `q1-1m` vs `q1-ft-200k` (cross-experiment, same seeds paired) | 15,279 vs 9,272 + 2,918 | **-45 [-55, -35]** | 0 of 5 |
+
+- **The quiet fine-tune keeps paying:** five times the games is +48 more, on every seed.
+- **Quiet training from scratch beats plain TD by a lot (+144)**, but it loses to plain TD followed by the quiet
+  fine-tune, which also costs less. The same finding as 0015's for TD-Leaf: learn cheaply first, then fine-tune through
+  the search. The best recipe is now **2 x 128, 1M games of plain TD, then a long 1-ply fine-tune with quiescence 4**,
+  played at 3 plies + quiescence 4. Chained through the baselines it is ~+90 over 0016's `l-2x128-ft2` under the same
+  search.
+
 ### Next (running)
 
-- **`selfplay-v13`**: `q1-ft-200k`, v12's `q-ft1-q4` for 200k games instead of 40k (against `q-ft1-q4`), and `q1-1m`, the
-  whole 1M-game TD phase trained at 1 ply + quiescence 4 from scratch (against `selfplay-v6/l-2x128-1m`, plain TD).
-  Both are read at 3 plies + quiescence 4.
-- **`selfplay-v7`** (0016's width arms) is queued behind it.
+- **`selfplay-v14`**: the same quiet fine-tune for 1M games, against `q1-ft-200k`: where does it stop paying?
+- **A leaderboard candidate**: the recipe's TD network (`d428cb8f`, seed 0) with a 200k-game quiet fine-tune, ranked
+  under `checkers.versus.v3` against the recipe's TD-Leaf entrants.
+- **`selfplay-v7`** (0016's width arms) is running beside them. If width still pays, its parents take the quiet
+  fine-tune too.
 - **`checkers.versus.v3`** (built; see "Decision"): v2 can't rank what this doc found, since its entrants search
-  plainly. Under v3 every searching entrant plays with quiescence 4, and a v13 network enters as it is meant to play.
+  plainly. Under v3 every searching entrant plays with quiescence 4.
