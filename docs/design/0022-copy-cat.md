@@ -1,6 +1,7 @@
 # 0022 — Copy Cat: recover the clean, layered SVG behind a generated logo or icon
 
-Status: **Proposed** (2026-10-24). Nothing is built yet.
+Status: **Phase 1 built** (2026-10-24): the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol
+`copycat.clean.v1` and the baselines -- see "Phase 1 results". Phases 2-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last
@@ -226,6 +227,67 @@ per-image results as artifacts) is an open question. Whichever it is, the protoc
 4. **Search and gradient refinement,** each one an experiment.
 5. **Learned parts,** where they pay.
 6. **Animation:** its own design doc, starting from the layered output.
+
+## Phase 1 results
+
+Built as specified above, with these choices made along the way:
+
+- **The rasterizer** (`raster.rs`) is exact area coverage (the font-rs accumulation scheme), checked against a 32 x 32
+  supersampled non-zero oracle. Its one approximation is a pixel holding windings of both signs (where a
+  self-intersecting outline crosses itself). The games core gained one dependency, `libm`, for the turning angles.
+- **Layer recovery** takes each clean part's *best* match, not a one-to-one assignment.
+- **Ratios** are summarized by geometric mean: a 10x and a 0.1x average to 1x.
+- **The held-out set** is 24 `synthetic` images, 128 px, six per severity. `clean` is the control: the bare render on a
+  flat background. Then `light`, `medium` and `heavy`. They are checked in under `libs/arena/src/arena/data/copycat/`.
+- **Two "background deleted" entrants** are added, VTracer's and the hill climb's, each with its bottom layer removed.
+  This is the fix a person would make by hand, so it separates "kept the background" from everything else.
+
+Measured with `copycat.clean.v1` on all 24 held-out images:
+
+| Entrant | Clean fidelity (dB) | Over black / white | Alpha IoU | Layer recovery | Shapes | Palette | Smoothness | ms / image |
+|---|---|---|---|---|---|---|---|---|
+| VTracer (defaults), background deleted | **20.2** ± 2.6 | 16.3 / 24.0 | 0.73 | 0.73 | 6.7x | 9.0x | 13.3x | 8 |
+| Hill climb (64 shapes) | 11.4 ± 0.5 | 2.2 / 20.7 | 0.27 | 0.72 | 15.4x | 17.3x | 15.3x | 89 |
+| Hill climb (64 shapes), background deleted | 11.4 ± 0.4 | 2.2 / 20.6 | 0.26 | 0.72 | 15.1x | 17.0x | 15.1x | 89 |
+| VTracer (polygons) | 11.4 ± 0.4 | 2.2 / 20.6 | 0.27 | 0.74 | 7.2x | 9.7x | 13.6x | 5 |
+| VTracer (defaults) | 11.3 ± 0.4 | 2.2 / 20.4 | 0.27 | 0.73 | 7.2x | 9.7x | 13.8x | 7 |
+| VTracer (flat art) | 10.7 ± 0.5 | 2.2 / 19.2 | 0.27 | 0.61 | 1.0x | 1.3x | 2.0x | 2 |
+| Hill climb (16 shapes) | 10.3 ± 0.3 | 2.3 / 18.3 | 0.27 | 0.70 | 4.0x | 5.0x | 4.0x | 39 |
+
+The ratios are against the clean SVG, so 1x is right. Peak memory never rose above each entrant process's start-up peak
+(~79 MiB) at this image size, so it doesn't separate anyone yet.
+
+By severity, for the best tracer (VTracer, background deleted):
+
+| Severity | Clean fidelity | Alpha IoU | Layer recovery | Shapes | Palette | Smoothness |
+|---|---|---|---|---|---|---|
+| clean | 28.3 | 0.97 | 0.74 | 1.0x | 1.3x | 1.7x |
+| light | 22.4 | 0.88 | 0.78 | 6.1x | 8.2x | 9.6x |
+| medium | 18.4 | 0.74 | 0.76 | 12.1x | 14.1x | 25.1x |
+| heavy | 11.7 | 0.33 | 0.65 | 26.4x | 42.8x | 78x |
+
+**What it shows:**
+
+- **No baseline makes anything transparent.** Every one keeps an opaque background, so over black they score ~2 dB, the
+  same as a blank canvas. Ranked as they come, the field is a tie at 10-11 dB.
+- **Deleting VTracer's bottom layer is worth 9 dB**, but only while the background is one flat region. On `heavy`
+  images (gradients, clutter), VTracer's background is many paths, and alpha IoU falls to 0.33.
+- **Deleting the hill climb's background changes nothing.** Its later shapes repaint the background too.
+- **The tracers reproduce the noise.** On clean art, VTracer's structure is nearly right: 1.0x shapes, 1.3x palette and
+  1.7x turning. Every corruption level multiplies all three. At `heavy` it is 26x the shapes, 43x the colours and 78x the
+  turning, all of it noise traced faithfully. The flat-art preset avoids that (1.0x shapes, 2.0x smoothness) by
+  discarding detail, and its layer recovery drops to 0.51 at `heavy`.
+- **Layer recovery is capped near 0.75, even on clean art.** VTracer leaves occluded parts as the crescents they look
+  like. The hill climb's ellipses sometimes fit a whole part, but it has no notion of a part.
+- **The hill climb is the worst on structure.** At 64 shapes, it has 15x the shapes and 17x the colours for the same
+  fidelity as VTracer.
+
+So phase 2's targets are concrete. On every severity, the pipeline needs to:
+- reach `clean`-level fidelity (VTracer reaches 28 dB only on already-clean art, with its background deleted by hand);
+- keep shapes, palette and smoothness near 1x as corruption rises;
+- push layer recovery past 0.75.
+
+Re-run with `uv run redqueen evaluate copycat` (or `python -m evaluator jobs/evaluator/specs/copycat.clean.v1.yaml`).
 
 ## Open questions
 

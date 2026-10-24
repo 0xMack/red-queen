@@ -63,6 +63,32 @@ export class CheckersStrategy {
     scores(game: CheckersGame): Float64Array | undefined;
 }
 
+/**
+ * Copy Cat (docs/design/0022), phase 1: an SVG read in the protocol's subset, rendered by the same rasterizer the
+ * protocol scores with. The game page and its search moves come later.
+ */
+export class CopyCatGame {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * The canonical serialization (0.1 px, a viewBox of the image's size): what shapes and bytes are counted from.
+     */
+    canonical(): string;
+    /**
+     * Throws, with the reason, for anything outside the subset.
+     */
+    constructor(svg: string);
+    /**
+     * Straight-alpha RGBA, 8 bits per channel: ready for an `ImageData`.
+     */
+    render(): Uint8Array;
+    readonly height: number;
+    readonly nodes: number;
+    readonly palette: number;
+    readonly shapes: number;
+    readonly width: number;
+}
+
 export class RandomPolicy {
     free(): void;
     [Symbol.dispose](): void;
@@ -132,6 +158,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_checkersgame_free: (a: number, b: number) => void;
     readonly __wbg_checkersstrategy_free: (a: number, b: number) => void;
+    readonly __wbg_copycatgame_free: (a: number, b: number) => void;
     readonly __wbg_randompolicy_free: (a: number, b: number) => void;
     readonly __wbg_reach1dgame_free: (a: number, b: number) => void;
     readonly __wbg_snakegame_free: (a: number, b: number) => void;
@@ -150,6 +177,14 @@ export interface InitOutput {
     readonly checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
     readonly checkersstrategy_pick: (a: number, b: number) => [number, number, number];
     readonly checkersstrategy_scores: (a: number, b: number) => [number, number];
+    readonly copycatgame_canonical: (a: number) => [number, number];
+    readonly copycatgame_height: (a: number) => number;
+    readonly copycatgame_new: (a: number, b: number) => [number, number, number];
+    readonly copycatgame_nodes: (a: number) => number;
+    readonly copycatgame_palette: (a: number) => number;
+    readonly copycatgame_render: (a: number) => [number, number];
+    readonly copycatgame_shapes: (a: number) => number;
+    readonly copycatgame_width: (a: number) => number;
     readonly decodeRelative3: (a: number, b: number) => number;
     readonly greedyDecide: (a: number, b: number) => number;
     readonly randompolicy_decide: (a: number, b: number, c: number) => number;

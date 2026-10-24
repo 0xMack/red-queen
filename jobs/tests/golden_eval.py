@@ -47,6 +47,7 @@ FIELD: list[dict[str, Any]] = [
 ]
 
 SNAKE_20 = tuple(range(10_000, 10_020))  # 20 held-out games, not 200: the protocol's rules, a test's budget
+COPYCAT_4 = tuple(range(10_000, 10_004))
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,18 @@ def _records(game: str) -> Callable[[Any], Any]:
     return digest
 
 
-CLOCKS = {"created_at", "hardware", "wall_s", "active_s", "cpu_s", "paused_s", "peak_rss_bytes", "seconds"}
+CLOCKS = {
+    "created_at",
+    "hardware",
+    "wall_s",
+    "active_s",
+    "cpu_s",
+    "paused_s",
+    "peak_rss_bytes",
+    "baseline_rss_bytes",
+    "peak_above_baseline_bytes",
+    "seconds",
+}
 
 
 def _strip_clocks(value: Any) -> Any:
@@ -161,6 +173,10 @@ EVAL_CASES: dict[str, EvalCase] = {
     "checkers.versus.v2": EvalCase(_evaluate("checkers.versus.v2"), _records("checkers")),
     "checkers.versus.v3": EvalCase(_evaluate("checkers.versus.v3"), _records("checkers")),
     "bandit.skill.v1": EvalCase(_evaluate("bandit.skill.v1"), _records("bandit")),
+    # one held-out image per corruption severity, not all 24
+    "copycat.clean.v1": EvalCase(
+        _evaluate("copycat.clean.v1"), _records("copycat"), {"arena.copycat.HELD_OUT_SEEDS": COPYCAT_4}
+    ),
     # the result as the script wrote it with --out: what a report returns
     "checkers.sprt": EvalCase(_evaluate("checkers.sprt", a="material-2", b="random"), _report),
     "checkers.static-round-robin": EvalCase(_evaluate("checkers.static-round-robin"), _report),

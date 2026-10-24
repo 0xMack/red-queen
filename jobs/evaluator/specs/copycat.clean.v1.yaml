@@ -1,0 +1,4 @@
+# The copycat.clean.v1 leaderboard: every entrant on the held-out synthetic images, scored as the protocol (libs/arena)
+# defines -- nothing to set.
+kind: evaluate
+protocol: copycat.clean.v1

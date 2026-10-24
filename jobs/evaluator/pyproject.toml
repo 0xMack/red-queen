@@ -19,6 +19,7 @@ dependencies = [
     "pyyaml>=6",
     "rl",
     "telemetry",
+    "vtracer>=0.6.15",
 ]
 
 [tool.uv.sources]

@@ -4,10 +4,13 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use redqueen_games::bandit::{Bandit, Payout, Scenario};
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
+use redqueen_games::copycat::{layer_recovery, Document, Geometry};
+use redqueen_games::copycat_climb::{hill_climb, ClimbConfig};
 use redqueen_games::nets::{GraphNet, Net, Network};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
@@ -572,6 +575,139 @@ impl BanditCore {
     }
 }
 
+/// A Copy Cat SVG, parsed into the subset (docs/design/0022); `games/copycat.py` is its Python face. Images cross as
+/// bytes: float64 little-endian or 8-bit RGBA, row-major.
+#[pyclass(module = "games._native", frozen)]
+struct CopyCatDocument {
+    inner: Document,
+}
+
+fn f64_bytes<'py>(py: Python<'py>, values: &[f64]) -> Bound<'py, PyBytes> {
+    let bytes: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
+    PyBytes::new(py, &bytes)
+}
+
+#[pymethods]
+impl CopyCatDocument {
+    /// Raises ValueError, with the reason, for anything outside the subset.
+    #[staticmethod]
+    fn parse(text: &str) -> PyResult<Self> {
+        Document::parse(text)
+            .map(|inner| CopyCatDocument { inner })
+            .map_err(PyValueError::new_err)
+    }
+
+    #[getter]
+    fn width(&self) -> u32 {
+        self.inner.width
+    }
+    #[getter]
+    fn height(&self) -> u32 {
+        self.inner.height
+    }
+    #[getter]
+    fn shapes(&self) -> usize {
+        self.inner.shapes.len()
+    }
+    #[getter]
+    fn nodes(&self) -> usize {
+        self.inner.nodes()
+    }
+    #[getter]
+    fn palette(&self) -> usize {
+        self.inner.palette()
+    }
+
+    fn canonical(&self) -> String {
+        self.inner.canonical()
+    }
+
+    /// Total absolute turning angle along every flattened outline, radians.
+    #[getter]
+    fn turning(&self) -> f64 {
+        self.inner.turning()
+    }
+
+    /// (kind, fill, opacity) per shape, in paint order.
+    fn describe(&self) -> Vec<(&'static str, (u8, u8, u8), f64)> {
+        self.inner
+            .shapes
+            .iter()
+            .map(|s| {
+                let kind = match s.geometry {
+                    Geometry::Rect { .. } => "rect",
+                    Geometry::Circle { .. } => "circle",
+                    Geometry::Ellipse { .. } => "ellipse",
+                    Geometry::Polygon(_) => "polygon",
+                    Geometry::Path(_) => "path",
+                };
+                (kind, (s.fill[0], s.fill[1], s.fill[2]), s.opacity)
+            })
+            .collect()
+    }
+
+    /// Premultiplied RGBA in 0..1, float64.
+    fn render<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        f64_bytes(py, &self.inner.render().data)
+    }
+
+    /// Straight-alpha RGBA, 8 bits (a PNG's pixels).
+    fn render_rgba8<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.inner.render().to_rgba8())
+    }
+
+    /// Shape `index` alone: its coverage over the whole image, float64.
+    fn coverage<'py>(&self, py: Python<'py>, index: usize) -> PyResult<Bound<'py, PyBytes>> {
+        let shape = self
+            .inner
+            .shapes
+            .get(index)
+            .ok_or_else(|| PyValueError::new_err(format!("no shape {index}")))?;
+        let (w, h) = (self.inner.width as usize, self.inner.height as usize);
+        let mask = shape.mask(self.inner.width, self.inner.height);
+        let full: Vec<f64> = (0..w * h).map(|i| mask.at(i % w, i / w)).collect();
+        Ok(f64_bytes(py, &full))
+    }
+
+    /// Every shape's flattened outline: closed polylines (what smoothness is measured on).
+    fn outlines(&self) -> Vec<Vec<Vec<(f64, f64)>>> {
+        self.inner.shapes.iter().map(|s| s.outline()).collect()
+    }
+}
+
+/// For each shape of `clean`, its best whole-shape IoU with a shape of `output`.
+#[pyfunction]
+fn copycat_layer_recovery(clean: &CopyCatDocument, output: &CopyCatDocument) -> Vec<f64> {
+    layer_recovery(&clean.inner, &output.inner)
+}
+
+/// The `primitive`-style hill climb on an 8-bit RGBA image.
+#[pyfunction]
+#[pyo3(signature = (rgba, width, height, shapes, candidates, patience, seed))]
+#[allow(clippy::too_many_arguments)]
+fn copycat_hill_climb(
+    py: Python<'_>,
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+    shapes: usize,
+    candidates: usize,
+    patience: usize,
+    seed: u64,
+) -> PyResult<CopyCatDocument> {
+    if rgba.len() != (width * height * 4) as usize {
+        return Err(PyValueError::new_err(format!("rgba is not {width}x{height}")));
+    }
+    let config = ClimbConfig {
+        shapes,
+        candidates,
+        patience,
+        seed,
+    };
+    let inner = py.detach(|| hill_climb(&rgba, width, height, &config));
+    Ok(CopyCatDocument { inner })
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
@@ -579,10 +715,13 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CheckersStrategy>()?;
     m.add_class::<Reach1DCore>()?;
     m.add_class::<BanditCore>()?;
+    m.add_class::<CopyCatDocument>()?;
     m.add_class::<Pcg32>()?;
     m.add_class::<Policy>()?;
     m.add_class::<SnakeRandomPolicy>()?;
     m.add_function(wrap_pyfunction!(snake_greedy_decide, m)?)?;
     m.add_function(wrap_pyfunction!(relative3_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_layer_recovery, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_hill_climb, m)?)?;
     Ok(())
 }
