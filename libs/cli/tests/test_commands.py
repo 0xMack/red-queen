@@ -84,6 +84,21 @@ def test_evaluate_picks_the_games_leaderboard_protocol(cli):
     assert json.loads(h2h.output)["spec"]["params"]["a"] == "material-3"
 
 
+def test_leaderboard_show_defaults_to_the_newest_protocol(cli):
+    from telemetry import EvaluationRecord, open_stores
+
+    evaluations = open_stores().evaluations
+    for protocol, entrant in [("checkers.versus.v9", "baseline:old"), ("checkers.versus.v10", "baseline:new")]:
+        evaluations.put(EvaluationRecord(
+            game="checkers", protocol=protocol, entrant_id=entrant, entrant_kind="baseline", label=entrant,
+            interface="checkers/board32.v1+evaluate1ply.v1", created_at=1.0, metrics={"quality": {"mean": 0.0}},
+        ))  # fmt: skip
+    shown = cli("--json", "leaderboard", "show", "checkers")
+    assert [r["entrant_id"] for r in json.loads(shown.output)] == ["baseline:new"]
+    old = cli("--json", "leaderboard", "show", "checkers", "--protocol", "checkers.versus.v9")
+    assert [r["entrant_id"] for r in json.loads(old.output)] == ["baseline:old"]
+
+
 def test_wait_follows_the_log_and_exits_with_the_outcome(cli, monkeypatch, tmp_path):
     """A fake scheduler: the first poll finds the job's worker wrote a log and succeeded."""
     from redqueen_cli import client

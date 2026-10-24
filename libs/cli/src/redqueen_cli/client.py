@@ -7,6 +7,7 @@ live server, or the backend's own `TestClient` in tests.
 from __future__ import annotations
 
 import os
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -68,6 +69,15 @@ class Client:
             raise ApiError(404, f"no run starts with {prefix!r}")
         raise ApiError(400, f"{prefix!r} matches {len(matches)} runs: {', '.join(m[:12] for m in matches[:5])} ...")
 
+    def leaderboard(self, game: str, protocol: str | None = None) -> list[dict[str, Any]]:
+        """A game's leaderboard records under `protocol`, or under its newest protocol if none is given
+        ("checkers.versus.v10" is newer than "v9") -- the API returns every protocol's, which aren't comparable."""
+        records = self.get(f"/games/{game}/leaderboard", protocol=protocol)
+        if protocol is None and records:
+            latest = max({r["protocol"] for r in records}, key=_natural)
+            records = [r for r in records if r["protocol"] == latest]
+        return records
+
     def follow_job(self, job_id: str, write: Callable[[str], None], poll: float = 1.0) -> dict[str, Any]:
         """Streams a job's log (a pipeline's: each stage's, in turn) until it finishes; returns the finished job."""
         offsets: dict[str, int] = {}
@@ -89,3 +99,8 @@ class Client:
             if job["status"] in FINISHED:
                 return job
             time.sleep(poll)
+
+
+def _natural(text: str) -> list[Any]:
+    """A sort key that orders the numbers in `text` by value: v9 < v10."""
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", text)]

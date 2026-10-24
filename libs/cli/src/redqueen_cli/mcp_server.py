@@ -120,8 +120,8 @@ def build_server(client: Client, root: Path | None = None) -> Any:
 
     @tool(read_only)
     def leaderboard(game: str, protocol: str | None = None) -> list[dict[str, Any]]:
-        """A game's leaderboard records, best first (quality.mean is the score; per-game scores omitted)."""
-        records = client.get(f"/games/{game}/leaderboard", protocol=protocol)
+        """A game's leaderboard records under `protocol` (default: the newest), best first (quality.mean is the score; per-game scores omitted)."""
+        records = client.leaderboard(game, protocol)
         records.sort(key=lambda r: r.get("metrics", {}).get("quality", {}).get("mean", float("-inf")), reverse=True)
         return [_trim(r) for r in records]
 
