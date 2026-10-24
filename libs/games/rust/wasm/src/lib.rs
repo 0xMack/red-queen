@@ -229,7 +229,8 @@ pub struct CheckersStrategy {
 impl CheckersStrategy {
     /// `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
     /// `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
-    /// deep (1 = one ply; omit for the default).
+    /// deep (1 = one ply; omit for the default). `quiescence` extends a search (material-N, evaluator) up to that
+    /// many plies through captures (docs/design/0021; omit or 0 for none).
     #[wasm_bindgen(constructor)]
     pub fn new(
         name: &str,
@@ -238,6 +239,7 @@ impl CheckersStrategy {
         layer_sizes: Option<Vec<u32>>,
         depth: Option<u32>,
         graph: Option<Vec<f64>>,
+        quiescence: Option<u32>,
     ) -> Result<CheckersStrategy, JsError> {
         let layers = layer_sizes.map(|l| l.into_iter().map(|n| n as usize).collect());
         let inner = redqueen_games::checkers_strategies::Strategy::build(
@@ -248,6 +250,7 @@ impl CheckersStrategy {
             depth.unwrap_or(1),
             graph,
         )
+        .and_then(|s| s.with_quiescence(quiescence.unwrap_or(0)))
         .map_err(|e| JsError::new(&e))?;
         Ok(CheckersStrategy { inner })
     }

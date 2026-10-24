@@ -66,6 +66,11 @@ class ScaleTestPublishParams(PublishParams):
 for name, game, summary in (
     ("snake.score.v2", "snake", "game score on 200 held-out games, every finished champion plus the baselines"),
     ("checkers.versus.v2", "checkers", "a Bradley-Terry Elo from game pairs over the ballot, a round robin"),
+    (
+        "checkers.versus.v3",
+        "checkers",
+        "checkers.versus.v2 with every searching entrant extended through captures (quiescence 4)",
+    ),
     ("bandit.skill.v1", "bandit", "skill on 500 held-out games of every scenario, ranked on classic"),
 ):
     register_protocol(Protocol(name, game, NoParams, "leaderboard", summary))

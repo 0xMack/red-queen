@@ -32,8 +32,10 @@ makes the search itself the cheapest thing left to improve, for both what plays 
   Any `quiescence` uses the searched loop, even at `search_depth` 1.
 - `quiescence` 0 is today's search exactly: the golden runs and the determinism digests don't move, and both searches'
   minimax oracles are extended to check the extension too.
-- **Not changed:** `checkers.versus.v2`. A leaderboard protocol's meaning is fixed, so entrants searching with
-  quiescence need a new protocol version (see "Next").
+- **The leaderboard:** `checkers.versus.v2` is unchanged (a protocol's meaning is fixed). `checkers.versus.v3` is the
+  same round robin with every searching entrant (a champion at its depth, `material-3`, `material-4`) extended by
+  quiescence 4; its records carry `metrics.model.quiescence`, and the game page plays each entrant with it (the WASM
+  `CheckersStrategy` takes `quiescence`). The page shows the latest protocol, so v3 replaces v2 there once it has run.
 
 ## Pilot: quiescence at play time (2026-10-23)
 
@@ -116,6 +118,5 @@ entrant is #3 (904). The cheaper search with quiescence (3 + q4, ~2.2 ms per mov
   whole 1M-game TD phase trained at 1 ply + quiescence 4 from scratch (against `selfplay-v6/l-2x128-1m`, plain TD).
   Both are read at 3 plies + quiescence 4.
 - **`selfplay-v7`** (0016's width arms) is queued behind it.
-- **A leaderboard protocol that searches with quiescence** (`checkers.versus.v3`): v2 can't rank what this doc found,
-  since its entrants search plainly. Under v3 every searching entrant (champions at their depth, `material-3`/`-4`)
-  would play with quiescence 4, and a v13 network would enter as it is meant to play.
+- **`checkers.versus.v3`** (built; see "Decision"): v2 can't rank what this doc found, since its entrants search
+  plainly. Under v3 every searching entrant plays with quiescence 4, and a v13 network enters as it is meant to play.

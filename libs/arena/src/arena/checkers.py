@@ -6,6 +6,11 @@ so opening luck cancels; each pairing takes the next openings in the ballot, so 
 are seeded (random tie-breaks reproduce) and capped at MAX_PLIES. An entrant's score is a Bradley-Terry Elo rating
 (`arena.versus_stats`), anchored so ANCHOR is 0.
 
+Protocol `checkers.versus.v3` (docs/design/0021) is v2 with every searching entrant -- a champion at its depth,
+`material-3`, `material-4` -- extended through captures by a quiescence search of up to 4 plies
+(QUIESCENCE_BY_PROTOCOL), since that is how the strongest players play: v2's plain search scores positions
+mid-exchange. 1- and 2-ply material, random and first-legal play as in v2.
+
 Every use of seeded Checkers games owns a seed range, listed here so they stay disjoint: training opponents draw by
 opponent index, monitoring from MONITOR_SEED_BASE, the leaderboard from VERSUS_SEED_BASE, the self-play experiment
 report from REPORT_SEED_BASE, head-to-head SPRTs from SPRT_SEED_BASE, population-based training's member round robins
@@ -23,7 +28,8 @@ from games.checkers import Checkers
 from games.checkers_openings import Opening, ballot
 
 GAME = "checkers"
-PROTOCOL = "checkers.versus.v2"
+PROTOCOL = "checkers.versus.v3"  # the current one
+QUIESCENCE_BY_PROTOCOL = {"checkers.versus.v2": 0, "checkers.versus.v3": 4}
 INTERFACE = "checkers/board32.v1+evaluate1ply.v1"
 OPENINGS_PER_PAIR = 12  # 24 games per pairing, one game pair per opening
 MAX_PLIES = 300

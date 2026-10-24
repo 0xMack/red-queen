@@ -157,15 +157,17 @@ export class CheckersStrategy {
     /**
      * `name`: random | first-legal | material-N | evaluator. Only the evaluator takes a network: `weights` +
      * `layerSizes` (an evolve.WeightVector's) or `graph` (a compiled NEAT genome), searched `depth` plies
-     * deep (1 = one ply; omit for the default).
+     * deep (1 = one ply; omit for the default). `quiescence` extends a search (material-N, evaluator) up to that
+     * many plies through captures (docs/design/0021; omit or 0 for none).
      * @param {string} name
      * @param {number} seed
      * @param {Float64Array | null} [weights]
      * @param {Uint32Array | null} [layer_sizes]
      * @param {number | null} [depth]
      * @param {Float64Array | null} [graph]
+     * @param {number | null} [quiescence]
      */
-    constructor(name, seed, weights, layer_sizes, depth, graph) {
+    constructor(name, seed, weights, layer_sizes, depth, graph, quiescence) {
         const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(weights) ? 0 : passArrayF64ToWasm0(weights, wasm.__wbindgen_malloc);
@@ -174,7 +176,7 @@ export class CheckersStrategy {
         var len2 = WASM_VECTOR_LEN;
         var ptr3 = isLikeNone(graph) ? 0 : passArrayF64ToWasm0(graph, wasm.__wbindgen_malloc);
         var len3 = WASM_VECTOR_LEN;
-        const ret = wasm.checkersstrategy_new(ptr0, len0, seed, ptr1, len1, ptr2, len2, isLikeNone(depth) ? 0x100000001 : (depth) >>> 0, ptr3, len3);
+        const ret = wasm.checkersstrategy_new(ptr0, len0, seed, ptr1, len1, ptr2, len2, isLikeNone(depth) ? 0x100000001 : (depth) >>> 0, ptr3, len3, isLikeNone(quiescence) ? 0x100000001 : (quiescence) >>> 0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }

@@ -8,4 +8,4 @@ every: 1d
 on_run_completed: {game: checkers}
 submit:
   kind: evaluate
-  protocol: checkers.versus.v2
+  protocol: checkers.versus.v3

@@ -7,7 +7,8 @@ import { brainFromApi, STATIC_STRATEGIES, wasmStrategy, type CheckersBrain, type
 // about the same entrants. A baseline is a Rust player named in its id (`baseline:material-2`). A champion is
 // a trained evaluator: its network comes from the backend as plain numbers (`/runs/{id}/artifacts/{ref}/brain`
 // -- layered weights, or a NEAT genome compiled to its evaluation plan, so no client re-implements either) and
-// is searched to the depth it was evaluated at (`metrics.model.search_depth`). Each is a few KB, fetched once,
+// is searched to the depth it was evaluated at (`metrics.model.search_depth`), extended through captures as it was
+// (`metrics.model.quiescence`, since checkers.versus.v3; a baseline too). Each is a few KB, fetched once,
 // and an entrant appears in the list as soon as its brain lands. With no leaderboard (backend unreachable) it
 // falls back to the static players, so the page still plays.
 export function useCheckersEntrants(entries: MaybeRefOrGetter<EvaluationRecord[]>) {
@@ -42,14 +43,15 @@ export function useCheckersEntrants(entries: MaybeRefOrGetter<EvaluationRecord[]
     if (!list.length) return STATIC_STRATEGIES
     return list.flatMap((r) => {
       const depth = r.metrics.model.search_depth ?? 1
+      const quiescence = r.metrics.model.quiescence ?? 0
       // Since checkers.versus.v2 the score is an Elo rating (docs/design/0013); older records held points per game.
       const score = r.metrics.versus?.rating ? `Rated ${r.metrics.quality.mean.toFixed(0)} Elo` : `${r.metrics.quality.mean.toFixed(2)} points per game`
-      const description = `${r.metrics.model.description}${depth > 1 ? `, searching ${depth} plies` : ""}. ${score}.`
+      const description = `${r.metrics.model.description}${depth > 1 ? `, searching ${depth} plies` : ""}${quiescence && depth > 1 ? ` + quiescence ${quiescence}` : ""}. ${score}.`
       if (r.entrant_kind === "baseline") {
-        return [wasmStrategy({ id: r.entrant_id, kind: r.entrant_id.replace(/^baseline:/, ""), label: r.label, description })]
+        return [wasmStrategy({ id: r.entrant_id, kind: r.entrant_id.replace(/^baseline:/, ""), label: r.label, description, quiescence })]
       }
       const brain = brains.value[r.entrant_id]
-      return brain ? [wasmStrategy({ id: r.entrant_id, kind: "evaluator", label: entrantLabel(r), description, brain, depth })] : []
+      return brain ? [wasmStrategy({ id: r.entrant_id, kind: "evaluator", label: entrantLabel(r), description, brain, depth, quiescence })] : []
     })
   })
 

@@ -169,6 +169,8 @@ export interface WasmStrategyOptions {
   brain?: CheckersBrain
   /** Alpha-beta plies an evaluator searches (default 1 = one ply). */
   depth?: number
+  /** Plies a search (evaluator, material-N) may extend through captures (docs/design/0021; default 0 = none). */
+  quiescence?: number
 }
 
 /** Split the core's flat activations (every layer concatenated) back into layers. */
@@ -182,14 +184,14 @@ function splitLayers(flat: ArrayLike<number>, layerSizes: readonly number[]): nu
   return layers
 }
 
-function wasmBot(engine: unknown, { kind, brain, depth }: WasmStrategyOptions, seed: number): Bot {
+function wasmBot(engine: unknown, { kind, brain, depth, quiescence }: WasmStrategyOptions, seed: number): Bot {
   const game = (engine as CheckersEngine).game
   const strategy =
     brain?.kind === "layered"
-      ? new CheckersStrategy(kind, seed, Float64Array.from(brain.weights), Uint32Array.from(brain.layerSizes), depth)
+      ? new CheckersStrategy(kind, seed, Float64Array.from(brain.weights), Uint32Array.from(brain.layerSizes), depth, undefined, quiescence)
       : brain?.kind === "graph"
-        ? new CheckersStrategy(kind, seed, undefined, undefined, depth, Float64Array.from(brain.encoding))
-        : new CheckersStrategy(kind, seed)
+        ? new CheckersStrategy(kind, seed, undefined, undefined, depth, Float64Array.from(brain.encoding), quiescence)
+        : new CheckersStrategy(kind, seed, undefined, undefined, undefined, undefined, quiescence)
   const network: BotNetwork | undefined =
     brain?.kind === "layered"
       ? { kind: "layered", weights: brain.weights, layerSizes: brain.layerSizes, inputLabels: INPUT_LABELS, outputLabels: ["value"] }
