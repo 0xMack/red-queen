@@ -1,0 +1,30 @@
+# selfplay-v15 (docs/design/0021): width under the quiet recipe. selfplay-v14 found the 1-ply quiet fine-tune nearly
+# flat past 200k games at 2 x 128 (+16 Elo for 5x the games), which points at capacity. This fine-tunes selfplay-v7's
+# 2 x 256 networks (1M games of plain TD) the same way and plays them against q1-ft-200k (2 x 128, same recipe).
+# Read at 3 plies + quiescence 4. Each run waits for its v7 parent.
+kind: experiment
+name: selfplay-v15
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  budget: {iterations: 200}
+  held_out_every: 20
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 256
+      hidden_layers: 2
+      search_depth: 1
+      quiescence: 4
+arms:
+  w256-q1-ft-200k:
+    baseline: selfplay-v13/q1-ft-200k
+    init_from: selfplay-v7/w-2x256-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true, quiescence: 4}
