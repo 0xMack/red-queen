@@ -1,8 +1,8 @@
 # 0021 — Quiescence search: never score a position mid-exchange
 
-Status: **Built; pilot, `selfplay-v12` to `-v14` done, the quiet recipe leads `checkers.versus.v3`. Quiescence wins at
-play time; the best recipe is plain TD then a 200k-game 1-ply quiet fine-tune. `selfplay-v15` (width) is running**
-(2026-10-24).
+Status: **Built; pilot and `selfplay-v12` to `-v15` done, the quiet recipe leads `checkers.versus.v3`. Quiescence wins
+at play time; the best recipe is plain TD then a 200k-game 1-ply quiet fine-tune, and width still pays under it. A
+2 x 256 leaderboard candidate is training** (2026-10-24).
 Relates to: [0013](0013-measuring-two-player-strength.md) (game pairs, Elo), [0015](0015-td-leaf-from-the-start.md) and
 [0016](0016-selfplay-scaling.md) (TD-Leaf, the recipe), [0020](0020-alphazero-continued.md) (its conclusion: at this
 scale, alpha-beta over a TD network is what to improve).
@@ -164,9 +164,29 @@ The quiet fine-tune is the stronger network at either depth, for 2,910 active s 
 The round robin orders them as the SPRTs did, but its intervals overlap at the top: a round robin spreads its games
 over 25 entrants, and the head-to-heads are what separate neighbours.
 
+### Width: `selfplay-v7` and `selfplay-v15` (2026-10-24)
+
+`selfplay-v7` (0016's width arms) was read the way 0016 read its arms: both sides at 3 plies, no quiescence, the whole
+ballot from both seats (870 game pairs). `selfplay-v15` was read like v13 and v14: both sides at 3 plies + quiescence 4.
+
+| Arm | vs | Active s per run | Elo | Seeds positive |
+|---|---|---|---|---|
+| v7 `w-2x256-1m` (2 x 256, 1M games of plain TD) | v6 `l-2x128-1m` | 30,904 vs 9,272 | **+86 [75, 98]** | 5 of 5 |
+| v7 `w-2x256-ft2` (that, plus 40k games of 2-ply TD-Leaf) | v6 `l-2x128-ft2` | + 5,729 vs + 1,744 | **+59 [48, 71]** | 5 of 5 |
+| v7 `w-2x64-2700k` (2 x 64, 2.7M games: 2 x 128's compute) | v6 `l-2x128-1m` | 9,480 vs 9,272 | **-76 [-88, -64]** | 0 of 5 |
+| v15 `w256-q1-ft-200k` (2 x 256, the quiet fine-tune, 200k games) | v13 `q1-ft-200k` | + 8,716 vs + 2,918 | **+22 [11, 32]** | 5 of 5 |
+
+- **2 x 128's gain over 2 x 64 was capacity, not compute.** Given the same compute as games, 2 x 64 is 76 Elo behind.
+- **Width keeps paying, by less each step.** 2 x 256 is +86 over 2 x 128 after plain TD, at 3.3x the training time.
+  After the quiet fine-tune the gap narrows to +22. The fine-tune lifts the smaller network more, which fits v14: a
+  2 x 128 network still has some room the fine-tune can use.
+- **The cost is the real limit.** A 2 x 256 recipe takes ~39,600 active s (11 h) against 2 x 128's ~12,200. Each
+  position also costs ~3.6x as much to evaluate (74k weights against 21k), which the leaderboard's inference
+  column will show.
+
 ### Next (running)
 
-- **`selfplay-v15`**: the quiet fine-tune (200k games) on `selfplay-v7`'s 2 x 256 networks, against `q1-ft-200k`
-  (2 x 128). v14 says the 2 x 128 fine-tune is nearly spent, so width is the next thing to try. Each run waits for
-  its v7 parent.
-- **`selfplay-v7`** (0016's width arms, plain TD) is still running; v15 reads its 2 x 256 arm.
+- **A 2 x 256 leaderboard candidate:** `selfplay-v7/w-2x256-1m`'s seed-0 network with the 200k-game quiet fine-tune,
+  as two entrants (3 and 4 plies, byte-identical networks). It is then ranked under `checkers.versus.v3` and SPRTed
+  against the 2 x 128 quiet entrants at the same depth. If the 3-ply 2 x 256 matches the 4-ply 2 x 128 at less time per
+  move, width is the better buy for the site.
