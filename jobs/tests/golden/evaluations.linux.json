@@ -4310,6 +4310,1434 @@
    "run_id": "<run2>"
   }
  ],
+ "copycat.clean.v1": [
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:hillclimb-16",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "Hill climb (16 shapes)",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 1101.0,
+       "fidelity": 11.206,
+       "layer_recovery": 0.8471,
+       "node_ratio": 4.7857,
+       "palette_ratio": 7.0,
+       "psnr_black": 2.719,
+       "psnr_white": 19.693,
+       "refused": 0,
+       "shape_ratio": 5.6667,
+       "smoothness_ratio": 5.6667
+      },
+      "heavy": {
+       "alpha_iou": 0.1554,
+       "bytes": 1089.0,
+       "fidelity": 8.9961,
+       "layer_recovery": 0.7668,
+       "node_ratio": 2.3103,
+       "palette_ratio": 3.4,
+       "psnr_black": 2.1354,
+       "psnr_white": 15.8567,
+       "refused": 0,
+       "shape_ratio": 3.4,
+       "smoothness_ratio": 3.4
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 1095.0,
+       "fidelity": 10.0624,
+       "layer_recovery": 0.7979,
+       "node_ratio": 3.7222,
+       "palette_ratio": 8.5,
+       "psnr_black": 2.3359,
+       "psnr_white": 17.789,
+       "refused": 0,
+       "shape_ratio": 5.6667,
+       "smoothness_ratio": 5.6243
+      },
+      "medium": {
+       "alpha_iou": 0.063,
+       "bytes": 1102.0,
+       "fidelity": 11.1537,
+       "layer_recovery": 0.7907,
+       "node_ratio": 7.4444,
+       "palette_ratio": 8.5,
+       "psnr_black": 0.9144,
+       "psnr_white": 21.3929,
+       "refused": 0,
+       "shape_ratio": 8.5,
+       "smoothness_ratio": 8.5
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.2077,
+      "bytes": 1096.75,
+      "fidelity": 10.3545,
+      "layer_recovery": 0.8006,
+      "node_ratio": 4.1837,
+      "palette_ratio": 6.4395,
+      "psnr_black": 2.0262,
+      "psnr_white": 18.6829,
+      "refused": 0,
+      "shape_ratio": 5.5194,
+      "smoothness_ratio": 5.509
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 1101,
+       "fidelity": 11.206,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8471,
+       "node_ratio": 4.7857,
+       "nodes": 67,
+       "palette": 14,
+       "palette_ratio": 7.0,
+       "psnr_black": 2.719,
+       "psnr_white": 19.693,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 5.6667,
+       "shapes": 17,
+       "smoothness_ratio": 5.6667
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 1095,
+       "fidelity": 10.0624,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.7979,
+       "node_ratio": 3.7222,
+       "nodes": 67,
+       "palette": 17,
+       "palette_ratio": 8.5,
+       "psnr_black": 2.3359,
+       "psnr_white": 17.789,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 5.6667,
+       "shapes": 17,
+       "smoothness_ratio": 5.6243
+      },
+      {
+       "alpha_iou": 0.063,
+       "bytes": 1102,
+       "fidelity": 11.1537,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.7907,
+       "node_ratio": 7.4444,
+       "nodes": 67,
+       "palette": 17,
+       "palette_ratio": 8.5,
+       "psnr_black": 0.9144,
+       "psnr_white": 21.3929,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 8.5,
+       "shapes": 17,
+       "smoothness_ratio": 8.5
+      },
+      {
+       "alpha_iou": 0.1554,
+       "bytes": 1089,
+       "fidelity": 8.9961,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.7668,
+       "node_ratio": 2.3103,
+       "nodes": 67,
+       "palette": 17,
+       "palette_ratio": 3.4,
+       "psnr_black": 2.1354,
+       "psnr_white": 15.8567,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 3.4,
+       "shapes": 17,
+       "smoothness_ratio": 3.4
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "candidates": 100,
+      "patience": 100,
+      "shapes": 16,
+      "tracer": "hillclimb"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 1097,
+     "parameters": 0
+    },
+    "model": {
+     "description": "A primitive-style hill climb: a background rect, then 16 opaque triangles, rects, ellipses or circles, each the best of 100 random shapes climbed until 100 mutations in a row fail.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Hill climb (16 shapes)"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.027,
+     "max": 11.206,
+     "mean": 10.3545,
+     "median": 10.60805,
+     "min": 8.9961,
+     "n": 4,
+     "scores": [
+      11.206,
+      10.0624,
+      11.1537,
+      8.9961
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:hillclimb-64",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "Hill climb (64 shapes)",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 4090.0,
+       "fidelity": 13.1234,
+       "layer_recovery": 0.8471,
+       "node_ratio": 17.9286,
+       "palette_ratio": 18.5,
+       "psnr_black": 2.6618,
+       "psnr_white": 23.5851,
+       "refused": 0,
+       "shape_ratio": 21.6667,
+       "smoothness_ratio": 21.6667
+      },
+      "heavy": {
+       "alpha_iou": 0.1554,
+       "bytes": 4038.0,
+       "fidelity": 9.3111,
+       "layer_recovery": 0.7668,
+       "node_ratio": 8.4828,
+       "palette_ratio": 12.8,
+       "psnr_black": 2.0012,
+       "psnr_white": 16.621,
+       "refused": 0,
+       "shape_ratio": 13.0,
+       "smoothness_ratio": 13.0
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 4029.0,
+       "fidelity": 10.4317,
+       "layer_recovery": 0.804,
+       "node_ratio": 13.8333,
+       "palette_ratio": 31.0,
+       "psnr_black": 2.2661,
+       "psnr_white": 18.5973,
+       "refused": 0,
+       "shape_ratio": 21.6667,
+       "smoothness_ratio": 21.5047
+      },
+      "medium": {
+       "alpha_iou": 0.063,
+       "bytes": 4084.0,
+       "fidelity": 11.2201,
+       "layer_recovery": 0.7907,
+       "node_ratio": 27.3333,
+       "palette_ratio": 32.0,
+       "psnr_black": 0.9198,
+       "psnr_white": 21.5203,
+       "refused": 0,
+       "shape_ratio": 32.5,
+       "smoothness_ratio": 32.5
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.2077,
+      "bytes": 4060.25,
+      "fidelity": 11.0216,
+      "layer_recovery": 0.8021,
+      "node_ratio": 15.4855,
+      "palette_ratio": 22.0152,
+      "psnr_black": 1.9622,
+      "psnr_white": 20.0809,
+      "refused": 0,
+      "shape_ratio": 21.1034,
+      "smoothness_ratio": 21.0639
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 4090,
+       "fidelity": 13.1234,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8471,
+       "node_ratio": 17.9286,
+       "nodes": 251,
+       "palette": 37,
+       "palette_ratio": 18.5,
+       "psnr_black": 2.6618,
+       "psnr_white": 23.5851,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 21.6667,
+       "shapes": 65,
+       "smoothness_ratio": 21.6667
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 4029,
+       "fidelity": 10.4317,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.804,
+       "node_ratio": 13.8333,
+       "nodes": 249,
+       "palette": 62,
+       "palette_ratio": 31.0,
+       "psnr_black": 2.2661,
+       "psnr_white": 18.5973,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 21.6667,
+       "shapes": 65,
+       "smoothness_ratio": 21.5047
+      },
+      {
+       "alpha_iou": 0.063,
+       "bytes": 4084,
+       "fidelity": 11.2201,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.7907,
+       "node_ratio": 27.3333,
+       "nodes": 246,
+       "palette": 64,
+       "palette_ratio": 32.0,
+       "psnr_black": 0.9198,
+       "psnr_white": 21.5203,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 32.5,
+       "shapes": 65,
+       "smoothness_ratio": 32.5
+      },
+      {
+       "alpha_iou": 0.1554,
+       "bytes": 4038,
+       "fidelity": 9.3111,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.7668,
+       "node_ratio": 8.4828,
+       "nodes": 246,
+       "palette": 64,
+       "palette_ratio": 12.8,
+       "psnr_black": 2.0012,
+       "psnr_white": 16.621,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 13.0,
+       "shapes": 65,
+       "smoothness_ratio": 13.0
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "candidates": 100,
+      "patience": 100,
+      "shapes": 64,
+      "tracer": "hillclimb"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 4060,
+     "parameters": 0
+    },
+    "model": {
+     "description": "The same hill climb with 64 shapes.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Hill climb (64 shapes)"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.5732,
+     "max": 13.1234,
+     "mean": 11.0216,
+     "median": 10.8259,
+     "min": 9.3111,
+     "n": 4,
+     "scores": [
+      13.1234,
+      10.4317,
+      11.2201,
+      9.3111
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:hillclimb-64-nobg",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "Hill climb (64 shapes), background deleted",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 4030.0,
+       "fidelity": 13.0673,
+       "layer_recovery": 0.8471,
+       "node_ratio": 17.6429,
+       "palette_ratio": 18.0,
+       "psnr_black": 2.7141,
+       "psnr_white": 23.4204,
+       "refused": 0,
+       "shape_ratio": 21.3333,
+       "smoothness_ratio": 21.3333
+      },
+      "heavy": {
+       "alpha_iou": 0.1587,
+       "bytes": 3978.0,
+       "fidelity": 9.5715,
+       "layer_recovery": 0.7668,
+       "node_ratio": 8.3448,
+       "palette_ratio": 12.6,
+       "psnr_black": 2.2242,
+       "psnr_white": 16.9188,
+       "refused": 0,
+       "shape_ratio": 12.8,
+       "smoothness_ratio": 12.8
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 3969.0,
+       "fidelity": 10.4655,
+       "layer_recovery": 0.804,
+       "node_ratio": 13.6111,
+       "palette_ratio": 30.5,
+       "psnr_black": 2.3061,
+       "psnr_white": 18.625,
+       "refused": 0,
+       "shape_ratio": 21.3333,
+       "smoothness_ratio": 21.1739
+      },
+      "medium": {
+       "alpha_iou": 0.065,
+       "bytes": 4024.0,
+       "fidelity": 11.4241,
+       "layer_recovery": 0.7907,
+       "node_ratio": 26.8889,
+       "palette_ratio": 31.5,
+       "psnr_black": 1.0764,
+       "psnr_white": 21.7718,
+       "refused": 0,
+       "shape_ratio": 32.0,
+       "smoothness_ratio": 32.0
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.209,
+      "bytes": 4000.25,
+      "fidelity": 11.1321,
+      "layer_recovery": 0.8021,
+      "node_ratio": 15.2357,
+      "palette_ratio": 21.6055,
+      "psnr_black": 2.0802,
+      "psnr_white": 20.184,
+      "refused": 0,
+      "shape_ratio": 20.7787,
+      "smoothness_ratio": 20.7398
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 4030,
+       "fidelity": 13.0673,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8471,
+       "node_ratio": 17.6429,
+       "nodes": 247,
+       "palette": 36,
+       "palette_ratio": 18.0,
+       "psnr_black": 2.7141,
+       "psnr_white": 23.4204,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 21.3333,
+       "shapes": 64,
+       "smoothness_ratio": 21.3333
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 3969,
+       "fidelity": 10.4655,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.804,
+       "node_ratio": 13.6111,
+       "nodes": 245,
+       "palette": 61,
+       "palette_ratio": 30.5,
+       "psnr_black": 2.3061,
+       "psnr_white": 18.625,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 21.3333,
+       "shapes": 64,
+       "smoothness_ratio": 21.1739
+      },
+      {
+       "alpha_iou": 0.065,
+       "bytes": 4024,
+       "fidelity": 11.4241,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.7907,
+       "node_ratio": 26.8889,
+       "nodes": 242,
+       "palette": 63,
+       "palette_ratio": 31.5,
+       "psnr_black": 1.0764,
+       "psnr_white": 21.7718,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 32.0,
+       "shapes": 64,
+       "smoothness_ratio": 32.0
+      },
+      {
+       "alpha_iou": 0.1587,
+       "bytes": 3978,
+       "fidelity": 9.5715,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.7668,
+       "node_ratio": 8.3448,
+       "nodes": 242,
+       "palette": 63,
+       "palette_ratio": 12.6,
+       "psnr_black": 2.2242,
+       "psnr_white": 16.9188,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 12.8,
+       "shapes": 64,
+       "smoothness_ratio": 12.8
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "candidates": 100,
+      "drop_bottom": true,
+      "patience": 100,
+      "shapes": 64,
+      "tracer": "hillclimb"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 4000,
+     "parameters": 0
+    },
+    "model": {
+     "description": "The 64-shape hill climb, then its first shape -- the background rect -- deleted.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Hill climb (64 shapes), background deleted"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.4656,
+     "max": 13.0673,
+     "mean": 11.1321,
+     "median": 10.9448,
+     "min": 9.5715,
+     "n": 4,
+     "scores": [
+      13.0673,
+      10.4655,
+      11.4241,
+      9.5715
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:vtracer",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "VTracer (defaults)",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 1636.0,
+       "fidelity": 12.3608,
+       "layer_recovery": 0.8221,
+       "node_ratio": 4.1429,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.729,
+       "psnr_white": 21.9926,
+       "refused": 0,
+       "shape_ratio": 1.3333,
+       "smoothness_ratio": 2.1344
+      },
+      "heavy": {
+       "alpha_iou": 0.1554,
+       "bytes": 58496.0,
+       "fidelity": 9.204,
+       "layer_recovery": 0.6315,
+       "node_ratio": 81.2069,
+       "palette_ratio": 28.8,
+       "psnr_black": 2.0446,
+       "psnr_white": 16.3634,
+       "refused": 0,
+       "shape_ratio": 29.2,
+       "smoothness_ratio": 92.8817
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 6465.0,
+       "fidelity": 10.331,
+       "layer_recovery": 0.9151,
+       "node_ratio": 12.7222,
+       "palette_ratio": 12.5,
+       "psnr_black": 2.3039,
+       "psnr_white": 18.3582,
+       "refused": 0,
+       "shape_ratio": 8.3333,
+       "smoothness_ratio": 11.8437
+      },
+      "medium": {
+       "alpha_iou": 0.063,
+       "bytes": 8073.0,
+       "fidelity": 11.173,
+       "layer_recovery": 0.8516,
+       "node_ratio": 33.4444,
+       "palette_ratio": 11.5,
+       "psnr_black": 0.9607,
+       "psnr_white": 21.3853,
+       "refused": 0,
+       "shape_ratio": 11.5,
+       "smoothness_ratio": 25.5535
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.2077,
+      "bytes": 18667.5,
+      "fidelity": 10.7672,
+      "layer_recovery": 0.8051,
+      "node_ratio": 19.4512,
+      "palette_ratio": 9.5391,
+      "psnr_black": 2.0095,
+      "psnr_white": 19.5249,
+      "refused": 0,
+      "shape_ratio": 7.8155,
+      "smoothness_ratio": 15.6508
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 1636,
+       "fidelity": 12.3608,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8221,
+       "node_ratio": 4.1429,
+       "nodes": 58,
+       "palette": 4,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.729,
+       "psnr_white": 21.9926,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 1.3333,
+       "shapes": 4,
+       "smoothness_ratio": 2.1344
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 6465,
+       "fidelity": 10.331,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.9151,
+       "node_ratio": 12.7222,
+       "nodes": 229,
+       "palette": 25,
+       "palette_ratio": 12.5,
+       "psnr_black": 2.3039,
+       "psnr_white": 18.3582,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 8.3333,
+       "shapes": 25,
+       "smoothness_ratio": 11.8437
+      },
+      {
+       "alpha_iou": 0.063,
+       "bytes": 8073,
+       "fidelity": 11.173,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.8516,
+       "node_ratio": 33.4444,
+       "nodes": 301,
+       "palette": 23,
+       "palette_ratio": 11.5,
+       "psnr_black": 0.9607,
+       "psnr_white": 21.3853,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 11.5,
+       "shapes": 23,
+       "smoothness_ratio": 25.5535
+      },
+      {
+       "alpha_iou": 0.1554,
+       "bytes": 58496,
+       "fidelity": 9.204,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.6315,
+       "node_ratio": 81.2069,
+       "nodes": 2355,
+       "palette": 144,
+       "palette_ratio": 28.8,
+       "psnr_black": 2.0446,
+       "psnr_white": 16.3634,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 29.2,
+       "shapes": 146,
+       "smoothness_ratio": 92.8817
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "colormode": "color",
+      "hierarchical": "stacked",
+      "mode": "spline",
+      "tracer": "vtracer"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 18668,
+     "parameters": 0
+    },
+    "model": {
+     "description": "VTracer's colour tracer with its default settings: stacked layers, spline curves, speckles under 4 px filtered.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "VTracer (defaults)"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.3073,
+     "max": 12.3608,
+     "mean": 10.7672,
+     "median": 10.751999999999999,
+     "min": 9.204,
+     "n": 4,
+     "scores": [
+      12.3608,
+      10.331,
+      11.173,
+      9.204
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:vtracer-flat",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "VTracer (flat art)",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 1620.0,
+       "fidelity": 12.3766,
+       "layer_recovery": 0.8222,
+       "node_ratio": 4.0714,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.7276,
+       "psnr_white": 22.0256,
+       "refused": 0,
+       "shape_ratio": 1.3333,
+       "smoothness_ratio": 2.1299
+      },
+      "heavy": {
+       "alpha_iou": 0.1554,
+       "bytes": 1072.0,
+       "fidelity": 8.2369,
+       "layer_recovery": 0.4073,
+       "node_ratio": 1.3448,
+       "palette_ratio": 0.6,
+       "psnr_black": 2.2246,
+       "psnr_white": 14.2492,
+       "refused": 0,
+       "shape_ratio": 0.6,
+       "smoothness_ratio": 1.2485
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 1039.0,
+       "fidelity": 10.1372,
+       "layer_recovery": 0.643,
+       "node_ratio": 1.9444,
+       "palette_ratio": 1.5,
+       "psnr_black": 2.3452,
+       "psnr_white": 17.9292,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 1.6019
+      },
+      "medium": {
+       "alpha_iou": 0.063,
+       "bytes": 538.0,
+       "fidelity": 11.0002,
+       "layer_recovery": 0.4713,
+       "node_ratio": 1.8889,
+       "palette_ratio": 1.0,
+       "psnr_black": 0.9767,
+       "psnr_white": 21.0236,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 1.0857
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.2077,
+      "bytes": 1067.25,
+      "fidelity": 10.4377,
+      "layer_recovery": 0.5859,
+      "node_ratio": 2.1176,
+      "palette_ratio": 1.1583,
+      "psnr_black": 2.0685,
+      "psnr_white": 18.8069,
+      "refused": 0,
+      "shape_ratio": 0.9457,
+      "smoothness_ratio": 1.4665
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 1620,
+       "fidelity": 12.3766,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8222,
+       "node_ratio": 4.0714,
+       "nodes": 57,
+       "palette": 4,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.7276,
+       "psnr_white": 22.0256,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 1.3333,
+       "shapes": 4,
+       "smoothness_ratio": 2.1299
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 1039,
+       "fidelity": 10.1372,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.643,
+       "node_ratio": 1.9444,
+       "nodes": 35,
+       "palette": 3,
+       "palette_ratio": 1.5,
+       "psnr_black": 2.3452,
+       "psnr_white": 17.9292,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 1.0,
+       "shapes": 3,
+       "smoothness_ratio": 1.6019
+      },
+      {
+       "alpha_iou": 0.063,
+       "bytes": 538,
+       "fidelity": 11.0002,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.4713,
+       "node_ratio": 1.8889,
+       "nodes": 17,
+       "palette": 2,
+       "palette_ratio": 1.0,
+       "psnr_black": 0.9767,
+       "psnr_white": 21.0236,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 1.0,
+       "shapes": 2,
+       "smoothness_ratio": 1.0857
+      },
+      {
+       "alpha_iou": 0.1554,
+       "bytes": 1072,
+       "fidelity": 8.2369,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.4073,
+       "node_ratio": 1.3448,
+       "nodes": 39,
+       "palette": 3,
+       "palette_ratio": 0.6,
+       "psnr_black": 2.2246,
+       "psnr_white": 14.2492,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 0.6,
+       "shapes": 3,
+       "smoothness_ratio": 1.2485
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "color_precision": 4,
+      "colormode": "color",
+      "filter_speckle": 16,
+      "hierarchical": "stacked",
+      "layer_difference": 32,
+      "mode": "spline",
+      "tracer": "vtracer"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 1067,
+     "parameters": 0
+    },
+    "model": {
+     "description": "VTracer set for flat-colour art: coarser colour precision, larger gradient steps between layers, speckles under 16 px filtered.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "VTracer (flat art)"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.6983,
+     "max": 12.3766,
+     "mean": 10.4377,
+     "median": 10.5687,
+     "min": 8.2369,
+     "n": 4,
+     "scores": [
+      12.3766,
+      10.1372,
+      11.0002,
+      8.2369
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:vtracer-nobg",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "VTracer (defaults), background deleted",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.9708,
+       "bytes": 1515.0,
+       "fidelity": 26.6088,
+       "layer_recovery": 0.8222,
+       "node_ratio": 3.7857,
+       "palette_ratio": 1.5,
+       "psnr_black": 28.979,
+       "psnr_white": 24.2387,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 1.8372
+      },
+      "heavy": {
+       "alpha_iou": 0.1747,
+       "bytes": 58375.0,
+       "fidelity": 9.7999,
+       "layer_recovery": 0.6311,
+       "node_ratio": 81.0345,
+       "palette_ratio": 28.6,
+       "psnr_black": 2.6724,
+       "psnr_white": 16.9275,
+       "refused": 0,
+       "shape_ratio": 29.0,
+       "smoothness_ratio": 93.2266
+      },
+      "light": {
+       "alpha_iou": 0.8652,
+       "bytes": 6344.0,
+       "fidelity": 22.0638,
+       "layer_recovery": 0.9151,
+       "node_ratio": 12.4444,
+       "palette_ratio": 12.0,
+       "psnr_black": 16.965,
+       "psnr_white": 27.1627,
+       "refused": 0,
+       "shape_ratio": 8.0,
+       "smoothness_ratio": 11.6266
+      },
+      "medium": {
+       "alpha_iou": 0.6009,
+       "bytes": 7952.0,
+       "fidelity": 21.2922,
+       "layer_recovery": 0.8515,
+       "node_ratio": 32.8889,
+       "palette_ratio": 11.0,
+       "psnr_black": 15.4299,
+       "psnr_white": 27.1544,
+       "refused": 0,
+       "shape_ratio": 11.0,
+       "smoothness_ratio": 25.3286
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.6529,
+      "bytes": 18546.5,
+      "fidelity": 19.9412,
+      "layer_recovery": 0.805,
+      "node_ratio": 18.8239,
+      "palette_ratio": 8.6748,
+      "psnr_black": 16.0116,
+      "psnr_white": 23.8708,
+      "refused": 0,
+      "shape_ratio": 7.1076,
+      "smoothness_ratio": 14.9861
+     },
+     "images": [
+      {
+       "alpha_iou": 0.9708,
+       "bytes": 1515,
+       "fidelity": 26.6088,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8222,
+       "node_ratio": 3.7857,
+       "nodes": 53,
+       "palette": 3,
+       "palette_ratio": 1.5,
+       "psnr_black": 28.979,
+       "psnr_white": 24.2387,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 1.0,
+       "shapes": 3,
+       "smoothness_ratio": 1.8372
+      },
+      {
+       "alpha_iou": 0.8652,
+       "bytes": 6344,
+       "fidelity": 22.0638,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.9151,
+       "node_ratio": 12.4444,
+       "nodes": 224,
+       "palette": 24,
+       "palette_ratio": 12.0,
+       "psnr_black": 16.965,
+       "psnr_white": 27.1627,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 8.0,
+       "shapes": 24,
+       "smoothness_ratio": 11.6266
+      },
+      {
+       "alpha_iou": 0.6009,
+       "bytes": 7952,
+       "fidelity": 21.2922,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.8515,
+       "node_ratio": 32.8889,
+       "nodes": 296,
+       "palette": 22,
+       "palette_ratio": 11.0,
+       "psnr_black": 15.4299,
+       "psnr_white": 27.1544,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 11.0,
+       "shapes": 22,
+       "smoothness_ratio": 25.3286
+      },
+      {
+       "alpha_iou": 0.1747,
+       "bytes": 58375,
+       "fidelity": 9.7999,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.6311,
+       "node_ratio": 81.0345,
+       "nodes": 2350,
+       "palette": 143,
+       "palette_ratio": 28.6,
+       "psnr_black": 2.6724,
+       "psnr_white": 16.9275,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 29.0,
+       "shapes": 145,
+       "smoothness_ratio": 93.2266
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "colormode": "color",
+      "drop_bottom": true,
+      "hierarchical": "stacked",
+      "mode": "spline",
+      "tracer": "vtracer"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 18546,
+     "parameters": 0
+    },
+    "model": {
+     "description": "VTracer with its default settings, then its bottom layer -- the background -- deleted.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "VTracer (defaults), background deleted"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 7.0131,
+     "max": 26.6088,
+     "mean": 19.9412,
+     "median": 21.678,
+     "min": 9.7999,
+     "n": 4,
+     "scores": [
+      26.6088,
+      22.0638,
+      21.2922,
+      9.7999
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
+   "entrant_id": "baseline:vtracer-polygon",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "VTracer (polygons)",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.3821,
+       "bytes": 446.0,
+       "fidelity": 13.2894,
+       "layer_recovery": 0.8371,
+       "node_ratio": 3.0714,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.6984,
+       "psnr_white": 23.8803,
+       "refused": 0,
+       "shape_ratio": 1.3333,
+       "smoothness_ratio": 2.0488
+      },
+      "heavy": {
+       "alpha_iou": 0.1554,
+       "bytes": 18021.0,
+       "fidelity": 9.2098,
+       "layer_recovery": 0.6258,
+       "node_ratio": 76.2759,
+       "palette_ratio": 28.8,
+       "psnr_black": 2.0409,
+       "psnr_white": 16.3787,
+       "refused": 0,
+       "shape_ratio": 29.2,
+       "smoothness_ratio": 92.3116
+      },
+      "light": {
+       "alpha_iou": 0.2301,
+       "bytes": 2169.0,
+       "fidelity": 10.3626,
+       "layer_recovery": 0.9261,
+       "node_ratio": 11.8889,
+       "palette_ratio": 12.5,
+       "psnr_black": 2.2962,
+       "psnr_white": 18.429,
+       "refused": 0,
+       "shape_ratio": 8.3333,
+       "smoothness_ratio": 11.7029
+      },
+      "medium": {
+       "alpha_iou": 0.063,
+       "bytes": 2571.0,
+       "fidelity": 11.1832,
+       "layer_recovery": 0.8478,
+       "node_ratio": 31.4444,
+       "palette_ratio": 11.5,
+       "psnr_black": 0.9591,
+       "psnr_white": 21.4073,
+       "refused": 0,
+       "shape_ratio": 11.5,
+       "smoothness_ratio": 25.3274
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.2077,
+      "bytes": 5801.75,
+      "fidelity": 11.0113,
+      "layer_recovery": 0.8092,
+      "node_ratio": 17.2029,
+      "palette_ratio": 9.5391,
+      "psnr_black": 1.9987,
+      "psnr_white": 20.0238,
+      "refused": 0,
+      "shape_ratio": 7.8155,
+      "smoothness_ratio": 15.3872
+     },
+     "images": [
+      {
+       "alpha_iou": 0.3821,
+       "bytes": 446,
+       "fidelity": 13.2894,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.8371,
+       "node_ratio": 3.0714,
+       "nodes": 43,
+       "palette": 4,
+       "palette_ratio": 2.0,
+       "psnr_black": 2.6984,
+       "psnr_white": 23.8803,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 1.3333,
+       "shapes": 4,
+       "smoothness_ratio": 2.0488
+      },
+      {
+       "alpha_iou": 0.2301,
+       "bytes": 2169,
+       "fidelity": 10.3626,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.9261,
+       "node_ratio": 11.8889,
+       "nodes": 214,
+       "palette": 25,
+       "palette_ratio": 12.5,
+       "psnr_black": 2.2962,
+       "psnr_white": 18.429,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 8.3333,
+       "shapes": 25,
+       "smoothness_ratio": 11.7029
+      },
+      {
+       "alpha_iou": 0.063,
+       "bytes": 2571,
+       "fidelity": 11.1832,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.8478,
+       "node_ratio": 31.4444,
+       "nodes": 283,
+       "palette": 23,
+       "palette_ratio": 11.5,
+       "psnr_black": 0.9591,
+       "psnr_white": 21.4073,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 11.5,
+       "shapes": 23,
+       "smoothness_ratio": 25.3274
+      },
+      {
+       "alpha_iou": 0.1554,
+       "bytes": 18021,
+       "fidelity": 9.2098,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.6258,
+       "node_ratio": 76.2759,
+       "nodes": 2212,
+       "palette": 144,
+       "palette_ratio": 28.8,
+       "psnr_black": 2.0409,
+       "psnr_white": 16.3787,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 29.2,
+       "shapes": 146,
+       "smoothness_ratio": 92.3116
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "colormode": "color",
+      "hierarchical": "stacked",
+      "mode": "polygon",
+      "tracer": "vtracer"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 5802,
+     "parameters": 0
+    },
+    "model": {
+     "description": "VTracer's defaults with straight-line outlines instead of splines.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "VTracer (polygons)"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 1.6866,
+     "max": 13.2894,
+     "mean": 11.0113,
+     "median": 10.7729,
+     "min": 9.2098,
+     "n": 4,
+     "scores": [
+      13.2894,
+      10.3626,
+      11.1832,
+      9.2098
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  }
+ ],
  "experiment.checkers-field": {
   "arms": {
    "a": {
