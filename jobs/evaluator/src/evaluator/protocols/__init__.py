@@ -4,6 +4,7 @@ from evaluator.protocols import (  # noqa: F401
     bandit_skill,
     checkers_sprt,
     checkers_versus,
+    copycat_clean,
     experiments,
     snake_score,
     static_round_robin,

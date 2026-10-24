@@ -3,6 +3,7 @@
 export const memory: WebAssembly.Memory;
 export const __wbg_checkersgame_free: (a: number, b: number) => void;
 export const __wbg_checkersstrategy_free: (a: number, b: number) => void;
+export const __wbg_copycatgame_free: (a: number, b: number) => void;
 export const __wbg_randompolicy_free: (a: number, b: number) => void;
 export const __wbg_reach1dgame_free: (a: number, b: number) => void;
 export const __wbg_snakegame_free: (a: number, b: number) => void;
@@ -21,6 +22,14 @@ export const checkersstrategy_activations: (a: number, b: number, c: number) => 
 export const checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
 export const checkersstrategy_pick: (a: number, b: number) => [number, number, number];
 export const checkersstrategy_scores: (a: number, b: number) => [number, number];
+export const copycatgame_canonical: (a: number) => [number, number];
+export const copycatgame_height: (a: number) => number;
+export const copycatgame_new: (a: number, b: number) => [number, number, number];
+export const copycatgame_nodes: (a: number) => number;
+export const copycatgame_palette: (a: number) => number;
+export const copycatgame_render: (a: number) => [number, number];
+export const copycatgame_shapes: (a: number) => number;
+export const copycatgame_width: (a: number) => number;
 export const decodeRelative3: (a: number, b: number) => number;
 export const greedyDecide: (a: number, b: number) => number;
 export const randompolicy_decide: (a: number, b: number, c: number) => number;

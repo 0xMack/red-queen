@@ -5,6 +5,7 @@
 //! Built by `libs/games/scripts/build_wasm.py` into `apps/frontend/app/wasm/games/`.
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
+use redqueen_games::copycat::Document;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 use wasm_bindgen::prelude::*;
 
@@ -322,5 +323,58 @@ impl Reach1DGame {
     #[wasm_bindgen(getter)]
     pub fn position(&self) -> f64 {
         self.inner.position
+    }
+}
+
+/// Copy Cat (docs/design/0022), phase 1: an SVG read in the protocol's subset, rendered by the same rasterizer the
+/// protocol scores with. The game page and its search moves come later.
+#[wasm_bindgen]
+pub struct CopyCatGame {
+    inner: Document,
+}
+
+#[wasm_bindgen]
+impl CopyCatGame {
+    /// Throws, with the reason, for anything outside the subset.
+    #[wasm_bindgen(constructor)]
+    pub fn new(svg: &str) -> Result<CopyCatGame, JsError> {
+        Document::parse(svg)
+            .map(|inner| CopyCatGame { inner })
+            .map_err(|e| JsError::new(&e))
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> u32 {
+        self.inner.width
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> u32 {
+        self.inner.height
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn shapes(&self) -> u32 {
+        self.inner.shapes.len() as u32
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn nodes(&self) -> u32 {
+        self.inner.nodes() as u32
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn palette(&self) -> u32 {
+        self.inner.palette() as u32
+    }
+
+    /// The canonical serialization (0.1 px, a viewBox of the image's size): what shapes and bytes are counted from.
+    pub fn canonical(&self) -> String {
+        self.inner.canonical()
+    }
+
+    /// Straight-alpha RGBA, 8 bits per channel: ready for an `ImageData`.
+    pub fn render(&self) -> Vec<u8> {
+        self.inner.render().to_rgba8()
     }
 }

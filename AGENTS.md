@@ -17,7 +17,7 @@ fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider netw
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
-score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (proposed) -- recover the clean, layered SVG
+score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phase 1 built: the measurement) -- recover the clean, layered SVG
 behind a generated logo or icon, scored against known clean answers) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
@@ -203,8 +203,9 @@ architectural change that might conflict with a decision already made.
     raise the SDK's `ToolError` for an expected failure, or the agent sees only "Error executing tool".
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
-    `arena.bandit`), training-seed strategies (`arena.seeding`), two-player strength statistics
-    (`arena.versus_stats`) and the training-cost meter (`arena.costs`). No I/O; training and leaderboard jobs both
+    `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v1`, scoring an entrant's SVG against the clean SVG behind a
+    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
+    (`arena.versus_stats`) and the training-cost meter (`arena.costs`). No I/O beyond reading Copy Cat's checked-in set; training and leaderboard jobs both
     import it, so a held-out curve and a leaderboard play by the same rules.
   - **Representations (docs/design/0007)**: a game's observation is chosen by an *observer*, and a
     model's outputs become moves via an *action adapter*; the pair is a versioned **interface**
@@ -292,6 +293,8 @@ architectural change that might conflict with a decision already made.
   - The reports are `checkers.sprt` ("is A stronger than B"), `checkers.static-round-robin`, and the experiment
     reports `experiment.snake-report`, `.rl-report` (a paired permutation test against each arm's baseline),
     `.checkers-field` and `.checkers-h2h`.
+  `copycat.clean.v1` runs each entrant (VTracer presets, the core's `primitive`-style hill climb) in a *spawned* process,
+  so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):
   - `snake` exports champions (fp64 + fp32) to the local model store and catalog, measuring agreement on the
     protocol's games. The Snake evaluation then scores published champions *as their packages*: a variant that plays

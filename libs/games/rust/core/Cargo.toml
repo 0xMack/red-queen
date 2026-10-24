@@ -7,3 +7,8 @@ license.workspace = true
 
 [lib]
 name = "redqueen_games"
+
+[dependencies]
+# turning angles (docs/design/0022 smoothness): atan2 from one pure-Rust implementation, so a score is the same
+# natively and in WASM (as in libs/rl)
+libm = "0.2"
