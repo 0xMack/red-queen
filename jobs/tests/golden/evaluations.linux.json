@@ -4946,7 +4946,7 @@
       },
       "heavy": {
        "alpha_iou": 0.1554,
-       "bytes": 58496.0,
+       "bytes": 58494.0,
        "fidelity": 9.204,
        "layer_recovery": 0.6315,
        "node_ratio": 81.2069,
@@ -4986,7 +4986,7 @@
      },
      "columns": {
       "alpha_iou": 0.2077,
-      "bytes": 18667.5,
+      "bytes": 18667.0,
       "fidelity": 10.7672,
       "layer_recovery": 0.8051,
       "node_ratio": 19.4512,
@@ -5054,7 +5054,7 @@
       },
       {
        "alpha_iou": 0.1554,
-       "bytes": 58496,
+       "bytes": 58494,
        "fidelity": 9.204,
        "id": "synthetic/10003",
        "layer_recovery": 0.6315,
@@ -5080,7 +5080,7 @@
      }
     },
     "inference": {
-     "artifact_bytes": 18668,
+     "artifact_bytes": 18667,
      "parameters": 0
     },
     "model": {
@@ -5355,8 +5355,8 @@
       },
       "heavy": {
        "alpha_iou": 0.1747,
-       "bytes": 58375.0,
-       "fidelity": 9.7999,
+       "bytes": 58373.0,
+       "fidelity": 9.8,
        "layer_recovery": 0.6311,
        "node_ratio": 81.0345,
        "palette_ratio": 28.6,
@@ -5364,7 +5364,7 @@
        "psnr_white": 16.9275,
        "refused": 0,
        "shape_ratio": 29.0,
-       "smoothness_ratio": 93.2266
+       "smoothness_ratio": 93.2196
       },
       "light": {
        "alpha_iou": 0.8652,
@@ -5382,20 +5382,20 @@
       "medium": {
        "alpha_iou": 0.6009,
        "bytes": 7952.0,
-       "fidelity": 21.2922,
+       "fidelity": 21.2921,
        "layer_recovery": 0.8515,
        "node_ratio": 32.8889,
        "palette_ratio": 11.0,
-       "psnr_black": 15.4299,
-       "psnr_white": 27.1544,
+       "psnr_black": 15.43,
+       "psnr_white": 27.1543,
        "refused": 0,
        "shape_ratio": 11.0,
-       "smoothness_ratio": 25.3286
+       "smoothness_ratio": 25.3258
       }
      },
      "columns": {
       "alpha_iou": 0.6529,
-      "bytes": 18546.5,
+      "bytes": 18546.0,
       "fidelity": 19.9412,
       "layer_recovery": 0.805,
       "node_ratio": 18.8239,
@@ -5404,7 +5404,7 @@
       "psnr_white": 23.8708,
       "refused": 0,
       "shape_ratio": 7.1076,
-      "smoothness_ratio": 14.9861
+      "smoothness_ratio": 14.9855
      },
      "images": [
       {
@@ -5446,25 +5446,25 @@
       {
        "alpha_iou": 0.6009,
        "bytes": 7952,
-       "fidelity": 21.2922,
+       "fidelity": 21.2921,
        "id": "synthetic/10002",
        "layer_recovery": 0.8515,
        "node_ratio": 32.8889,
        "nodes": 296,
        "palette": 22,
        "palette_ratio": 11.0,
-       "psnr_black": 15.4299,
-       "psnr_white": 27.1544,
+       "psnr_black": 15.43,
+       "psnr_white": 27.1543,
        "refused": null,
        "severity": "medium",
        "shape_ratio": 11.0,
        "shapes": 22,
-       "smoothness_ratio": 25.3286
+       "smoothness_ratio": 25.3258
       },
       {
        "alpha_iou": 0.1747,
-       "bytes": 58375,
-       "fidelity": 9.7999,
+       "bytes": 58373,
+       "fidelity": 9.8,
        "id": "synthetic/10003",
        "layer_recovery": 0.6311,
        "node_ratio": 81.0345,
@@ -5477,7 +5477,7 @@
        "severity": "heavy",
        "shape_ratio": 29.0,
        "shapes": 145,
-       "smoothness_ratio": 93.2266
+       "smoothness_ratio": 93.2196
       }
      ],
      "memory": {},
@@ -5513,17 +5513,17 @@
      "split": "heldout"
     },
     "quality": {
-     "ci95": 7.0131,
+     "ci95": 7.013,
      "max": 26.6088,
      "mean": 19.9412,
-     "median": 21.678,
-     "min": 9.7999,
+     "median": 21.677950000000003,
+     "min": 9.8,
      "n": 4,
      "scores": [
       26.6088,
       22.0638,
-      21.2922,
-      9.7999
+      21.2921,
+      9.8
      ]
     },
     "training": {

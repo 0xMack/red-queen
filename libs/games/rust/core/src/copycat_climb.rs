@@ -244,19 +244,23 @@ pub fn hill_climb(rgba: &[u8], width: u32, height: u32, config: &ClimbConfig) ->
     let (w, h) = (width as usize, height as usize);
     assert_eq!(rgba.len(), w * h * 4, "rgba is not {width}x{height}");
     let target: Vec<f64> = rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .flat_map(|px| [px[0], px[1], px[2]].map(|v| v as f64 / 255.0))
         .collect();
     let pixels = (w * h) as f64;
     let mut mean = [0.0; 3];
-    for px in target.chunks_exact(3) {
+    for px in target.as_chunks::<3>().0 {
         for k in 0..3 {
             mean[k] += px[k] / pixels;
         }
     }
     let background = mean.map(|m| (m * 255.0 + 0.5).floor() as u8);
     let canvas = target
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .flat_map(|_| background.map(|v| v as f64 / 255.0))
         .collect();
     let mut climber = Climber {

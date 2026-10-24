@@ -590,7 +590,7 @@ fn shape(name: &str, attributes: &Attributes, group: Option<usize>) -> Result<Sh
             if numbers.len() % 2 != 0 {
                 return Err("<polygon> points has an odd count of numbers".to_string());
             }
-            Geometry::Polygon(numbers.chunks_exact(2).map(|p| (p[0], p[1])).collect())
+            Geometry::Polygon(numbers.as_chunks::<2>().0.iter().map(|p| (p[0], p[1])).collect())
         }
         _ => Geometry::Path(path_data(get(attributes, "d").unwrap_or(""))?),
     };

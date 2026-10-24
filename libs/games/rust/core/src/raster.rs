@@ -375,7 +375,7 @@ impl Canvas {
     pub fn to_rgba8(&self) -> Vec<u8> {
         let byte = |v: f64| (v.clamp(0.0, 1.0) * 255.0 + 0.5).floor() as u8;
         let mut out = Vec::with_capacity(self.data.len());
-        for px in self.data.chunks_exact(4) {
+        for px in self.data.as_chunks::<4>().0 {
             let a = px[3];
             if a <= 0.0 {
                 out.extend_from_slice(&[0, 0, 0, 0]);
