@@ -1,0 +1,40 @@
+# selfplay-v12 (docs/design/0021): TD-Leaf through a quiescent search. The pilot found a quiescence extension worth
+# ~+130 Elo to a 2 x 128 network searching 3 plies, for ~25% more time per move. TD-Leaf learns at its search's leaves;
+# without quiescence a leaf can be half-way through an exchange, a position whose static value is noise. These arms
+# fine-tune the same 1M-game parents as selfplay-v6's l-2x128-ft2 (40k games), with leaves that are always quiet.
+#
+# The report plays every arm and its baseline at 3 plies plain (this file's report), then again with quiescence 4 for
+# both sides (`--set params.quiescence=4`): is the network better, and is it better when it's searched the better way?
+kind: experiment
+name: selfplay-v12
+seeds: [0, 1, 2, 3, 4]
+defaults:
+  game: checkers
+  algorithm: td_lambda
+  budget: {iterations: 40}
+  held_out_every: 4
+  params:
+    games_per_iteration: 1000
+    depth: 3
+    agent:
+      pool_every: 5000
+      pool_size: 10
+      pool_fraction: 0.5
+      hidden: 128
+      hidden_layers: 2
+arms:
+  # TD-Leaf at 2 plies as l-2x128-ft2, its leaves extended through captures (up to 4 plies)
+  q-ft2-q4:
+    train:
+      params: {agent: {search_depth: 2, quiescence: 4}}
+    baseline: selfplay-v6/l-2x128-ft2
+    init_from: selfplay-v6/l-2x128-1m
+  # one ply plus quiescence: does a quiet leaf stand in for a ply of training search (at about a quarter of the cost)?
+  q-ft1-q4:
+    train:
+      params: {agent: {search_depth: 1, quiescence: 4}}
+    baseline: selfplay-v6/l-2x128-ft2
+    init_from: selfplay-v6/l-2x128-1m
+report:
+  protocol: experiment.checkers-h2h
+  params: {full: true}

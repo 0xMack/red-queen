@@ -28,8 +28,11 @@
 //!   value is its searched value, and its gradient goes to the leaf of the principal variation (the position whose
 //!   evaluation the search actually returned), sign-adjusted for whose move it is there. Plain TD trains the positions
 //!   greedy one-ply play passes through; this trains the ones the search relies on. Depth 1 is the original loop.
+//! - **Quiescence** (`quiescence` > 0): the search goes on past `search_depth`, up to that many plies, while the side
+//!   to move must capture -- the games crate's evaluator strategy's extension, so the leaves TD-Leaf learns at are
+//!   quiet positions, never one half-way through an exchange. Any `quiescence` uses the searched loop, even at depth 1.
 
-use redqueen_games::checkers::{encode, Checkers};
+use redqueen_games::checkers::{encode, is_capture, Checkers};
 use redqueen_rl::agent::Params;
 use redqueen_rl::nn::{Activation, Adam, Mlp, Shape};
 use redqueen_rl::rng::{Rng, Stream};
@@ -62,6 +65,7 @@ pub struct SelfPlay {
     pool_scores: Vec<f64>,
     pfsp: f64,
     search_depth: u32,
+    quiescence: u32,
     explore: Rng,
     games: u64,
 }
@@ -92,7 +96,7 @@ pub struct TrainStats {
 }
 
 impl SelfPlay {
-    pub const PARAMS: [&'static str; 13] = [
+    pub const PARAMS: [&'static str; 14] = [
         "hidden",
         "hidden_layers",
         "learning_rate",
@@ -106,6 +110,7 @@ impl SelfPlay {
         "pool_fraction",
         "search_depth",
         "pfsp",
+        "quiescence",
     ];
 
     pub fn new(seed: u64, params: &Params, max_moves_without_capture: u32, max_plies: u32) -> Result<SelfPlay, String> {
@@ -148,6 +153,7 @@ impl SelfPlay {
                 p => return Err(format!("pfsp must be >= 0, got {p}")),
             },
             search_depth: whole("search_depth", 1.0, 1.0)? as u32,
+            quiescence: whole("quiescence", 0.0, 0.0)? as u32,
             explore: Rng::new(seed, Stream::Explore),
             games: 0,
         })
@@ -212,8 +218,9 @@ impl SelfPlay {
 
     /// Negamax with alpha-beta to `depth` plies, `net` at the leaves (a finished game is worth +1, -1 or 0: the ends
     /// of the net's tanh range), keeping the principal variation's leaf. Moves are tried in the engine's order and
-    /// ties keep the first, as the games crate's evaluator strategy does.
-    fn search(net: &Mlp, game: &Checkers, depth: u32, mut alpha: f64, beta: f64) -> Searched {
+    /// ties keep the first, as the games crate's evaluator strategy does. At depth 0 the search goes on (up to `extend`
+    /// more plies) while the side to move must capture, as that strategy's quiescence search does.
+    fn search(net: &Mlp, game: &Checkers, depth: u32, extend: u32, mut alpha: f64, beta: f64) -> Searched {
         if game.done {
             let value = match game.winner {
                 Some(w) if w == game.current_player => 1.0,
@@ -222,22 +229,31 @@ impl SelfPlay {
             };
             return Searched { value, leaf: None };
         }
-        if depth == 0 {
+        let leaf = |game: &Checkers| {
             let observation = game.observation();
             let value = net.forward(&observation)[0];
-            return Searched {
+            Searched {
                 value,
                 leaf: Some((observation, 1.0)),
-            };
+            }
+        };
+        if depth == 0 && extend == 0 {
+            return leaf(game);
         }
+        let moves = game.legal_moves();
+        let (depth, extend) = match depth {
+            0 if !is_capture(&moves[0]) => return leaf(game),
+            0 => (0, extend - 1),
+            d => (d - 1, extend),
+        };
         let mut best = Searched {
             value: f64::NEG_INFINITY,
             leaf: None,
         };
-        for mv in game.legal_moves() {
+        for mv in moves {
             let mut child = game.clone();
             child.step(&mv).expect("a legal move");
-            let reply = Self::search(net, &child, depth - 1, -beta, -alpha);
+            let reply = Self::search(net, &child, depth, extend, -beta, -alpha);
             let value = -reply.value;
             if value > best.value {
                 best = Searched {
@@ -254,7 +270,7 @@ impl SelfPlay {
     }
 
     /// The root of a search `depth` plies deep: the index of the best move, and the position's searched value.
-    fn search_root(net: &Mlp, game: &Checkers, depth: u32) -> (usize, Searched) {
+    fn search_root(net: &Mlp, game: &Checkers, depth: u32, extend: u32) -> (usize, Searched) {
         let mut best = (
             0,
             Searched {
@@ -265,7 +281,7 @@ impl SelfPlay {
         for (i, mv) in game.legal_moves().iter().enumerate() {
             let mut child = game.clone();
             child.step(mv).expect("a legal move");
-            let reply = Self::search(net, &child, depth - 1, f64::NEG_INFINITY, -best.1.value);
+            let reply = Self::search(net, &child, depth - 1, extend, f64::NEG_INFINITY, -best.1.value);
             let value = -reply.value;
             if value > best.1.value {
                 best = (
@@ -314,20 +330,20 @@ impl SelfPlay {
     fn play_searched(&mut self) -> (Vec<Searched>, f64, Option<u8>, PoolOpponent) {
         let mut game = Checkers::new(self.max_moves_without_capture);
         let epsilon = self.epsilon();
-        let depth = self.search_depth;
+        let (depth, extend) = (self.search_depth, self.quiescence);
         let chosen = self.pick_opponent();
         let opponent = chosen.map(|(pick, seat)| (self.pool[pick].clone(), seat));
         let mut positions = Vec::new();
         let mut plies = 0;
         while !game.done && plies < self.max_plies {
             let moves = game.legal_moves();
-            let (mine, searched) = Self::search_root(&self.net, &game, depth);
+            let (mine, searched) = Self::search_root(&self.net, &game, depth, extend);
             let random = plies < self.random_opening_plies || self.explore.uniform() < epsilon;
             let index = if random {
                 self.explore.below(moves.len() as u32) as usize
             } else {
                 match &opponent {
-                    Some((net, seat)) if *seat == game.current_player => Self::search_root(net, &game, depth).0,
+                    Some((net, seat)) if *seat == game.current_player => Self::search_root(net, &game, depth, extend).0,
                     _ => mine,
                 }
             };
@@ -453,7 +469,7 @@ impl SelfPlay {
         let mut stats = TrainStats::default();
         let (mut plies, mut loss, mut pool_points) = (0usize, 0.0, 0.0);
         for _ in 0..games {
-            let (n, game_loss, winner, pooled) = if self.search_depth > 1 {
+            let (n, game_loss, winner, pooled) = if self.search_depth > 1 || self.quiescence > 0 {
                 let (positions, outcome, winner, pooled) = self.play_searched();
                 (
                     positions.len(),
@@ -642,8 +658,8 @@ mod tests {
         assert!(json.starts_with(r#"{"weights": ["#) && json.ends_with(r#""layer_sizes": [32, 16, 1]}"#));
     }
 
-    /// Plain negamax without pruning, for checking the alpha-beta search.
-    fn minimax(net: &Mlp, game: &Checkers, depth: u32) -> f64 {
+    /// Plain negamax without pruning, for checking the alpha-beta search (and its quiescence extension).
+    fn minimax(net: &Mlp, game: &Checkers, depth: u32, extend: u32) -> f64 {
         if game.done {
             return match game.winner {
                 Some(w) if w == game.current_player => 1.0,
@@ -651,15 +667,21 @@ mod tests {
                 None => 0.0,
             };
         }
-        if depth == 0 {
+        let moves = game.legal_moves();
+        if depth == 0 && (extend == 0 || !is_capture(&moves[0])) {
             return net.forward(&game.observation())[0];
         }
-        game.legal_moves()
+        let (depth, extend) = if depth == 0 {
+            (0, extend - 1)
+        } else {
+            (depth - 1, extend)
+        };
+        moves
             .iter()
             .map(|mv| {
                 let mut child = game.clone();
                 child.step(mv).unwrap();
-                -minimax(net, &child, depth - 1)
+                -minimax(net, &child, depth, extend)
             })
             .fold(f64::NEG_INFINITY, f64::max)
     }
@@ -674,12 +696,12 @@ mod tests {
             if game.done {
                 break;
             }
-            for depth in 1..=3 {
-                let (_, searched) = SelfPlay::search_root(&trainer.net, &game, depth);
-                let exact = minimax(&trainer.net, &game, depth);
+            for (depth, extend) in [(1, 0), (2, 0), (3, 0), (1, 3), (2, 6)] {
+                let (_, searched) = SelfPlay::search_root(&trainer.net, &game, depth, extend);
+                let exact = minimax(&trainer.net, &game, depth, extend);
                 assert!(
                     (searched.value - exact).abs() < 1e-12,
-                    "depth {depth}: {} vs {exact}",
+                    "depth {depth}, extend {extend}: {} vs {exact}",
                     searched.value
                 );
                 // the value the search returned is its principal leaf's evaluation, sign-adjusted
@@ -691,7 +713,7 @@ mod tests {
             let moves = game.legal_moves();
             game.step(&moves[rng.below(moves.len() as u32) as usize]).unwrap();
         }
-        assert!(checked > 60, "{checked}");
+        assert!(checked > 100, "{checked}");
     }
 
     #[test]

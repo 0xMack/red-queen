@@ -16,7 +16,8 @@ training regimes — opponent pools, leagues, PFSP, population-based training; 0
 fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider network; 0017: AlphaZero-style self-play --
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
-continued -- train it, make MCTS a leaderboard player, cheaper search, then scale) — read the relevant one before an
+continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
+score a position mid-exchange, in the players and in TD-Leaf) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -168,7 +169,8 @@ architectural change that might conflict with a decision already made.
     (the evaluator's `checkers.versus.v2`, docs/design/0013: game pairs over a ballot of level
     openings, `games.checkers_openings`, ranked by a Bradley–Terry Elo rating, Random = 0, `arena.versus_stats`);
     "is A stronger than B" is a head-to-head SPRT (the evaluator's `checkers.sprt`; `experiment.checkers-h2h` for an experiment's arms), not
-    points against a fixed field. `Checkers(opening=...)` starts a game there and `reset()` returns to it -- `play_match`
+    points against a fixed field. A search extends through captures with `quiescence` (docs/design/0021: `with_quiescence`, `+qN` in a head-to-head,
+    `agent.quiescence` for TD-Leaf), off by default. `Checkers(opening=...)` starts a game there and `reset()` returns to it -- `play_match`
     resets its env, which silently discarded openings stepped onto a fresh env; champions come from the
     trainer's `neuroevolution` / `neat` on `checkers` (shared parts in `trainer.checkers`),
     and the browser gets a champion as plain numbers from `GET /runs/{id}/artifacts/{ref}/brain`

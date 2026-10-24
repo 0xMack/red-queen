@@ -4,7 +4,7 @@ versioned in `libs/arena`; nothing here can change what its score means."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt
 
 from jobcore.specs import Protocol, PublishTarget, register_protocol, register_publish_target
 
@@ -18,7 +18,11 @@ class NoParams(_Params):
 
 
 class SprtParams(_Params):
-    a: str = Field(..., description="A fixed strategy (`material-6`) or a run id prefix, optionally `@depth`.")
+    a: str = Field(
+        ...,
+        description="A fixed strategy (`material-6`) or a run id prefix, optionally `@depth`; either optionally `+qN`, a "
+        "quiescence search up to N plies through captures.",
+    )
     b: str
     elo0: float = Field(0.0, description="H0: A is no stronger than this.")
     elo1: float = Field(50.0, description="H1: A is at least this much stronger.")
@@ -45,6 +49,9 @@ class CheckersH2hParams(ExperimentReportParams):
     elo1: float = Field(50.0, description="The SPRT's H1: the arm is at least this much stronger.")
     full: bool = Field(False, description="Play the whole ballot instead of stopping when the SPRT decides.")
     depth: PositiveInt = 3
+    quiescence: NonNegativeInt = Field(
+        0, description="Both sides' search goes on up to this many plies through captures."
+    )
 
 
 class PublishParams(_Params):

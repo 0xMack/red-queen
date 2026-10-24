@@ -37,6 +37,7 @@ def _bound(
     layer_sizes: Sequence[int] | None = None,
     depth: int = 1,
     graph: Sequence[float] | None = None,
+    quiescence: int = 0,
 ) -> BoundFactory:
     def factory(env: Checkers, rng: random.Random) -> Strategy:
         strategy = _native.CheckersStrategy(
@@ -46,6 +47,7 @@ def _bound(
             None if layer_sizes is None else list(layer_sizes),
             depth,
             None if graph is None else list(graph),
+            quiescence,
         )
         return lambda observation, moves: env.choose(strategy)
 
@@ -60,22 +62,28 @@ material_3 = _bound("material-3")
 material_4 = _bound("material-4")
 
 
-def strategy(name: str) -> BoundFactory:
-    """Any fixed strategy by name: one of STRATEGIES, or `material-N` for any N >= 3 (deeper than STRATEGIES lists)."""
+def strategy(name: str, quiescence: int = 0) -> BoundFactory:
+    """Any fixed strategy by name: one of STRATEGIES, or `material-N` for any N >= 3 (deeper than STRATEGIES lists).
+    `quiescence` extends a `material-N` search, as for `evaluator`."""
+    if quiescence:
+        return _bound(name, quiescence=quiescence)
     return STRATEGIES.get(name) or _bound(name)
 
 
-def evaluator(weights: Sequence[float], layer_sizes: Sequence[int], depth: int = 1) -> BoundFactory:
+def evaluator(
+    weights: Sequence[float], layer_sizes: Sequence[int], depth: int = 1, quiescence: int = 0
+) -> BoundFactory:
     """A trained network as the position evaluator -- an `evolve.WeightVector`'s `weights` and
     `layer_sizes` (32 inputs, 1 output, tanh layers). `depth` 1: play the move whose resulting position,
     seen from the opponent's side, the network likes least *for them*. Deeper: alpha-beta to `depth` plies
-    with the network scoring the leaves."""
-    return _bound("evaluator", weights, layer_sizes, depth)
+    with the network scoring the leaves. `quiescence` > 0 searches on past `depth`, up to that many plies, while
+    the side to move must capture: a leaf is never scored mid-exchange."""
+    return _bound("evaluator", weights, layer_sizes, depth, quiescence=quiescence)
 
 
-def graph_evaluator(encoding: Sequence[float], depth: int = 1) -> BoundFactory:
+def graph_evaluator(encoding: Sequence[float], depth: int = 1, quiescence: int = 0) -> BoundFactory:
     """The same for a NEAT genome, given as `NeatGenome.graph_encoding()`."""
-    return _bound("evaluator", depth=depth, graph=encoding)
+    return _bound("evaluator", depth=depth, graph=encoding, quiescence=quiescence)
 
 
 STRATEGIES: dict[str, BoundFactory] = {

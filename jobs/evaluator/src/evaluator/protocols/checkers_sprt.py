@@ -8,7 +8,8 @@ ballot runs out first (174 pairs) the answer is *inconclusive*: the difference i
 and the Elo estimate and its interval say how small.
 
 A player is a fixed strategy (`material-4`, `random`, ...) or a run's final champion: its run id, or any unique
-prefix of it, optionally `@N` to search N plies instead of the depth the run was trained for.
+prefix of it, optionally `@N` to search N plies instead of the depth the run was trained for. Either may end in `+qN`
+to extend its search up to N plies through captures (a quiescence search: `material-4+q8`, `672890ba@3+q8`).
 
   uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.a=672890ba@4 --set params.b=material-4
 """
@@ -40,26 +41,35 @@ def sprt_order() -> list[Opening]:
     return openings
 
 
-def run_factory(run: RunInfo, metrics: FileMetricsStore, artifacts: FileArtifactStore, depth: int | None = None):
-    """A run's final champion as a player, searching `depth` plies (default: the depth the run recorded)."""
+def run_factory(
+    run: RunInfo,
+    metrics: FileMetricsStore,
+    artifacts: FileArtifactStore,
+    depth: int | None = None,
+    quiescence: int = 0,
+):
+    """A run's final champion as a player, searching `depth` plies (default: the depth the run recorded), extended up to
+    `quiescence` plies through captures."""
     raw = artifacts.get_program(metrics.history(run.run_id)[-1].champion_ref).decode("utf-8")
     champion = network_from_json(raw)
     depth = depth or int(run.config.get("search_depth", 1))
     if isinstance(champion, NeatGenome):
-        return graph_evaluator(champion.graph_encoding(), depth)
-    return evaluator(champion.weights, champion.layer_sizes, depth)
+        return graph_evaluator(champion.graph_encoding(), depth, quiescence)
+    return evaluator(champion.weights, champion.layer_sizes, depth, quiescence)
 
 
 def resolve(spec: str, registry: SqliteRunRegistry, metrics: FileMetricsStore, artifacts: FileArtifactStore) -> Factory:
-    """`material-4` / `baseline:material-4` / a run id or unique prefix, optionally `@depth`."""
-    name = spec.removeprefix("baseline:")
+    """`material-4` / `baseline:material-4` / a run id or unique prefix, optionally `@depth`; either optionally `+qN`."""
+    player, _, quiescence = spec.partition("+q")
+    q = int(quiescence) if quiescence else 0
+    name = player.removeprefix("baseline:")
     if name in STRATEGIES or name.startswith("material-"):
-        return strategy(name)
-    run_id, _, depth = spec.removeprefix("run:").partition("@")
+        return strategy(name, q)
+    run_id, _, depth = player.removeprefix("run:").partition("@")
     matches = [r for r in registry.list_runs() if r.run_id.startswith(run_id)]
     if len(matches) != 1:
         sys.exit(f"{spec!r} matches {len(matches)} runs")
-    return run_factory(matches[0], metrics, artifacts, int(depth) if depth else None)
+    return run_factory(matches[0], metrics, artifacts, int(depth) if depth else None, q)
 
 
 def sequential_match(
