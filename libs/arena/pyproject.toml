@@ -14,6 +14,7 @@ dependencies = [
     "evolve",
     "games",
     "numpy>=2",
+    "pillow>=11",
 ]
 
 [tool.uv.sources]

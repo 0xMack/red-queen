@@ -32,6 +32,12 @@ uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.
   are relative to the field: re-run it whenever entrants change (it replaces the old records).
 - **`bandit.skill.v1`** (was `evaluate_bandit.py`) — skill (0 random, 100 the best arm every pull) on 500 held-out
   games of every scenario, ranked on `classic`; the hand-set strategies plus every completed evolved run's champion.
+- **`copycat.clean.v1`** — Copy Cat (docs/design/0022): each entrant turns the 24 held-out `synthetic` images
+  (`corrupt.v1`, six per severity) into SVGs, scored against the *clean* SVGs behind them by `arena.copycat`: clean
+  fidelity (PSNR over black and over white, the rank), alpha IoU, layer recovery, shape/node/palette and smoothness
+  ratios, bytes; per severity and per image in `metrics.copycat`. The entrants are phase 1's baselines -- VTracer at
+  three presets and a `primitive`-style hill climb at two budgets, plus one of each with the background layer deleted
+  -- each run in its own process so its time per image and peak memory are its own.
 - **`checkers.sprt`** (was `checkers_sprt.py`) — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
   decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `experiment.checkers-h2h`
   runs the same test for every arm against its baseline arm, seed for seed (`full: true`: the whole ballot).

@@ -72,6 +72,11 @@ for name, game, summary in (
         "checkers.versus.v2 with every searching entrant extended through captures (quiescence 4)",
     ),
     ("bandit.skill.v1", "bandit", "skill on 500 held-out games of every scenario, ranked on classic"),
+    (
+        "copycat.clean.v1",
+        "copycat",
+        "image -> SVG on 24 held-out synthetic images, scored against the clean SVGs, ranked by clean fidelity",
+    ),
 ):
     register_protocol(Protocol(name, game, NoParams, "leaderboard", summary))
 register_protocol(

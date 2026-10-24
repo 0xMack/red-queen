@@ -1,0 +1,605 @@
+{
+ "set": "synthetic",
+ "split": "heldout",
+ "size": 128,
+ "images": [
+  {
+   "id": "synthetic/10000",
+   "seed": 10000,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 3,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "rect",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10001",
+   "seed": 10001,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.601,
+    "shading": 0.016,
+    "warp": 0.382,
+    "blur": 0.597,
+    "noise": 0.056,
+    "grain": 0.2,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 3,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "path",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10002",
+   "seed": 10002,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.619,
+    "shading": 0.07,
+    "warp": 0.856,
+    "blur": 0.852,
+    "noise": 4.27,
+    "grain": 3.02,
+    "jpeg": 82,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 2,
+   "palette": 2,
+   "kinds": [
+    "rect",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10003",
+   "seed": 10003,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 11.567,
+    "shading": 0.152,
+    "warp": 1.59,
+    "blur": 1.257,
+    "noise": 5.056,
+    "grain": 6.302,
+    "jpeg": 69,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "parts": 5,
+   "palette": 5,
+   "kinds": [
+    "path",
+    "ellipse",
+    "path",
+    "polygon",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10004",
+   "seed": 10004,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 7,
+   "palette": 6,
+   "kinds": [
+    "path",
+    "circle",
+    "polygon",
+    "ellipse",
+    "path",
+    "path",
+    "circle"
+   ]
+  },
+  {
+   "id": "synthetic/10005",
+   "seed": 10005,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.378,
+    "shading": 0.007,
+    "warp": 0.392,
+    "blur": 0.572,
+    "noise": 1.244,
+    "grain": 1.096,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 6,
+   "palette": 5,
+   "kinds": [
+    "path",
+    "path",
+    "ellipse",
+    "ellipse",
+    "ellipse",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10006",
+   "seed": 10006,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.594,
+    "shading": 0.046,
+    "warp": 0.917,
+    "blur": 0.801,
+    "noise": 3.686,
+    "grain": 3.304,
+    "jpeg": 83,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 3,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "polygon",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10007",
+   "seed": 10007,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.367,
+    "shading": 0.106,
+    "warp": 1.502,
+    "blur": 1.148,
+    "noise": 6.025,
+    "grain": 4.662,
+    "jpeg": 54,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "parts": 4,
+   "palette": 2,
+   "kinds": [
+    "path",
+    "ellipse",
+    "rect",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10008",
+   "seed": 10008,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 7,
+   "palette": 5,
+   "kinds": [
+    "ellipse",
+    "path",
+    "path",
+    "ellipse",
+    "path",
+    "ellipse",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10009",
+   "seed": 10009,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.732,
+    "shading": 0.029,
+    "warp": 0.467,
+    "blur": 0.368,
+    "noise": 1.825,
+    "grain": 1.695,
+    "jpeg": 89,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 3,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "circle",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10010",
+   "seed": 10010,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.118,
+    "shading": 0.068,
+    "warp": 0.929,
+    "blur": 0.913,
+    "noise": 2.796,
+    "grain": 2.024,
+    "jpeg": 80,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 7,
+   "palette": 5,
+   "kinds": [
+    "circle",
+    "path",
+    "circle",
+    "path",
+    "rect",
+    "path",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10011",
+   "seed": 10011,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.216,
+    "shading": 0.165,
+    "warp": 1.438,
+    "blur": 1.4,
+    "noise": 5.227,
+    "grain": 4.064,
+    "jpeg": 64,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "parts": 6,
+   "palette": 4,
+   "kinds": [
+    "polygon",
+    "polygon",
+    "path",
+    "path",
+    "path",
+    "circle"
+   ]
+  },
+  {
+   "id": "synthetic/10012",
+   "seed": 10012,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 5,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "polygon",
+    "ellipse",
+    "polygon",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10013",
+   "seed": 10013,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.592,
+    "shading": 0.008,
+    "warp": 0.471,
+    "blur": 0.378,
+    "noise": 1.312,
+    "grain": 1.343,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 7,
+   "palette": 6,
+   "kinds": [
+    "path",
+    "path",
+    "rect",
+    "path",
+    "ellipse",
+    "path",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10014",
+   "seed": 10014,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.761,
+    "shading": 0.042,
+    "warp": 0.865,
+    "blur": 0.848,
+    "noise": 2.482,
+    "grain": 2.808,
+    "jpeg": 76,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 6,
+   "palette": 5,
+   "kinds": [
+    "path",
+    "polygon",
+    "rect",
+    "circle",
+    "path",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10015",
+   "seed": 10015,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.255,
+    "shading": 0.156,
+    "warp": 1.323,
+    "blur": 1.455,
+    "noise": 7.971,
+    "grain": 6.876,
+    "jpeg": 57,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 4,
+   "palette": 2,
+   "kinds": [
+    "path",
+    "path",
+    "path",
+    "rect"
+   ]
+  },
+  {
+   "id": "synthetic/10016",
+   "seed": 10016,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 3,
+   "palette": 3,
+   "kinds": [
+    "ellipse",
+    "path",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10017",
+   "seed": 10017,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.429,
+    "shading": 0.002,
+    "warp": 0.259,
+    "blur": 0.567,
+    "noise": 0.048,
+    "grain": 0.222,
+    "jpeg": 89,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 4,
+   "palette": 3,
+   "kinds": [
+    "circle",
+    "path",
+    "path",
+    "ellipse"
+   ]
+  },
+  {
+   "id": "synthetic/10018",
+   "seed": 10018,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.286,
+    "shading": 0.075,
+    "warp": 0.715,
+    "blur": 0.828,
+    "noise": 2.918,
+    "grain": 3.884,
+    "jpeg": 80,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 3,
+   "palette": 3,
+   "kinds": [
+    "ellipse",
+    "ellipse",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10019",
+   "seed": 10019,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 14.051,
+    "shading": 0.119,
+    "warp": 1.363,
+    "blur": 1.404,
+    "noise": 6.548,
+    "grain": 4.954,
+    "jpeg": 67,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "parts": 4,
+   "palette": 3,
+   "kinds": [
+    "path",
+    "ellipse",
+    "path",
+    "polygon"
+   ]
+  },
+  {
+   "id": "synthetic/10020",
+   "seed": 10020,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 3,
+   "palette": 3,
+   "kinds": [
+    "circle",
+    "circle",
+    "path"
+   ]
+  },
+  {
+   "id": "synthetic/10021",
+   "seed": 10021,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.534,
+    "shading": 0.037,
+    "warp": 0.211,
+    "blur": 0.486,
+    "noise": 1.121,
+    "grain": 1.812,
+    "jpeg": 86,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 3,
+   "palette": 2,
+   "kinds": [
+    "circle",
+    "rect",
+    "circle"
+   ]
+  },
+  {
+   "id": "synthetic/10022",
+   "seed": 10022,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.219,
+    "shading": 0.06,
+    "warp": 0.513,
+    "blur": 0.892,
+    "noise": 2.296,
+    "grain": 3.446,
+    "jpeg": 81,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "parts": 5,
+   "palette": 5,
+   "kinds": [
+    "path",
+    "rect",
+    "ellipse",
+    "path",
+    "ellipse"
+   ]
+  },
+  {
+   "id": "synthetic/10023",
+   "seed": 10023,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 16.176,
+    "shading": 0.121,
+    "warp": 1.523,
+    "blur": 1.526,
+    "noise": 7.467,
+    "grain": 6.353,
+    "jpeg": 70,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "parts": 5,
+   "palette": 2,
+   "kinds": [
+    "polygon",
+    "circle",
+    "path",
+    "path",
+    "circle"
+   ]
+  }
+ ]
+}

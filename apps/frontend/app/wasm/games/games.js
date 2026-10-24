@@ -214,6 +214,100 @@ export class CheckersStrategy {
 }
 if (Symbol.dispose) CheckersStrategy.prototype[Symbol.dispose] = CheckersStrategy.prototype.free;
 
+/**
+ * Copy Cat (docs/design/0022), phase 1: an SVG read in the protocol's subset, rendered by the same rasterizer the
+ * protocol scores with. The game page and its search moves come later.
+ */
+export class CopyCatGame {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CopyCatGameFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_copycatgame_free(ptr, 0);
+    }
+    /**
+     * The canonical serialization (0.1 px, a viewBox of the image's size): what shapes and bytes are counted from.
+     * @returns {string}
+     */
+    canonical() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatgame_canonical(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get height() {
+        const ret = wasm.copycatgame_height(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Throws, with the reason, for anything outside the subset.
+     * @param {string} svg
+     */
+    constructor(svg) {
+        const ptr0 = passStringToWasm0(svg, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatgame_new(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        CopyCatGameFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {number}
+     */
+    get nodes() {
+        const ret = wasm.copycatgame_nodes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get palette() {
+        const ret = wasm.copycatgame_palette(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Straight-alpha RGBA, 8 bits per channel: ready for an `ImageData`.
+     * @returns {Uint8Array}
+     */
+    render() {
+        const ret = wasm.copycatgame_render(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get shapes() {
+        const ret = wasm.copycatgame_shapes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get width() {
+        const ret = wasm.copycatgame_width(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) CopyCatGame.prototype[Symbol.dispose] = CopyCatGame.prototype.free;
+
 export class RandomPolicy {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -456,6 +550,9 @@ const CheckersGameFinalization = (typeof FinalizationRegistry === 'undefined')
 const CheckersStrategyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_checkersstrategy_free(ptr >>> 0, 1));
+const CopyCatGameFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_copycatgame_free(ptr >>> 0, 1));
 const RandomPolicyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_randompolicy_free(ptr >>> 0, 1));
@@ -480,6 +577,11 @@ function getArrayF64FromWasm0(ptr, len) {
 function getArrayI32FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getInt32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 let cachedFloat64ArrayMemory0 = null;
