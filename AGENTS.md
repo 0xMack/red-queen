@@ -206,7 +206,7 @@ architectural change that might conflict with a decision already made.
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
     `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v1`, scoring an entrant's SVG against the clean SVG behind a
-    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
+    `corrupt.v1` image, with the checked-in held-out `synthetic` and `icons` sets in `arena.copycat_sets`; `icons` is Twemoji converted to the subset by `arena.twemoji`), training-seed strategies (`arena.seeding`), two-player strength statistics
     (`arena.versus_stats`) and the training-cost meter (`arena.costs`). No I/O beyond reading Copy Cat's checked-in set; training and leaderboard jobs both
     import it, so a held-out curve and a leaderboard play by the same rules.
   - **Representations (docs/design/0007)**: a game's observation is chosen by an *observer*, and a

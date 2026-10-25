@@ -64,11 +64,11 @@ class Target:
         return Image.open(io.BytesIO(self.png)).convert("RGBA").tobytes()
 
 
-def load_set(split: str = SPLIT, root: Path | None = None) -> list[Target]:
-    """A split of the `synthetic` set, in seed order: the checked-in held-out images (`HELD_OUT_SEEDS`) unless `root`
-    says otherwise."""
-    held_out = root is None and split == SPLIT
-    root = root or DATA / SET / split
+def load_set(split: str = SPLIT, root: Path | None = None, set_name: str = SET) -> list[Target]:
+    """A split of a set (`synthetic` unless `set_name` says otherwise), in seed order: the checked-in held-out images
+    unless `root` says otherwise (for `synthetic`, those in `HELD_OUT_SEEDS`)."""
+    held_out = root is None and split == SPLIT and set_name == SET
+    root = root or DATA / set_name / split
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     size = manifest["size"]
     return [
