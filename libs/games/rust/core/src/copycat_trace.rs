@@ -3,14 +3,16 @@
 //!
 //! 1. **Noise**: σ, a robust (median) estimate from neighbouring pixels' OKLab differences -- edges are the tail.
 //! 2. **Background**: fitted to the image border in OKLab, constant or a linear gradient (whichever is shorter to
-//!    describe), its outliers dropped twice. It is a cluster of its own whose centre varies across the image, and what
-//!    it explains is left transparent.
+//!    describe), its outliers dropped twice -- or, when that fit misses the corners (a tile filling most of the
+//!    border), started again from the corners. It is a cluster of its own whose centre varies across the image, and
+//!    what it explains is left transparent.
 //! 3. **Palette**: k-means in OKLab from `colors` k-means++ seeds (`Pcg32`), then merges, closest pair first, while a
 //!    merge is shorter -- a palette entry (24 bits) and the boundary between them saved, against the residual it adds
 //!    (`ΔSSE / 2σ² ln 2` bits) -- or the two are within `merge_delta` of each other (a part's own shading, which a
 //!    flat fill can't say anyway), or a cluster is within `background_delta` of the background (faint clutter).
 //! 4. **Labels**: a 3 x 3 majority filter; then components too small (`min_area`) or too thin (an anti-aliased or
-//!    blurred edge's in-between colour) are dissolved into whatever surrounds them.
+//!    blurred edge's in-between colour) are dissolved into whatever surrounds them. A background component enclosed by
+//!    parts whose colour is not quite the background's (a white letter, an off-white background) is a colour of its own.
 //! 5. **Parts**: every connected component but the background is a part, filled with its label's interior mean (one
 //!    palette entry per label); two of one colour join when one shape says them more briefly (a part an occluder cut in two).
 //! 6. **Order**: for each pair of touching parts, the one that is shorter to describe when completed under the other
@@ -160,6 +162,8 @@ const SIGMA_FLOOR: f64 = 0.002;
 pub struct Background {
     pub coefficients: [[f64; 3]; 3],
     pub gradient: bool,
+    /// How far (OKLab) a border pixel could stray and still be counted background: the robust fit's cut.
+    pub cut: f64,
 }
 
 impl Background {
@@ -176,26 +180,76 @@ impl Background {
         )
     }
 
-    /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice.
+    /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice. Pixels alone can't
+    /// tell a tile filling most of the border from a background, so a prior decides: the background reaches the
+    /// corners. When the border's fit leaves a corner unexplained, the fit is started again from the corners instead,
+    /// and kept if it explains all four.
     pub fn fit(image: &Image, sigma: f64) -> Background {
         let (w, h) = (image.width, image.height);
-        let mut border: Vec<usize> = (0..w * h)
+        let border: Vec<usize> = (0..w * h)
             .filter(|&i| {
                 let (x, y) = (i % w, i / w);
                 x < 2 || y < 2 || x + 2 >= w || y + 2 >= h
             })
             .collect();
-        let mut fits = (
-            Background::least_squares(image, &border, false),
-            Background::least_squares(image, &border, true),
-        );
+        let corners: Vec<Vec<usize>> = [(0, 0), (w - CORNER, 0), (0, h - CORNER), (w - CORNER, h - CORNER)]
+            .iter()
+            .map(|&(x0, y0)| {
+                (0..CORNER * CORNER)
+                    .map(|k| (y0 + k / CORNER) * w + x0 + k % CORNER)
+                    .collect()
+            })
+            .collect();
+        let from_border = Background::robust(image, &border, &border, sigma);
+        let from_corners = Background::robust(image, &border, &corners.concat(), sigma);
+        // judged by how much the corners themselves vary: tightly when they agree, loosely under a gradient or clutter
+        let cut = if from_corners.cut.is_finite() {
+            from_corners.cut
+        } else {
+            6.0 * sigma
+        };
+        if from_border.explains(image, &corners, sigma, cut) {
+            from_border.choose(image, sigma)
+        } else if from_corners.explains(image, &corners, sigma, cut) {
+            from_corners.choose(image, sigma)
+        } else {
+            from_border.choose(image, sigma)
+        }
+    }
+}
+
+/// The side (px) of the square at each corner the background is expected to reach.
+const CORNER: usize = 3;
+
+/// A robust fit's state: the border pixels kept, its flat and gradient fits, and its cut (OKLab distance).
+struct Robust {
+    kept: Vec<usize>,
+    flat: Background,
+    gradient: Background,
+    cut: f64,
+}
+
+impl Background {
+    /// Starting from the flat fit to `start`, the border pixels within 3 robust deviations of the flat fit are kept and
+    /// refitted, twice. The deviation is the whole border's when starting from it, else the kept pixels' own: a tile
+    /// filling most of the border would otherwise set it.
+    fn robust(image: &Image, border: &[usize], start: &[usize], sigma: f64) -> Robust {
+        let mut state = Robust {
+            kept: start.to_vec(),
+            flat: Background::least_squares(image, start, false),
+            gradient: Background::least_squares(image, start, true),
+            cut: f64::INFINITY,
+        };
+        let whole = start.len() == border.len();
         for _ in 0..2 {
-            let flat = fits.0;
-            let deviations: Vec<f64> = border
-                .iter()
-                .map(|&i| distance2(&image.lab[i], &flat.at_pixel(image, i)).sqrt())
-                .collect();
-            let cut = 3.0 * median(deviations.clone()).max(sigma) * 2.0;
+            let deviation = |i: usize| distance2(&image.lab[i], &state.flat.at_pixel(image, i)).sqrt();
+            let deviations: Vec<f64> = border.iter().map(|&i| deviation(i)).collect();
+            let spread = if whole {
+                median(deviations.clone())
+            } else {
+                median(state.kept.iter().map(|&i| deviation(i)).collect())
+            };
+            let cut = 3.0 * spread.max(sigma) * 2.0;
             let kept: Vec<usize> = border
                 .iter()
                 .zip(&deviations)
@@ -205,13 +259,33 @@ impl Background {
             if kept.len() < 8 {
                 break;
             }
-            border = kept;
-            fits = (
-                Background::least_squares(image, &border, false),
-                Background::least_squares(image, &border, true),
-            );
+            state = Robust {
+                flat: Background::least_squares(image, &kept, false),
+                gradient: Background::least_squares(image, &kept, true),
+                kept,
+                cut,
+            };
         }
-        // the gradient's 6 more numbers (at about 12 bits each) against the residual it removes
+        state
+    }
+}
+
+impl Robust {
+    /// Whether each corner's mean is within `cut` of the fit (flat or gradient, whichever is chosen).
+    fn explains(&self, image: &Image, corners: &[Vec<usize>], sigma: f64, cut: f64) -> bool {
+        let fit = self.choose(image, sigma);
+        corners.iter().all(|corner| {
+            let n = corner.len() as f64;
+            let mean = [0, 1, 2].map(|k| corner.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n);
+            let expected = [0, 1, 2].map(|k| corner.iter().map(|&i| fit.at_pixel(image, i)[k]).sum::<f64>() / n);
+            distance2(&mean, &expected).sqrt() <= cut
+        })
+    }
+
+    /// The gradient if its 6 more numbers (at about 12 bits each) are paid for by the residual it removes.
+    fn choose(&self, image: &Image, sigma: f64) -> Background {
+        let border = &self.kept;
+        let fits = (self.flat, self.gradient);
         let sse = |b: &Background| {
             border
                 .iter()
@@ -219,13 +293,15 @@ impl Background {
                 .sum::<f64>()
         };
         let saved = (sse(&fits.0) - sse(&fits.1)) / (2.0 * sigma * sigma * std::f64::consts::LN_2);
-        if saved > 6.0 * 12.0 {
-            fits.1
-        } else {
-            fits.0
+        let fit = if saved > 6.0 * 12.0 { fits.1 } else { fits.0 };
+        Background {
+            cut: if self.cut.is_finite() { self.cut } else { 6.0 * sigma },
+            ..fit
         }
     }
+}
 
+impl Background {
     fn least_squares(image: &Image, pixels: &[usize], gradient: bool) -> Background {
         let mut coefficients = [[0.0; 3]; 3];
         let n = pixels.len().max(1) as f64;
@@ -235,6 +311,7 @@ impl Background {
         let flat = Background {
             coefficients,
             gradient: false,
+            cut: f64::INFINITY,
         };
         if !gradient {
             return flat;
@@ -265,6 +342,7 @@ impl Background {
         Background {
             coefficients,
             gradient: true,
+            cut: f64::INFINITY,
         }
     }
 }
@@ -572,6 +650,47 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
         }
     }
     out.into_iter().map(|l| l.unwrap_or(0)).collect()
+}
+
+/// The background reaches the image's edge: a background-labelled component enclosed by parts whose mean colour is
+/// further from the background's than a border pixel may stray (`Background::cut`) -- the white of a letter on a tile
+/// against an off-white background, within `background_delta` of it -- is a colour of its own, a new label whose centre
+/// is its mean. One that is the background's colour stays a hole.
+pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize], centres: &mut Vec<Lab>) {
+    let (w, h) = (image.width, image.height);
+    let (_, members) = components(image, labels);
+    let mean = |pixels: &[usize], of: &dyn Fn(usize) -> Lab| {
+        let n = pixels.len() as f64;
+        [0, 1, 2].map(|k| pixels.iter().map(|&i| of(i)[k]).sum::<f64>() / n)
+    };
+    let enclosed: Vec<&Vec<usize>> = members
+        .iter()
+        .filter(|pixels| labels[pixels[0]] == 0)
+        .filter(|pixels| {
+            pixels.iter().all(|&i| {
+                let (x, y) = (i % w, i / w);
+                x > 0 && y > 0 && x + 1 < w && y + 1 < h
+            })
+        })
+        .filter(|pixels| {
+            let seen = mean(pixels, &|i| image.lab[i]);
+            let expected = mean(pixels, &|i| background[i]);
+            distance2(&seen, &expected).sqrt() > cut
+        })
+        .collect();
+    let n: usize = enclosed.iter().map(|p| p.len()).sum();
+    if n == 0 {
+        return;
+    }
+    let label = centres.len();
+    let mut mean = [0.0; 3];
+    for &i in enclosed.iter().flat_map(|p| p.iter()) {
+        for (k, m) in mean.iter_mut().enumerate() {
+            *m += image.lab[i][k] / n as f64;
+        }
+        labels[i] = label;
+    }
+    centres.push(mean);
 }
 
 /// A part: a connected component of one (non-background) label.
@@ -958,11 +1077,15 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let sigma = noise_sigma(&image);
     let background = Background::fit(&image, sigma);
     let segmentation = segment(&image, &background, sigma, config);
+    let mut labels = clean_labels(&image, &segmentation.labels, config);
+    let mut centres = segmentation.centres.clone();
+    let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
+    enclose(&image, &per_pixel, background.cut, &mut labels, &mut centres);
     let scene = Scene {
         image: &image,
-        labels: clean_labels(&image, &segmentation.labels, config),
-        centres: segmentation.centres.clone(),
-        background: (0..width * height).map(|i| background.at_pixel(&image, i)).collect(),
+        labels,
+        centres,
+        background: per_pixel,
     };
     let mut costs = Costs::new(width, height, config.pixel_bits);
     costs.outline_gain = config.outline_gain * (sigma - SIGMA_FLOOR) * 1000.0;
@@ -1066,6 +1189,39 @@ mod tests {
                 traced.canonical()
             );
         }
+    }
+
+    #[test]
+    fn a_tile_filling_the_border_is_a_shape_and_its_letter_too() {
+        // a rounded tile reaching every edge but the corners, a white mark on it, over an off-white background
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <path d=\"M16 0L48 0Q64 0 64 16L64 48Q64 64 48 64L16 64Q0 64 0 48L0 16Q0 0 16 0Z\" fill=\"#2060a0\"/>\
+            <rect x=\"22\" y=\"16\" width=\"20\" height=\"32\" fill=\"#ffffff\"/></svg>";
+        let (clean, rgba) = photograph(svg, [244, 240, 236]);
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(distance2(&background.at(0.0, 0.0), &oklab([244, 240, 236])) < 1e-6);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let recovered = layer_recovery(&clean, &traced);
+        assert!(
+            recovered.iter().all(|r| *r > 0.9),
+            "{recovered:?}\n{}",
+            traced.canonical()
+        );
+    }
+
+    #[test]
+    fn a_hole_of_the_background_colour_stays_a_hole() {
+        // four bars around a gap the background shows through
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"12\" y=\"12\" width=\"40\" height=\"10\" fill=\"#d03030\"/>\
+            <rect x=\"12\" y=\"42\" width=\"40\" height=\"10\" fill=\"#d03030\"/>\
+            <rect x=\"12\" y=\"12\" width=\"10\" height=\"40\" fill=\"#2050c0\"/>\
+            <rect x=\"42\" y=\"12\" width=\"10\" height=\"40\" fill=\"#2050c0\"/></svg>";
+        let (_, rgba) = photograph(svg, [245, 240, 230]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        assert_eq!(rendered[(32 * 64 + 32) * 4 + 3], 0, "{}", traced.canonical());
     }
 
     fn photograph(svg: &str, background: [u8; 3]) -> (Document, Vec<u8>) {

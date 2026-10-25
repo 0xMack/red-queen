@@ -11,7 +11,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
   - refines each shape point by point under L, and on a noisy image keeps a point only if it earns its keep;
   - describes a smooth outline by its knots, fitted by least squares;
   - cuts a part of one colour in two where two shapes overlap;
-  - never joins a piece another part lies beneath (a detail on it), measured on `icons`.
+  - never joins a piece another part lies beneath (a detail on it), measured on `icons`;
+  - takes the background from the corners when the border's fit misses them (a tile), and keeps a near-background
+    colour enclosed by parts (a white letter) as a part.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -312,11 +314,13 @@ baselines, with no run. Recording our later, searching entrants as runs is still
 in order:
 
 1. **Noise σ:** the median OKLab difference between neighbouring pixels, as a robust estimate.
-2. **Background:** fitted to a 2-pixel border, either constant or a gradient, whichever is shorter. It is a cluster of
-   its own whose centre varies per pixel.
+2. **Background:** fitted to a 2-pixel border, either constant or a gradient, whichever is shorter; or, when that fit
+   misses the corners, started again from them (see "A background that reaches the corners"). It is a cluster of its
+   own whose centre varies per pixel.
 3. **Palette:** k-means++ in OKLab from 16 seeds. Clusters merge while the residual the merge adds, in bits, is less
    than the 24-bit palette entry plus the shared boundary it saves.
-4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands).
+4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands). A
+   background component enclosed by parts whose colour is not the background's becomes a colour of its own.
 5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
    says them more briefly, unless another part lies beneath either of them (see "Join only what an occluder cut").
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape reaches
@@ -765,12 +769,46 @@ Measured on `train` (fidelity, dB; time per icon):
 Held-out, scored once: `synthetic` is unchanged (31.999 dB, the same SVGs); `icons` goes from 18.52 to 18.77 dB and
 from 4.8 to 3.1 s per icon.
 
-**Next, on `icons`:**
-- a background model that does not assume the border is background, e.g. trying "the border colour is a shape"
-  under L;
-- keep a fill near the background when its edge against the background is visible.
+### A background that reaches the corners
 
-Neither is built yet.
+The pixels can't tell a tile filling most of the border from a background: either describes the image equally well,
+and only which one is transparent differs. So a prior decides, and the prior is that the background reaches the
+corners.
+- The border's robust fit is kept if it explains each corner's 3x3 mean. The yardstick is how much the corners vary
+  among themselves: tight when they agree, loose under a gradient or clutter.
+- Otherwise the fit starts again from the corners. Its outlier cut is set by the pixels it keeps, not by the whole
+  border, where the tile would set it. It is used if it explains all four corners.
+
+With the tile now a part, its letter needs saying. The letter's white is within `background_delta` of an off-white
+background, so it is labelled background, and a filled tile can't show a hole. So a background component enclosed by
+parts becomes a colour of its own, unless it is the background's colour (the gap between four bars, a gear's hole). The
+test: its mean is further from the background's than the background fit's own outlier cut. On `synthetic`, a 6σ test
+filled real gaps (image 30, -4.1 dB); the fit's cut, which grows with JPEG, drift and gradients, changes no `synthetic`
+image.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | `icons` alpha IoU |
+|---|---|---|---|
+| before | 32.446 | 18.84 | 0.72 |
+| corners only | 32.444 | 19.25 | 0.76 |
+| enclosed regions only, no colour test | 32.401 | 19.26 | |
+| corners + enclosed, 6σ test | 32.401 | 21.53 | |
+| **kept: corners + enclosed, the fit's cut** | **32.444** | **20.86** | **0.82** |
+
+- Per severity on `icons`: clean 21.35 to 25.83, light 22.09 to 23.84, medium 16.92 to 18.50, heavy 15.00 to 15.28.
+- The prior's failure mode: a subject touching a corner. The clamp (train seed 77) loses 3.2 dB.
+- Held-out, scored once: `synthetic` 31.999 to 32.003 dB; `icons` 18.77 to 19.41 dB, clean 15.94 to 18.36.
+
+**Measured, not kept here: paint order by fraction.** Some enclosed white parts still come out under their tile (the
+refresh arrows, train seed 62). Fitted with the tile's pixels free, each arrow grows into a blob that covers more tile
+pixels than the tile covers of the arrow, and `order` compares those counts. Comparing the *fraction* of each part
+covered instead puts the tile below: `icons` 20.86 to 22.21, `synthetic` 32.444 to 32.457, but 31 `synthetic` images
+change. It changes the order everywhere, so it is its own rung.
+
+**Next, on `icons`:**
+- paint order by the fraction covered (above);
+- `heavy` (15.3 dB) and `medium` (18.5 dB) are now furthest behind `synthetic`'s 22.9 and 27.5.
 
 ## The page
 
