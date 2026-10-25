@@ -24,6 +24,7 @@ export const ALGORITHMS: ExplainConcept[] = [
       "Regions: small specks and thin anti-aliased bands are dissolved into what surrounds them.",
       "Order: each part is fitted with every other part allowed over it. Whichever reaches further under the other goes below.",
       "Shapes: each part becomes whichever of circle, ellipse, rect, polygon or Bézier path is shortest to describe, counting the pixels it gets wrong. Pixels under the parts above are free, so a hidden part completes itself.",
+      "Refinement: every number of the leading candidates -- a circle's centre, a polygon's vertices, a path's control points -- is nudged while that shortens the description, and a polygon drops a vertex when it can. On a noisy image a move must save more bits, so outlines don't chase the noise.",
     ],
     code: "bits(shape) = model bits (type + coordinates at 0.1 px) + pixel_bits * misfit\nbest = argmin over circle, ellipse, rect, polygon, path",
     good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: Play traces your own image."],

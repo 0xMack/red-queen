@@ -103,6 +103,7 @@ def trace(
     pixel_bits: float = 12.0,
     edge_bits: float = 2.0,
     min_area: int = 30,
+    outline_gain: float = 12.0,
     seed: int = 0,
 ) -> Svg:
     """The structured pipeline (rust/core/src/copycat_trace.rs): noise, background, an OKLab palette merged by
@@ -110,6 +111,16 @@ def trace(
     a transparent SVG with one `<g>` per part."""
     return Svg._wrap(
         _native.copycat_trace(
-            rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, seed
+            rgba,
+            width,
+            height,
+            colors,
+            merge_delta,
+            background_delta,
+            pixel_bits,
+            edge_bits,
+            min_area,
+            outline_gain,
+            seed,
         )
     )

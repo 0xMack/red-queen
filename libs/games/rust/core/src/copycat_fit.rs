@@ -22,6 +22,9 @@ use crate::raster::{coverage, Point};
 /// What a region must cover (`visible`: how much of each pixel is the region's, 0..1 -- an edge pixel's fraction comes
 /// from its colour, so edges are sub-pixel), what it may cover for free (`free`: hidden under shapes above it), over a
 /// `width x height` image, row-major. Everything else must stay uncovered.
+/// How many outline candidates (polygons and paths) are refined point by point: the shortest as first fitted.
+const REFINED_OUTLINES: usize = 2;
+
 pub struct Target<'a> {
     pub width: usize,
     pub height: usize,
@@ -37,6 +40,8 @@ pub struct Costs {
     pub type_bits: f64,
     /// Bits per pixel the shape covers wrongly (or fails to cover).
     pub pixel_bits: f64,
+    /// Bits a move of an outline's point must save to be kept: above 0, an outline stops chasing the noise.
+    pub outline_gain: f64,
 }
 
 impl Costs {
@@ -45,6 +50,7 @@ impl Costs {
             coord_bits: libm::log2(10.0 * width.max(height) as f64) + 1.0,
             type_bits: 3.0,
             pixel_bits,
+            outline_gain: 0.0,
         }
     }
 
@@ -92,6 +98,21 @@ impl Target<'_> {
     /// Wrongly covered pixels: the squared difference between the shape's coverage and the target, free pixels
     /// skipped (pixels outside the image never count).
     pub fn misfit(&self, geometry: &Geometry) -> f64 {
+        self.misfit_from(geometry, self.uncovered())
+    }
+
+    /// The misfit if nothing were covered: every visible pixel that isn't free, missed.
+    fn uncovered(&self) -> f64 {
+        self.visible
+            .iter()
+            .zip(self.free)
+            .filter(|(_, f)| !**f)
+            .map(|(v, _)| v * v)
+            .sum()
+    }
+
+    /// `misfit`, given `uncovered()` (the same for every candidate, so computed once per fit).
+    fn misfit_from(&self, geometry: &Geometry, uncovered: f64) -> f64 {
         let shape = Shape {
             geometry: geometry.clone(),
             fill: [0, 0, 0],
@@ -100,13 +121,7 @@ impl Target<'_> {
         };
         let mask = coverage(&shape.outline(), self.width, self.height);
         // everything uncovered, then the difference the shape's own bounding box makes
-        let mut wrong: f64 = self
-            .visible
-            .iter()
-            .zip(self.free)
-            .filter(|(_, f)| !**f)
-            .map(|(v, _)| v * v)
-            .sum();
+        let mut wrong = uncovered;
         for my in 0..mask.height {
             for mx in 0..mask.width {
                 let i = (mask.y0 + my) * self.width + mask.x0 + mx;
@@ -124,9 +139,9 @@ impl Target<'_> {
         self.visible[i] >= 0.5
     }
 
-    fn score(&self, geometry: Geometry, costs: &Costs) -> Fit {
+    fn score(&self, geometry: Geometry, costs: &Costs, uncovered: f64) -> Fit {
         Fit {
-            misfit_bits: self.misfit(&geometry) * costs.pixel_bits,
+            misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
             model_bits: costs.model_bits(&geometry),
             geometry,
         }
@@ -212,51 +227,55 @@ impl Target<'_> {
                 }
             }
         }
-        let mut best: Option<Fit> = None;
-        for candidate in candidates {
-            let fit = self.refine(self.score(candidate, costs), costs);
-            if best.as_ref().is_none_or(|b| fit.bits() < b.bits()) {
-                best = Some(fit);
-            }
-        }
-        best
+        // Every primitive is refined (a few numbers each); of the outlines, only the REFINED_OUTLINES shortest as
+        // fitted, since refining one costs two scores per point per step.
+        let uncovered = self.uncovered();
+        let (mut outlines, primitives): (Vec<Fit>, Vec<Fit>) = candidates
+            .into_iter()
+            .map(|candidate| self.score(candidate, costs, uncovered))
+            .partition(|fit| matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_)));
+        outlines.sort_by(|a, b| a.bits().total_cmp(&b.bits()));
+        outlines.truncate(REFINED_OUTLINES);
+        primitives
+            .into_iter()
+            .chain(outlines)
+            .map(|fit| self.refine(fit, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
     }
 
-    /// Coordinate descent on a primitive's parameters (paths are left as fitted): each parameter nudged by 0.5, 0.25
-    /// and 0.1 px while that shortens the description.
-    fn refine(&self, mut fit: Fit, costs: &Costs) -> Fit {
-        let params = |g: &Geometry| -> Option<Vec<f64>> {
-            match *g {
-                Geometry::Circle { cx, cy, r } => Some(vec![cx, cy, r]),
-                Geometry::Ellipse { cx, cy, rx, ry } => Some(vec![cx, cy, rx, ry]),
-                Geometry::Rect { x, y, width, height } => Some(vec![x, y, width, height]),
-                _ => None,
+    /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points --
+    /// then, for a polygon, deleting the vertex that costs least to lose, kept if the descent from there is shorter.
+    fn refine(&self, fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
+        let mut fit = self.descend(fit, costs, uncovered);
+        while let Geometry::Polygon(points) = &fit.geometry {
+            if points.len() <= 3 {
+                break;
             }
-        };
-        let rebuild = |g: &Geometry, p: &[f64]| -> Geometry {
-            match g {
-                Geometry::Circle { .. } => Geometry::Circle {
-                    cx: p[0],
-                    cy: p[1],
-                    r: p[2].max(0.5),
-                },
-                Geometry::Ellipse { .. } => Geometry::Ellipse {
-                    cx: p[0],
-                    cy: p[1],
-                    rx: p[2].max(0.5),
-                    ry: p[3].max(0.5),
-                },
-                _ => Geometry::Rect {
-                    x: p[0],
-                    y: p[1],
-                    width: p[2].max(0.5),
-                    height: p[3].max(0.5),
-                },
+            let Some(fewer) = (0..points.len())
+                .map(|i| {
+                    let mut rest = points.clone();
+                    rest.remove(i);
+                    self.score(Geometry::Polygon(rest), costs, uncovered)
+                })
+                .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+            else {
+                break;
+            };
+            let fewer = self.descend(fewer, costs, uncovered);
+            if fewer.bits() >= fit.bits() {
+                break;
             }
-        };
-        let Some(mut p) = params(&fit.geometry) else {
-            return fit;
-        };
+            fit = fewer;
+        }
+        fit
+    }
+
+    /// Each number nudged by 0.5, 0.25 and 0.1 px while that shortens the description (by `outline_gain` bits, for a
+    /// polygon's or path's points).
+    fn descend(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
+        let mut p = params(&fit.geometry);
+        let outline = matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_));
+        let min_gain = if outline { costs.outline_gain.max(1e-9) } else { 1e-9 };
         for step in [0.5, 0.25, 0.1] {
             for _round in 0..4 {
                 let mut improved = false;
@@ -264,8 +283,8 @@ impl Target<'_> {
                     for sign in [1.0, -1.0] {
                         let mut q = p.clone();
                         q[k] += sign * step;
-                        let candidate = self.score(rebuild(&fit.geometry, &q), costs);
-                        if candidate.bits() < fit.bits() - 1e-9 {
+                        let candidate = self.score(with_params(&fit.geometry, &q), costs, uncovered);
+                        if candidate.bits() < fit.bits() - min_gain {
                             fit = candidate;
                             p = q;
                             improved = true;
@@ -278,6 +297,71 @@ impl Target<'_> {
             }
         }
         fit
+    }
+}
+
+/// A shape's numbers, in a fixed order: a primitive's parameters, or every point of a polygon or path.
+fn params(geometry: &Geometry) -> Vec<f64> {
+    match geometry {
+        Geometry::Circle { cx, cy, r } => vec![*cx, *cy, *r],
+        Geometry::Ellipse { cx, cy, rx, ry } => vec![*cx, *cy, *rx, *ry],
+        Geometry::Rect { x, y, width, height } => vec![*x, *y, *width, *height],
+        Geometry::Polygon(points) => points.iter().flat_map(|&(x, y)| [x, y]).collect(),
+        Geometry::Path(segments) => {
+            let mut out = Vec::new();
+            for segment in segments {
+                match *segment {
+                    Segment::Move(a) | Segment::Line(a) => out.extend([a.0, a.1]),
+                    Segment::Quad(a, b) => out.extend([a.0, a.1, b.0, b.1]),
+                    Segment::Cubic(a, b, c) => out.extend([a.0, a.1, b.0, b.1, c.0, c.1]),
+                    Segment::Close => {}
+                }
+            }
+            out
+        }
+    }
+}
+
+/// `geometry` with its numbers replaced by `p` (same order as `params`); sizes stay at least half a pixel.
+fn with_params(geometry: &Geometry, p: &[f64]) -> Geometry {
+    match geometry {
+        Geometry::Circle { .. } => Geometry::Circle {
+            cx: p[0],
+            cy: p[1],
+            r: p[2].max(0.5),
+        },
+        Geometry::Ellipse { .. } => Geometry::Ellipse {
+            cx: p[0],
+            cy: p[1],
+            rx: p[2].max(0.5),
+            ry: p[3].max(0.5),
+        },
+        Geometry::Rect { .. } => Geometry::Rect {
+            x: p[0],
+            y: p[1],
+            width: p[2].max(0.5),
+            height: p[3].max(0.5),
+        },
+        Geometry::Polygon(points) => Geometry::Polygon((0..points.len()).map(|i| (p[2 * i], p[2 * i + 1])).collect()),
+        Geometry::Path(segments) => {
+            let mut k = 0;
+            let mut next = || {
+                k += 2;
+                (p[k - 2], p[k - 1])
+            };
+            Geometry::Path(
+                segments
+                    .iter()
+                    .map(|segment| match segment {
+                        Segment::Move(_) => Segment::Move(next()),
+                        Segment::Line(_) => Segment::Line(next()),
+                        Segment::Quad(..) => Segment::Quad(next(), next()),
+                        Segment::Cubic(..) => Segment::Cubic(next(), next(), next()),
+                        Segment::Close => Segment::Close,
+                    })
+                    .collect(),
+            )
+        }
     }
 }
 
@@ -951,6 +1035,38 @@ mod tests {
             segments.iter().filter(|s| matches!(s, Segment::Line(_))).count() >= 4,
             "{segments:?}"
         );
+    }
+
+    #[test]
+    fn an_outline_is_refined_onto_its_edges() {
+        // an anti-aliased triangle with sub-pixel corners: the traced contour lands near them, refinement onto them
+        let corners = [(8.3, 9.6), (40.7, 14.2), (19.4, 39.1)];
+        let mask = coverage(&vec![corners.to_vec()], 48, 48);
+        let mut visible = vec![0.0; 48 * 48];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 48 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 48 * 48];
+        let target = Target {
+            width: 48,
+            height: 48,
+            visible: &visible,
+            free: &free,
+        };
+        let fit = target.fit(&Costs::new(48, 48, 12.0)).unwrap();
+        let Geometry::Polygon(points) = &fit.geometry else {
+            panic!("{:?}", fit.geometry)
+        };
+        assert_eq!(points.len(), 3, "{points:?}");
+        for corner in corners {
+            let nearest = points
+                .iter()
+                .map(|&p| length(sub(p, corner)))
+                .fold(f64::INFINITY, f64::min);
+            assert!(nearest < 0.3, "{corner:?} {points:?}");
+        }
     }
 
     #[test]
