@@ -6,8 +6,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
-- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots,
-  and cuts a part of one colour in two where two shapes overlap. A regular-polygon candidate was measured and not
+- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots
+  (fitted by least squares), and cuts a part of one colour in two where two shapes overlap. A regular-polygon candidate was measured and not
   kept. See "Phase 4 results".
 
 Phases 3-6 are proposed.
@@ -557,7 +557,58 @@ Held-out, scored once:
 It takes 223 ms per image. The held-out set has fewer same-colour merges on clean images, so the gain there is on
 `heavy` alone. The gain is small, but it points the same way as on `train`, and it adds no cost to convex parts.
 
+### The fifth rung: knots fitted by least squares
+
+**Where the error was.** We re-ran the per-kind geometry oracle after the cuts. Blobs still cost the most: +5.7 dB on
+`clean`, +1.6 on `light` and `medium`, +0.9 on `heavy`. Colour cost +0.5 on `light` and +0.7 on `heavy` (the colour
+oracle), and nothing on `clean`. On `clean`, 43 of 46 blobs were already splines, at a mean IoU of 0.929. `synthetic`'s
+blobs are themselves Catmull-Rom splines with this tangent rule, so the family held the answer. What fell short was the
+search: knots started evenly spaced along the contour, and coordinate descent moved them only locally.
+
+**The candidate** (`copycat_fit.rs`, `fit_knots`).
+- A point of the spline at a fixed segment and `t` is a fixed mix of four knots (`spline_weights`). So once every edge
+  point has been given its nearest point of the current spline, the best knots solve a linear system.
+- The distance is measured mostly *across* the curve (tangent-distance minimization, the tangent weighted 0.05).
+  Plain projection lets the knots creep along the curve: after 60 rounds it was still 0.15 px off a perfect spline.
+  Tangent distance recovers one to under 0.1 px in 6 rounds (a test).
+- Each point's nearest `t` is searched for among 12 samples per segment, then by ternary search between them.
+- Points are fitted to the *true* edge, where there are at least 12: the completed loop's stretches along occluders
+  and its hull are not the part's own. The loop only places the starting knots.
+- 4 to 8 knots are fitted. The shortest as fitted is refined beside the evenly spaced spline, not instead of it.
+- On a noisy image, it must beat every other candidate by 3 outline moves' worth of bits, because it follows noise
+  too.
+
+On `train`:
+
+| Variant | Fidelity | clean | light | medium | heavy | Smoothness | ms / image |
+|---|---|---|---|---|---|---|---|
+| Fourth rung | 32.08 | 43.1 | 35.2 | 27.1 | 22.9 | 1.068x | 198 |
+| + LS knots (projection, to the loop) *instead of* even ones | 31.91 | 42.3 | 35.1 | 27.4 | 22.8 | 1.064x | 206 |
+| + LS knots *beside* even ones | 32.22 | 43.4 | 35.3 | 27.4 | 22.8 | 1.063x | 252 |
+| + to the true edge | 32.24 | 43.4 | 35.4 | 27.4 | 22.9 | 1.067x | 266 |
+| + tangent distance | 32.39 | 43.8 | 35.4 | 27.5 | 22.8 | 1.079x | 276 |
+| + margin 3 on noisy images | 32.40 | 43.8 | 35.4 | 27.5 | 22.9 | 1.076x | 276 |
+| + 12 samples per segment (was 24) | **32.43** | 43.9 | 35.4 | 27.5 | 22.9 | 1.075x | 268 |
+
+- With a margin of 1, `heavy` was 0.02 dB below the fourth rung; with 10, `medium` lost most of its gain.
+- 12 projection rounds instead of 6 added 0.006 dB.
+
+Held-out, scored once:
+
+| Severity | Clean fidelity (fourth rung) | Layer recovery | Smoothness |
+|---|---|---|---|
+| all | **31.99** (31.43) | 0.884 (0.883) | 1.06x (1.04x) |
+| clean | **43.95** (42.35) | 0.96 | 1.03x |
+| light | 34.23 (34.12) | 0.92 | 1.00x |
+| medium | **26.88** (26.32) | 0.86 | 0.99x |
+| heavy | 22.91 (22.93) | 0.78 | **1.25x** (1.16x) |
+
+It takes 293 ms per image (it was 223). `clean` gained 1.6 dB, more than on `train`, and `medium` 0.55. The cost is on
+`heavy`: fidelity is level, but its outlines are less smooth. The margin keeps a fitted spline from winning on noise
+alone, but where one does win on a noisy image, it has followed some of that noise.
+
 **Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
+- `heavy`'s smoothness: fit knots to a smoothed edge on a noisy image, or let the margin grow with σ;
 - cut ends hidden under a part above: find notches on the part's outline with the pixels above it filled in;
 - symmetry, for a set whose blobs are symmetric;
 - the other structure moves from the ladder's step 3 (merge, re-order) on whole parts.
