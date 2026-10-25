@@ -227,6 +227,7 @@ impl Target<'_> {
     pub fn fit(&self, costs: &Costs) -> Option<Fit> {
         let mut candidates: Vec<Geometry> = Vec::new();
         let mut knot_sets: Vec<Vec<Point>> = Vec::new();
+        let mut fitted_knots: Vec<Vec<Point>> = Vec::new();
         let edge = self.true_edge();
         if edge.len() >= 6 {
             candidates.extend(fit_circle(&edge));
@@ -248,6 +249,10 @@ impl Target<'_> {
                 }
             }
             knot_sets = SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)).collect();
+            // fitted to the true edge where there is enough of it: a hidden part's outline along its occluders and its
+            // completed hull is not its own
+            let to: &[Point] = if edge.len() >= 12 { &edge } else { &loop_ };
+            fitted_knots = FITTED_KNOTS.filter_map(|k| fit_knots(&loop_, to, k)).collect();
         }
         // Every primitive is refined (a few numbers each); of the outlines, only the REFINED_OUTLINES shortest as
         // fitted, since refining one costs two scores per point per step.
@@ -258,17 +263,29 @@ impl Target<'_> {
             .partition(|fit| matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_)));
         outlines.sort_by(|a, b| a.bits().total_cmp(&b.bits()));
         outlines.truncate(REFINED_OUTLINES);
-        // and the shortest spline as fitted: a spline's first knots are rough, so it rarely leads before refinement
+        // and the shortest spline as fitted, of each start: a spline's evenly spaced knots are rough, so it rarely leads
+        // before refinement, and the least-squares knots, though closer, can refine to a worse one
         let splines = knot_sets
             .into_iter()
             .map(|knots| self.score_spline(knots, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
-        primitives
+        let fitted = fitted_knots
+            .into_iter()
+            .map(|knots| self.score_spline(knots, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        let others = primitives
             .into_iter()
             .chain(outlines)
             .chain(splines)
             .map(|fit| self.refine(fit, costs, uncovered))
-            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        // a least-squares spline follows a noisy edge's noise too, so on a noisy image it must win by a margin
+        let fitted = fitted.map(|fit| self.refine(fit, costs, uncovered));
+        let margin = FITTED_GAIN * costs.outline_gain;
+        match (others, fitted) {
+            (Some(o), Some(f)) => Some(if f.bits() + margin < o.bits() { f } else { o }),
+            (o, f) => o.or(f),
+        }
     }
 
     /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points, a
@@ -350,6 +367,125 @@ impl Target<'_> {
 
 /// How many knots a spline candidate starts with, spaced evenly along the contour.
 const SPLINE_KNOTS: [usize; 4] = [4, 5, 6, 8];
+
+/// The weights a point of a closed spline's segment at `t` puts on the segment's four knots (the one before, its two
+/// ends, the one after): the Bernstein weights of `spline`'s cubic, its control points written in the knots.
+fn spline_weights(t: f64) -> [f64; 4] {
+    let s = 1.0 - t;
+    let b = [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t];
+    [
+        -b[1] / 6.0,
+        b[0] + b[1] + b[2] / 6.0,
+        b[1] / 6.0 + b[2] + b[3],
+        -b[2] / 6.0,
+    ]
+}
+
+/// The `k` knots whose spline is closest to the points `to` (in any order), by least squares: each point is given the
+/// nearest point of the current spline (a segment and a `t`), which makes it a fixed mix of four knots, and its
+/// distance from there is measured mostly across the curve (tangent-distance minimization), so the knots solve a
+/// linear system; repeated from knots spaced evenly along `loop_`. None if the loop is too short or the system
+/// singular.
+fn fit_knots(loop_: &[Point], to: &[Point], k: usize) -> Option<Vec<Point>> {
+    // where on the curve each point starts its search; a ternary search then places it between samples
+    const SAMPLES: usize = 12;
+    let mut knots = knots_along(loop_, k)?;
+    let step = to.len().div_ceil(240).max(1);
+    let points: Vec<Point> = to.iter().step_by(step).copied().collect();
+    let position = |knots: &[Point], i: usize, t: f64| {
+        let w = spline_weights(t);
+        (0..4).fold((0.0, 0.0), |acc, j| add(acc, scale(knots[(i + k + j - 1) % k], w[j])))
+    };
+    for _ in 0..SPLINE_ROUNDS {
+        let curve: Vec<(usize, f64, Point)> = (0..k)
+            .flat_map(|i| (0..SAMPLES).map(move |s| (i, s as f64 / SAMPLES as f64)))
+            .map(|(i, t)| (i, t, position(&knots, i, t)))
+            .collect();
+        // unknowns: x0, y0, x1, y1, ...
+        let mut ata = vec![vec![0.0; 2 * k]; 2 * k];
+        let mut atb = vec![0.0; 2 * k];
+        for &p in &points {
+            let &(i, t, _) = curve
+                .iter()
+                .min_by(|a, b| length(sub(a.2, p)).total_cmp(&length(sub(b.2, p))))?;
+            // then to a fraction of a sample, by ternary search between its neighbours
+            let (mut lo, mut hi) = ((t - 1.0 / SAMPLES as f64).max(0.0), (t + 1.0 / SAMPLES as f64).min(1.0));
+            for _ in 0..12 {
+                let (a, b) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                if length(sub(position(&knots, i, a), p)) < length(sub(position(&knots, i, b), p)) {
+                    hi = b;
+                } else {
+                    lo = a;
+                }
+            }
+            let t = (lo + hi) / 2.0;
+            let tangent = unit(sub(
+                position(&knots, i, (t + 1e-3).min(1.0)),
+                position(&knots, i, (t - 1e-3).max(0.0)),
+            ));
+            let normal = (-tangent.1, tangent.0);
+            let w = spline_weights(t);
+            for (u, weight) in [(normal, 1.0), (tangent, TANGENT_WEIGHT)] {
+                let row: Vec<(usize, f64)> = (0..4)
+                    .flat_map(|j| {
+                        let kj = (i + k + j - 1) % k;
+                        [(2 * kj, w[j] * u.0), (2 * kj + 1, w[j] * u.1)]
+                    })
+                    .collect();
+                let target = dot(u, p);
+                for &(a, va) in &row {
+                    atb[a] += weight * va * target;
+                    for &(b, vb) in &row {
+                        ata[a][b] += weight * va * vb;
+                    }
+                }
+            }
+        }
+        let x = solve_dense(ata, atb)?;
+        knots = (0..k).map(|j| (x[2 * j], x[2 * j + 1])).collect();
+    }
+    Some(knots)
+}
+
+/// Gaussian elimination with partial pivoting. None if singular.
+fn solve_dense(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
+    let n = b.len();
+    for c in 0..n {
+        let pivot = (c..n).max_by(|&x, &y| a[x][c].abs().total_cmp(&a[y][c].abs()))?;
+        if a[pivot][c].abs() < 1e-9 {
+            return None;
+        }
+        a.swap(c, pivot);
+        b.swap(c, pivot);
+        for r in c + 1..n {
+            let f = a[r][c] / a[c][c];
+            let (above, below) = a.split_at_mut(r);
+            for (x, &y) in below[0][c..].iter_mut().zip(&above[c][c..]) {
+                *x -= f * y;
+            }
+            b[r] -= f * b[c];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for r in (0..n).rev() {
+        let v: f64 = b[r] - (r + 1..n).map(|j| a[r][j] * x[j]).sum::<f64>();
+        x[r] = v / a[r][r];
+    }
+    Some(x)
+}
+
+/// How a point's distance along the spline's tangent counts against its distance across it, in `fit_knots`: a point
+/// sliding along the curve is mostly the assignment's error, not the knots', and counting it fully (plain projection)
+/// is what makes the knots creep there slowly. Some weight keeps the system from going singular.
+const TANGENT_WEIGHT: f64 = 0.05;
+
+/// How many times `fit_knots` re-assigns the points and solves again.
+const SPLINE_ROUNDS: usize = 6;
+/// A least-squares spline must be shorter than every other candidate by this many outline moves' worth of bits
+/// (`Costs::outline_gain`, zero on a clean image).
+const FITTED_GAIN: f64 = 3.0;
+/// The knot counts a least-squares spline candidate is fitted with.
+const FITTED_KNOTS: std::ops::RangeInclusive<usize> = 4..=8;
 
 /// `k` points spaced evenly along a closed loop (by length). None if the loop is too short to hold them.
 fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
@@ -1209,6 +1345,42 @@ mod tests {
                 .fold(f64::INFINITY, f64::min);
             assert!(nearest < 0.3, "{corner:?} {points:?}");
         }
+    }
+
+    #[test]
+    fn least_squares_knots_recover_a_spline() {
+        let knots = vec![(30.0, 10.0), (40.0, 28.0), (26.0, 40.0), (10.0, 30.0), (12.0, 14.0)];
+        let Geometry::Path(segments) = spline(&knots) else {
+            unreachable!()
+        };
+        let mut samples = Vec::new();
+        let mut at = knots[0];
+        for segment in &segments {
+            if let Segment::Cubic(c1, c2, end) = *segment {
+                let cubic = [at, c1, c2, end];
+                samples.extend((0..40).map(|s| bezier(&cubic, s as f64 / 40.0)));
+                at = end;
+            }
+        }
+        let fitted = fit_knots(&samples, &samples, 5).unwrap();
+        // every sample within a tenth of a pixel of the fitted spline
+        let Geometry::Path(fitted_segments) = spline(&fitted) else {
+            unreachable!()
+        };
+        let mut curve = Vec::new();
+        let mut at = fitted[0];
+        for segment in &fitted_segments {
+            if let Segment::Cubic(c1, c2, end) = *segment {
+                let cubic = [at, c1, c2, end];
+                curve.extend((0..400).map(|s| bezier(&cubic, s as f64 / 400.0)));
+                at = end;
+            }
+        }
+        let worst = samples
+            .iter()
+            .map(|p| curve.iter().map(|c| length(sub(*c, *p))).fold(f64::INFINITY, f64::min))
+            .fold(0.0, f64::max);
+        assert!(worst < 0.1, "{worst} px: {knots:?} vs {fitted:?}");
     }
 
     #[test]

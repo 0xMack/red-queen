@@ -24,7 +24,7 @@ export const ALGORITHMS: ExplainConcept[] = [
       "Regions: small specks and thin anti-aliased bands are dissolved into what surrounds them.",
       "Order: each part is fitted with every other part allowed over it. Whichever reaches further under the other goes below.",
       "Shapes: each part becomes whichever of circle, ellipse, rect, polygon, smooth spline or Bézier path is shortest to describe, counting the pixels it gets wrong. Pixels under the parts above are free, so a hidden part completes itself.",
-      "A smooth spline is a closed curve through a few knots, its tangents set by the neighbouring knots: a blob costs its knots, not the cubics that draw it.",
+      "A smooth spline is a closed curve through a few knots, its tangents set by the neighbouring knots: a blob costs its knots, not the cubics that draw it. The knots are found by least squares: each edge point is matched to the nearest point of the curve, which is a fixed mix of four knots, so the best knots solve a linear system.",
       "Refinement: every number of the leading candidates -- a circle's centre, a polygon's vertices, a spline's knots -- is nudged while that shortens the description, and a polygon or spline drops a point when it can. On a noisy image a move must save more bits, so outlines don't chase the noise.",
       "Cuts: two overlapping shapes of one colour are one region, its outline notched where theirs cross. The region is cut between two notches when the two halves, each free to complete under the other, are shorter to describe than the whole.",
     ],
