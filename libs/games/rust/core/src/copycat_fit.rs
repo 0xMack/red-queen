@@ -74,6 +74,12 @@ impl Costs {
         };
         self.type_bits + self.coord_bits * coords as f64
     }
+
+    /// A smooth closed spline through `knots` points: a shape type, a "smooth" flag, the count, and each knot. Its
+    /// tangents follow from the neighbouring knots, so they cost nothing.
+    pub fn spline_bits(&self, knots: usize) -> f64 {
+        2.0 * self.type_bits + self.coord_bits * (2 * knots + 1) as f64
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +87,8 @@ pub struct Fit {
     pub geometry: Geometry,
     pub model_bits: f64,
     pub misfit_bits: f64,
+    /// For a smooth closed spline, its knots: `geometry` is the cubics they imply, and the description is the knots.
+    pub knots: Option<Vec<Point>>,
 }
 
 impl Fit {
@@ -144,6 +152,18 @@ impl Target<'_> {
             misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
             model_bits: costs.model_bits(&geometry),
             geometry,
+            knots: None,
+        }
+    }
+
+    /// A smooth closed spline through `knots`: drawn as the cubics they imply, described by the knots alone.
+    fn score_spline(&self, knots: Vec<Point>, costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = spline(&knots);
+        Fit {
+            misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+            model_bits: costs.spline_bits(knots.len()),
+            geometry,
+            knots: Some(knots),
         }
     }
 
@@ -206,6 +226,7 @@ impl Target<'_> {
     /// The shortest description of this region among every candidate. None if the region is empty.
     pub fn fit(&self, costs: &Costs) -> Option<Fit> {
         let mut candidates: Vec<Geometry> = Vec::new();
+        let mut knot_sets: Vec<Vec<Point>> = Vec::new();
         let edge = self.true_edge();
         if edge.len() >= 6 {
             candidates.extend(fit_circle(&edge));
@@ -226,6 +247,7 @@ impl Target<'_> {
                     candidates.push(path);
                 }
             }
+            knot_sets = SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)).collect();
         }
         // Every primitive is refined (a few numbers each); of the outlines, only the REFINED_OUTLINES shortest as
         // fitted, since refining one costs two scores per point per step.
@@ -236,18 +258,30 @@ impl Target<'_> {
             .partition(|fit| matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_)));
         outlines.sort_by(|a, b| a.bits().total_cmp(&b.bits()));
         outlines.truncate(REFINED_OUTLINES);
+        // and the shortest spline as fitted: a spline's first knots are rough, so it rarely leads before refinement
+        let splines = knot_sets
+            .into_iter()
+            .map(|knots| self.score_spline(knots, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
         primitives
             .into_iter()
             .chain(outlines)
+            .chain(splines)
             .map(|fit| self.refine(fit, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()))
     }
 
-    /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points --
-    /// then, for a polygon, deleting the vertex that costs least to lose, kept if the descent from there is shorter.
+    /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points, a
+    /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept if the
+    /// descent from there is shorter.
     fn refine(&self, fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
         let mut fit = self.descend(fit, costs, uncovered);
-        while let Geometry::Polygon(points) = &fit.geometry {
+        loop {
+            let (points, is_spline) = match (&fit.knots, &fit.geometry) {
+                (Some(knots), _) => (knots, true),
+                (None, Geometry::Polygon(points)) => (points, false),
+                _ => break,
+            };
             if points.len() <= 3 {
                 break;
             }
@@ -255,7 +289,11 @@ impl Target<'_> {
                 .map(|i| {
                     let mut rest = points.clone();
                     rest.remove(i);
-                    self.score(Geometry::Polygon(rest), costs, uncovered)
+                    if is_spline {
+                        self.score_spline(rest, costs, uncovered)
+                    } else {
+                        self.score(Geometry::Polygon(rest), costs, uncovered)
+                    }
                 })
                 .min_by(|a, b| a.bits().total_cmp(&b.bits()))
             else {
@@ -273,7 +311,10 @@ impl Target<'_> {
     /// Each number nudged by 0.5, 0.25 and 0.1 px while that shortens the description (by `outline_gain` bits, for a
     /// polygon's or path's points).
     fn descend(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
-        let mut p = params(&fit.geometry);
+        let mut p = match &fit.knots {
+            Some(knots) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
+            None => params(&fit.geometry),
+        };
         let outline = matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_));
         let min_gain = if outline { costs.outline_gain.max(1e-9) } else { 1e-9 };
         for step in [0.5, 0.25, 0.1] {
@@ -283,7 +324,14 @@ impl Target<'_> {
                     for sign in [1.0, -1.0] {
                         let mut q = p.clone();
                         q[k] += sign * step;
-                        let candidate = self.score(with_params(&fit.geometry, &q), costs, uncovered);
+                        let candidate = match &fit.knots {
+                            Some(knots) => self.score_spline(
+                                (0..knots.len()).map(|i| (q[2 * i], q[2 * i + 1])).collect(),
+                                costs,
+                                uncovered,
+                            ),
+                            None => self.score(with_params(&fit.geometry, &q), costs, uncovered),
+                        };
                         if candidate.bits() < fit.bits() - min_gain {
                             fit = candidate;
                             p = q;
@@ -298,6 +346,53 @@ impl Target<'_> {
         }
         fit
     }
+}
+
+/// How many knots a spline candidate starts with, spaced evenly along the contour.
+const SPLINE_KNOTS: [usize; 4] = [4, 5, 6, 8];
+
+/// `k` points spaced evenly along a closed loop (by length). None if the loop is too short to hold them.
+fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
+    if loop_.len() < 2 * k {
+        return None;
+    }
+    let n = loop_.len();
+    let mut cumulative = Vec::with_capacity(n + 1);
+    cumulative.push(0.0);
+    for i in 0..n {
+        let last = cumulative[i];
+        cumulative.push(last + length(sub(loop_[(i + 1) % n], loop_[i])));
+    }
+    let total = cumulative[n];
+    let mut out = Vec::with_capacity(k);
+    let mut i = 0;
+    for j in 0..k {
+        let at = total * j as f64 / k as f64;
+        while cumulative[i + 1] < at {
+            i += 1;
+        }
+        let span = cumulative[i + 1] - cumulative[i];
+        let t = if span > 0.0 { (at - cumulative[i]) / span } else { 0.0 };
+        out.push(add(loop_[i], scale(sub(loop_[(i + 1) % n], loop_[i]), t)));
+    }
+    Some(out)
+}
+
+/// The closed Catmull-Rom spline through `knots`, as cubics: each knot's tangent is a sixth of the chord between its
+/// neighbours, so the curve is smooth everywhere and says nothing the knots don't.
+pub fn spline(knots: &[Point]) -> Geometry {
+    let k = knots.len();
+    let mut segments = vec![Segment::Move(knots[0])];
+    for i in 0..k {
+        let (p0, p1, p2, p3) = (knots[(i + k - 1) % k], knots[i], knots[(i + 1) % k], knots[(i + 2) % k]);
+        segments.push(Segment::Cubic(
+            add(p1, scale(sub(p2, p0), 1.0 / 6.0)),
+            sub(p2, scale(sub(p3, p1), 1.0 / 6.0)),
+            p2,
+        ));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
 }
 
 /// A shape's numbers, in a fixed order: a primitive's parameters, or every point of a polygon or path.
@@ -1067,6 +1162,41 @@ mod tests {
                 .fold(f64::INFINITY, f64::min);
             assert!(nearest < 0.3, "{corner:?} {points:?}");
         }
+    }
+
+    #[test]
+    fn a_smooth_blob_is_described_as_a_spline() {
+        // the closed spline through five knots, anti-aliased: its knots say it more briefly than cubics or a polygon
+        let knots = vec![(24.0, 6.3), (41.2, 19.0), (35.5, 40.1), (12.4, 38.2), (7.1, 17.6)];
+        let mask = coverage(
+            &Shape {
+                geometry: spline(&knots),
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            48,
+            48,
+        );
+        let mut visible = vec![0.0; 48 * 48];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 48 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 48 * 48];
+        let target = Target {
+            width: 48,
+            height: 48,
+            visible: &visible,
+            free: &free,
+        };
+        let fit = target.fit(&Costs::new(48, 48, 12.0)).unwrap();
+        let fitted = fit.knots.as_ref().unwrap_or_else(|| panic!("{:?}", fit.geometry));
+        assert_eq!(fitted.len(), 5, "{fitted:?}");
+        // knots found elsewhere on the curve can't trace it exactly: ~0.01 of a pixel per edge pixel is left over
+        assert!(target.misfit(&fit.geometry) < 2.0, "{}", target.misfit(&fit.geometry));
     }
 
     #[test]

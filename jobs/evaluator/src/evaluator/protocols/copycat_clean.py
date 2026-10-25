@@ -101,7 +101,7 @@ ENTRANTS: dict[str, tuple[str, str, dict[str, Any]]] = {
         (
             "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, "
             "cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, "
-            "rect, polygon or Bezier path) and refined point by point, hidden parts completed; transparent, one group "
+            "rect, polygon, smooth spline or Bezier path) and refined point by point, hidden parts completed; transparent, one group "
             "per part."
         ),
         {"tracer": "structured"},

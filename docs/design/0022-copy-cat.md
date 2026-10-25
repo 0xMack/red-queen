@@ -6,7 +6,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
-- Phase 4 so far refines each shape point by point under L; see "Phase 4 results".
+- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots; see
+  "Phase 4 results".
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -428,9 +429,53 @@ On the 24 held-out images, scored once:
 
 It takes 152 ms per image, against phase 2's 76.
 
-**Next:** past the warp cap only through priors. Candidates:
+### The second rung: smooth splines
+
+**Which kind's geometry costs the most?** We put each clean part's exact geometry in place of the output shape that
+overlaps it most, keeping our fill and order, and measured the fidelity gained per kind on `train`. The tool is noisy:
+one output shape can stand in for two clean parts. One kind dominated: **smooth blobs**, worth +7.5 dB on `clean`, +2.0
+on `light`, +1.1 on `medium` and +0.8 on `heavy`. On `clean`, 24 of 46 blobs came back as polygons, and most of the rest
+as Schneider cubics cut at false corners.
+
+**The candidate** (`copycat_fit.rs`, `spline`): a closed Catmull-Rom spline through k knots.
+- Each knot's tangent is a sixth of the chord between its neighbours, so the curve is smooth everywhere.
+- It is described by its knots alone: 2k + 1 coordinates and two type codes, where k cubics cost 6k. A smooth outline
+  is now the shorter description.
+- It is still written out as cubics, in the same SVG subset.
+- Knots start evenly spaced along the contour (4, 5, 6 or 8 of them). The shortest spline is always refined, beside the
+  two shortest outlines: its first knots are rough, so it rarely leads before refinement.
+- Refinement nudges the knots, and deletes a knot whenever a polygon would lose a vertex.
+
+On `train`:
+
+| Variant | Fidelity | clean | light | medium | heavy | Layer recovery | Smoothness | ms / image |
+|---|---|---|---|---|---|---|---|---|
+| First rung | 30.59 | 39.5 | 33.2 | 26.8 | 22.9 | 0.861 | 1.091x | 137 |
+| + splines | **31.92** | 42.8 | 35.0 | 27.0 | 22.9 | 0.874 | 1.061x | 189 |
+| + 6 knot counts (4-8, 10) | 31.99 | 42.9 | 35.1 | 27.1 | 22.9 | 0.873 | 1.066x | 208 |
+
+- Blobs fitted as splines: 43 of 46 on `clean` (before, 14 as paths of any kind) and 34 of 36 on `light`.
+- Six knot counts add 0.07 dB for 10% more time, so we kept four.
+- A cheaper wrong pixel on noisy images was tried twice: scaling `pixel_bits` down with σ above its floor, by
+  0.5 to 2 per 0.001. It improves `heavy`'s smoothness (1.20x to 1.09x) and its layer recovery (0.78 to 0.80). But it
+  costs `medium` 0.1-0.5 dB, because a simpler shape fitted to the warped input is still the wrong shape.
+
+Held-out, scored once:
+
+| Severity | Clean fidelity (first rung) | Layer recovery | Smoothness |
+|---|---|---|---|
+| all | **31.4** (30.8) | 0.88 (0.87) | 1.04x (1.05x) |
+| clean | **42.4** (40.7) | 0.96 (0.95) | 1.03x |
+| light | **34.1** (33.3) | 0.93 (0.91) | 1.00x |
+| medium | 26.3 (26.5) | 0.86 | 0.99x |
+| heavy | 22.7 (22.7) | 0.76 | 1.14x |
+
+It takes 219 ms per image. `medium`'s -0.15 dB is on six images; on `train` it was +0.2.
+
+**Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
+- regular polygons: `synthetic`'s polygons are regular, and they recover worst (IoU 0.73 on `medium`). This prior
+  also holds for real icons: stars, hexagons, triangles;
 - symmetry, encoded as half a shape and a mirror;
-- snapping a near-right angle or a near-straight run;
 - the structure moves from the ladder's step 3 (merge, split, re-order) on whole parts.
 
 ## The page
