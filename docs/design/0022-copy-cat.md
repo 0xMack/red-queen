@@ -1,9 +1,11 @@
 # 0022 — Copy Cat: recover the clean, layered SVG behind a generated logo or icon
 
-Status: **Phases 1-2 built** (2026-10-24).
+Status: **Phases 1-2 built, and phase 3's page** (2026-10-24).
 - Phase 1 built the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol `copycat.clean.v1` and the
   baselines; see "Phase 1 results".
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
+- Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
+  still to come.
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -367,6 +369,28 @@ The rest of the field is as in phase 1. By severity, against phase 1's best:
 - The incremental re-scoring API (Decision 6). Every candidate rasterizes its whole bounding box.
 
 These are phase 4's search moves, or later.
+
+## The page
+
+`/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
+
+- **The leaderboard** ranks by clean fidelity. Its columns are alpha IoU, layer recovery, and the shape, colour and
+  turning ratios.
+- **Watch** shows one held-out image at a time: the input, the entrant's SVG, and the clean SVG, with that image's
+  scores.
+  - Each entrant's SVG per image is stored in its evaluation record, so what you see is exactly what was scored.
+  - `GET /leaderboard` strips the SVGs. `GET /games/copycat/targets/{seed}` serves one image with every entrant's
+    output, and the static site copies both routes.
+  - For the structured pipeline, the page also re-runs it in the browser (WASM `CopyCatTrace`) and shows its stages:
+    the k-means palette, the cleaned regions, and the layers pulled apart. A badge says whether the result is the same
+    SVG that was scored.
+- **Play** traces your own image the same way, at up to 192 px a side, and offers the result as a download. Nothing is
+  uploaded.
+
+Two items from "The game, as a player sees it" are not built yet:
+
+- comparing against VTracer on your own image, since VTracer has no WASM build here;
+- rebuilding a target by hand.
 
 ## Open questions
 

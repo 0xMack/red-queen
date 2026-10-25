@@ -5,6 +5,68 @@ import type { ExplainConcept } from "~/types/explain"
 // with `explain`.
 
 export const METRICS: ExplainConcept[] = [
+  // --- Copy Cat (docs/design/0022) ---------------------------------------------------------------------------------
+  {
+    kind: "metric",
+    id: "clean-fidelity",
+    title: "Clean fidelity",
+    family: "Copy Cat score",
+    summary:
+      "How close the SVG's render is to the clean SVG the image was made from, in dB (PSNR). It is scored against the clean answer, never the corrupted input, so tracing the noise loses.",
+    how: [
+      "Both SVGs are rendered by the game core's own rasterizer, so a score is the same number everywhere.",
+      "Each render is composited over black and over white, and the PSNR of the two is averaged: a leftover background or a halo loses over one of them.",
+      "Identical renders score the cap, 60 dB. Every 10 dB is a tenth of the squared error.",
+      "Averaged over the 24 held-out images, six per corruption level.",
+    ],
+    code: "fidelity = (psnr(ours, clean, over=black) + psnr(ours, clean, over=white)) / 2",
+    facts: [
+      { label: "60 dB", value: "identical" },
+      { label: "~2 dB over black", value: "an opaque background" },
+    ],
+    related: ["metric:alpha-iou", "metric:layer-recovery", "metric:structure-ratio"],
+  },
+  {
+    kind: "metric",
+    id: "alpha-iou",
+    title: "Alpha IoU",
+    family: "Copy Cat measure",
+    summary: "How well what the SVG covers matches what the clean SVG covers: 1 is the same silhouette, and a background left in drags it toward 0.",
+    how: [
+      "Take each render's coverage (alpha) per pixel.",
+      "IoU = the sum of the smaller of the two over the sum of the larger: soft, so anti-aliased edges count by how much they cover.",
+    ],
+    code: "iou = sum(min(a, b)) / sum(max(a, b))",
+    related: ["metric:clean-fidelity"],
+  },
+  {
+    kind: "metric",
+    id: "layer-recovery",
+    title: "Layer recovery",
+    family: "Copy Cat measure",
+    summary:
+      "Whether the SVG is built from whole parts: each clean part's best match among the output's shapes, each rendered alone, averaged. A circle behind a square should come back as a circle, not a crescent.",
+    how: [
+      "Render each clean part on its own, including what other parts hide of it.",
+      "Find the output shape whose own render overlaps it best (IoU), and keep that score.",
+      "Average over the clean parts. A tracer that cuts regions out of each other scores around 0.7: the visible pieces match, the hidden ones don't.",
+    ],
+    related: ["metric:clean-fidelity", "algorithm:copycat-structured"],
+  },
+  {
+    kind: "metric",
+    id: "structure-ratio",
+    title: "Structure ratios",
+    family: "Copy Cat measure",
+    summary:
+      "Shapes, colours and turning, each as a multiple of the clean SVG's. 1× is right: more means noise traced as structure, fewer means detail lost.",
+    how: [
+      "Shapes: how many elements. Colours: how many distinct fills.",
+      "Turning: the total angle the outlines turn through. A jagged, staircase edge turns far more than the smooth curve it should be.",
+      "Summarized by geometric mean, so 10× and 0.1× average to 1×, not 5×.",
+    ],
+    related: ["metric:clean-fidelity"],
+  },
   {
     kind: "metric",
     id: "skill",

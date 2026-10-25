@@ -34,7 +34,7 @@ architectural change that might conflict with a decision already made.
     the chosen backend needs, `device.ts` probes WebGPU/WASM/storage, `match.ts` picks a variant or says
     in plain language why none fits, `blobs.ts` fetches hash-verified blobs into the Cache API forever,
     `lm.ts` + `workers/lm.worker.ts` generate text with a KV cache). No Pyodide anywhere any more.
-    - `/games/{game}` (`snake`, `checkers`, `bandit`) — **one page layout for every game** (docs/design/0007):
+    - `/games/{game}` (`snake`, `checkers`, `bandit`, `copycat`) — **one page layout for every game** (docs/design/0007):
       `GamePage.vue` renders the shared skeleton (Watch/Play stage, ranked leaderboard, measurements,
       cost tradeoffs, head-to-head, representations) from a per-game `GameModule` (`app/games/`); adding a
       game means a module + stage + an evaluation job, not another page. For Snake: watch leaderboard
@@ -64,7 +64,9 @@ architectural change that might conflict with a decision already made.
       microseconds): `components/bandit/` draws the floor of `SlotMachine`s, the table a strategy keeps (`BanditTable`),
       every pull (`BanditTape`), Thompson's `BeliefCurves`, a same-seed `BanditRace` and the `BanditReveal`;
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
-      `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`.
+      `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
+      shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
+      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages).
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
       scenario, representation or measure opens a card, and "More" a side panel (`?explain=kind:id`, mounted once in
       `app.vue`). Concepts are authored once in a typed registry; the instance layer (this entrant's settings,

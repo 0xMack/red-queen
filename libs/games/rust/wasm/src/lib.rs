@@ -6,7 +6,7 @@
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::copycat::Document;
-use redqueen_games::copycat_trace::{trace, TraceConfig};
+use redqueen_games::copycat_trace::{stages, trace, Stages, TraceConfig};
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 use wasm_bindgen::prelude::*;
 
@@ -385,5 +385,85 @@ impl CopyCatGame {
         trace(rgba, width as usize, height as usize, &TraceConfig::default())
             .map(|inner| CopyCatGame { inner })
             .map_err(|e| JsError::new(&e))
+    }
+
+    /// The SVG of shape `i` alone, in the same frame (a layer, for an exploded view).
+    pub fn layer(&self, i: usize) -> Result<String, JsError> {
+        let shape = self.inner.shapes.get(i).ok_or_else(|| JsError::new("no such shape"))?;
+        let alone = Document {
+            width: self.inner.width,
+            height: self.inner.height,
+            groups: Vec::new(),
+            shapes: vec![redqueen_games::copycat::Shape {
+                group: None,
+                ..shape.clone()
+            }],
+        };
+        Ok(alone.canonical())
+    }
+
+    /// Shape `i`'s kind: "rect", "circle", "ellipse", "polygon" or "path".
+    pub fn kind(&self, i: usize) -> String {
+        use redqueen_games::copycat::Geometry;
+        match self.inner.shapes.get(i).map(|s| &s.geometry) {
+            Some(Geometry::Rect { .. }) => "rect",
+            Some(Geometry::Circle { .. }) => "circle",
+            Some(Geometry::Ellipse { .. }) => "ellipse",
+            Some(Geometry::Polygon(_)) => "polygon",
+            Some(Geometry::Path(_)) => "path",
+            None => "",
+        }
+        .into()
+    }
+}
+
+/// The structured pipeline with what each stage made (docs/design/0022 step 2), for drawing it at work.
+#[wasm_bindgen]
+pub struct CopyCatTrace {
+    inner: Stages,
+}
+
+#[wasm_bindgen]
+impl CopyCatTrace {
+    /// On an opaque RGBA image (an `ImageData`'s bytes), with the default settings.
+    #[wasm_bindgen(constructor)]
+    pub fn new(rgba: &[u8], width: u32, height: u32) -> Result<CopyCatTrace, JsError> {
+        stages(rgba, width as usize, height as usize, &TraceConfig::default())
+            .map(|inner| CopyCatTrace { inner })
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// The noise's estimated standard deviation (OKLab).
+    #[wasm_bindgen(getter)]
+    pub fn sigma(&self) -> f64 {
+        self.inner.sigma
+    }
+
+    /// Whether the background was fitted as a gradient.
+    #[wasm_bindgen(getter)]
+    pub fn gradient(&self) -> bool {
+        self.inner.gradient
+    }
+
+    /// Per label, its fill as RGB bytes (label 0: the background's mean colour).
+    pub fn palette(&self) -> Vec<u8> {
+        self.inner.palette.iter().flatten().copied().collect()
+    }
+
+    /// Per pixel, its label once the palette was merged, before cleaning (0 = background).
+    pub fn clustered(&self) -> Vec<u16> {
+        self.inner.clustered.iter().map(|&l| l as u16).collect()
+    }
+
+    /// Per pixel, its label after cleaning (0 = background).
+    pub fn labels(&self) -> Vec<u16> {
+        self.inner.labels.iter().map(|&l| l as u16).collect()
+    }
+
+    /// The SVG it made.
+    pub fn document(&self) -> CopyCatGame {
+        CopyCatGame {
+            inner: self.inner.document.clone(),
+        }
     }
 }

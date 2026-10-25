@@ -10,7 +10,7 @@ export interface GameEntry {
   // A real screenshot (public/screenshots/, captured from the running app) -- or, for a game with no
   // UI yet, `art: "checkers"` renders a real position from that game's own render_state().
   image?: string
-  art?: "checkers" | "bandit"
+  art?: "checkers" | "bandit" | "copycat"
   facts: string[]
   techniques: string[]
 }
@@ -51,5 +51,17 @@ export const games: GameEntry[] = [
     art: "bandit",
     facts: ["5 machines", "100 pulls", "8 scenarios", "same luck for every player"],
     techniques: ["ε-greedy", "UCB", "Thompson sampling", "Q-learning"],
+  },
+  {
+    slug: "copycat",
+    title: "Copy Cat",
+    tagline: "Image to SVG · recover the design",
+    summary:
+      "A generated logo is a raster full of noise, blur and background. Recover the clean, layered SVG behind it -- scored against the real answer, so tracing the noise loses. Then drop in your own.",
+    status: "available",
+    href: "/games/copycat",
+    art: "copycat",
+    facts: ["24 held-out images", "4 corruption levels", "8 entrants", "runs in your browser"],
+    techniques: ["Minimum description length", "k-means in OKLab", "Bézier fitting", "VTracer"],
   },
 ]

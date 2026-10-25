@@ -857,6 +857,78 @@
         ]
       }
     },
+    "/games/copycat/targets": {
+      "get": {
+        "description": "The held-out images of `copycat.clean.v1`, in seed order, each as a PNG data URL with its corruption levels.",
+        "operationId": "get_targets_games_copycat_targets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Targets Games Copycat Targets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Targets",
+        "tags": [
+          "copycat"
+        ]
+      }
+    },
+    "/games/copycat/targets/{seed}": {
+      "get": {
+        "description": "One held-out image: its PNG, the clean SVG it was made from, and per entrant (of the protocol's records) the SVG\nit wrote for this image and that SVG's scores.",
+        "operationId": "get_target_games_copycat_targets__seed__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "seed",
+            "required": true,
+            "schema": {
+              "title": "Seed",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Target Games Copycat Targets  Seed  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Target",
+        "tags": [
+          "copycat"
+        ]
+      }
+    },
     "/games/{game}/evaluations": {
       "put": {
         "description": "Stores (replaces) one entrant's record under its protocol -- the evaluator on the HTTP sink writes this way.",
@@ -1006,7 +1078,7 @@
     },
     "/games/{game}/leaderboard": {
       "get": {
-        "description": "Every evaluation of `game` (optionally one protocol), best mean score first. Records from\ndifferent protocols aren't comparable -- a client showing more than one groups by protocol.",
+        "description": "Every evaluation of `game` (optionally one protocol), best mean score first. Records from\ndifferent protocols aren't comparable -- a client showing more than one groups by protocol. Copy Cat's per-image\nSVGs are left out (they are `/games/copycat/targets/{seed}`'s).",
         "operationId": "get_leaderboard_games__game__leaderboard_get",
         "parameters": [
           {

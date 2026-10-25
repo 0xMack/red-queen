@@ -213,6 +213,7 @@ name = "backend"
 version = "0.1.0"
 source = { editable = "apis/backend" }
 dependencies = [
+    { name = "arena" },
     { name = "evolve" },
     { name = "fastapi" },
     { name = "games" },
@@ -226,6 +227,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "arena", editable = "libs/arena" },
     { name = "evolve", editable = "libs/evolve" },
     { name = "fastapi", specifier = ">=0.141" },
     { name = "games", editable = "libs/games" },
