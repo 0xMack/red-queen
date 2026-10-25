@@ -725,6 +725,53 @@ pub fn largest_contour(mask: &[f64], width: usize, height: usize) -> Option<Vec<
     best.map(|b| b.1)
 }
 
+/// A closed loop's notches, deepest first: where it is furthest inside its convex hull, one point (the deepest) per run
+/// of points more than `depth` inside. Two overlapping convex shapes' union has a notch at each crossing of their
+/// outlines.
+pub fn notches(loop_: &[Point], depth: f64) -> Vec<usize> {
+    let hull = convex_hull(loop_.to_vec());
+    if hull.len() < 3 {
+        return Vec::new();
+    }
+    let inset: Vec<f64> = loop_
+        .iter()
+        .map(|&p| {
+            (0..hull.len())
+                .map(|k| distance_to_segment(p, hull[k], hull[(k + 1) % hull.len()]))
+                .fold(f64::INFINITY, f64::min)
+        })
+        .collect();
+    // start the walk at a point on the hull, so no run wraps round the end
+    let Some(start) = (0..loop_.len()).min_by(|&a, &b| inset[a].total_cmp(&inset[b])) else {
+        return Vec::new();
+    };
+    let mut out: Vec<usize> = Vec::new();
+    let mut run: Option<usize> = None;
+    for step in 0..=loop_.len() {
+        let i = (start + step) % loop_.len();
+        if inset[i] > depth {
+            run = Some(run.map_or(i, |r| if inset[i] > inset[r] { i } else { r }));
+        } else if let Some(r) = run.take() {
+            out.push(r);
+        }
+    }
+    out.sort_by(|&a, &b| inset[b].total_cmp(&inset[a]));
+    out
+}
+
+/// Whether `p` is inside the closed polygon `points` (even-odd).
+pub fn inside_polygon(p: Point, points: &[Point]) -> bool {
+    let n = points.len();
+    let mut inside = false;
+    for k in 0..n {
+        let (a, b) = (points[k], points[(k + 1) % n]);
+        if (a.1 > p.1) != (b.1 > p.1) && p.0 < a.0 + (p.1 - a.1) / (b.1 - a.1) * (b.0 - a.0) {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
 fn signed_area(points: &[Point]) -> f64 {
     let n = points.len();
     (0..n)

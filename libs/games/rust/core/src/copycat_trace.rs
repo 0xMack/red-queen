@@ -15,12 +15,14 @@
 //!    palette entry per label); two of one colour join when one shape says them more briefly (a part an occluder cut in two).
 //! 6. **Order**: for each pair of touching parts, the one that is shorter to describe when completed under the other
 //!    goes below (`copycat_fit`'s free pixels); a topological sort, largest first, breaks cycles and ties.
-//! 7. **Shapes**: each part fitted with everything above it free, so a hidden part completes itself; one `<g>` each.
+//! 7. **Shapes**: each part fitted with everything above it free, so a hidden part completes itself; cut in two
+//!    between notches of its outline while two shapes say it more briefly (two overlapping parts of one colour); one
+//!    `<g>` per shape.
 
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::copycat::{Document, Group, Shape};
-use crate::copycat_fit::{solve, Costs, Fit, Target};
+use crate::copycat_fit::{inside_polygon, largest_contour, notches, solve, Costs, Fit, Target};
 use crate::pcg::Pcg32;
 
 #[derive(Clone, Debug)]
@@ -748,6 +750,76 @@ pub fn join(scene: &Scene, parts: &mut Vec<Part>, costs: &Costs) {
     }
 }
 
+/// How deep (px) inside its convex hull a part's outline must go for a notch to be a place to cut it.
+const NOTCH_DEPTH: f64 = 1.5;
+/// How many of a part's deepest notches are tried as cut ends, in pairs.
+const NOTCHES: usize = 4;
+/// A cut must save this many outline moves' worth of bits (`Costs::outline_gain`): on a noisy image a notch can be
+/// noise, and two shapes fitted to it are a less smooth answer than one.
+const CUT_GAIN: f64 = 3.0;
+
+/// One part's shapes: a part may be two of one colour that overlap (two touching parts of one colour are one
+/// component), so it is cut along the chord between two of its outline's notches -- where two outlines cross -- and
+/// each half fitted with the other's pixels free, so each completes under the other. The cut is kept, and each half
+/// cut again, while the halves are shorter to describe than the whole.
+fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<Fit> {
+    let Some(whole) = scene.fit(&[part], above, costs) else {
+        return Vec::new();
+    };
+    let (w, h) = (scene.image.width, scene.image.height);
+    let mut mask = vec![0.0; w * h];
+    for &i in &part.pixels {
+        mask[i] = 1.0;
+    }
+    let Some(loop_) = largest_contour(&mask, w, h) else {
+        return vec![whole];
+    };
+    let notches: Vec<usize> = notches(&loop_, NOTCH_DEPTH).into_iter().take(NOTCHES).collect();
+    let mut best: Option<(f64, Part, Part)> = None;
+    for a in 0..notches.len() {
+        for b in a + 1..notches.len() {
+            let (i, j) = (notches[a].min(notches[b]), notches[a].max(notches[b]));
+            let side = &loop_[i..=j];
+            let (one, two): (Vec<usize>, Vec<usize>) = part
+                .pixels
+                .iter()
+                .partition(|&&k| inside_polygon(((k % w) as f64 + 0.5, (k / w) as f64 + 0.5), side));
+            if one.len() < MIN_HALF || two.len() < MIN_HALF {
+                continue;
+            }
+            let halves = [one, two].map(|pixels| Part {
+                pixels,
+                fill: part.fill,
+                label: part.label,
+            });
+            let bits: f64 = (0..2)
+                .map(|k| {
+                    let mut free = above.to_vec();
+                    free.push(&halves[1 - k]);
+                    scene.bits(&[&halves[k]], &free, costs)
+                })
+                .sum();
+            if bits + CUT_GAIN * costs.outline_gain < whole.bits() && best.as_ref().is_none_or(|(b, _, _)| bits < *b) {
+                let [one, two] = halves;
+                best = Some((bits, one, two));
+            }
+        }
+    }
+    let Some((_, one, two)) = best else {
+        return vec![whole];
+    };
+    let mut out = Vec::new();
+    for (half, other) in [(&one, &two), (&two, &one)] {
+        let mut free = above.to_vec();
+        free.push(other);
+        out.extend(shapes_of(scene, half, &free, costs));
+    }
+    out
+}
+
+/// The fewest pixels a half of a cut part may have.
+const MIN_HALF: usize = 12;
+
 // --- order and shapes ---------------------------------------------------------------------------------------------
 
 fn mask_of(n: usize, parts: &[&Part]) -> Vec<bool> {
@@ -879,7 +951,7 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let mut groups = Vec::new();
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
-        if let Some(fit) = scene.fit(&[&parts[k]], &above, &costs) {
+        for fit in shapes_of(&scene, &parts[k], &above, &costs) {
             groups.push(Group { parent: None });
             shapes.push(Shape {
                 geometry: fit.geometry,
@@ -916,6 +988,24 @@ mod tests {
         </svg>";
 
     /// The scene over an opaque background colour, as RGBA bytes.
+    #[test]
+    fn two_overlapping_parts_of_one_colour_are_cut_apart() {
+        // one component of one colour: a square with a disk standing out of its corner
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"10\" y=\"10\" width=\"30\" height=\"30\" fill=\"#d03030\"/>\
+            <circle cx=\"42\" cy=\"42\" r=\"12\" fill=\"#d03030\"/></svg>";
+        let (clean, rgba) = photograph(svg, [245, 240, 230]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert_eq!(traced.shapes.len(), 2, "{}", traced.canonical());
+        let recovered = layer_recovery(&clean, &traced);
+        assert!(
+            recovered.iter().all(|r| *r > 0.9),
+            "{recovered:?}
+{}",
+            traced.canonical()
+        );
+    }
+
     fn photograph(svg: &str, background: [u8; 3]) -> (Document, Vec<u8>) {
         let clean = Document::parse(svg).unwrap();
         let (w, h) = (clean.width as usize, clean.height as usize);
