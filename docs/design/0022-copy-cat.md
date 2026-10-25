@@ -1,11 +1,12 @@
 # 0022 — Copy Cat: recover the clean, layered SVG behind a generated logo or icon
 
-Status: **Phases 1-2 built, and phase 3's page** (2026-10-24).
+Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-24).
 - Phase 1 built the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol `copycat.clean.v1` and the
   baselines; see "Phase 1 results".
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
+- Phase 4 so far refines each shape point by point under L; see "Phase 4 results".
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -357,9 +358,8 @@ The rest of the field is as in phase 1. By severity, against phase 1's best:
   - Layer recovery passes 0.75 everywhere, but only just on `heavy` (0.76).
 - **It beats VTracer at every severity** on clean fidelity, alpha IoU, layer recovery and smoothness. On shape count it
   is about a tie on `clean`: 0.96x, a part it missed, against VTracer's 1.02x.
-- **`heavy`'s 22.6 dB is mostly colour drift and warp.** On the worst `heavy` images, shapes and palette are near 1x,
-  yet fidelity is ~21 dB. Each part's colour is moved by 10-18 levels per channel. A flat fill can only be the drifted
-  mean, so it can't recover the clean colour: per-channel drift of ~14 levels alone caps fidelity at roughly 25 dB.
+- **`heavy`'s 22.6 dB is mostly the warp, not colour drift.** We first blamed drift, but phase 4 measured it (see
+  there): with every shape given its true colour, `heavy` gains only 0.7 dB.
 - **It is 10x slower than VTracer,** at 76 ms against 7 ms per image, but still interactive.
 
 **Not done yet:**
@@ -369,6 +369,69 @@ The rest of the field is as in phase 1. By severity, against phase 1's best:
 - The incremental re-scoring API (Decision 6). Every candidate rasterizes its whole bounding box.
 
 These are phase 4's search moves, or later.
+
+## Phase 4 results
+
+**Where the error was.** On the `train` split, the structured pipeline scored 29.2 dB. Two oracles split that error
+by cause:
+- **Oracle colours:** each output shape takes the fill of the clean part it overlaps most.
+- **Warp cap:** the clean render, warped exactly as `corrupt.v1` warped that image (its random draws replayed), scored
+  against the clean render. This is what a pixel-perfect copy of the input's geometry would score.
+
+| Severity | Traced | Oracle colours | Warp cap | Warp + blur cap |
+|---|---|---|---|---|
+| clean | 35.3 | 35.3 | 60 | 60 |
+| light | 31.6 | 31.9 | 42.1 | 37.8 |
+| medium | 26.8 | 27.2 | 30.1 | 29.0 |
+| heavy | 22.9 | 23.6 | 24.4 | 25.1 |
+
+So:
+- Colour was never the problem: oracle colours add 0.3 dB in all.
+- On `medium` and `heavy`, the warp caps anything that fits the input better. Only priors that undo the warp can pass
+  that cap: simpler shapes, symmetry, snapping.
+- On `clean` and `light`, the error is boundary precision, and fitting the input harder fixes it.
+
+**The first rung: refinement under L** (`copycat_fit.rs`, `Target::refine`). Phase 2 refined only primitives. Now:
+- The two shortest outline candidates, polygons and paths, also get coordinate descent, on every vertex or control
+  point, before the shortest candidate is chosen.
+- A polygon then drops the vertex that costs least to lose, whenever the descent from there is shorter.
+- A move of an outline's point must save `outline_gain` x (σ - 0.002) x 1000 bits, with `outline_gain` = 12. That is
+  nothing on a clean image, where σ sits at 8-bit quantization's floor. On a noisy one, an outline doesn't chase the
+  noise.
+- Every candidate's misfit starts from one precomputed "nothing covered" sum, instead of summing the image again.
+
+Ablation on `train`, each row adding one step:
+
+| Variant | Fidelity | clean | light | medium | heavy | Smoothness | ms / image |
+|---|---|---|---|---|---|---|---|
+| Phase 2 | 29.18 | 35.3 | 31.6 | 26.8 | 22.9 | 1.105x | 50 |
+| + refine every outline candidate | 30.31 | 38.3 | 33.0 | 27.0 | 22.9 | 1.108x | 742 |
+| + only the 2 shortest, refined before choosing | 30.87 | 40.1 | 33.2 | 27.2 | 23.0 | 1.172x | 99 |
+| + noise-scaled gain (12) | 30.80 | 40.1 | 33.1 | 27.1 | 22.9 | 1.140x | 81 |
+| + vertex deletion | 30.59 | 39.5 | 33.2 | 26.8 | 22.9 | **1.091x** | 137 |
+
+- Refining, then choosing, beats choosing, then refining. A refined outline often wins against a primitive.
+- Refined outlines on their own add turning, and the gain alone hardly reduces it.
+- Deleting vertices costs 0.2 dB, but it is what minimizing L chooses, and it brings smoothness below phase 2's.
+- The noise-scaled gain was tried at 2, 5 and 12; fixed minimum gains of 2, 6 and 12 bits hurt `clean` for nothing.
+- Refining 1 outline scored 30.81 dB at 1.153x, and refining 3 scored 30.75 dB at 1.136x.
+
+On the 24 held-out images, scored once:
+
+| Severity | Clean fidelity (phase 2) | Alpha IoU | Layer recovery | Shapes | Palette | Smoothness |
+|---|---|---|---|---|---|---|
+| all | **30.8** (29.0) | 0.95 (0.95) | 0.87 (0.86) | 0.98x | 1.05x | 1.05x (1.1x) |
+| clean | **40.7** (34.0) | 0.99 | 0.95 (0.91) | 1.00x | 1.00x | 1.04x |
+| light | 33.3 (32.7) | 0.98 | 0.91 | 1.00x | 1.00x | 1.00x |
+| medium | 26.5 (26.6) | 0.95 | 0.86 | 0.93x | 1.00x | 1.02x |
+| heavy | 22.7 (22.6) | 0.89 | 0.75 (0.76) | 0.97x | 1.20x | 1.16x (1.20x) |
+
+It takes 152 ms per image, against phase 2's 76.
+
+**Next:** past the warp cap only through priors. Candidates:
+- symmetry, encoded as half a shape and a mirror;
+- snapping a near-right angle or a near-straight run;
+- the structure moves from the ladder's step 3 (merge, split, re-order) on whole parts.
 
 ## The page
 

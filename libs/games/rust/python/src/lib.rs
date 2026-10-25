@@ -711,7 +711,7 @@ fn copycat_hill_climb(
 
 /// The structured pipeline (docs/design/0022 step 2) on an opaque 8-bit RGBA image.
 #[pyfunction]
-#[pyo3(signature = (rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, seed))]
+#[pyo3(signature = (rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, outline_gain, seed))]
 #[allow(clippy::too_many_arguments)]
 fn copycat_trace(
     py: Python<'_>,
@@ -724,6 +724,7 @@ fn copycat_trace(
     pixel_bits: f64,
     edge_bits: f64,
     min_area: usize,
+    outline_gain: f64,
     seed: u64,
 ) -> PyResult<CopyCatDocument> {
     let config = TraceConfig {
@@ -733,6 +734,7 @@ fn copycat_trace(
         pixel_bits,
         edge_bits,
         min_area,
+        outline_gain,
         seed,
     };
     let inner = py

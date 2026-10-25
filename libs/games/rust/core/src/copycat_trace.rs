@@ -37,6 +37,9 @@ pub struct TraceConfig {
     pub edge_bits: f64,
     /// Components smaller than this many pixels are dissolved.
     pub min_area: usize,
+    /// Bits a move of a polygon's or path's point must save, per 0.001 of noise σ above 8-bit quantization's: an
+    /// outline refined against a clean image follows it closely, against a noisy one it doesn't chase the noise.
+    pub outline_gain: f64,
     pub seed: u64,
 }
 
@@ -49,6 +52,7 @@ impl Default for TraceConfig {
             pixel_bits: 12.0,
             edge_bits: 2.0,
             min_area: 30,
+            outline_gain: 12.0,
             seed: 0,
         }
     }
@@ -143,8 +147,11 @@ pub fn noise_sigma(image: &Image) -> f64 {
             diffs.push(distance2(&image.lab[i], &image.lab[i + image.width]).sqrt());
         }
     }
-    (median(diffs) / (1.538_2 * std::f64::consts::SQRT_2)).max(0.002)
+    (median(diffs) / (1.538_2 * std::f64::consts::SQRT_2)).max(SIGMA_FLOOR)
 }
+
+/// 8-bit quantization's noise σ in OKLab, about: no image's estimate goes lower.
+const SIGMA_FLOOR: f64 = 0.002;
 
 /// The background: per OKLab channel, `c + gx x + gy y` (x and y in 0..1); `gx`, `gy` are zero for a constant one.
 #[derive(Clone, Copy, Debug)]
@@ -863,7 +870,8 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
         centres: segmentation.centres.clone(),
         background: (0..width * height).map(|i| background.at_pixel(&image, i)).collect(),
     };
-    let costs = Costs::new(width, height, config.pixel_bits);
+    let mut costs = Costs::new(width, height, config.pixel_bits);
+    costs.outline_gain = config.outline_gain * (sigma - SIGMA_FLOOR) * 1000.0;
     let mut parts = parts(&image, &scene.labels);
     join(&scene, &mut parts, &costs);
     let order = order(&scene, &parts, &costs);
