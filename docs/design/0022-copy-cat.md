@@ -6,9 +6,12 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
-- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots
-  (fitted by least squares), and cuts a part of one colour in two where two shapes overlap. A regular-polygon candidate was measured and not
-  kept. See "Phase 4 results".
+- Phase 4 so far:
+  - refines each shape point by point under L, and on a noisy image keeps a point only if it earns its keep;
+  - describes a smooth outline by its knots, fitted by least squares;
+  - cuts a part of one colour in two where two shapes overlap.
+
+  A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -607,8 +610,49 @@ It takes 293 ms per image (it was 223). `clean` gained 1.6 dB, more than on `tra
 `heavy`: fidelity is level, but its outlines are less smooth. The margin keeps a fitted spline from winning on noise
 alone, but where one does win on a noisy image, it has followed some of that noise.
 
+### The sixth rung: a point must earn its keep
+
+**Where `heavy`'s turning comes from.** We split the output's total turning, beyond the clean SVG's, on `train`'s
+`heavy` images (clean: 775 rad):
+- 87 rad of non-convex wiggle in polygons;
+- 57 from extra shapes (2π each);
+- 19 of wiggle in paths.
+
+The wiggliest polygons were mostly rects (11 of 19 `heavy` rects came back as polygons), circles and polygons. They
+were traced as 10-16 vertex outlines with IoU 0.85-0.94, following the warp's bend.
+
+**An inconsistency.** On a noisy image, a vertex or knot *move* had to save `outline_gain` bits. But a vertex or knot
+*deletion* was refused whenever it lengthened the description at all. So a point that paid for itself by less than
+one move's worth stayed: it was following the noise. Now a point is deleted unless keeping it saves `outline_gain`
+bits, the same bar as a move (zero on a clean image, so `clean` is unchanged).
+
+Two candidates were tried first and not kept: a convex-hull polygon candidate (smoothness 1.192x to 1.190x, fidelity
+-0.02) and a higher bar.
+
+| Bar to keep a point (x `outline_gain`) | Fidelity | medium | heavy | Layer recovery | Smoothness | heavy smoothness |
+|---|---|---|---|---|---|---|
+| 0 (fifth rung) | 32.43 | 27.48 | 22.91 | 0.884 | 1.075x | 1.192x |
+| **1** | **32.45** | 27.51 | 22.93 | 0.886 | 1.064x | **1.159x** |
+| 3 | 32.43 | 27.53 | 22.84 | 0.888 | 1.063x | 1.160x |
+| 10 | 32.38 | 27.48 | 22.84 | 0.881 | 1.074x | 1.224x |
+
+At a bar of 1, `heavy`'s polygon wiggle halves (87 to 42 rad) and `medium`'s falls from 36 to 22. Path wiggle rises a
+little (19 to 27).
+
+Held-out, scored once:
+
+| Severity | Clean fidelity (fifth rung) | Layer recovery | Smoothness |
+|---|---|---|---|
+| all | 32.00 (31.99) | 0.883 (0.884) | **1.05x** (1.06x) |
+| clean | 43.95 (43.95) | 0.96 | 1.03x |
+| light | 34.23 (34.23) | 0.92 | 1.00x |
+| medium | 26.86 (26.88) | 0.86 | 0.99x |
+| heavy | 22.96 (22.91) | 0.78 | **1.18x** (1.25x) |
+
+This wins back most of the fifth rung's cost to `heavy`'s smoothness, with fidelity level.
+
 **Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
-- `heavy`'s smoothness: fit knots to a smoothed edge on a noisy image, or let the margin grow with σ;
+- extra shapes on noisy images: now the largest part of `heavy`'s excess turning (63 rad on `train`);
 - cut ends hidden under a part above: find notches on the part's outline with the pixels above it filled in;
 - symmetry, for a set whose blobs are symmetric;
 - the other structure moves from the ladder's step 3 (merge, re-order) on whole parts.

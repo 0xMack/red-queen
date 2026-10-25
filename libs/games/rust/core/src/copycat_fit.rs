@@ -289,8 +289,8 @@ impl Target<'_> {
     }
 
     /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points, a
-    /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept if the
-    /// descent from there is shorter.
+    /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept unless the
+    /// descent from there is longer by `outline_gain` or more.
     fn refine(&self, fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
         let mut fit = self.descend(fit, costs, uncovered);
         loop {
@@ -317,7 +317,9 @@ impl Target<'_> {
                 break;
             };
             let fewer = self.descend(fewer, costs, uncovered);
-            if fewer.bits() >= fit.bits() {
+            // a point stays only if it saves what a move of it must: on a noisy image, one that pays for itself by
+            // less is following the noise
+            if fewer.bits() >= fit.bits() + costs.outline_gain {
                 break;
             }
             fit = fewer;
