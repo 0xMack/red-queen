@@ -1,6 +1,7 @@
 """copycat.clean.v1: the checked-in held-out set, and scoring against the clean SVG (docs/design/0022)."""
 
 import io
+import re
 
 import numpy as np
 import pytest
@@ -34,6 +35,57 @@ def test_the_held_out_set_is_what_the_generator_makes():
         ours = np.asarray(Image.open(io.BytesIO(png)), dtype=float)
         checked_in = np.asarray(Image.open(io.BytesIO(target.png)), dtype=float)
         assert np.abs(ours - checked_in).mean() < 1.0
+
+
+def test_the_icons_held_out_set_is_complete_and_what_the_split_makes():
+    targets = copycat.load_set(set_name="icons")
+    split = copycat_sets.icon_split("heldout")
+    assert [t.seed for t in targets] == [seed for seed, _icon, _severity in split]
+    assert {t.severity: sum(x.severity == t.severity for x in targets) for t in targets} == dict.fromkeys(
+        copycat_sets.SEVERITIES, 6
+    )
+    for target, (_seed, icon, _severity) in zip(targets, split, strict=True):
+        assert target.clean == (copycat_sets.ICONS / f"{icon}.svg").read_text(encoding="utf-8")
+        assert Svg(target.clean).canonical() == target.clean
+    # no icon is in both splits
+    train = {icon for _seed, icon, _severity in copycat_sets.icon_split("train")}
+    assert len(train) + len(split) == len(list(copycat_sets.ICONS.glob("*.svg")))
+    assert not train & {icon for _seed, icon, _severity in split}
+
+
+def test_twemoji_paths_become_the_subset():
+    from arena import twemoji
+
+    # relative commands, H/V, S, an arc with run-together flags, and a group's fill pushed down
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><g fill="#F00">'
+        '<path d="M4 4h10v10H4z"/><path d="M20 20c2 0 4 2 4 4s-2 4-4 4a4 4 0 01-4-4z"/></g>'
+        '<circle fill="#0f0" cx="18" cy="9" r="3"/></svg>'
+    )
+    out = Svg(twemoji.convert(svg))
+    assert [(kind, fill) for kind, fill, _opacity in out.describe()] == [
+        ("path", (255, 0, 0)),
+        ("path", (255, 0, 0)),
+        ("circle", (0, 255, 0)),
+    ]
+    # the square is 10 x 10 in 36, so about 35.6 px a side at 128 px (coordinates are written to a tenth)
+    square = np.frombuffer(out.coverage(0), dtype=np.float64)
+    assert square.sum() == pytest.approx(35.6**2, rel=1e-3)
+    # every path command is one the subset has: the arc became cubics, the relative commands absolute
+    for d in re.findall(r' d="([^"]*)"', out.canonical()):
+        assert set(re.findall(r"[A-Za-z]", d)) <= set("MLCQZ")
+    with pytest.raises(twemoji.Refused, match="transform"):
+        twemoji.convert('<svg viewBox="0 0 36 36"><ellipse transform="rotate(45)" cx="1" cy="1" rx="1" ry="2"/></svg>')
+
+
+def test_an_arc_is_a_circle_to_within_a_hair():
+    from arena import twemoji
+
+    # a full circle of radius 10 as two arcs: its area is pi r^2
+    d = "M8 18a10 10 0 1 0 20 0a10 10 0 1 0-20 0z"
+    out = Svg(twemoji.convert(f'<svg viewBox="0 0 36 36"><path d="{d}"/></svg>'))
+    area = np.frombuffer(out.coverage(0), dtype=np.float64).sum()
+    assert area == pytest.approx(np.pi * (10 * 128 / 36) ** 2, rel=2e-3)
 
 
 def test_the_clean_svg_scores_perfectly():

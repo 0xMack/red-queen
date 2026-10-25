@@ -1,0 +1,429 @@
+{
+ "set": "icons",
+ "split": "heldout",
+ "size": 128,
+ "images": [
+  {
+   "id": "icons/10008",
+   "seed": 10008,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f304"
+  },
+  {
+   "id": "icons/10012",
+   "seed": 10012,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.054,
+    "shading": 0.026,
+    "warp": 0.453,
+    "blur": 0.349,
+    "noise": 0.081,
+    "grain": 1.081,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f315"
+  },
+  {
+   "id": "icons/10016",
+   "seed": 10016,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 8.435,
+    "shading": 0.075,
+    "warp": 0.789,
+    "blur": 0.769,
+    "noise": 3.516,
+    "grain": 2.03,
+    "jpeg": 75,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "icon": "1f340"
+  },
+  {
+   "id": "icons/10029",
+   "seed": 10029,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.514,
+    "shading": 0.105,
+    "warp": 1.095,
+    "blur": 1.355,
+    "noise": 7.43,
+    "grain": 4.712,
+    "jpeg": 65,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "1f3cc"
+  },
+  {
+   "id": "icons/10032",
+   "seed": 10032,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f3d6"
+  },
+  {
+   "id": "icons/10035",
+   "seed": 10035,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.713,
+    "shading": 0.039,
+    "warp": 0.304,
+    "blur": 0.517,
+    "noise": 1.497,
+    "grain": 0.663,
+    "jpeg": 90,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f40e"
+  },
+  {
+   "id": "icons/10043",
+   "seed": 10043,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.905,
+    "shading": 0.087,
+    "warp": 0.717,
+    "blur": 0.733,
+    "noise": 3.321,
+    "grain": 3.205,
+    "jpeg": 75,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f44b"
+  },
+  {
+   "id": "icons/10048",
+   "seed": 10048,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 15.993,
+    "shading": 0.112,
+    "warp": 1.27,
+    "blur": 1.542,
+    "noise": 8.895,
+    "grain": 4.098,
+    "jpeg": 68,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "1f473"
+  },
+  {
+   "id": "icons/10049",
+   "seed": 10049,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f47c"
+  },
+  {
+   "id": "icons/10050",
+   "seed": 10050,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.362,
+    "shading": 0.006,
+    "warp": 0.483,
+    "blur": 0.397,
+    "noise": 0.953,
+    "grain": 0.916,
+    "jpeg": 88,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f481"
+  },
+  {
+   "id": "icons/10051",
+   "seed": 10051,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.605,
+    "shading": 0.042,
+    "warp": 0.912,
+    "blur": 0.818,
+    "noise": 4.517,
+    "grain": 3.682,
+    "jpeg": 74,
+    "background": {
+     "kind": "clutter",
+     "shapes": 7
+    }
+   },
+   "icon": "1f485"
+  },
+  {
+   "id": "icons/10055",
+   "seed": 10055,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.726,
+    "shading": 0.17,
+    "warp": 1.47,
+    "blur": 1.346,
+    "noise": 5.347,
+    "grain": 5.25,
+    "jpeg": 59,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "1f4bc"
+  },
+  {
+   "id": "icons/10057",
+   "seed": 10057,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f4c9"
+  },
+  {
+   "id": "icons/10059",
+   "seed": 10059,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.489,
+    "shading": 0.006,
+    "warp": 0.158,
+    "blur": 0.364,
+    "noise": 1.139,
+    "grain": 1.022,
+    "jpeg": 89,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f4ed"
+  },
+  {
+   "id": "icons/10073",
+   "seed": 10073,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.61,
+    "shading": 0.065,
+    "warp": 0.959,
+    "blur": 0.683,
+    "noise": 4.162,
+    "grain": 3.702,
+    "jpeg": 82,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f560"
+  },
+  {
+   "id": "icons/10074",
+   "seed": 10074,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.381,
+    "shading": 0.122,
+    "warp": 1.066,
+    "blur": 1.044,
+    "noise": 5.874,
+    "grain": 5.723,
+    "jpeg": 57,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "1f563"
+  },
+  {
+   "id": "icons/10086",
+   "seed": 10086,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1f648"
+  },
+  {
+   "id": "icons/10108",
+   "seed": 10108,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.499,
+    "shading": 0.017,
+    "warp": 0.42,
+    "blur": 0.542,
+    "noise": 0.593,
+    "grain": 0.657,
+    "jpeg": 86,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "1f943"
+  },
+  {
+   "id": "icons/10111",
+   "seed": 10111,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 8.423,
+    "shading": 0.051,
+    "warp": 0.8,
+    "blur": 0.798,
+    "noise": 4.161,
+    "grain": 2.664,
+    "jpeg": 73,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "icon": "1f974"
+  },
+  {
+   "id": "icons/10123",
+   "seed": 10123,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.544,
+    "shading": 0.167,
+    "warp": 1.128,
+    "blur": 1.145,
+    "noise": 8.189,
+    "grain": 5.429,
+    "jpeg": 63,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "1f9f1"
+  },
+  {
+   "id": "icons/10125",
+   "seed": 10125,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "1fa9d"
+  },
+  {
+   "id": "icons/10131",
+   "seed": 10131,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.677,
+    "shading": 0.021,
+    "warp": 0.155,
+    "blur": 0.465,
+    "noise": 1.98,
+    "grain": 0.859,
+    "jpeg": 86,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "2122"
+  },
+  {
+   "id": "icons/10139",
+   "seed": 10139,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.912,
+    "shading": 0.089,
+    "warp": 0.813,
+    "blur": 0.669,
+    "noise": 3.427,
+    "grain": 2.425,
+    "jpeg": 72,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "2604"
+  },
+  {
+   "id": "icons/10145",
+   "seed": 10145,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.433,
+    "shading": 0.175,
+    "warp": 1.264,
+    "blur": 1.157,
+    "noise": 5.132,
+    "grain": 4.953,
+    "jpeg": 51,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "26aa"
+  }
+ ]
+}

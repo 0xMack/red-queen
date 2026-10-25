@@ -4,8 +4,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 1 built the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol `copycat.clean.v1` and the
   baselines; see "Phase 1 results".
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
-- Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
-  still to come.
+- Phase 3 so far is the page, `/games/copycat`, and the `icons` set (152 Twemoji, measured on `train` only); see
+  "The page" and "The `icons` set". The `wild` side-by-sides are still to come: they need real AI-generated images
+  and blind judges, neither of which we have yet.
 - Phase 4 so far:
   - refines each shape point by point under L, and on a noisy image keeps a point only if it earns its keep;
   - describes a smooth outline by its knots, fitted by least squares;
@@ -682,6 +683,61 @@ drift. More search over shapes it does show won't supply either.
 - the other structure moves from the ladder's step 3 (merge, re-order) on whole parts;
 - measuring on the `icons` and `wild` sets, where hidden parts, drift and the warp are not `synthetic`'s, before
   tuning further to `synthetic`.
+
+## The `icons` set
+
+`icons` is 152 Twemoji (v17.0.3, CC-BY 4.0; attribution in `libs/arena/src/arena/data/copycat/icons/README.md`).
+They were drawn at random, by a fixed seed, from the emoji whose SVG fits the subset after conversion:
+- `arena.twemoji` scales the 36-unit viewBox to 128 px;
+- it turns relative commands, H/V/S/T and arcs into M/L/C/Q/Z;
+- it pushes a group's fill down onto its shapes;
+- it refuses anything with a transform, stroke, gradient or opacity.
+
+`copycat_sets.icon_split` shuffles the icons by a fixed seed. 24 are held out (6 per severity) and checked in with
+their `corrupt.v1` images. The other 128 are `train`, built on demand (`python -m arena.copycat_sets --set icons --split train --out DIR`).
+Only `train` has been scored; held-out waits until a change made for icons is kept.
+
+### Results on `train`
+
+| | Structured | VTracer (background deleted) |
+|---|---|---|
+| Fidelity | 18.10 dB (clean 19.99, light 21.09, medium 16.42, heavy 14.88) | 11.93 dB |
+| Alpha IoU | 0.72 | |
+| Palette ratio | 0.76 | |
+| Time per image | 5.7 s | |
+
+On `synthetic`, by comparison, the pipeline scores 32.45 dB. What limits it here comes down to three causes, in order
+of cost:
+
+1. **The background is taken to be the border colour.** 34 icons cover more than 25% of the border (tiles, flags,
+   squares); they score 9.5 dB with alpha IoU 0.39.
+   - The tile's colour is fitted as the background and deleted.
+   - What is left is its rounded corners, which then show the real background.
+2. **Fills near the background are lost.** 29 icons have more than 10% of their area within OKLab 0.1 of the
+   background (mostly white parts); they score 15.6 dB with alpha IoU 0.61. The other 65 icons score 23.7 dB with alpha
+   IoU 0.94. Bringing causes 1 and 2 up to that level would be worth about +5.6 dB on the mean.
+3. **`join` buries details.** Twemoji is full of disjoint same-colour details: eyes, letters, keys.
+   - `join` fuses them into one shape, judged with every other part free.
+   - That shape is then ordered below the part that contains them, so they vanish.
+   - With `join` off, single icons gain a lot: keyboard 15.5 to 31.1 dB, ATM 14.6 to 19.7, zipper-mouth face 18.4 to
+     24.6, crying face 16.4 to 18.8.
+   - Over all of `train`, icons go from 18.10 to 18.89 dB (clean +1.35, light +1.2), and the pipeline is 2.6x faster
+     (2.2 s per image; `join`'s pairwise fits are O(n²) in parts). `synthetic` goes from 32.45 to 32.42.
+
+Ruled out:
+- `min_area` 10: +0.04 dB.
+- `colors` 32: no change on `clean`.
+- `merge_delta`, `edge_bits` and `background_delta`: none restores the lost details, except `merge_delta` 0.02 on
+  the keyboard alone. `background_delta` 0.02 makes the near-background icons worse (crying face 16.4 to 11.6),
+  because it then keeps the background as a shape too.
+
+**Next, on `icons`:**
+- restrict `join` to pieces that are actually one occluded shape, or drop it;
+- a background model that does not assume the border is background, e.g. trying "the border colour is a shape"
+  under L;
+- keep a fill near the background when its edge against the background is visible.
+
+None of these is built or kept yet.
 
 ## The page
 

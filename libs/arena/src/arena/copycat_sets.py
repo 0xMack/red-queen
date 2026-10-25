@@ -4,6 +4,10 @@ corrupted the way an image generator would corrupt them.
 - **`synthetic`**: from a seed, a stack of 2-8 whole parts -- rects, circles, ellipses, polygons and smooth Bézier
   blobs -- in 2-6 palette colours on a transparent 128 px canvas. Each part stays at least a quarter visible, so it can
   be recovered, and parts that overlap get different colours where the palette allows.
+- **`icons`**: 152 Twemoji emoji (graphics CC-BY 4.0; see `data/copycat/icons/README.md`), converted once into the
+  subset (`arena.twemoji`) and checked in as `data/copycat/icons/clean/`. A fixed shuffle holds out 24; severity cycles
+  within each split. Their parts are as the artist drew them: a part may be several pieces, and none is guaranteed
+  visible.
 - **`corrupt.v1`**: a seeded, versioned corruption at one of four severities (`clean` is the control: the bare render on
   a flat background). In order: per-part colour drift, a faint shading gradient, a slight warp, blur, a background
   (near-flat, a soft gradient, or clutter), Gaussian noise and film grain, then JPEG at quality 50-90 (Pillow). Every
@@ -13,8 +17,8 @@ Like an observer, `corrupt.v1` is never edited in place: a change is `corrupt.v2
 encoder, which is why the held-out images are generated once and checked in beside their clean SVGs
 (`data/copycat/synthetic/heldout/`, with `manifest.json`), rather than regenerated:
 
-    uv run python -m arena.copycat_sets            # rewrite the checked-in held-out set
-    uv run python -m arena.copycat_sets --split train --out DIR
+    uv run python -m arena.copycat_sets [--set icons]            # rewrite a checked-in held-out set
+    uv run python -m arena.copycat_sets [--set icons] --split train --out DIR
 """
 
 from __future__ import annotations
@@ -307,30 +311,50 @@ def corrupt(clean_svg: str, seed: int, severity: str) -> tuple[bytes, dict[str, 
     return out.getvalue(), {"severity": severity, **rounded}
 
 
-def write_split(split: str, out: Path) -> list[dict[str, Any]]:
+ICONS = DATA / "icons" / "clean"
+ICONS_HELD_OUT = 24
+
+
+def icon_split(split: str) -> list[tuple[int, str, str]]:
+    """An `icons` split as (seed, icon, severity): the seed is the icon's index in name order (held-out ones from
+    10,000, as for `synthetic`), and severity cycles within the split, so each has a quarter."""
+    names = sorted(p.stem for p in ICONS.glob("*.svg"))
+    order = random.Random("copycat-icons-split").sample(range(len(names)), len(names))
+    indices = sorted(order[:ICONS_HELD_OUT] if split == "heldout" else order[ICONS_HELD_OUT:])
+    offset = 10_000 if split == "heldout" else 0
+    return [(i + offset, names[i], SEVERITIES[k % len(SEVERITIES)]) for k, i in enumerate(indices)]
+
+
+def write_split(split: str, out: Path, set_name: str = "synthetic") -> list[dict[str, Any]]:
     out.mkdir(parents=True, exist_ok=True)
+    if set_name == "icons":
+        items = [
+            (seed, (ICONS / f"{icon}.svg").read_text(encoding="utf-8"), {"icon": icon}, severity)
+            for seed, icon, severity in icon_split(split)
+        ]
+    else:
+        items = [(seed, *synthetic(seed), severity_of(seed)) for seed in SPLITS[split]]
     manifest = []
-    for seed in SPLITS[split]:
-        clean, parts = synthetic(seed)
-        severity = severity_of(seed)
+    for seed, clean, parts, severity in items:
         png, levels = corrupt(clean, seed, severity)
         (out / f"{seed}.svg").write_text(clean, encoding="utf-8", newline="\n")
         (out / f"{seed}.png").write_bytes(png)
-        manifest.append({"id": f"synthetic/{seed}", "seed": seed, "corruption": CORRUPTION, "levels": levels, **parts})
-    text = json.dumps({"set": "synthetic", "split": split, "size": SIZE, "images": manifest}, indent=1) + "\n"
+        manifest.append({"id": f"{set_name}/{seed}", "seed": seed, "corruption": CORRUPTION, "levels": levels, **parts})
+    text = json.dumps({"set": set_name, "split": split, "size": SIZE, "images": manifest}, indent=1) + "\n"
     (out / "manifest.json").write_text(text, encoding="utf-8", newline="\n")
     return manifest
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--set", choices=["synthetic", "icons"], default="synthetic", dest="set_name")
     parser.add_argument("--split", choices=sorted(SPLITS), default="heldout")
     parser.add_argument("--out", type=Path, help="default: the checked-in set (held-out only)")
     args = parser.parse_args()
     if args.out is None and args.split != "heldout":
         parser.error("only the held-out split is checked in: pass --out")
-    out = args.out or DATA / "synthetic" / args.split
-    images = write_split(args.split, out)
+    out = args.out or DATA / args.set_name / args.split
+    images = write_split(args.split, out, args.set_name)
     print(f"wrote {len(images)} images to {out}")
 
 
