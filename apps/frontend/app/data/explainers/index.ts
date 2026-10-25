@@ -70,7 +70,20 @@ const BANDIT_ALGORITHM: Record<string, string> = {
   q_table: "q-table-bandit",
 }
 
-const BASELINE_ALGORITHM: Record<string, string> = { random: "random", greedy: "snake-greedy", "first-legal": "first-legal" }
+const BASELINE_ALGORITHM: Record<string, string> = {
+  random: "random",
+  greedy: "snake-greedy",
+  "first-legal": "first-legal",
+  // Copy Cat (evaluator.protocols.copycat_clean)
+  structured: "copycat-structured",
+  vtracer: "vtracer",
+  "vtracer-flat": "vtracer",
+  "vtracer-polygon": "vtracer",
+  "vtracer-nobg": "vtracer",
+  "hillclimb-16": "hill-climb",
+  "hillclimb-64": "hill-climb",
+  "hillclimb-64-nobg": "hill-climb",
+}
 
 /** The algorithm concept an entrant is an instance of, or null for one nothing describes yet. */
 export function algorithmIdFor(r: EvaluationRecord): string | null {

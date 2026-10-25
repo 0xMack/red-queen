@@ -39,7 +39,7 @@ from modelpack import LocalModelStore
 from telemetry import models_dir, workspace_root
 
 LIVE = frozenset({"running", "paused"})
-GAMES = ("snake", "checkers", "bandit")  # the game pages: a leaderboard and interfaces each
+GAMES = ("snake", "checkers", "bandit", "copycat")  # the game pages: a leaderboard (and interfaces) each
 SKIPPED_CATALOGS = frozenset({"scale-test"})
 # What a published `hardware` block says instead of the machine's own description (the game page's cost caption reads
 # "Timings are from <hardware_class> -- only compare them within the same hardware class").
@@ -181,12 +181,20 @@ def export(
             response = get(f"/games/{game}/leaderboard")
             writer.write(f"api/games/{game}/leaderboard.json", response.content)
             board = response.json()
-            writer.write(f"api/games/{game}/interfaces.json", get(f"/games/{game}/interfaces").content)
+            interfaces = http.get(f"/games/{game}/interfaces")
+            if interfaces.status_code == 200:  # 404: a game with no representations to choose (Copy Cat)
+                writer.write(f"api/games/{game}/interfaces.json", interfaces.content)
             champions |= {
                 (r["run_id"], r["champion_ref"])
                 for r in board
                 if r.get("run_id") in published and r.get("champion_ref")
             }
+
+        response = get("/games/copycat/targets")
+        writer.write("api/games/copycat/targets.json", response.content)
+        for target in response.json():
+            seed = target["seed"]
+            writer.write(f"api/games/copycat/targets/{seed}.json", get(f"/games/copycat/targets/{seed}").content)
 
         games = {r["run_id"]: r["config"].get("game") for r in runs}
         packages: set[str] = set()

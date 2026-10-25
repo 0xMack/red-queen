@@ -260,6 +260,46 @@ export class CopyCatGame {
         return ret >>> 0;
     }
     /**
+     * Shape `i`'s kind: "rect", "circle", "ellipse", "polygon" or "path".
+     * @param {number} i
+     * @returns {string}
+     */
+    kind(i) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatgame_kind(this.__wbg_ptr, i);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The SVG of shape `i` alone, in the same frame (a layer, for an exploded view).
+     * @param {number} i
+     * @returns {string}
+     */
+    layer(i) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.copycatgame_layer(this.__wbg_ptr, i);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * Throws, with the reason, for anything outside the subset.
      * @param {string} svg
      */
@@ -331,6 +371,94 @@ export class CopyCatGame {
     }
 }
 if (Symbol.dispose) CopyCatGame.prototype[Symbol.dispose] = CopyCatGame.prototype.free;
+
+/**
+ * The structured pipeline with what each stage made (docs/design/0022 step 2), for drawing it at work.
+ */
+export class CopyCatTrace {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CopyCatTraceFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_copycattrace_free(ptr, 0);
+    }
+    /**
+     * Per pixel, its label once the palette was merged, before cleaning (0 = background).
+     * @returns {Uint16Array}
+     */
+    clustered() {
+        const ret = wasm.copycattrace_clustered(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * The SVG it made.
+     * @returns {CopyCatGame}
+     */
+    document() {
+        const ret = wasm.copycattrace_document(this.__wbg_ptr);
+        return CopyCatGame.__wrap(ret);
+    }
+    /**
+     * Whether the background was fitted as a gradient.
+     * @returns {boolean}
+     */
+    get gradient() {
+        const ret = wasm.copycattrace_gradient(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Per pixel, its label after cleaning (0 = background).
+     * @returns {Uint16Array}
+     */
+    labels() {
+        const ret = wasm.copycattrace_labels(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * On an opaque RGBA image (an `ImageData`'s bytes), with the default settings.
+     * @param {Uint8Array} rgba
+     * @param {number} width
+     * @param {number} height
+     */
+    constructor(rgba, width, height) {
+        const ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycattrace_new(ptr0, len0, width, height);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        CopyCatTraceFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Per label, its fill as RGB bytes (label 0: the background's mean colour).
+     * @returns {Uint8Array}
+     */
+    palette() {
+        const ret = wasm.copycattrace_palette(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * The noise's estimated standard deviation (OKLab).
+     * @returns {number}
+     */
+    get sigma() {
+        const ret = wasm.copycattrace_sigma(this.__wbg_ptr);
+        return ret;
+    }
+}
+if (Symbol.dispose) CopyCatTrace.prototype[Symbol.dispose] = CopyCatTrace.prototype.free;
 
 export class RandomPolicy {
     __destroy_into_raw() {
@@ -577,6 +705,9 @@ const CheckersStrategyFinalization = (typeof FinalizationRegistry === 'undefined
 const CopyCatGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_copycatgame_free(ptr >>> 0, 1));
+const CopyCatTraceFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_copycattrace_free(ptr >>> 0, 1));
 const RandomPolicyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_randompolicy_free(ptr >>> 0, 1));
@@ -603,6 +734,11 @@ function getArrayI32FromWasm0(ptr, len) {
     return getInt32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
 }
 
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -627,6 +763,14 @@ function getInt32ArrayMemory0() {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return decodeText(ptr, len);
+}
+
+let cachedUint16ArrayMemory0 = null;
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
 }
 
 let cachedUint32ArrayMemory0 = null;
@@ -748,6 +892,7 @@ function __wbg_finalize_init(instance, module) {
     wasmModule = module;
     cachedFloat64ArrayMemory0 = null;
     cachedInt32ArrayMemory0 = null;
+    cachedUint16ArrayMemory0 = null;
     cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();

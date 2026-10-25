@@ -70,3 +70,40 @@ def test_records_are_put_and_pruned_through_the_api(client):
     pruned = client.post("/games/snake/evaluations/prune", json={"protocol": "snake.score.v1", "keep": ["run:abc"]})
     assert sorted(pruned.json()["removed"]) == ["baseline:greedy", "baseline:random"]
     assert len(client.get("/games/snake/leaderboard", params={"protocol": "snake.score.v0"}).json()) == 1  # untouched
+
+
+def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path):
+    from arena import copycat
+
+    target = copycat.load_set()[0]
+    store = SqliteEvaluationStore(tmp_path / "evaluations.db")
+    image = {"id": target.id, "severity": target.severity, "fidelity": 60.0, "svg": target.clean}
+    store.put(
+        EvaluationRecord(
+            game="copycat",
+            protocol=copycat.PROTOCOL,
+            entrant_id="baseline:structured",
+            entrant_kind="baseline",
+            label="Structured pipeline",
+            interface=copycat.INTERFACE,
+            created_at=1.0,
+            metrics={"quality": {"mean": 60.0}, "copycat": {"images": [image]}},
+        )
+    )
+    app.dependency_overrides[_evaluation_store] = lambda: store
+    try:
+        client = TestClient(app)
+        board = client.get("/games/copycat/leaderboard").json()
+        assert board[0]["metrics"]["copycat"]["images"] == [{k: v for k, v in image.items() if k != "svg"}]
+        targets = client.get("/games/copycat/targets").json()
+        assert [t["seed"] for t in targets] == list(copycat.HELD_OUT_SEEDS)
+        assert targets[0]["png"].startswith("data:image/png;base64,")
+        one = client.get(f"/games/copycat/targets/{target.seed}").json()
+        assert one["clean"] == target.clean
+        assert one["outputs"]["baseline:structured"] == {
+            "svg": target.clean,
+            "scores": board[0]["metrics"]["copycat"]["images"][0],
+        }
+        assert client.get("/games/copycat/targets/1").status_code == 404
+    finally:
+        app.dependency_overrides.clear()

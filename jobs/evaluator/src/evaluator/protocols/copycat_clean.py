@@ -173,7 +173,7 @@ def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> Eva
     with concurrent.futures.ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn")) as pool:
         ran = pool.submit(run_entrant, settings, targets).result()
     images = [
-        {**score(target, svg), "image_us": us}
+        {**score(target, svg), "image_us": us, "svg": svg}
         for target, svg, us in zip(targets, ran["svgs"], ran["image_us"], strict=True)
     ]
     summary = summarize(images)

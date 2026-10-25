@@ -9,6 +9,64 @@ const BANDIT = "Bandit strategy"
 const WITHIN = "learns within each game"
 
 export const ALGORITHMS: ExplainConcept[] = [
+  // --- Copy Cat entrants (docs/design/0022) ------------------------------------------------------------------------
+  {
+    kind: "algorithm",
+    id: "copycat-structured",
+    title: "Structured pipeline",
+    family: "Copy Cat · minimum description length",
+    paradigm: "hand-written, tuned on training images",
+    summary:
+      "Looks for the shortest SVG that explains the image: a circle costs three numbers, so a near-circle becomes a circle; noise isn't worth a shape, so it disappears; a hidden part is cheapest whole.",
+    how: [
+      "Noise and background: it estimates the noise level from neighbouring pixels and fits the background to the border (flat or a gradient). The background is left transparent.",
+      "Palette: k-means in OKLab, then merges two colours whenever saying one is shorter than the error it adds.",
+      "Regions: small specks and thin anti-aliased bands are dissolved into what surrounds them.",
+      "Order: each part is fitted with every other part allowed over it. Whichever reaches further under the other goes below.",
+      "Shapes: each part becomes whichever of circle, ellipse, rect, polygon or Bézier path is shortest to describe, counting the pixels it gets wrong. Pixels under the parts above are free, so a hidden part completes itself.",
+    ],
+    code: "bits(shape) = model bits (type + coordinates at 0.1 px) + pixel_bits * misfit\nbest = argmin over circle, ellipse, rect, polygon, path",
+    good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: Play traces your own image."],
+    bad: [
+      "Flat fills only: a part's shading or colour drift comes back as its average.",
+      "No symmetry, and a region with a hole keeps only its outline.",
+    ],
+    related: ["metric:layer-recovery", "algorithm:vtracer", "algorithm:hill-climb"],
+  },
+  {
+    kind: "algorithm",
+    id: "vtracer",
+    title: "VTracer",
+    family: "Copy Cat · tracer (baseline)",
+    paradigm: "hand-written",
+    summary:
+      "visioncortex's open-source colour tracer: it clusters the image's colours and traces every region's outline with splines (or polygons). Faithful to the pixels -- noise, blur and background included.",
+    how: [
+      "Groups pixels into colour clusters, stacked from the bottom up, and filters speckles under a few pixels.",
+      "Traces each cluster's outline and fits splines to it.",
+      "Run at three presets: its defaults, one for flat art (fewer colours, bigger speckles filtered) and polygons; and once more with its bottom layer -- the background -- deleted, as a person would by hand.",
+    ],
+    good: ["Fast, and close to right on already-clean art."],
+    bad: ["Keeps the background (opaque, so ~2 dB over black).", "Traces noise as shapes: at heavy corruption, ~26× the shapes."],
+    related: ["algorithm:copycat-structured"],
+  },
+  {
+    kind: "algorithm",
+    id: "hill-climb",
+    title: "Hill climb",
+    family: "Copy Cat · approximation (baseline)",
+    paradigm: "searches per image",
+    summary:
+      "After Michael Fogleman's primitive: start from a background rect in the mean colour, then add shapes one at a time, each the best of many random ones, nudged while that lowers the error against the input.",
+    how: [
+      "A shape is a triangle, rect, ellipse or circle; its colour is the least-squares colour for what it covers.",
+      "Mutations move, resize or reshape it, and are kept only if the squared error against the *input* falls.",
+      "Run with 16 or 64 shapes, and once with its first shape (the background) deleted.",
+    ],
+    good: ["A recognisable likeness from very few shapes."],
+    bad: ["It approximates the input, noise included, and has no idea of a part: shapes overlap wherever error falls."],
+    related: ["algorithm:copycat-structured"],
+  },
   // --- Bandit strategies (docs/design/0011) ------------------------------------------------------------------------
   {
     kind: "algorithm",

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import jobs, leaderboards, models, runs
+from backend.routers import copycat, jobs, leaderboards, models, runs
 
 app = FastAPI(title="red-queen backend", version="0.1.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 
 app.include_router(runs.router)
 app.include_router(leaderboards.router)
+app.include_router(copycat.router)
 app.include_router(models.router)
 app.include_router(models.catalog_router)
 app.include_router(models.export_router)

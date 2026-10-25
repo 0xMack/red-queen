@@ -72,6 +72,11 @@ for the full contract and incremental plan this implements (steps 3-6).
   or a row per lamp colour), `BanditTape`, `BeliefCurves`, `BanditRace`, `BanditReveal`; `BanditPlayer` is the shared
   "a strategy plays" view (also `lab/BanditLab` in the chapter). The strategy x scenario `BanditScenarioMatrix` hangs
   under the leaderboard via `GameModule.Insights`, the one optional section a game can add.
+- **Copy Cat** (docs/design/0022) is image to SVG, not a game you step. Its entrants' per-image SVGs come from
+  `GET /games/copycat/targets/{seed}` (the leaderboard route strips them), and the structured pipeline runs on the main
+  thread through the games WASM's `CopyCatTrace` (`utils/copycat.ts`). `CopyCatWatch` (`?image=<seed>`: input, entrant,
+  clean SVG, scores; for the pipeline, its stages re-run live) and `CopyCatPlay` (drop in an image, trace it, download
+  the SVG) share `CopyCatImage` and `CopyCatStages` (the palette, the regions, the layers exploded).
 - **Shared across games:** `PlaybackControls` (pause / speed / new game -- speed is a *multiplier*, `utils/
   playback.ts`, over each game's base timing: Snake's tick, a versus game's pause between moves) sits under every
   game's board, in Snake's watch panel and in `VersusStage`; `BoardResult` is the one game-over overlay (Checkers'

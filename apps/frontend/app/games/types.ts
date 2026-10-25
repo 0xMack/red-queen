@@ -79,6 +79,8 @@ export interface GameModule {
   copy: {
     watch: string
     play: string
+    /** The Play stage's label, when "Your game" doesn't fit (Copy Cat: "Your image"). */
+    playLabel?: string
     /** What a score means, for the footer under the side leaderboard. */
     scoreNote(info: { episodes?: number; protocol: string | null }): string
     /** The full leaderboard's intro. */

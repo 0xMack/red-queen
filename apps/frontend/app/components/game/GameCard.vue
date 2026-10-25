@@ -25,6 +25,7 @@ defineProps<{ game: GameEntry; compact?: boolean }>()
         <CheckersBoard :state="checkersSnapshot" class="max-h-full max-w-[72%] transition duration-700 group-hover:scale-[1.03]" />
       </div>
       <BanditArt v-else-if="game.art === 'bandit'" class="transition duration-700 group-hover:scale-[1.03]" />
+      <CopyCatArt v-else-if="game.art === 'copycat'" class="transition duration-700 group-hover:scale-[1.03]" />
       <div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent" />
       <UiBadge class="absolute top-3 left-3 bg-bg/70 backdrop-blur" :tone="game.status === 'available' ? 'life' : 'neutral'" dot>
         {{ game.status === "available" ? "playable" : "coming soon" }}

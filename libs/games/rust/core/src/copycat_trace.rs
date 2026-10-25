@@ -573,9 +573,23 @@ pub struct Part {
 }
 
 pub fn parts(image: &Image, labels: &[usize]) -> Vec<Part> {
-    let (id, members) = components(image, labels);
-    // one fill per label (a palette entry), the mean of its parts' interiors -- or of all their pixels, for a label
-    // that is mostly edge
+    let fills = fills(image, labels);
+    let (_, members) = components(image, labels);
+    members
+        .into_iter()
+        .filter(|pixels| labels[pixels[0]] != 0)
+        .map(|pixels| Part {
+            fill: fills[labels[pixels[0]]],
+            label: labels[pixels[0]],
+            pixels,
+        })
+        .collect()
+}
+
+/// One fill per label (a palette entry): the mean of its components' interiors -- or of all its pixels, for a label
+/// that is mostly edge. Label 0's is the background's mean colour.
+pub fn fills(image: &Image, labels: &[usize]) -> Vec<[u8; 3]> {
+    let (id, _) = components(image, labels);
     let k = labels.iter().max().map_or(1, |m| m + 1);
     let (mut interior, mut all) = (vec![([0.0; 3], 0usize); k], vec![([0.0; 3], 0usize); k]);
     for (i, &l) in labels.iter().enumerate() {
@@ -589,7 +603,7 @@ pub fn parts(image: &Image, labels: &[usize]) -> Vec<Part> {
         }
         sums[l].1 += 1;
     }
-    let fills: Vec<[u8; 3]> = (0..k)
+    (0..k)
         .map(|l| {
             let (inside, edge) = (interior[l], all[l]);
             let (sum, n) = if inside.1 * 3 >= edge.1 {
@@ -598,15 +612,6 @@ pub fn parts(image: &Image, labels: &[usize]) -> Vec<Part> {
                 ([0, 1, 2].map(|c| inside.0[c] + edge.0[c]), inside.1 + edge.1)
             };
             sum.map(|v| (v / n.max(1) as f64).round().clamp(0.0, 255.0) as u8)
-        })
-        .collect();
-    members
-        .into_iter()
-        .filter(|pixels| labels[pixels[0]] != 0)
-        .map(|pixels| Part {
-            fill: fills[labels[pixels[0]]],
-            label: labels[pixels[0]],
-            pixels,
         })
         .collect()
 }
@@ -827,8 +832,27 @@ pub fn order(scene: &Scene, parts: &[Part], costs: &Costs) -> Vec<usize> {
     out
 }
 
+/// What each stage made, for showing the pipeline at work (the game page draws them).
+pub struct Stages {
+    pub sigma: f64,
+    /// Whether the background was fitted as a gradient (else a constant).
+    pub gradient: bool,
+    /// Per pixel, its k-means label after merging (0 = the background), before the labels were cleaned.
+    pub clustered: Vec<usize>,
+    /// Per pixel, its label after cleaning: what the parts are cut from.
+    pub labels: Vec<usize>,
+    /// Per label, its fill (`fills`).
+    pub palette: Vec<[u8; 3]>,
+    pub document: Document,
+}
+
 /// The whole pipeline: an opaque RGBA image to a transparent, layered SVG document.
 pub fn trace(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Document, String> {
+    stages(rgba, width, height, config).map(|s| s.document)
+}
+
+/// The whole pipeline, keeping what each stage made.
+pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Stages, String> {
     let image = Image::from_rgba8(rgba, width, height)?;
     let sigma = noise_sigma(&image);
     let background = Background::fit(&image, sigma);
@@ -836,7 +860,7 @@ pub fn trace(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> 
     let scene = Scene {
         image: &image,
         labels: clean_labels(&image, &segmentation.labels, config),
-        centres: segmentation.centres,
+        centres: segmentation.centres.clone(),
         background: (0..width * height).map(|i| background.at_pixel(&image, i)).collect(),
     };
     let costs = Costs::new(width, height, config.pixel_bits);
@@ -857,11 +881,18 @@ pub fn trace(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> 
             });
         }
     }
-    Ok(Document {
-        width: width as u32,
-        height: height as u32,
-        groups,
-        shapes,
+    Ok(Stages {
+        sigma,
+        gradient: background.gradient,
+        palette: fills(&image, &scene.labels),
+        clustered: segmentation.labels,
+        labels: scene.labels,
+        document: Document {
+            width: width as u32,
+            height: height as u32,
+            groups,
+            shapes,
+        },
     })
 }
 

@@ -109,7 +109,9 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
           </td>
           <td class="num px-3 py-3 text-right text-xs">
             <span class="text-fg">{{ r.metrics.inference.total_us.toFixed(1) }} µs</span>
-            <p class="text-[10px] text-fg-subtle">{{ r.metrics.inference.encode_us.toFixed(1) }} + {{ r.metrics.inference.decide_us.toFixed(1) }}</p>
+            <p v-if="r.metrics.inference.encode_us !== undefined && r.metrics.inference.decide_us !== undefined" class="text-[10px] text-fg-subtle">
+              {{ r.metrics.inference.encode_us.toFixed(1) }} + {{ r.metrics.inference.decide_us.toFixed(1) }}
+            </p>
           </td>
           <td class="num px-3 py-3 text-right text-xs text-fg-muted">
             {{ r.metrics.inference.parameters ? r.metrics.inference.parameters.toLocaleString() : "0" }}

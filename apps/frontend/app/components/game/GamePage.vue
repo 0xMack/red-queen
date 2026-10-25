@@ -111,7 +111,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
           />
         </template>
         <template v-else #header>
-          <span class="label text-queen-300">{{ mode === "play" ? "Your game" : "Stage" }}</span>
+          <span class="label text-queen-300">{{ mode === "play" ? (module.copy.playLabel ?? "Your game") : "Stage" }}</span>
         </template>
         <ClientOnly>
           <component

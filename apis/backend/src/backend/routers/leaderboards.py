@@ -12,6 +12,7 @@ from games import interfaces
 from telemetry import EvaluationRecord
 
 from backend.dependencies import EvaluationStoreDep
+from backend.routers.copycat import without_outputs
 from backend.schemas import PruneRequest, PruneResult
 
 router = APIRouter(prefix="/games", tags=["leaderboards"])
@@ -24,8 +25,9 @@ def _mean(record: EvaluationRecord) -> float:
 @router.get("/{game}/leaderboard")
 def get_leaderboard(game: str, store: EvaluationStoreDep, protocol: str | None = None) -> list[EvaluationRecord]:
     """Every evaluation of `game` (optionally one protocol), best mean score first. Records from
-    different protocols aren't comparable -- a client showing more than one groups by protocol."""
-    return sorted(store.list(game, protocol), key=_mean, reverse=True)
+    different protocols aren't comparable -- a client showing more than one groups by protocol. Copy Cat's per-image
+    SVGs are left out (they are `/games/copycat/targets/{seed}`'s)."""
+    return sorted((without_outputs(r) for r in store.list(game, protocol)), key=_mean, reverse=True)
 
 
 @router.get("/{game}/interfaces")

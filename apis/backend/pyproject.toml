@@ -20,6 +20,7 @@ dependencies = [
     "evolve",
     "modelpack",
     "jobcore",
+    "arena",  # Copy Cat's held-out images
 ]
 
 
@@ -29,6 +30,7 @@ games = { workspace = true }
 evolve = { workspace = true }
 modelpack = { workspace = true }
 jobcore = { workspace = true }
+arena = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/backend"]

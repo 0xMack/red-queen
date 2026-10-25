@@ -75,6 +75,14 @@ export class CopyCatGame {
      */
     canonical(): string;
     /**
+     * Shape `i`'s kind: "rect", "circle", "ellipse", "polygon" or "path".
+     */
+    kind(i: number): string;
+    /**
+     * The SVG of shape `i` alone, in the same frame (a layer, for an exploded view).
+     */
+    layer(i: number): string;
+    /**
      * Throws, with the reason, for anything outside the subset.
      */
     constructor(svg: string);
@@ -92,6 +100,42 @@ export class CopyCatGame {
     readonly palette: number;
     readonly shapes: number;
     readonly width: number;
+}
+
+/**
+ * The structured pipeline with what each stage made (docs/design/0022 step 2), for drawing it at work.
+ */
+export class CopyCatTrace {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Per pixel, its label once the palette was merged, before cleaning (0 = background).
+     */
+    clustered(): Uint16Array;
+    /**
+     * The SVG it made.
+     */
+    document(): CopyCatGame;
+    /**
+     * Per pixel, its label after cleaning (0 = background).
+     */
+    labels(): Uint16Array;
+    /**
+     * On an opaque RGBA image (an `ImageData`'s bytes), with the default settings.
+     */
+    constructor(rgba: Uint8Array, width: number, height: number);
+    /**
+     * Per label, its fill as RGB bytes (label 0: the background's mean colour).
+     */
+    palette(): Uint8Array;
+    /**
+     * Whether the background was fitted as a gradient.
+     */
+    readonly gradient: boolean;
+    /**
+     * The noise's estimated standard deviation (OKLab).
+     */
+    readonly sigma: number;
 }
 
 export class RandomPolicy {
@@ -164,6 +208,7 @@ export interface InitOutput {
     readonly __wbg_checkersgame_free: (a: number, b: number) => void;
     readonly __wbg_checkersstrategy_free: (a: number, b: number) => void;
     readonly __wbg_copycatgame_free: (a: number, b: number) => void;
+    readonly __wbg_copycattrace_free: (a: number, b: number) => void;
     readonly __wbg_randompolicy_free: (a: number, b: number) => void;
     readonly __wbg_reach1dgame_free: (a: number, b: number) => void;
     readonly __wbg_snakegame_free: (a: number, b: number) => void;
@@ -184,6 +229,8 @@ export interface InitOutput {
     readonly checkersstrategy_scores: (a: number, b: number) => [number, number];
     readonly copycatgame_canonical: (a: number) => [number, number];
     readonly copycatgame_height: (a: number) => number;
+    readonly copycatgame_kind: (a: number, b: number) => [number, number];
+    readonly copycatgame_layer: (a: number, b: number) => [number, number, number, number];
     readonly copycatgame_new: (a: number, b: number) => [number, number, number];
     readonly copycatgame_nodes: (a: number) => number;
     readonly copycatgame_palette: (a: number) => number;
@@ -191,6 +238,13 @@ export interface InitOutput {
     readonly copycatgame_shapes: (a: number) => number;
     readonly copycatgame_trace: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly copycatgame_width: (a: number) => number;
+    readonly copycattrace_clustered: (a: number) => [number, number];
+    readonly copycattrace_document: (a: number) => number;
+    readonly copycattrace_gradient: (a: number) => number;
+    readonly copycattrace_labels: (a: number) => [number, number];
+    readonly copycattrace_new: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly copycattrace_palette: (a: number) => [number, number];
+    readonly copycattrace_sigma: (a: number) => number;
     readonly decodeRelative3: (a: number, b: number) => number;
     readonly greedyDecide: (a: number, b: number) => number;
     readonly randompolicy_decide: (a: number, b: number, c: number) => number;

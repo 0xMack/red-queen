@@ -24,8 +24,9 @@ export interface QualityMetrics {
 }
 
 export interface InferenceMetrics {
-  encode_us: number
-  decide_us: number
+  // the split of total_us, for game entrants; Copy Cat's entrants are timed per image, whole
+  encode_us?: number
+  decide_us?: number
   total_us: number
   parameters: number
   artifact_bytes: number
@@ -85,8 +86,30 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
       params: Record<string, number>
       scenarios: Record<string, BanditScenarioResult>
     }
+    // Copy Cat entrants only (evaluator.protocols.copycat_clean, docs/design/0022): how it ran, every column summarized
+    // (ratios by geometric mean), per severity, and per image (without the SVGs: /games/copycat/targets/{seed} has them).
+    copycat?: {
+      settings: Record<string, unknown>
+      columns: CopyCatColumns
+      by_severity: Record<string, CopyCatColumns>
+      images: import("~/utils/copycat").CopyCatImageScores[]
+    }
   }
   hardware: { cpu?: string; python?: string; hardware_class?: string; engine?: string; logical_cores?: number }
+}
+
+export interface CopyCatColumns {
+  fidelity: number
+  psnr_black: number
+  psnr_white: number
+  alpha_iou: number
+  layer_recovery: number
+  shape_ratio: number
+  node_ratio: number
+  palette_ratio: number
+  smoothness_ratio: number
+  bytes: number
+  refused: number
 }
 
 export interface BanditScenarioResult {
