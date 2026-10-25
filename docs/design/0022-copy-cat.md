@@ -651,11 +651,37 @@ Held-out, scored once:
 
 This wins back most of the fifth rung's cost to `heavy`'s smoothness, with fidelity level.
 
+### What is left, and three measured non-changes
+
+After the sixth rung we re-ran every attribution on `train`.
+
+| Where | What exact clean answers would gain | Why it is hard to get |
+|---|---|---|
+| Blobs on `clean` | +5.0 dB (geometry oracle) | Fully visible blobs are already at IoU 0.987. The loss is blobs 35-67% hidden (IoU 0.42-0.86), whose hidden outline is not in the image. |
+| Colour on `light` / `heavy` | +0.55 / +0.64 dB (colour oracle) | Mostly `corrupt.v1`'s per-part colour drift: the fill we see is not the fill that was drawn. |
+| Rects on `medium` / `heavy` | +1.7 / +1.0 dB (geometry oracle) | The warp cap: a rect fitted to warped edges is not the clean rect either. |
+
+Three changes were tried on `train` and are not kept:
+- **Deleting the extra shapes.** On noisy images, output shapes that are no clean part's best match make up 63 rad
+  of `heavy`'s excess turning. But deleting them costs `medium` 0.50 dB (and gains `heavy` 0.004): they carry real
+  pixels, mostly shading or drift over a part, or a same-colour piece of it.
+- **Merging colours more readily** (`merge_delta`), to average out the drift of parts that share a palette colour.
+  Fidelity is flat from 0.08 to 0.10 (32.45, 32.45, 32.47), and falls beyond: 32.26 at 0.11, 32.03 at 0.12, and 31.24
+  at 0.13, where `clean` loses 2.8 dB to real colours merged. 0.10 improves `heavy`'s smoothness (1.16x to 1.09x), but
+  a +0.03 dB gain beside a cliff is a threshold tuned to this set, not a prior.
+- **Making outlines beat primitives by a margin on noisy images** (`outline_gain` x 3, 10 or 30), to pick the rect
+  over a polygon that follows the warp. Fidelity was 32.45, 32.44 and 32.21, against 32.45.
+
+So the next gains on `synthetic` would need what the image doesn't hold: a prior on how hidden blobs continue, or on
+drift. More search over shapes it does show won't supply either.
+
 **Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
-- extra shapes on noisy images: now the largest part of `heavy`'s excess turning (63 rad on `train`);
-- cut ends hidden under a part above: find notches on the part's outline with the pixels above it filled in;
+- cut ends hidden under a part above: find notches on the part's outline with the pixels above it filled in (small:
+  one `train` image);
 - symmetry, for a set whose blobs are symmetric;
-- the other structure moves from the ladder's step 3 (merge, re-order) on whole parts.
+- the other structure moves from the ladder's step 3 (merge, re-order) on whole parts;
+- measuring on the `icons` and `wild` sets, where hidden parts, drift and the warp are not `synthetic`'s, before
+  tuning further to `synthetic`.
 
 ## The page
 
