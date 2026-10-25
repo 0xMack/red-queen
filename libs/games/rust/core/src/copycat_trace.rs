@@ -15,8 +15,8 @@
 //!    parts whose colour is not quite the background's (a white letter, an off-white background) is a colour of its own.
 //! 5. **Parts**: every connected component but the background is a part, filled with its label's interior mean (one
 //!    palette entry per label); two of one colour join when one shape says them more briefly (a part an occluder cut in two).
-//! 6. **Order**: for each pair of touching parts, the one that is shorter to describe when completed under the other
-//!    goes below (`copycat_fit`'s free pixels); a topological sort, largest first, breaks cycles and ties.
+//! 6. **Order**: for each pair of touching parts, the one whose shape completed under the other covers more of it (as a
+//!    fraction) goes below (`copycat_fit`'s free pixels); a topological sort, largest first, breaks cycles and ties.
 //! 7. **Shapes**: each part fitted with everything above it free, so a hidden part completes itself; cut in two
 //!    between notches of its outline while two shapes say it more briefly (two overlapping parts of one colour); one
 //!    `<g>` per shape.
@@ -993,8 +993,8 @@ fn mask_of(n: usize, parts: &[&Part]) -> Vec<bool> {
 }
 
 /// Paint order, bottom first, from each part's completed shape (`completed`: fitted with every other part free, since
-/// any of them could be above it). Of two touching parts, the one whose shape reaches further under the other goes
-/// below -- a part completed under its occluders claims their pixels, one on top claims none. Kahn's sort takes the
+/// any of them could be above it). Of two touching parts, the one whose shape covers more of the other, as a fraction
+/// of it, goes below -- a part completed under its occluders claims their pixels, one on top claims none. Kahn's sort takes the
 /// largest available part first, and the largest remaining one when a cycle blocks it.
 pub fn order(image: &Image, parts: &[Part], completed: &[Option<Vec<f64>>]) -> Vec<usize> {
     let n = image.lab.len();
@@ -1025,8 +1025,12 @@ pub fn order(image: &Image, parts: &[Part], completed: &[Option<Vec<f64>>]) -> V
     }
     let mut below: Vec<Vec<usize>> = vec![Vec::new(); parts.len()]; // below[b] = parts that must be under b
     for &(a, b) in touching.keys() {
-        let a_first = if (claims[a][b] - claims[b][a]).abs() > 0.5 {
-            claims[a][b] > claims[b][a]
+        // as fractions of the part claimed: a small part completed with a big one free can sprawl over more of its
+        // pixels than the big one, completed under it, covers of the small one's -- yet it covers a sliver of it
+        let (na, nb) = (parts[a].pixels.len() as f64, parts[b].pixels.len() as f64);
+        let (ab, ba) = (claims[a][b] / nb, claims[b][a] / na);
+        let a_first = if (ab - ba).abs() > 0.5 / na.min(nb) {
+            ab > ba
         } else {
             parts[a].pixels.len() >= parts[b].pixels.len()
         };
@@ -1278,6 +1282,28 @@ mod tests {
         );
         // transparent where the background was
         assert_eq!(traced.render().to_rgba8()[3], 0);
+    }
+
+    #[test]
+    fn the_part_that_covers_more_of_the_other_goes_below() {
+        // a 5 x 5 mark on a 20 x 20 tile: the tile, completed, covers all of the mark; the mark, completed with the tile
+        // free, sprawls over a 5 x 20 column -- 75 of the tile's pixels against the tile's 25 of its, yet a fifth of it
+        let (w, h) = (20, 20);
+        let image = Image::from_rgba8(&vec![255; w * h * 4], w, h).unwrap();
+        let mark: Vec<usize> = (0..w * h)
+            .filter(|i| (8..13).contains(&(i % w)) && (8..13).contains(&(i / w)))
+            .collect();
+        let tile: Vec<usize> = (0..w * h).filter(|i| !mark.contains(i)).collect();
+        let parts = [tile, mark].map(|pixels| Part {
+            pixels,
+            fill: [0, 0, 0],
+            label: 1,
+        });
+        let column: Vec<f64> = (0..w * h)
+            .map(|i| if (8..13).contains(&(i % w)) { 1.0 } else { 0.0 })
+            .collect();
+        let completed = [Some(vec![1.0; w * h]), Some(column)];
+        assert_eq!(order(&image, &parts, &completed), vec![0, 1]);
     }
 
     #[test]
