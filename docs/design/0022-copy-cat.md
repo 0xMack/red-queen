@@ -13,7 +13,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
   - cuts a part of one colour in two where two shapes overlap;
   - never joins a piece another part lies beneath (a detail on it), measured on `icons`;
   - takes the background from the corners when the border's fit misses them (a tile), and keeps a near-background
-    colour enclosed by parts (a white letter) as a part.
+    colour enclosed by parts (a white letter) as a part;
+  - orders two touching parts by the fraction of each the other covers, not the pixel count.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -323,8 +324,8 @@ in order:
    background component enclosed by parts whose colour is not the background's becomes a colour of its own.
 5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
    says them more briefly, unless another part lies beneath either of them (see "Join only what an occluder cut").
-6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape reaches
-   further under the other goes below.
+6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape covers more
+   of the other, as a fraction of it, goes below (see "Paint order by the fraction covered").
 7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
    Bézier path (Schneider's fit, cut at corners), and the shortest `model bits + pixel_bits x misfit` wins.
 
@@ -800,15 +801,30 @@ Measured on `train` (fidelity, dB):
 - The prior's failure mode: a subject touching a corner. The clamp (train seed 77) loses 3.2 dB.
 - Held-out, scored once: `synthetic` 31.999 to 32.003 dB; `icons` 18.77 to 19.41 dB, clean 15.94 to 18.36.
 
-**Measured, not kept here: paint order by fraction.** Some enclosed white parts still come out under their tile (the
-refresh arrows, train seed 62). Fitted with the tile's pixels free, each arrow grows into a blob that covers more tile
-pixels than the tile covers of the arrow, and `order` compares those counts. Comparing the *fraction* of each part
-covered instead puts the tile below: `icons` 20.86 to 22.21, `synthetic` 32.444 to 32.457, but 31 `synthetic` images
-change. It changes the order everywhere, so it is its own rung.
+### Paint order by the fraction covered
 
-**Next, on `icons`:**
-- paint order by the fraction covered (above);
-- `heavy` (15.3 dB) and `medium` (18.5 dB) are now furthest behind `synthetic`'s 22.9 and 27.5.
+Some enclosed white parts still came out under their tile (the refresh arrows, train seed 62). Fitted with the tile's
+pixels free, each arrow grows into a blob that covers more of the tile's pixels than the tile, completed, covers of the
+arrow's. `order` compared those counts, so the arrow went below. Now it compares fractions: the tile covers all of the
+arrow, and the arrow a sliver of the tile. A count favours whichever part is larger; a fraction asks which part the
+other one's shape is really under. Test: `the_part_that_covers_more_of_the_other_goes_below`.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` |
+|---|---|---|
+| by count | 32.444 (layer recovery 0.8852) | 20.86 |
+| **by fraction** | **32.457** (0.8847) | **22.21** |
+
+- `icons`: 60 change, 49 up, 11 down by at most 0.7 dB. The tiles with white symbols gain the most: refresh arrows 11.6
+  to 40.5, seed 143 15.1 to 38.8, seed 93 12.2 to 32.5. Per severity: clean 25.83 to 29.90, light 23.84 to 24.83,
+  medium 18.50 to 18.82, heavy 15.28 to 15.31.
+- `synthetic`: 31 change, 14 up and 17 down, a wash. Where two blobs overlap, both orders are mostly right, and the
+  difference is how a hidden part completes.
+- Held-out, scored once: `synthetic` 32.003 to 32.230 dB (clean 43.95 to 44.80, layer recovery 0.883 to 0.887);
+  `icons` 19.41 to 20.88.
+
+**Next, on `icons`:** `heavy` (15.3 dB) and `medium` (18.8 dB) are now furthest behind `synthetic`'s 22.9 and 27.5.
 
 ## The page
 
