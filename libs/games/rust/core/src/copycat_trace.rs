@@ -723,8 +723,13 @@ impl Scene<'_> {
 }
 
 /// Joins components of one label that one shape says more briefly than two -- a part an occluder cut in two -- with
-/// every other part's pixels free (any of them could be above).
-pub fn join(scene: &Scene, parts: &mut Vec<Part>, costs: &Costs) {
+/// every other part's pixels free (any of them could be above). But a piece that another part covers, once that part is
+/// completed under its own occluders, is never joined: that part is beneath it (an eye on a face, a letter on a band),
+/// so the piece is a detail on it, not a glimpse of something it hides. Returns each part's completed shape
+/// (`completed`), for `order`.
+pub fn join(scene: &Scene, parts: &mut Vec<Part>, costs: &Costs) -> Vec<Option<Vec<f64>>> {
+    let mut completed = completed(scene, parts, costs);
+    let covers = |m: &[f64], p: &Part| p.pixels.iter().map(|&i| m[i]).sum::<f64>() >= 0.5 * p.pixels.len() as f64;
     loop {
         let mut best: Option<(f64, usize, usize)> = None;
         for a in 0..parts.len() {
@@ -732,22 +737,58 @@ pub fn join(scene: &Scene, parts: &mut Vec<Part>, costs: &Costs) {
                 if parts[a].label != parts[b].label {
                     continue;
                 }
-                let others: Vec<&Part> = (0..parts.len())
-                    .filter(|&k| k != a && k != b)
-                    .map(|k| &parts[k])
-                    .collect();
+                let others: Vec<usize> = (0..parts.len()).filter(|&k| k != a && k != b).collect();
+                let detail = others.iter().any(|&k| {
+                    completed[k]
+                        .as_ref()
+                        .is_some_and(|m| covers(m, &parts[a]) || covers(m, &parts[b]))
+                });
+                if detail {
+                    continue;
+                }
+                let above: Vec<&Part> = others.iter().map(|&k| &parts[k]).collect();
                 let (pa, pb) = (&parts[a], &parts[b]);
-                let saved = scene.bits(&[pa], &others, costs) + scene.bits(&[pb], &others, costs)
-                    - scene.bits(&[pa, pb], &others, costs);
+                let saved = scene.bits(&[pa], &above, costs) + scene.bits(&[pb], &above, costs)
+                    - scene.bits(&[pa, pb], &above, costs);
                 if saved > 0.0 && best.is_none_or(|(s, _, _)| saved > s) {
                     best = Some((saved, a, b));
                 }
             }
         }
-        let Some((_, a, b)) = best else { return };
+        let Some((_, a, b)) = best else { return completed };
         let joined = parts.remove(b);
         parts[a].pixels.extend(joined.pixels);
+        // every other part's free pixels (all parts but itself) are the same as before; only the joined one changes
+        completed.remove(b);
+        completed[a] = completed_one(scene, parts, a, costs);
     }
+}
+
+/// Each part's shape fitted with every other part free (any of them could be above it), as coverage over the image.
+fn completed(scene: &Scene, parts: &[Part], costs: &Costs) -> Vec<Option<Vec<f64>>> {
+    (0..parts.len())
+        .map(|k| completed_one(scene, parts, k, costs))
+        .collect()
+}
+
+fn completed_one(scene: &Scene, parts: &[Part], k: usize, costs: &Costs) -> Option<Vec<f64>> {
+    let others: Vec<&Part> = (0..parts.len()).filter(|&j| j != k).map(|j| &parts[j]).collect();
+    let fit = scene.fit(&[&parts[k]], &others, costs)?;
+    let (w, h) = (scene.image.width, scene.image.height);
+    let shape = Shape {
+        geometry: fit.geometry,
+        fill: [0, 0, 0],
+        opacity: 1.0,
+        group: None,
+    };
+    let mask = shape.mask(w as u32, h as u32);
+    let mut out = vec![0.0; w * h];
+    for my in 0..mask.height {
+        for mx in 0..mask.width {
+            out[(mask.y0 + my) * w + mask.x0 + mx] = mask.data[my * mask.width + mx];
+        }
+    }
+    Some(out)
 }
 
 /// How deep (px) inside its convex hull a part's outline must go for a notch to be a place to cut it.
@@ -832,12 +873,11 @@ fn mask_of(n: usize, parts: &[&Part]) -> Vec<bool> {
     m
 }
 
-/// Paint order, bottom first. Each part is fitted with every other part free (any of them could be above it); of two
-/// touching parts, the one whose shape reaches further under the other goes below -- a part completed under its
-/// occluders claims their pixels, one on top claims none. Kahn's sort takes the largest available part first, and the
-/// largest remaining one when a cycle blocks it.
-pub fn order(scene: &Scene, parts: &[Part], costs: &Costs) -> Vec<usize> {
-    let image = scene.image;
+/// Paint order, bottom first, from each part's completed shape (`completed`: fitted with every other part free, since
+/// any of them could be above it). Of two touching parts, the one whose shape reaches further under the other goes
+/// below -- a part completed under its occluders claims their pixels, one on top claims none. Kahn's sort takes the
+/// largest available part first, and the largest remaining one when a cycle blocks it.
+pub fn order(image: &Image, parts: &[Part], completed: &[Option<Vec<f64>>]) -> Vec<usize> {
     let n = image.lab.len();
     let mut owner = vec![usize::MAX; n];
     for (k, p) in parts.iter().enumerate() {
@@ -856,29 +896,11 @@ pub fn order(scene: &Scene, parts: &[Part], costs: &Costs) -> Vec<usize> {
     }
     // claims[a][b]: how much of b's pixels a's completed shape covers
     let mut claims = vec![vec![0.0; parts.len()]; parts.len()];
-    for (a, part) in parts.iter().enumerate() {
-        let others: Vec<&Part> = parts
-            .iter()
-            .enumerate()
-            .filter(|(k, _)| *k != a)
-            .map(|(_, p)| p)
-            .collect();
-        let Some(fit) = scene.fit(&[part], &others, costs) else {
-            continue;
-        };
-        let shape = Shape {
-            geometry: fit.geometry,
-            fill: [0, 0, 0],
-            opacity: 1.0,
-            group: None,
-        };
-        let mask = shape.mask(image.width as u32, image.height as u32);
-        for my in 0..mask.height {
-            for mx in 0..mask.width {
-                let i = (mask.y0 + my) * image.width + mask.x0 + mx;
-                if owner[i] != usize::MAX && owner[i] != a {
-                    claims[a][owner[i]] += mask.data[my * mask.width + mx];
-                }
+    for (a, mask) in completed.iter().enumerate() {
+        let Some(mask) = mask else { continue };
+        for (i, &m) in mask.iter().enumerate() {
+            if m != 0.0 && owner[i] != usize::MAX && owner[i] != a {
+                claims[a][owner[i]] += m;
             }
         }
     }
@@ -945,8 +967,8 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let mut costs = Costs::new(width, height, config.pixel_bits);
     costs.outline_gain = config.outline_gain * (sigma - SIGMA_FLOOR) * 1000.0;
     let mut parts = parts(&image, &scene.labels);
-    join(&scene, &mut parts, &costs);
-    let order = order(&scene, &parts, &costs);
+    let completed = join(&scene, &mut parts, &costs);
+    let order = order(&image, &parts, &completed);
     let mut shapes = Vec::new();
     let mut groups = Vec::new();
     for (place, &k) in order.iter().enumerate() {
@@ -1000,10 +1022,50 @@ mod tests {
         let recovered = layer_recovery(&clean, &traced);
         assert!(
             recovered.iter().all(|r| *r > 0.9),
-            "{recovered:?}
-{}",
+            "{recovered:?}\n{}",
             traced.canonical()
         );
+    }
+
+    #[test]
+    fn a_part_an_occluder_cuts_in_two_is_joined() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"6\" y=\"24\" width=\"52\" height=\"16\" fill=\"#2050c0\"/>\
+            <rect x=\"26\" y=\"8\" width=\"12\" height=\"48\" fill=\"#e0a020\"/></svg>";
+        let (clean, rgba) = photograph(svg, [245, 240, 230]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert_eq!(traced.shapes.len(), 2, "{}", traced.canonical());
+        let recovered = layer_recovery(&clean, &traced);
+        assert!(
+            recovered.iter().all(|r| *r > 0.9),
+            "{recovered:?}\n{}",
+            traced.canonical()
+        );
+    }
+
+    #[test]
+    fn details_of_one_colour_are_not_joined_under_what_they_sit_on() {
+        // two eyes on a face; and two marks on a band across a frame of the marks' colour
+        for svg in [
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+                <circle cx=\"32\" cy=\"32\" r=\"26\" fill=\"#ffcc4d\"/>\
+                <ellipse cx=\"22\" cy=\"28\" rx=\"4\" ry=\"7\" fill=\"#664500\"/>\
+                <ellipse cx=\"42\" cy=\"28\" rx=\"4\" ry=\"7\" fill=\"#664500\"/></svg>",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+                <rect x=\"4\" y=\"8\" width=\"56\" height=\"48\" fill=\"#2060a0\"/>\
+                <rect x=\"4\" y=\"20\" width=\"56\" height=\"24\" fill=\"#f0a040\"/>\
+                <rect x=\"14\" y=\"26\" width=\"12\" height=\"12\" fill=\"#2060a0\"/>\
+                <rect x=\"38\" y=\"26\" width=\"12\" height=\"12\" fill=\"#2060a0\"/></svg>",
+        ] {
+            let (clean, rgba) = photograph(svg, [245, 240, 230]);
+            let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+            let recovered = layer_recovery(&clean, &traced);
+            assert!(
+                recovered.iter().all(|r| *r > 0.9),
+                "{recovered:?}\n{}",
+                traced.canonical()
+            );
+        }
     }
 
     fn photograph(svg: &str, background: [u8; 3]) -> (Document, Vec<u8>) {

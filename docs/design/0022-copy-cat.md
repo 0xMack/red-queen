@@ -10,7 +10,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 4 so far:
   - refines each shape point by point under L, and on a noisy image keeps a point only if it earns its keep;
   - describes a smooth outline by its knots, fitted by least squares;
-  - cuts a part of one colour in two where two shapes overlap.
+  - cuts a part of one colour in two where two shapes overlap;
+  - never joins a piece another part lies beneath (a detail on it), measured on `icons`.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -317,7 +318,7 @@ in order:
    than the 24-bit palette entry plus the shared boundary it saves.
 4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands).
 5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
-   says them more briefly.
+   says them more briefly, unless another part lies beneath either of them (see "Join only what an occluder cut").
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape reaches
    further under the other goes below.
 7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
@@ -731,13 +732,45 @@ Ruled out:
   the keyboard alone. `background_delta` 0.02 makes the near-background icons worse (crying face 16.4 to 11.6),
   because it then keeps the background as a shape too.
 
+### Join only what an occluder cut
+
+`join` assumed every other part could be above the two pieces. A detail on a part breaks that: two eyes on a face,
+joined across the face, make one shape that `order` then puts *under* the face, and both eyes vanish. Now a piece is
+never joined if another part, completed under its own occluders, covers at least half of it. That part lies beneath the
+piece, so the piece is a detail on it, not a glimpse of something it hides. Every other part stays free, so a bar an
+occluder cuts in two is still one shape. The completed shapes are fitted once and shared with `order`; after a join only
+the joined part's is refitted, since every other part's free pixels are unchanged. Tests:
+`a_part_an_occluder_cuts_in_two_is_joined` and `details_of_one_colour_are_not_joined_under_what_they_sit_on` (eyes on
+a face; marks on a band across a frame of their colour).
+
+Measured on `train` (fidelity, dB; time per icon):
+
+| `join` | `synthetic` | `icons` | per icon |
+|---|---|---|---|
+| as before (every other part free) | 32.45 | 18.10 | 5.7 s |
+| off | 32.42 | 18.89 | 2.2 s |
+| guard: no part in the gap may lie beneath both pieces | 32.45 | 18.63 | 4.9 s |
+| only parts the paint order puts above are free | 32.45 | 18.65 | 5.4 s |
+| the same, and no part above may lie beneath either piece | 32.45 | 18.92 | 6.8 s (3 runs at once) |
+| a part beneath either piece is not free | 32.45 | 18.81 | 4.3 s |
+| **kept:** a piece with a part beneath it is never joined | **32.45** | **18.84** | **3.2 s** |
+
+- The paint-order versions fail the occluder test: with nothing deciding which of two parts goes on top, the size
+  tie-break puts the larger occluder below, and it is then not free.
+- The guard still joins thin lines across a part beneath them (the fist's finger lines go under the yellow).
+- Making a covering part non-free, instead of refusing the join, still joins the ATM's letters to its frame.
+- Off is 0.05 dB better on `icons` and faster, but gives up `synthetic`'s occluded parts (three `train` images,
+  +0.03 dB) and the layer they recover.
+
+Held-out, scored once: `synthetic` is unchanged (31.999 dB, the same SVGs); `icons` goes from 18.52 to 18.77 dB and
+from 4.8 to 3.1 s per icon.
+
 **Next, on `icons`:**
-- restrict `join` to pieces that are actually one occluded shape, or drop it;
 - a background model that does not assume the border is background, e.g. trying "the border colour is a shape"
   under L;
 - keep a fill near the background when its edge against the background is visible.
 
-None of these is built or kept yet.
+Neither is built yet.
 
 ## The page
 
