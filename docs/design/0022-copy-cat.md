@@ -6,8 +6,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
-- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots; see
-  "Phase 4 results".
+- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots. A
+  regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -472,9 +472,39 @@ Held-out, scored once:
 
 It takes 219 ms per image. `medium`'s -0.15 dB is on six images; on `train` it was +0.2.
 
+### The third rung: regular polygons (a negative result, not kept)
+
+`synthetic`'s polygons are regular, and after the second rung they recovered worst (IoU 0.73 on `medium`). So we tried
+a regular-polygon candidate: n sides, a centre, a radius and a turn, for three type codes and 4 coordinates whatever n
+is. It was drawn as its vertices and refined by coordinate descent on its four numbers (the turn stepped as arc length).
+The shortest one went into refinement beside the other candidates. Sides ran from 3 to 8. It was guessed three ways:
+- from the vertices of each simplified polygon: their centroid, their mean distance from it, and the phase of their
+  angles taken n times round;
+- from the contour: the n-th harmonic of its distance from the centroid against angle, with r = 2 x mean / (1 + cos(π/n));
+- from the corners: a circle fitted through the simplified polygon's vertices, with the same phase.
+
+On `train`, each guess added a little. A test (a hexagon half hidden under a shape above) completed itself to 6 sides,
+its centre and radius within 0.3 px.
+
+| Variant | Fidelity |
+|---|---|
+| Second rung | 31.92 |
+| + regular, from polygon vertices | 32.02 |
+| + the radial-harmonic guess | 32.08 |
+| + the circumcircle guess | **32.14** |
+
+Polygon IoU on `train` rose from 0.909 to 0.926 on `clean` and from 0.73 to 0.80 on `medium`. **Held-out, scored once,
+it fell: 31.38 to 31.32 dB.** By severity, `clean` went 42.35 to 42.09, `light` 34.12 to 34.14, and `medium` (26.32) and
+`heavy` (22.70 to 22.71) were level. Layer recovery went 0.8765 to 0.878, at 207 ms per image. The +0.22 on `train` did
+not carry over, so the pipeline is unchanged and the code was not kept.
+
+The worst `train` polygons say where the error actually is:
+- seeds 20 and 60: polygons hidden to 52% and 39% visible (IoU 0.63 and 0.42). Too little outline shows to pin a regular
+  shape, and a wrong n is still cheap;
+- seed 68: a fully visible hexagon merged with a same-colour neighbour into one 12-vertex region. That is segmentation,
+  not shape: no shape prior can fit two parts as one, and only a structure move (a split) can.
+
 **Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
-- regular polygons: `synthetic`'s polygons are regular, and they recover worst (IoU 0.73 on `medium`). This prior
-  also holds for real icons: stars, hexagons, triangles;
 - symmetry, encoded as half a shape and a mirror;
 - the structure moves from the ladder's step 3 (merge, split, re-order) on whole parts.
 
