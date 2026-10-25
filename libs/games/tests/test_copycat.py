@@ -4,7 +4,7 @@ import struct
 
 import pytest
 
-from games.copycat import Svg, hill_climb, layer_recovery
+from games.copycat import Svg, hill_climb, layer_recovery, trace
 
 TWO_PARTS = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 8">'
@@ -52,3 +52,25 @@ def test_layer_recovery_and_the_hill_climb():
     )
     with pytest.raises(ValueError):
         hill_climb(b"\0" * 12, 16, 8, shapes=1)
+
+
+def test_the_structured_pipeline_recovers_the_parts():
+    clean = Svg(
+        TWO_PARTS.replace('viewBox="0 0 16 8"', 'viewBox="0 0 64 32"').replace(
+            '<rect width="8" height="8" fill="#ff0000"/><circle cx="12" cy="4" r="4" fill="#0000ff" opacity="0.5"/>',
+            '<rect x="6" y="6" width="24" height="20" fill="#d03030"/><circle cx="44" cy="16" r="11" fill="#2050c0"/>',
+        )
+    )
+    # over an opaque background, as an image arrives
+    pixels = bytearray(clean.render_rgba8())
+    for i in range(0, len(pixels), 4):
+        a = pixels[i + 3] / 255
+        for c, bg in zip(range(3), (245, 240, 230), strict=True):
+            pixels[i + c] = round(pixels[i + c] * a + bg * (1 - a))
+        pixels[i + 3] = 255
+    traced = trace(bytes(pixels), 64, 32)
+    assert [kind for kind, _fill, _opacity in traced.describe()] == ["rect", "circle"]
+    assert min(layer_recovery(clean, traced)) > 0.95
+    assert traced.render_rgba8()[3] == 0  # the background is transparent
+    with pytest.raises(ValueError):
+        trace(b"\0" * 12, 64, 32)

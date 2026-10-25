@@ -9,6 +9,8 @@ pub mod checkers;
 pub mod checkers_strategies;
 pub mod copycat;
 pub mod copycat_climb;
+pub mod copycat_fit;
+pub mod copycat_trace;
 pub mod nets;
 pub mod pcg;
 pub mod raster;

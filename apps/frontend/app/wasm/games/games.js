@@ -219,6 +219,13 @@ if (Symbol.dispose) CheckersStrategy.prototype[Symbol.dispose] = CheckersStrateg
  * protocol scores with. The game page and its search moves come later.
  */
 export class CopyCatGame {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(CopyCatGame.prototype);
+        obj.__wbg_ptr = ptr;
+        CopyCatGameFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -297,6 +304,23 @@ export class CopyCatGame {
     get shapes() {
         const ret = wasm.copycatgame_shapes(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * The structured pipeline (docs/design/0022 step 2) on an opaque RGBA image (an `ImageData`'s bytes), with its
+     * default settings. Throws if the bytes aren't `width x height` pixels.
+     * @param {Uint8Array} rgba
+     * @param {number} width
+     * @param {number} height
+     * @returns {CopyCatGame}
+     */
+    static trace(rgba, width, height) {
+        const ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatgame_trace(ptr0, len0, width, height);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return CopyCatGame.__wrap(ret[0]);
     }
     /**
      * @returns {number}
@@ -628,6 +652,13 @@ function isLikeNone(x) {
 function passArray32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
     getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
