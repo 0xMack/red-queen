@@ -1,7 +1,11 @@
 # 0022 — Copy Cat: recover the clean, layered SVG behind a generated logo or icon
 
-Status: **Phase 1 built** (2026-10-24): the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol
-`copycat.clean.v1` and the baselines -- see "Phase 1 results". Phases 2-6 are proposed.
+Status: **Phases 1-2 built** (2026-10-24).
+- Phase 1 built the rasterizer, the subset, `synthetic` + `corrupt.v1`, protocol `copycat.clean.v1` and the
+  baselines; see "Phase 1 results".
+- Phase 2 built the structured MDL pipeline; see "Phase 2 results".
+
+Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last
@@ -211,7 +215,7 @@ Each rung is an experiment against the one below, on the same held-out sets:
 | Rasterizer, SVG subset parser and serializer, code lengths, shape moves | `libs/games/rust/core/src/copycat.rs`, `raster.rs` |
 | Python face | `games.copycat` (PyO3) |
 | Target sets, `corrupt.v1` (a generator script), protocol `copycat.clean.v1` | `libs/arena/src/arena/copycat.py`; the evaluator's `copycat.clean.v1` |
-| Entrants | `jobs/trainer`: `copycat.pipeline`, then its search and gradient stages; `rl.*` on `copycat` later |
+| Entrants | the evaluator's `copycat.clean.v1` entrants (the structured pipeline is `copycat_trace.rs`), then its search and gradient stages -- as `jobs/trainer` runs once they search; `rl.*` on `copycat` later |
 | Browser | WASM `CopyCatGame`; `app/games/copycat.ts` (a `GameModule`) and a `CopyCatStage` |
 
 Our entrants mostly *search per image* rather than train. How a run is recorded (one run per held-out set, with
@@ -288,6 +292,81 @@ So phase 2's targets are concrete. On every severity, the pipeline needs to:
 - push layer recovery past 0.75.
 
 Re-run with `uv run redqueen evaluate copycat` (or `python -m evaluator jobs/evaluator/specs/copycat.clean.v1.yaml`).
+
+## Phase 2 results
+
+The structured pipeline is `libs/games/rust/core/src/copycat_trace.rs` (the stages) and `copycat_fit.rs` (fitting one
+region by code length), exposed as `games.copycat.trace` and the WASM `CopyCatGame.trace`. It is the evaluator's
+`structured` entrant. It is untrained and searches nothing beyond each region's candidates, so it is recorded like the
+baselines, with no run. Recording our later, searching entrants as runs is still the open question above. Its stages,
+in order:
+
+1. **Noise σ:** the median OKLab difference between neighbouring pixels, as a robust estimate.
+2. **Background:** fitted to a 2-pixel border, either constant or a gradient, whichever is shorter. It is a cluster of
+   its own whose centre varies per pixel.
+3. **Palette:** k-means++ in OKLab from 16 seeds. Clusters merge while the residual the merge adds, in bits, is less
+   than the 24-bit palette entry plus the shared boundary it saves.
+4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands).
+5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
+   says them more briefly.
+6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape reaches
+   further under the other goes below.
+7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
+   Bézier path (Schneider's fit, cut at corners), and the shortest `model bits + pixel_bits x misfit` wins.
+
+Choices made along the way, each measured on the `train` split (96 images, `python -m arena.copycat_sets --split
+train`; the held-out split was scored once, at the end):
+
+- **A soft target.** An edge pixel counts as the fraction of the part's colour in it: its colour projected between the
+  part's colour and what is across the edge. So contours and fits land between pixels. At the same settings this
+  was worth +4.3 dB on `clean` (29.7 to 34.0). Before it, all of `clean`'s remaining error was within 2 px of an edge, and none in interiors.
+- **Two thresholds where MDL alone wasn't enough.**
+  - `merge_delta` (0.08): a part's own shading or drift, which a flat fill can't say anyway, would otherwise survive as
+    a second colour.
+  - `background_delta` (0.1): the generator's faint clutter is close to the background colour, but not close enough for
+    the noise model to absorb it. Without this, clutter images had 2-3x the shapes.
+- **Order by reach, not pairwise code length.** Comparing parts two at a time misses a part hidden under several
+  others, because only one occluder at a time is free.
+- **`pixel_bits` = 12** per wrongly covered pixel. It trades fidelity against smoothness: 8 was 0.6 dB worse, and 16
+  added turning.
+
+Measured with `copycat.clean.v1` on the same 24 held-out images as phase 1:
+
+| Entrant | Clean fidelity (dB) | Over black / white | Alpha IoU | Layer recovery | Shapes | Palette | Smoothness | ms / image |
+|---|---|---|---|---|---|---|---|---|
+| **Structured pipeline** | **29.0** ± 2.4 | 29.9 / 28.1 | **0.95** | **0.86** | 1.0x | 1.0x | 1.1x | 76 |
+| VTracer (defaults), background deleted | 20.2 ± 2.6 | 16.3 / 24.0 | 0.73 | 0.73 | 6.7x | 9.0x | 13.3x | 7 |
+| Hill climb (64 shapes) | 11.4 ± 0.4 | 2.2 / 20.7 | 0.26 | 0.72 | 15.4x | 17.3x | 15.3x | 88 |
+
+The rest of the field is as in phase 1. By severity, against phase 1's best:
+
+| Severity | Clean fidelity | Alpha IoU | Layer recovery | Shapes | Palette | Smoothness |
+|---|---|---|---|---|---|---|
+| clean | 34.0 (VTracer 28.3) | 0.99 (0.97) | 0.91 (0.74) | 0.96x (1.02x) | 1.00x (1.3x) | 1.04x (1.65x) |
+| light | 32.7 (22.4) | 0.97 (0.88) | 0.91 (0.78) | 1.00x (6.1x) | 1.00x (8.2x) | 1.01x (9.6x) |
+| medium | 26.6 (18.4) | 0.95 (0.74) | 0.86 (0.76) | 0.93x (12.1x) | 1.00x (14.1x) | 1.05x (25.1x) |
+| heavy | 22.6 (11.7) | 0.89 (0.33) | 0.76 (0.65) | 0.97x (26.4x) | 1.20x (42.8x) | 1.20x (78x) |
+
+**What it shows:**
+
+- **Phase 2's targets are met.**
+  - Fidelity: `light` now beats what VTracer reaches on clean art.
+  - Structure stays within 1.2x of the clean SVG at every severity.
+  - Layer recovery passes 0.75 everywhere, but only just on `heavy` (0.76).
+- **It beats VTracer at every severity** on clean fidelity, alpha IoU, layer recovery and smoothness. On shape count it
+  is about a tie on `clean`: 0.96x, a part it missed, against VTracer's 1.02x.
+- **`heavy`'s 22.6 dB is mostly colour drift and warp.** On the worst `heavy` images, shapes and palette are near 1x,
+  yet fidelity is ~21 dB. Each part's colour is moved by 10-18 levels per channel. A flat fill can only be the drifted
+  mean, so it can't recover the clean colour: per-channel drift of ~14 levels alone caps fidelity at roughly 25 dB.
+- **It is 10x slower than VTracer,** at 76 ms against 7 ms per image, but still interactive.
+
+**Not done yet:**
+
+- Symmetry (half and a mirror).
+- A region with a hole: only its outer contour is fitted, so a hole costs misfit.
+- The incremental re-scoring API (Decision 6). Every candidate rasterizes its whole bounding box.
+
+These are phase 4's search moves, or later.
 
 ## Open questions
 

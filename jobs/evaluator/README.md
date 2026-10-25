@@ -37,7 +37,8 @@ uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.
   fidelity (PSNR over black and over white, the rank), alpha IoU, layer recovery, shape/node/palette and smoothness
   ratios, bytes; per severity and per image in `metrics.copycat`. The entrants are phase 1's baselines -- VTracer at
   three presets and a `primitive`-style hill climb at two budgets, plus one of each with the background layer deleted
-  -- each run in its own process so its time per image and peak memory are its own.
+  -- and phase 2's `structured` pipeline (`games.copycat.trace`, untrained, so also `entrant_kind="baseline"`), each
+  run in its own process so its time per image and peak memory are its own.
 - **`checkers.sprt`** (was `checkers_sprt.py`) — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
   decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `experiment.checkers-h2h`
   runs the same test for every arm against its baseline arm, seed for seed (`full: true`: the whole ballot).

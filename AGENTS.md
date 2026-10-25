@@ -17,7 +17,7 @@ fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider netw
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
-score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phase 1 built: the measurement) -- recover the clean, layered SVG
+score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-2 built: the measurement, the structured MDL pipeline) -- recover the clean, layered SVG
 behind a generated logo or icon, scored against known clean answers) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
@@ -293,7 +293,7 @@ architectural change that might conflict with a decision already made.
   - The reports are `checkers.sprt` ("is A stronger than B"), `checkers.static-round-robin`, and the experiment
     reports `experiment.snake-report`, `.rl-report` (a paired permutation test against each arm's baseline),
     `.checkers-field` and `.checkers-h2h`.
-  `copycat.clean.v1` runs each entrant (VTracer presets, the core's `primitive`-style hill climb) in a *spawned* process,
+  `copycat.clean.v1` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):
   - `snake` exports champions (fp64 + fp32) to the local model store and catalog, measuring agreement on the

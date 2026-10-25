@@ -29,6 +29,7 @@ export const copycatgame_nodes: (a: number) => number;
 export const copycatgame_palette: (a: number) => number;
 export const copycatgame_render: (a: number) => [number, number];
 export const copycatgame_shapes: (a: number) => number;
+export const copycatgame_trace: (a: number, b: number, c: number, d: number) => [number, number, number];
 export const copycatgame_width: (a: number) => number;
 export const decodeRelative3: (a: number, b: number) => number;
 export const greedyDecide: (a: number, b: number) => number;

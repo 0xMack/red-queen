@@ -7,7 +7,7 @@ or the core's speed (the `primitive`-style hill climb baseline). The subset and 
 copycat.rs.
 
 Images cross the boundary as bytes (no numpy here): `render()` is premultiplied RGBA as float64, `render_rgba8()` and
-`hill_climb`'s input are 8-bit RGBA, all row-major.
+`hill_climb`'s and `trace`'s inputs are 8-bit RGBA, all row-major.
 """
 
 from __future__ import annotations
@@ -90,3 +90,26 @@ def hill_climb(
     """The `primitive`-style hill climb (rust/core/src/copycat_climb.rs): a background rect, then up to `shapes`
     opaque shapes, each the best of `candidates` random ones climbed until `patience` mutations in a row fail."""
     return Svg._wrap(_native.copycat_hill_climb(rgba, width, height, shapes, candidates, patience, seed))
+
+
+def trace(
+    rgba: bytes,
+    width: int,
+    height: int,
+    *,
+    colors: int = 16,
+    merge_delta: float = 0.08,
+    background_delta: float = 0.1,
+    pixel_bits: float = 12.0,
+    edge_bits: float = 2.0,
+    min_area: int = 30,
+    seed: int = 0,
+) -> Svg:
+    """The structured pipeline (rust/core/src/copycat_trace.rs): noise, background, an OKLab palette merged by
+    description length, cleaned labels, parts in an order decided by code length, each fitted with the shortest shape --
+    a transparent SVG with one `<g>` per part."""
+    return Svg._wrap(
+        _native.copycat_trace(
+            rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, seed
+        )
+    )

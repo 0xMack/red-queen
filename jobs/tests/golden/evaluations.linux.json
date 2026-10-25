@@ -4923,6 +4923,206 @@
   },
   {
    "champion_ref": null,
+   "entrant_id": "baseline:structured",
+   "entrant_kind": "baseline",
+   "game": "copycat",
+   "interface": "copycat/rgb8.v1+svg-subset.v1",
+   "label": "Structured pipeline",
+   "metrics": {
+    "copycat": {
+     "by_severity": {
+      "clean": {
+       "alpha_iou": 0.9935,
+       "bytes": 327.0,
+       "fidelity": 37.5777,
+       "layer_recovery": 0.9905,
+       "node_ratio": 1.0714,
+       "palette_ratio": 1.0,
+       "psnr_black": 40.5011,
+       "psnr_white": 34.6542,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 1.0
+      },
+      "heavy": {
+       "alpha_iou": 0.8303,
+       "bytes": 836.0,
+       "fidelity": 20.5681,
+       "layer_recovery": 0.8064,
+       "node_ratio": 1.7931,
+       "palette_ratio": 1.0,
+       "psnr_black": 18.3038,
+       "psnr_white": 22.8324,
+       "refused": 0,
+       "shape_ratio": 1.2,
+       "smoothness_ratio": 1.9161
+      },
+      "light": {
+       "alpha_iou": 0.9767,
+       "bytes": 429.0,
+       "fidelity": 32.2848,
+       "layer_recovery": 0.9404,
+       "node_ratio": 1.3889,
+       "palette_ratio": 1.0,
+       "psnr_black": 30.9221,
+       "psnr_white": 33.6474,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 0.9925
+      },
+      "medium": {
+       "alpha_iou": 0.8909,
+       "bytes": 219.0,
+       "fidelity": 28.5014,
+       "layer_recovery": 0.8487,
+       "node_ratio": 0.8889,
+       "palette_ratio": 1.0,
+       "psnr_black": 28.5286,
+       "psnr_white": 28.4742,
+       "refused": 0,
+       "shape_ratio": 1.0,
+       "smoothness_ratio": 1.0
+      }
+     },
+     "columns": {
+      "alpha_iou": 0.9229,
+      "bytes": 452.75,
+      "fidelity": 29.733,
+      "layer_recovery": 0.8965,
+      "node_ratio": 1.241,
+      "palette_ratio": 1.0,
+      "psnr_black": 29.5639,
+      "psnr_white": 29.9021,
+      "refused": 0,
+      "shape_ratio": 1.0466,
+      "smoothness_ratio": 1.1743
+     },
+     "images": [
+      {
+       "alpha_iou": 0.9935,
+       "bytes": 327,
+       "fidelity": 37.5777,
+       "id": "synthetic/10000",
+       "layer_recovery": 0.9905,
+       "node_ratio": 1.0714,
+       "nodes": 15,
+       "palette": 2,
+       "palette_ratio": 1.0,
+       "psnr_black": 40.5011,
+       "psnr_white": 34.6542,
+       "refused": null,
+       "severity": "clean",
+       "shape_ratio": 1.0,
+       "shapes": 3,
+       "smoothness_ratio": 1.0
+      },
+      {
+       "alpha_iou": 0.9767,
+       "bytes": 429,
+       "fidelity": 32.2848,
+       "id": "synthetic/10001",
+       "layer_recovery": 0.9404,
+       "node_ratio": 1.3889,
+       "nodes": 25,
+       "palette": 2,
+       "palette_ratio": 1.0,
+       "psnr_black": 30.9221,
+       "psnr_white": 33.6474,
+       "refused": null,
+       "severity": "light",
+       "shape_ratio": 1.0,
+       "shapes": 3,
+       "smoothness_ratio": 0.9925
+      },
+      {
+       "alpha_iou": 0.8909,
+       "bytes": 219,
+       "fidelity": 28.5014,
+       "id": "synthetic/10002",
+       "layer_recovery": 0.8487,
+       "node_ratio": 0.8889,
+       "nodes": 8,
+       "palette": 2,
+       "palette_ratio": 1.0,
+       "psnr_black": 28.5286,
+       "psnr_white": 28.4742,
+       "refused": null,
+       "severity": "medium",
+       "shape_ratio": 1.0,
+       "shapes": 2,
+       "smoothness_ratio": 1.0
+      },
+      {
+       "alpha_iou": 0.8303,
+       "bytes": 836,
+       "fidelity": 20.5681,
+       "id": "synthetic/10003",
+       "layer_recovery": 0.8064,
+       "node_ratio": 1.7931,
+       "nodes": 52,
+       "palette": 5,
+       "palette_ratio": 1.0,
+       "psnr_black": 18.3038,
+       "psnr_white": 22.8324,
+       "refused": null,
+       "severity": "heavy",
+       "shape_ratio": 1.2,
+       "shapes": 6,
+       "smoothness_ratio": 1.9161
+      }
+     ],
+     "memory": {},
+     "settings": {
+      "tracer": "structured"
+     }
+    },
+    "inference": {
+     "artifact_bytes": 453,
+     "parameters": 0
+    },
+    "model": {
+     "description": "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, rect, polygon or Bezier path), hidden parts completed; transparent, one group per part.",
+     "note": null,
+     "observer_level": 1,
+     "shape": {
+      "algorithm": "Structured pipeline"
+     }
+    },
+    "protocol": {
+     "corruption": "corrupt.v1",
+     "held_out_seeds": [
+      10000,
+      10003
+     ],
+     "images": 4,
+     "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+     "set": "synthetic",
+     "split": "heldout"
+    },
+    "quality": {
+     "ci95": 7.0115,
+     "max": 37.5777,
+     "mean": 29.733,
+     "median": 30.393099999999997,
+     "min": 20.5681,
+     "n": 4,
+     "scores": [
+      37.5777,
+      32.2848,
+      28.5014,
+      20.5681
+     ]
+    },
+    "training": {
+     "measured": true,
+     "none": true
+    }
+   },
+   "protocol": "copycat.clean.v1",
+   "run_id": null
+  },
+  {
+   "champion_ref": null,
    "entrant_id": "baseline:vtracer",
    "entrant_kind": "baseline",
    "game": "copycat",

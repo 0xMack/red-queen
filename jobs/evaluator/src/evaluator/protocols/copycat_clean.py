@@ -12,6 +12,13 @@ Phase 1's entrants are the baselines of the ladder's first rung, all of them tra
   anything transparent, so without this every entrant loses the same ~20 dB over black, and the comparison says nothing
   else.
 
+Phase 2's entrant, the ladder's second rung, recovers the clean SVG instead:
+
+- **The structured pipeline** (the game core's `copycat_trace.rs`): noise and background estimated, an OKLab palette
+  merged by description length, cleaned labels, parts ordered and each fitted with its shortest shape -- a transparent,
+  layered SVG. Untrained (its settings were tuned on the `train` split only), so it is a baseline in the leaderboard's
+  sense, like every entrant so far.
+
 Each entrant runs in a fresh process, so its time per image and its peak memory (above that process's own at start)
 are its alone; scoring happens here, after.
 """
@@ -89,6 +96,15 @@ ENTRANTS: dict[str, tuple[str, str, dict[str, Any]]] = {
         "The 64-shape hill climb, then its first shape -- the background rect -- deleted.",
         {"tracer": "hillclimb", "shapes": 64, "candidates": 100, "patience": 100, "drop_bottom": True},
     ),
+    "structured": (
+        "Structured pipeline",
+        (
+            "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, "
+            "cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, "
+            "rect, polygon or Bezier path), hidden parts completed; transparent, one group per part."
+        ),
+        {"tracer": "structured"},
+    ),
 }
 
 _NUMBER = re.compile(r"-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
@@ -132,6 +148,10 @@ def trace(settings: dict[str, Any], target: Target) -> str:
         from games.copycat import hill_climb
 
         svg = hill_climb(target.rgba8(), target.width, target.height, seed=target.seed, **settings).canonical()
+    elif tracer == "structured":
+        from games.copycat import trace as structured
+
+        svg = structured(target.rgba8(), target.width, target.height, **settings).canonical()
     else:
         raise ValueError(f"unknown tracer {tracer}")
     return drop_bottom(svg) if bottom_dropped else svg

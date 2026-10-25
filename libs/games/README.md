@@ -49,7 +49,10 @@ so a seed is the same game in training, evaluation and a visitor's browser.
   protocol's subset (refusing anything else, with the reason), counts shapes/nodes/palette/turning, writes the canonical
   form, and renders through the core's own rasterizer (`rust/core/src/raster.rs`: analytic-coverage scanline, non-zero
   fill, `over`; tested against a supersampled oracle). `layer_recovery` and the `primitive`-style `hill_climb` baseline
-  (`copycat_climb.rs`) are there too. The WASM build has a minimal `CopyCatGame` (parse, counts, render).
+  (`copycat_climb.rs`) are there too, and so is `trace`: the structured MDL pipeline (`copycat_trace.rs`: noise,
+  background, OKLab palette, labels, part order; `copycat_fit.rs`: one region's shortest shape on a soft, sub-pixel
+  target, hidden parts completed under the parts above). The WASM build has a minimal `CopyCatGame` (parse, counts,
+  render, `trace`).
 - `observation.py` / `interfaces.py` — docs/design/0007's split of *what a model sees* from the
   game itself. An `Observer` encodes a game into `list[float]` (plus feature names); an
   `ActionAdapter` decodes model outputs into an action; an `Interface` is the versioned combination

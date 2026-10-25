@@ -82,6 +82,11 @@ export class CopyCatGame {
      * Straight-alpha RGBA, 8 bits per channel: ready for an `ImageData`.
      */
     render(): Uint8Array;
+    /**
+     * The structured pipeline (docs/design/0022 step 2) on an opaque RGBA image (an `ImageData`'s bytes), with its
+     * default settings. Throws if the bytes aren't `width x height` pixels.
+     */
+    static trace(rgba: Uint8Array, width: number, height: number): CopyCatGame;
     readonly height: number;
     readonly nodes: number;
     readonly palette: number;
@@ -184,6 +189,7 @@ export interface InitOutput {
     readonly copycatgame_palette: (a: number) => number;
     readonly copycatgame_render: (a: number) => [number, number];
     readonly copycatgame_shapes: (a: number) => number;
+    readonly copycatgame_trace: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly copycatgame_width: (a: number) => number;
     readonly decodeRelative3: (a: number, b: number) => number;
     readonly greedyDecide: (a: number, b: number) => number;

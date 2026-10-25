@@ -11,6 +11,7 @@ use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
 use redqueen_games::copycat::{layer_recovery, Document, Geometry};
 use redqueen_games::copycat_climb::{hill_climb, ClimbConfig};
+use redqueen_games::copycat_trace::{trace, TraceConfig};
 use redqueen_games::nets::{GraphNet, Net, Network};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
@@ -708,6 +709,38 @@ fn copycat_hill_climb(
     Ok(CopyCatDocument { inner })
 }
 
+/// The structured pipeline (docs/design/0022 step 2) on an opaque 8-bit RGBA image.
+#[pyfunction]
+#[pyo3(signature = (rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, seed))]
+#[allow(clippy::too_many_arguments)]
+fn copycat_trace(
+    py: Python<'_>,
+    rgba: Vec<u8>,
+    width: usize,
+    height: usize,
+    colors: usize,
+    merge_delta: f64,
+    background_delta: f64,
+    pixel_bits: f64,
+    edge_bits: f64,
+    min_area: usize,
+    seed: u64,
+) -> PyResult<CopyCatDocument> {
+    let config = TraceConfig {
+        colors,
+        merge_delta,
+        background_delta,
+        pixel_bits,
+        edge_bits,
+        min_area,
+        seed,
+    };
+    let inner = py
+        .detach(|| trace(&rgba, width, height, &config))
+        .map_err(PyValueError::new_err)?;
+    Ok(CopyCatDocument { inner })
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
@@ -723,5 +756,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(relative3_decode, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_layer_recovery, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_hill_climb, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_trace, m)?)?;
     Ok(())
 }

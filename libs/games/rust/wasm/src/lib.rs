@@ -6,6 +6,7 @@
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::copycat::Document;
+use redqueen_games::copycat_trace::{trace, TraceConfig};
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 use wasm_bindgen::prelude::*;
 
@@ -376,5 +377,13 @@ impl CopyCatGame {
     /// Straight-alpha RGBA, 8 bits per channel: ready for an `ImageData`.
     pub fn render(&self) -> Vec<u8> {
         self.inner.render().to_rgba8()
+    }
+
+    /// The structured pipeline (docs/design/0022 step 2) on an opaque RGBA image (an `ImageData`'s bytes), with its
+    /// default settings. Throws if the bytes aren't `width x height` pixels.
+    pub fn trace(rgba: &[u8], width: u32, height: u32) -> Result<CopyCatGame, JsError> {
+        trace(rgba, width as usize, height as usize, &TraceConfig::default())
+            .map(|inner| CopyCatGame { inner })
+            .map_err(|e| JsError::new(&e))
     }
 }
