@@ -26,6 +26,7 @@ export const ALGORITHMS: ExplainConcept[] = [
       "Shapes: each part becomes whichever of circle, ellipse, rect, polygon, smooth spline or Bézier path is shortest to describe, counting the pixels it gets wrong. Pixels under the parts above are free, so a hidden part completes itself.",
       "A smooth spline is a closed curve through a few knots, its tangents set by the neighbouring knots: a blob costs its knots, not the cubics that draw it.",
       "Refinement: every number of the leading candidates -- a circle's centre, a polygon's vertices, a spline's knots -- is nudged while that shortens the description, and a polygon or spline drops a point when it can. On a noisy image a move must save more bits, so outlines don't chase the noise.",
+      "Cuts: two overlapping shapes of one colour are one region, its outline notched where theirs cross. The region is cut between two notches when the two halves, each free to complete under the other, are shorter to describe than the whole.",
     ],
     code: "bits(shape) = model bits (type + coordinates at 0.1 px) + pixel_bits * misfit\nbest = argmin over circle, ellipse, rect, polygon, path",
     good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: Play traces your own image."],

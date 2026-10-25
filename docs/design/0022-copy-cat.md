@@ -6,8 +6,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 - Phase 2 built the structured MDL pipeline; see "Phase 2 results".
 - Phase 3 so far is the page, `/games/copycat`; see "The page". The `icons` set and the `wild` side-by-sides are
   still to come.
-- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots. A
-  regular-polygon candidate was measured and not kept. See "Phase 4 results".
+- Phase 4 so far refines each shape point by point under L, and describes a smooth outline by its knots,
+  and cuts a part of one colour in two where two shapes overlap. A regular-polygon candidate was measured and not
+  kept. See "Phase 4 results".
 
 Phases 3-6 are proposed.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
@@ -504,9 +505,62 @@ The worst `train` polygons say where the error actually is:
 - seed 68: a fully visible hexagon merged with a same-colour neighbour into one 12-vertex region. That is segmentation,
   not shape: no shape prior can fit two parts as one, and only a structure move (a split) can.
 
+### The fourth rung: cutting a part in two
+
+**Where the structure goes wrong.** On `train`, we counted the output shapes that are the best match for two or more
+clean parts. There were 20 such merges: 3 on `clean`, 5 on `light`, 5 on `medium` and 7 on `heavy`. Twelve were two
+touching parts of one colour, which segmentation can only see as one component. Images with a merge scored 4.7 dB
+lower on `clean` and 1.3 on `light`. Symmetry was not tried: `synthetic`'s primitives are already symmetric, and its
+blobs aren't.
+
+**The move** (`copycat_trace.rs`, `shapes_of`). When two convex shapes overlap, their union's outline has a notch
+wherever the two outlines cross.
+- A notch is the deepest point of a run of the outline more than 1.5 px inside its convex hull (`copycat_fit::notches`).
+- Each pair of the 4 deepest notches is tried as a cut: the part's pixels are split by the outline between them, closed
+  by the chord.
+- Each half is fitted with the other half's pixels free, as well as everything above. Both have one fill, so each
+  completes under the other, the same way a hidden part does.
+- The cut is kept if the two halves are shorter to describe than the whole, by 3 outline moves' worth of bits
+  (`3 x Costs::outline_gain`, which is zero on a clean image). Each half is then cut again the same way.
+- It runs only where a part has two notches, so a convex part costs nothing.
+
+On `train`:
+
+| Variant | Fidelity | clean | light | medium | heavy | Layer recovery | Smoothness |
+|---|---|---|---|---|---|---|---|
+| Second rung | 31.92 | 42.8 | 35.0 | 27.0 | 22.9 | 0.874 | 1.061x |
+| + cuts, no margin | 32.10 | 43.1 | 35.2 | 27.1 | 23.0 | 0.885 | 1.101x |
+| + cuts, margin 1 | 32.09 | 43.1 | 35.2 | 27.1 | 22.9 | 0.884 | 1.078x |
+| + cuts, margin 3 | **32.08** | 43.1 | 35.2 | 27.1 | 22.9 | 0.883 | 1.068x |
+| + cuts, margin 3, notches > 1.0 px | 32.08 | 43.1 | 35.2 | 27.1 | 22.9 | 0.883 | 1.073x |
+| + cuts, margin 3, notches > 0.75 px | 32.03 | 42.9 | 35.2 | 27.1 | 22.9 | 0.883 | 1.085x |
+
+- Without a margin, noise makes notches on `medium` and `heavy`, and the cuts there cost smoothness (`heavy` 1.17x to
+  1.28x) for almost no fidelity. A margin of 3 keeps most of the layer recovery.
+- Shallower notches let in more cuts that MDL accepts but that lower `clean` fidelity, and they take up to four times as
+  long.
+- Six of the twelve same-colour merges are now cut apart (seed 68's hexagon among them). Of the rest:
+  - seed 56's second circle lies inside a same-colour circle, so no image could show it;
+  - for seed 37, one end of the cut is hidden under the part above, so its notch is too shallow;
+  - four are on `heavy`.
+
+Held-out, scored once:
+
+| Severity | Clean fidelity (second rung) | Layer recovery | Smoothness |
+|---|---|---|---|
+| all | **31.43** (31.38) | 0.883 (0.877) | 1.04x (1.04x) |
+| clean | 42.35 (42.35) | 0.96 | 1.03x |
+| light | 34.12 (34.12) | 0.93 | 1.00x |
+| medium | 26.32 (26.32) | 0.86 | 0.99x |
+| heavy | **22.93** (22.70) | 0.78 (0.76) | 1.16x (1.14x) |
+
+It takes 223 ms per image. The held-out set has fewer same-colour merges on clean images, so the gain there is on
+`heavy` alone. The gain is small, but it points the same way as on `train`, and it adds no cost to convex parts.
+
 **Next:** past the warp cap only through priors that pick the *right* shape, not just a simpler one. Candidates:
-- symmetry, encoded as half a shape and a mirror;
-- the structure moves from the ladder's step 3 (merge, split, re-order) on whole parts.
+- cut ends hidden under a part above: find notches on the part's outline with the pixels above it filled in;
+- symmetry, for a set whose blobs are symmetric;
+- the other structure moves from the ladder's step 3 (merge, re-order) on whole parts.
 
 ## The page
 

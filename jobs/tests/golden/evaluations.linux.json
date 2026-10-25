@@ -5097,7 +5097,7 @@
      "parameters": 0
     },
     "model": {
-     "description": "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, rect, polygon, smooth spline or Bezier path) and refined point by point, hidden parts completed; transparent, one group per part.",
+     "description": "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, rect, polygon, smooth spline or Bezier path) and refined point by point, hidden parts completed, a part of one colour cut in two where two shapes overlap; transparent, one group per shape.",
      "note": null,
      "observer_level": 1,
      "shape": {
