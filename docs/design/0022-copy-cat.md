@@ -14,7 +14,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
   - never joins a piece another part lies beneath (a detail on it), measured on `icons`;
   - takes the background from the corners when the border's fit misses them (a tile), and keeps a near-background
     colour enclosed by parts (a white letter) as a part;
-  - orders two touching parts by the fraction of each the other covers, not the pixel count.
+  - orders two touching parts by the fraction of each the other covers, not the pixel count;
+  - fits the background from the three corners that agree when noise or clutter spoils the fourth, and keeps an
+    enclosed gap as a part only if its interior, clear of blurred edges, differs from the background.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -316,12 +318,13 @@ in order:
 
 1. **Noise σ:** the median OKLab difference between neighbouring pixels, as a robust estimate.
 2. **Background:** fitted to a 2-pixel border, either constant or a gradient, whichever is shorter; or, when that fit
-   misses the corners, started again from them (see "A background that reaches the corners"). It is a cluster of its
-   own whose centre varies per pixel.
+   misses the corners, started again from the three corners that agree best (see "A background that reaches the
+   corners" and "What limits `medium` and `heavy` icons"). It is a cluster of its own whose centre varies per pixel.
 3. **Palette:** k-means++ in OKLab from 16 seeds. Clusters merge while the residual the merge adds, in bits, is less
    than the 24-bit palette entry plus the shared boundary it saves.
 4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands). A
-   background component enclosed by parts whose colour is not the background's becomes a colour of its own.
+   background component enclosed by parts becomes a colour of its own if its interior, 2 pixels clear of its edge,
+   differs from the background by more than one robust deviation.
 5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
    says them more briefly, unless another part lies beneath either of them (see "Join only what an occluder cut").
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape covers more
@@ -825,6 +828,74 @@ Measured on `train` (fidelity, dB):
   `icons` 19.41 to 20.88.
 
 **Next, on `icons`:** `heavy` (15.3 dB) and `medium` (18.8 dB) are now furthest behind `synthetic`'s 22.9 and 27.5.
+
+### What limits `medium` and `heavy` icons
+
+To find out, each `medium` and `heavy` train image was corrupted again with every random draw kept and one `corrupt.v1`
+step changed, then traced and scored. There were 64 icons and 48 synthetic images. Leaving no step out reproduces the
+recorded scores to within 0.005 dB. Two experiments:
+
+- **Every step but one.** Leaving out any single step gains at most about 1.2 dB, because the others still do the
+  damage.
+- **One step only.** This is the clean image plus that one step, and it shows each step's cost on its own.
+
+Fidelity in dB. "None" is the clean render: no step at all.
+
+| one step only | icons `medium` | icons `heavy` | synthetic `medium` | synthetic `heavy` |
+|---|---|---|---|---|
+| none | 29.1 | 28.0 | 42.4 | 41.8 |
+| drift | -2.4 | -5.0 | -4.8 | -10.8 |
+| shading | -0.5 | -3.0 | -2.4 | -4.3 |
+| warp | -6.4 | -8.6 | -12.9 | -17.8 |
+| blur | -2.4 | -5.0 | -6.6 | -9.7 |
+| **background** | **-3.0** | **-6.4** | -0.5 | -1.0 |
+| noise | -6.9 | -6.9 | -5.1 | -9.0 |
+| jpeg | -5.4 | -5.6 | -3.6 | -5.0 |
+
+Two findings:
+
+- **Most of the gap is the clean render.** On icons with nothing corrupted, the pipeline already scores 13 dB below
+  synthetic. Twemoji drawings have more parts, thin details and overlaps. That is the rungs' work (shapes, joins,
+  order), not robustness. Apart from the background step, the corruption costs icons no more than synthetic.
+- **The background step is the icon-specific loss.** It costs synthetic almost nothing and icons up to 6.4 dB: gradient
+  backgrounds -6.4, clutter -5.1, flat 0.0. Under noise, a tile whose border fit misses the corners fell back to the
+  border as the background, and the whole tile came out at about 6 dB (train seeds 2, 3, 79 and 133).
+
+Two fixes, in `Background::fit` and `enclose`:
+
+1. **A corner fit that noise and clutter don't break.**
+   - The corner fit starts from the three corner patches that agree best. One corner can be a speck of clutter, or a
+     tile's blurred edge.
+   - It measures the kept pixels' deviations from the gradient, not from a flat colour, so a gradient background
+     doesn't inflate its cut.
+   - It is kept if it explains three of the four corners.
+
+   Test: `a_speck_on_one_corner_does_not_hide_the_background`.
+2. **Enclosed gaps judged by their interior.** On a noisy image the corner fit's cut is large, so the old test (6σ
+   from the background) dropped a white symbol on its tile (train seed 141, 23.1 to 12.3 dB with the first fix alone).
+   The test now uses the gap's interior: pixels at least 2 clear of its edge, of which there must be at least 16. Its
+   mean must differ from the background's by more than one robust deviation (the cut / 6).
+   - On train, symbols differ by 0.03 to 0.06 and holes by under 0.002 (the gear's, seed 144).
+   - Synthetic seed 30's real gap has a single interior pixel, so it stays a hole.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | `icons` `clean` | `light` | `medium` | `heavy` |
+|---|---|---|---|---|---|---|
+| before | 32.457 | 22.21 | 29.90 | 24.83 | 18.82 | 15.31 |
+| corner fit only | 32.457 | 23.00 | 30.64 | 25.87 | 18.47 | 17.03 |
+| **both** | **32.457** | **23.96** | **30.61** | **27.03** | **20.68** | **17.50** |
+
+- `synthetic`: no image changes.
+- `icons`: 26 up and 8 down. The tiles gain the most: seed 71 10.2 to 37.2, seed 89 8.1 to 31.8, seed 2 5.6 to 22.6.
+- The one large loss: the locomotive, seed 87, 21.0 to 15.8. Its subject reaches both bottom corners, so the fit
+  keeps a background that is half the drawing. The corners are the only prior about the background, and when the
+  subject owns two of them the prior is wrong.
+- Held-out, scored once: `synthetic` 32.230 to 32.230; `icons` 20.88 to 21.37 (clean 23.10, light 26.50, medium
+  19.37, heavy 16.53).
+
+**Next, on `icons`:** the clean render, 29 dB against synthetic's 42. With the background fixed, the rest of the gap is
+in the drawings themselves.
 
 ## The page
 
