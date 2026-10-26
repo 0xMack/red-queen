@@ -10,6 +10,9 @@
 //! segment. **Free pixels** -- those covered by a shape above this one -- cost nothing either way, which is how a hidden
 //! part completes itself (Decision 5): the cheapest circle behind a square is the whole circle, not a crescent.
 //!
+//! A ring is its outer shape with a hole: a gap the shape encloses, fitted as a region of its own and drawn as a subpath
+//! winding the other way (`Target::with_holes`), so the non-zero rule leaves it empty.
+//!
 //! Contours come from marching squares on the region's indicator, are cut at corners, and are fitted with cubic Béziers by Schneider's algorithm ("An Algorithm for
 //! Automatically Fitting Digitized Curves", Graphics Gems, 1990). Only `+ - * /` and `sqrt` (and `log2` for the
 //! coordinate code) -- the same numbers natively and in WASM.
@@ -288,6 +291,86 @@ impl Target<'_> {
         }
     }
 
+    /// `fit` with holes cut in it: each gap the shape covers that is neither the region nor free -- enclosed by the
+    /// shape, `MIN_HOLE` pixels or more -- is fitted as a region of its own (what it must cover is what the region
+    /// doesn't, inside the shape) and drawn as a subpath winding the other way, so the non-zero rule leaves it empty.
+    /// A hole is described by its own shape, after the outer one's, and kept while the whole is shorter. Largest
+    /// first.
+    pub fn with_holes(&self, fit: Fit, costs: &Costs) -> Fit {
+        let (w, h) = (self.width, self.height);
+        let outer = Shape {
+            geometry: fit.geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = coverage(&outer.outline(), w, h);
+        let mut covered = vec![0.0; w * h];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                covered[(mask.y0 + my) * w + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let gap: Vec<bool> = (0..w * h)
+            .map(|i| covered[i] >= 0.5 && !self.inside(i) && !self.free[i])
+            .collect();
+        let mut holes = gaps(&gap, &covered, w, h);
+        holes.sort_by_key(|pixels| std::cmp::Reverse(pixels.len()));
+        let uncovered = self.uncovered();
+        let nothing_free = vec![false; w * h];
+        let outer_bits = fit.model_bits;
+        let mut best = fit;
+        let mut cut: Vec<Fit> = Vec::new();
+        for pixels in holes {
+            // what the hole must cover: the gap and its blurred rim, as the fraction that isn't the region's
+            let mut near = vec![false; w * h];
+            for &i in &pixels {
+                let (x, y) = ((i % w) as i64, (i / w) as i64);
+                for dy in -HOLE_RIM..=HOLE_RIM {
+                    for dx in -HOLE_RIM..=HOLE_RIM {
+                        if let Some(j) = self.at(x + dx, y + dy) {
+                            near[j] = true;
+                        }
+                    }
+                }
+            }
+            // a part above covers its pixels only as well as its own shape fits them: a hole reaching under it would show
+            // the background through any gap, so a hole is held to the gap itself
+            let visible: Vec<f64> = (0..w * h)
+                .map(|i| {
+                    if near[i] && covered[i] >= 0.5 && !self.free[i] {
+                        1.0 - self.visible[i]
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            let target = Target {
+                width: w,
+                height: h,
+                visible: &visible,
+                free: &nothing_free,
+            };
+            let Some(hole) = target.fit(costs) else { continue };
+            let mut trial = cut.clone();
+            trial.push(hole);
+            let geometry = punched(&outer.geometry, &trial);
+            let model_bits =
+                outer_bits + costs.type_bits * trial.len() as f64 + trial.iter().map(|f| f.model_bits).sum::<f64>();
+            let candidate = Fit {
+                misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+                model_bits,
+                geometry,
+                knots: None,
+            };
+            if candidate.bits() < best.bits() {
+                cut = trial;
+                best = candidate;
+            }
+        }
+        best
+    }
+
     /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points, a
     /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept unless the
     /// descent from there is longer by `outline_gain` or more.
@@ -530,6 +613,156 @@ pub fn spline(knots: &[Point]) -> Geometry {
         ));
     }
     segments.push(Segment::Close);
+    Geometry::Path(segments)
+}
+
+/// The fewest pixels a gap must have to be fitted as a hole, and how far (px) around it a hole may reach for its rim.
+const MIN_HOLE: usize = 6;
+const HOLE_RIM: i64 = 2;
+
+/// 4-connected components of `gap` that the shape encloses: every neighbour outside the component is covered (no
+/// pixel of it on the image's edge), with `MIN_HOLE` pixels or more and an inside.
+fn gaps(gap: &[bool], covered: &[f64], w: usize, h: usize) -> Vec<Vec<usize>> {
+    let mut seen = vec![false; w * h];
+    let mut out = Vec::new();
+    for start in 0..w * h {
+        if !gap[start] || seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut queue = std::collections::VecDeque::from([start]);
+        let (mut pixels, mut enclosed) = (Vec::new(), true);
+        while let Some(i) = queue.pop_front() {
+            pixels.push(i);
+            let (x, y) = (i % w, i / w);
+            if x == 0 || y == 0 || x + 1 == w || y + 1 == h {
+                enclosed = false;
+            }
+            let mut next = Vec::with_capacity(4);
+            if x > 0 {
+                next.push(i - 1);
+            }
+            if x + 1 < w {
+                next.push(i + 1);
+            }
+            if y > 0 {
+                next.push(i - w);
+            }
+            if y + 1 < h {
+                next.push(i + w);
+            }
+            for j in next {
+                if gap[j] {
+                    if !seen[j] {
+                        seen[j] = true;
+                        queue.push_back(j);
+                    }
+                } else if covered[j] < 0.5 {
+                    enclosed = false;
+                }
+            }
+        }
+        // an inside: some pixel with all four neighbours in the gap (a blurred band along a part above has none)
+        let thick = pixels.iter().any(|&i| {
+            let (x, y) = (i % w, i / w);
+            x > 0 && y > 0 && x + 1 < w && y + 1 < h && [i - 1, i + 1, i - w, i + w].iter().all(|&j| gap[j])
+        });
+        if enclosed && thick && pixels.len() >= MIN_HOLE {
+            out.push(pixels);
+        }
+    }
+    out
+}
+
+/// One closed outline as path segments: a primitive's (a rect's four lines, a circle's or ellipse's four Béziers), a
+/// polygon's, or the path's own.
+fn segments_of(geometry: &Geometry) -> Vec<Segment> {
+    let lines = |points: &[Point]| {
+        let mut out = vec![Segment::Move(points[0])];
+        out.extend(points[1..].iter().map(|&p| Segment::Line(p)));
+        out.push(Segment::Close);
+        out
+    };
+    match *geometry {
+        Geometry::Rect { x, y, width, height } => {
+            lines(&[(x, y), (x + width, y), (x + width, y + height), (x, y + height)])
+        }
+        Geometry::Circle { cx, cy, r } => ellipse_segments(cx, cy, r, r),
+        Geometry::Ellipse { cx, cy, rx, ry } => ellipse_segments(cx, cy, rx, ry),
+        Geometry::Polygon(ref points) => lines(points),
+        Geometry::Path(ref segments) => segments.clone(),
+    }
+}
+
+/// `raster::ellipse`'s four Béziers, as segments.
+fn ellipse_segments(cx: f64, cy: f64, rx: f64, ry: f64) -> Vec<Segment> {
+    const K: f64 = 0.552_284_749_830_793_4;
+    let (kx, ky) = (K * rx, K * ry);
+    vec![
+        Segment::Move((cx + rx, cy)),
+        Segment::Cubic((cx + rx, cy + ky), (cx + kx, cy + ry), (cx, cy + ry)),
+        Segment::Cubic((cx - kx, cy + ry), (cx - rx, cy + ky), (cx - rx, cy)),
+        Segment::Cubic((cx - rx, cy - ky), (cx - kx, cy - ry), (cx, cy - ry)),
+        Segment::Cubic((cx + kx, cy - ry), (cx + rx, cy - ky), (cx + rx, cy)),
+        Segment::Close,
+    ]
+}
+
+/// One closed subpath traced the other way round: the same points, each segment from its end to its start.
+fn reversed(segments: &[Segment]) -> Vec<Segment> {
+    let Some(&Segment::Move(start)) = segments.first() else {
+        return segments.to_vec();
+    };
+    // each drawn segment with the point it starts from; the close is a line back to the start
+    let mut edges: Vec<(Point, Segment)> = Vec::new();
+    let mut at = start;
+    for segment in &segments[1..] {
+        let end = match *segment {
+            Segment::Line(p) | Segment::Quad(_, p) | Segment::Cubic(_, _, p) => p,
+            Segment::Move(_) | Segment::Close => continue,
+        };
+        edges.push((at, segment.clone()));
+        at = end;
+    }
+    if at != start {
+        edges.push((at, Segment::Line(start)));
+    }
+    let mut out = vec![Segment::Move(start)];
+    for (from, segment) in edges.into_iter().rev() {
+        out.push(match segment {
+            Segment::Line(_) => Segment::Line(from),
+            Segment::Quad(c, _) => Segment::Quad(c, from),
+            Segment::Cubic(c1, c2, _) => Segment::Cubic(c2, c1, from),
+            other => other,
+        });
+    }
+    out.push(Segment::Close);
+    out
+}
+
+/// The outline's signed area, from its flattened polylines.
+fn winding_area(segments: &[Segment]) -> f64 {
+    let shape = Shape {
+        geometry: Geometry::Path(segments.to_vec()),
+        fill: [0, 0, 0],
+        opacity: 1.0,
+        group: None,
+    };
+    shape.outline().iter().map(|polyline| signed_area(polyline)).sum()
+}
+
+/// `outer` with each hole as a subpath winding against it.
+fn punched(outer: &Geometry, holes: &[Fit]) -> Geometry {
+    let mut segments = segments_of(outer);
+    let sign = winding_area(&segments).signum();
+    for hole in holes {
+        let own = segments_of(&hole.geometry);
+        segments.extend(if winding_area(&own).signum() == sign {
+            reversed(&own)
+        } else {
+            own
+        });
+    }
     Geometry::Path(segments)
 }
 
