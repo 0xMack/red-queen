@@ -11,8 +11,10 @@
 //!    (`ΔSSE / 2σ² ln 2` bits) -- or the two are within `merge_delta` of each other (a part's own shading, which a
 //!    flat fill can't say anyway), or a cluster is within `background_delta` of the background (faint clutter).
 //! 4. **Labels**: a 3 x 3 majority filter; then components too small (`min_area`) or too thin (an anti-aliased or
-//!    blurred edge's in-between colour) are dissolved into whatever surrounds them. A background component enclosed by
-//!    parts whose colour is not quite the background's (a white letter, an off-white background) is a colour of its own.
+//!    blurred edge's in-between colour) are dissolved into whatever surrounds them, but never the background where it
+//!    reaches the image's edge. A background component enclosed by parts whose colour is not quite the background's (a
+//!    white letter, an off-white background) is a colour of its own; so is a light part the background took for faint
+//!    clutter, if it stands out from the background and touches the rest of the subject (`restore`).
 //! 5. **Parts**: every connected component but the background is a part, filled with its label's interior mean (one
 //!    palette entry per label); two of one colour join when one shape says them more briefly (a part an occluder cut in two).
 //! 6. **Order**: for each pair of touching parts, the one whose shape completed under the other covers more of it (as a
@@ -370,6 +372,9 @@ impl Background {
 pub struct Segmentation {
     pub labels: Vec<usize>,
     pub centres: Vec<Lab>,
+    /// Pixels a cluster had when it joined the background only for being within `background_delta` of it (a merge
+    /// the description length alone wouldn't make).
+    pub faint: Vec<bool>,
 }
 
 struct Clustering<'a> {
@@ -469,6 +474,7 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
         centres,
     };
     let mut labels = clustering.iterate(12);
+    let mut faint = vec![false; n];
     // merges, closest pair first, while shorter to describe (or closer than merge_delta)
     let bits_per_sse = 1.0 / (2.0 * sigma * sigma * std::f64::consts::LN_2);
     loop {
@@ -491,7 +497,7 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                 }
             }
         }
-        let mut best: Option<(f64, usize, usize)> = None;
+        let mut best: Option<(f64, usize, usize, bool)> = None;
         for a in 0..k {
             for b in a + 1..k {
                 let (Some(cb), true) = (clustering.centres[b], n_of[a] > 0 && n_of[b] > 0) else {
@@ -520,15 +526,17 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                 } else {
                     config.merge_delta
                 };
-                if (delta < close || added * bits_per_sse < saved) && best.is_none_or(|(d, _, _)| delta < d) {
-                    best = Some((delta, a, b));
+                let shorter = added * bits_per_sse < saved;
+                if (delta < close || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
+                    best = Some((delta, a, b, a == 0 && !shorter));
                 }
             }
         }
-        let Some((_, a, b)) = best else { break };
-        for l in labels.iter_mut() {
+        let Some((_, a, b, forced)) = best else { break };
+        for (i, l) in labels.iter_mut().enumerate() {
             if *l == b {
                 *l = a;
+                faint[i] |= forced;
             }
         }
         clustering.centres[b] = None;
@@ -549,6 +557,7 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
     Segmentation {
         labels: labels.iter().map(|&l| renumber[l]).collect(),
         centres,
+        faint,
     }
 }
 
@@ -642,14 +651,23 @@ fn eroded(image: &Image, id: &[usize], pixels: &[usize], steps: usize) -> usize 
 }
 
 /// Dissolves components that are too small or too thin to be parts: each of their pixels takes the label of the
-/// nearest pixel that stays (a breadth-first flood from what stays).
+/// nearest pixel that stays (a breadth-first flood from what stays). The background where it reaches the image's edge
+/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background.
 pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Vec<usize> {
     let mut labels = majority(labels, image.width, image.height);
     labels = majority(&labels, image.width, image.height);
     let (id, members) = components(image, &labels);
+    let (w, h) = (image.width, image.height);
     let dissolve: Vec<bool> = members
         .iter()
-        .map(|pixels| pixels.len() < config.min_area || eroded(image, &id, pixels, 1) * 4 < pixels.len())
+        .map(|pixels| {
+            let edge = labels[pixels[0]] == 0
+                && pixels.iter().any(|&i| {
+                    let (x, y) = (i % w, i / w);
+                    x == 0 || y == 0 || x + 1 == w || y + 1 == h
+                });
+            !edge && (pixels.len() < config.min_area || eroded(image, &id, pixels, 1) * 4 < pixels.len())
+        })
         .collect();
     if dissolve.iter().all(|d| *d) {
         return labels;
@@ -678,10 +696,6 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
 pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize], centres: &mut Vec<Lab>) {
     let (w, h) = (image.width, image.height);
     let (_, members) = components(image, labels);
-    let mean = |pixels: &[usize], of: &dyn Fn(usize) -> Lab| {
-        let n = pixels.len() as f64;
-        [0, 1, 2].map(|k| pixels.iter().map(|&i| of(i)[k]).sum::<f64>() / n)
-    };
     let enclosed: Vec<&Vec<usize>> = members
         .iter()
         .filter(|pixels| labels[pixels[0]] == 0)
@@ -691,33 +705,7 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
                 x > 0 && y > 0 && x + 1 < w && y + 1 < h
             })
         })
-        .filter(|pixels| {
-            // its interior, clear of the blurred edge it shares with the parts around it
-            let mut inside = vec![false; w * h];
-            for &i in pixels.iter() {
-                inside[i] = true;
-            }
-            let r = INTERIOR as i64;
-            let interior: Vec<usize> = pixels
-                .iter()
-                .copied()
-                .filter(|&i| {
-                    let (x, y) = ((i % w) as i64, (i / w) as i64);
-                    x >= r
-                        && y >= r
-                        && x + r < w as i64
-                        && y + r < h as i64
-                        && (-r..=r).all(|dy| (-r..=r).all(|dx| inside[((y + dy) * w as i64 + x + dx) as usize]))
-                })
-                .collect();
-            interior.len() >= MIN_INTERIOR
-                && distance2(
-                    &mean(&interior, &|i| image.lab[i]),
-                    &mean(&interior, &|i| background[i]),
-                )
-                .sqrt()
-                    > cut / 6.0
-        })
+        .filter(|pixels| stands_out(image, background, cut, 1.0, pixels))
         .collect();
     let n: usize = enclosed.iter().map(|p| p.len()).sum();
     if n == 0 {
@@ -733,6 +721,100 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
     }
     centres.push(mean);
 }
+
+/// Whether a region's interior -- its pixels `INTERIOR` clear of its edge, clear of the blur it shares with what is
+/// around it -- has a mean colour further from the background's than `deviations` robust deviations (`cut` / 6 each),
+/// with at least `MIN_INTERIOR` pixels to tell by.
+fn stands_out(image: &Image, background: &[Lab], cut: f64, deviations: f64, pixels: &[usize]) -> bool {
+    let (w, h) = (image.width, image.height);
+    let mean = |pixels: &[usize], of: &dyn Fn(usize) -> Lab| {
+        let n = pixels.len() as f64;
+        [0, 1, 2].map(|k| pixels.iter().map(|&i| of(i)[k]).sum::<f64>() / n)
+    };
+    let mut inside = vec![false; w * h];
+    for &i in pixels {
+        inside[i] = true;
+    }
+    let r = INTERIOR as i64;
+    let interior: Vec<usize> = pixels
+        .iter()
+        .copied()
+        .filter(|&i| {
+            let (x, y) = ((i % w) as i64, (i / w) as i64);
+            x >= r
+                && y >= r
+                && x + r < w as i64
+                && y + r < h as i64
+                && (-r..=r).all(|dy| (-r..=r).all(|dx| inside[((y + dy) * w as i64 + x + dx) as usize]))
+        })
+        .collect();
+    interior.len() >= MIN_INTERIOR
+        && distance2(
+            &mean(&interior, &|i| image.lab[i]),
+            &mean(&interior, &|i| background[i]),
+        )
+        .sqrt()
+            > deviations * cut / 6.0
+}
+
+/// A light part on a light background -- a white plate, a grey speaker cone -- is within `background_delta` of it, so
+/// `segment` gave it to the background with the faint clutter that rule is for (`Segmentation::faint`). Each region of
+/// such pixels still labelled background after `clean_labels` and `enclose` is a part again, a colour of its own, if
+/// - it is big and thick enough to be a part (`min_area`, and `clean_labels`' thinness test),
+/// - its interior's colour is `RESTORE_DEVIATIONS` robust deviations from the background's (`stands_out`): on a clean
+///   image any light part is, while faint clutter on a noisy one is barely off the background, and
+/// - at least `RESTORE_SHARE` of its boundary is with parts: a part of the subject touches the rest of it, while clutter
+///   mostly lies alone in the background.
+pub fn restore(
+    image: &Image,
+    background: &[Lab],
+    cut: f64,
+    faint: &[bool],
+    config: &TraceConfig,
+    labels: &mut [usize],
+    centres: &mut Vec<Lab>,
+) {
+    let candidate: Vec<usize> = (0..labels.len())
+        .map(|i| usize::from(faint[i] && labels[i] == 0))
+        .collect();
+    let (id, members) = components(image, &candidate);
+    for pixels in members.iter().filter(|p| candidate[p[0]] == 1) {
+        if pixels.len() < config.min_area
+            || eroded(image, &id, pixels, 1) * 4 < pixels.len()
+            || !stands_out(image, background, cut, RESTORE_DEVIATIONS, pixels)
+        {
+            continue;
+        }
+        let c = id[pixels[0]];
+        let (mut subject, mut empty) = (0usize, 0usize);
+        for &i in pixels {
+            for j in image.neighbours(i).filter(|&j| id[j] != c) {
+                if labels[j] == 0 {
+                    empty += 1;
+                } else {
+                    subject += 1;
+                }
+            }
+        }
+        if (subject as f64) < RESTORE_SHARE * (subject + empty).max(1) as f64 {
+            continue;
+        }
+        let label = centres.len();
+        let mut mean = [0.0; 3];
+        for &i in pixels {
+            for (k, m) in mean.iter_mut().enumerate() {
+                *m += image.lab[i][k] / pixels.len() as f64;
+            }
+            labels[i] = label;
+        }
+        centres.push(mean);
+    }
+}
+
+/// How many robust deviations from the background a restored part's interior must be, and how much of its boundary it
+/// must share with parts.
+const RESTORE_DEVIATIONS: f64 = 3.0;
+const RESTORE_SHARE: f64 = 0.25;
 
 /// How far (px) inside an enclosed region its interior starts, and the fewest interior pixels it must have.
 const INTERIOR: usize = 2;
@@ -1130,6 +1212,15 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
     enclose(&image, &per_pixel, background.cut, &mut labels, &mut centres);
+    restore(
+        &image,
+        &per_pixel,
+        background.cut,
+        &segmentation.faint,
+        config,
+        &mut labels,
+        &mut centres,
+    );
     let scene = Scene {
         image: &image,
         labels,
@@ -1271,6 +1362,40 @@ mod tests {
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
         let rendered = traced.render().to_rgba8();
         assert_eq!(rendered[(32 * 64 + 32) * 4 + 3], 0, "{}", traced.canonical());
+    }
+
+    #[test]
+    fn a_light_part_beside_the_subject_is_not_the_background() {
+        // a light grey plate under a brown pudding, on an off-white background within background_delta of the plate
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <ellipse cx=\"32\" cy=\"42\" rx=\"28\" ry=\"12\" fill=\"#e1e8ed\"/>\
+            <rect x=\"14\" y=\"16\" width=\"36\" height=\"32\" fill=\"#8a4b38\"/></svg>";
+        let (clean, rgba) = photograph(svg, [246, 244, 240]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        // the plate rim, left of the pudding, is drawn
+        assert_eq!(rendered[(44 * 64 + 10) * 4 + 3], 255, "{}", traced.canonical());
+        assert!(
+            layer_recovery(&clean, &traced).iter().all(|r| *r > 0.9),
+            "{}",
+            traced.canonical()
+        );
+    }
+
+    #[test]
+    fn a_tile_keeps_its_rounded_corners() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <path d=\"M12 0L52 0Q64 0 64 12L64 52Q64 64 52 64L12 64Q0 64 0 52L0 12Q0 0 12 0Z\" fill=\"#2060a0\"/></svg>";
+        let (_, rgba) = photograph(svg, [244, 240, 236]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
+        assert_eq!(
+            (alpha(32, 32), alpha(1, 1), alpha(62, 62)),
+            (255, 0, 0),
+            "{}",
+            traced.canonical()
+        );
     }
 
     #[test]
