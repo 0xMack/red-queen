@@ -16,7 +16,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
     colour enclosed by parts (a white letter) as a part;
   - orders two touching parts by the fraction of each the other covers, not the pixel count;
   - fits the background from the three corners that agree when noise or clutter spoils the fourth, and keeps an
-    enclosed gap as a part only if its interior, clear of blurred edges, differs from the background.
+    enclosed gap as a part only if its interior, clear of blurred edges, differs from the background;
+  - gives back a light part the background took for faint clutter, if it stands out and touches the subject, and never
+    dissolves the background where it reaches the image's edge (a tile's rounded corner).
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -322,9 +324,11 @@ in order:
    corners" and "What limits `medium` and `heavy` icons"). It is a cluster of its own whose centre varies per pixel.
 3. **Palette:** k-means++ in OKLab from 16 seeds. Clusters merge while the residual the merge adds, in bits, is less
    than the 24-bit palette entry plus the shared boundary it saves.
-4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands). A
-   background component enclosed by parts becomes a colour of its own if its interior, 2 pixels clear of its edge,
-   differs from the background by more than one robust deviation.
+4. **Labels:** a majority filter, then dissolving components that are too small or too thin (anti-aliased bands),
+   except the background where it reaches the image's edge. A background component enclosed by parts becomes a colour
+   of its own if its interior, 2 pixels clear of its edge, differs from the background by more than one robust
+   deviation. A light part that step 2 merged into the background only for being near its colour is a part again if
+   it stands out by three deviations and a quarter of its boundary is with parts (see "The `icons` clean render").
 5. **Parts:** one per component, filled with its label's interior mean. Two components of one label join when one shape
    says them more briefly, unless another part lies beneath either of them (see "Join only what an occluder cut").
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape covers more
@@ -896,6 +900,92 @@ Measured on `train` (fidelity, dB):
 
 **Next, on `icons`:** the clean render, 29 dB against synthetic's 42. With the background fixed, the rest of the gap is
 in the drawings themselves.
+
+### The `icons` clean render
+
+"Clean render" here is every train image traced with no `corrupt.v1` step at all, on a flat background. Icons score
+29.5 dB on it, synthetic 43.0. The scores are bimodal: most icons are at 30 to 40 dB, and 28 of the 128 are under 17.
+The 28 dominate the mean (median 32.5).
+
+The error was split per pixel, over white, by what the clean render has there. The share of the squared error, and
+the mean gain in dB if that error were gone:
+
+| where | share of error | dB if fixed |
+|---|---|---|
+| edges of other parts (within a pixel or two of a boundary) | 18% | 3.1 |
+| interiors of other parts | 27% | 0.25 |
+| light parts (no channel under 75%), interior and edge | 23% | 1.3 |
+| drawn outside the subject, where the clean render is empty | 8% | 1.4 |
+| holes in the subject, drawn filled | 18% | 0.44 |
+
+- **Edges** are spread over the good images. They are the shapes' precision, and in dB they move the 35 dB images,
+  not the mean.
+- **Holes** are concentrated in a few icons (the sun's ring 24 dB, a racket 9). Each part is fitted by its outer
+  contour only. The subset can say a hole (a reversed inner subpath), but the fitter doesn't yet.
+- **Light parts** are most of the worst images: a plate, a white chicken, a panda's face, an ice skate, a grey speaker
+  cone. The backgrounds are near-white (0.86 to 1.0 per channel), and Twemoji's light greys (`#e1e8ed`, `#ccd6dd`) are
+  within `background_delta` (0.1) of them. So `segment` merges them into the background, with the faint clutter that
+  rule is for.
+- **Outside**: a tile's rounded corners came back square. The background in each corner is a thin sliver, and
+  `clean_labels` dissolved it into the tile.
+
+`background_delta` itself can't be the fix. Lowered, it gives clutter back too:
+
+| `background_delta` | `synthetic` | `icons` | `icons` `clean` |
+|---|---|---|---|
+| **0.1** (as before) | **32.457** | **23.96** | **30.61** |
+| 0.06 | 31.66 | 24.35 | 31.53 |
+| 0.03 | 30.46 | 23.53 | 31.43 |
+| 0 | 28.88 | 23.28 | 32.38 |
+
+Two changes:
+
+1. **The background never dissolves where it reaches the image's edge.** Test: `a_tile_keeps_its_rounded_corners`.
+2. **A light part is given back.**
+   - `segment` records the pixels a cluster had when it joined the background only for being within
+     `background_delta`, a merge the description length alone wouldn't make (`Segmentation::faint`).
+   - After `clean_labels` and `enclose`, each region of such pixels still labelled background is a part again, with a
+     colour of its own, if three things hold:
+     - it is big and thick enough to be a part;
+     - its interior is three robust deviations from the background;
+     - at least a quarter of its boundary is with parts.
+   - On a clean image any light part stands out, and noisy clutter barely does. A part of the subject touches the rest
+     of it, while clutter mostly lies alone in the background.
+
+   Test: `a_light_part_beside_the_subject_is_not_the_background`.
+
+Neither test alone was enough, and the order matters:
+
+- **Without the colour test** (one deviation, as `enclose` uses), clutter beside the subject comes back as ghost
+  blobs. Synthetic falls 0.11 at a share of 0.3, and two noisy images lose 3.7 and 6.7 dB.
+- **Without the share test**, the same happens to clutter anywhere: synthetic 32.27.
+- **Run before `enclose`**, it claims only the faint pixels of a white letter's region and thins the letter: train seed
+  62 lost 8.8 dB.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | `clean` | `light` | `medium` | `heavy` | no corruption |
+|---|---|---|---|---|---|---|---|
+| before | 32.457 | 23.96 | 30.61 | 27.03 | 20.68 | 17.50 | 29.49 |
+| edge background kept | 32.454 | 24.03 | 30.68 | 27.03 | 20.92 | 17.49 | |
+| **and light parts given back** | **32.454** | **24.82** | **32.61** | **27.85** | **21.28** | **17.54** | **31.51** |
+
+How sensitive the two thresholds are:
+
+- **Share** (at three deviations): 0, 0.15, 0.25, 0.3, 0.4 and 0.5 give icons 24.98, 24.88, 24.82, 24.72, 24.36 and
+  24.08.
+- Synthetic is untouched from 0.15 up and falls to 32.27 at 0.
+- **Deviations** (at a share of 0.3): 1, 2, 3 and 4 give synthetic 32.35, 32.35, 32.454 and 32.454.
+
+- `synthetic`: one image changes, seed 30, by -0.25 dB (the edge rule; no corruption: unchanged at 42.95).
+- `icons`: 35 change, 24 up. The light parts come back: the hatching chick's shell 19.4 dB up, the satellite 15.4,
+  the custard's plate 14.5, the axe's blade 13.9, the panda 12.8. The largest loss is the locomotive (seed 87, -2.9).
+  Its subject owns two corners and is already mistaken for background.
+- Held-out, scored once: `synthetic` 32.230 to 32.230; `icons` 21.37 to 22.63 (clean 23.10 to 28.09; light, medium
+  and heavy within 0.04).
+
+**Next, on `icons`:** holes (the fitter only fits a part's outer contour; the subset can already say a hole), then the
+shapes' precision at edges.
 
 ## The page
 
