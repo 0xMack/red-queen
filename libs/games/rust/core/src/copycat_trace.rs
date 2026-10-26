@@ -183,7 +183,7 @@ impl Background {
     /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice. Pixels alone can't
     /// tell a tile filling most of the border from a background, so a prior decides: the background reaches the
     /// corners. When the border's fit leaves a corner unexplained, the fit is started again from the corners instead,
-    /// and kept if it explains all four.
+    /// and kept if it explains three of the four.
     pub fn fit(image: &Image, sigma: f64) -> Background {
         let (w, h) = (image.width, image.height);
         let border: Vec<usize> = (0..w * h)
@@ -201,16 +201,28 @@ impl Background {
             })
             .collect();
         let from_border = Background::robust(image, &border, &border, sigma);
-        let from_corners = Background::robust(image, &border, &corners.concat(), sigma);
-        // judged by how much the corners themselves vary: tightly when they agree, loosely under a gradient or clutter
+        // started from the three corners that agree best: one may be a speck of clutter or a tile's blurred edge
+        let mean = |c: &Vec<usize>| [0, 1, 2].map(|k| c.iter().map(|&i| image.lab[i][k]).sum::<f64>() / c.len() as f64);
+        let means: Vec<Lab> = corners.iter().map(mean).collect();
+        let middle = [0, 1, 2].map(|k| median(means.iter().map(|m| m[k]).collect()));
+        let odd = (0..corners.len())
+            .max_by(|&a, &b| distance2(&means[a], &middle).total_cmp(&distance2(&means[b], &middle)))
+            .unwrap();
+        let start: Vec<usize> = (0..corners.len())
+            .filter(|&k| k != odd)
+            .flat_map(|k| corners[k].clone())
+            .collect();
+        let from_corners = Background::robust(image, &border, &start, sigma);
+        // judged by how much the background varies about a gradient through the corners -- tight even under a
+        // gradient background -- and the corner fit may miss one corner (a speck of clutter, a tile's blurred edge)
         let cut = if from_corners.cut.is_finite() {
             from_corners.cut
         } else {
             6.0 * sigma
         };
-        if from_border.explains(image, &corners, sigma, cut) {
+        if from_border.explained(image, &corners, sigma, cut) == corners.len() {
             from_border.choose(image, sigma)
-        } else if from_corners.explains(image, &corners, sigma, cut) {
+        } else if from_corners.explained(image, &corners, sigma, cut) + 1 >= corners.len() {
             from_corners.choose(image, sigma)
         } else {
             from_border.choose(image, sigma)
@@ -230,9 +242,10 @@ struct Robust {
 }
 
 impl Background {
-    /// Starting from the flat fit to `start`, the border pixels within 3 robust deviations of the flat fit are kept and
-    /// refitted, twice. The deviation is the whole border's when starting from it, else the kept pixels' own: a tile
-    /// filling most of the border would otherwise set it.
+    /// Starting from the fit to `start`, the border pixels within 3 robust deviations of it are kept and refitted,
+    /// twice. From the whole border, the deviation is the border's from the flat fit. From the corners, it is the kept
+    /// pixels' own from the gradient fit: a tile filling most of the border would otherwise set it, and a gradient
+    /// background widen it.
     fn robust(image: &Image, border: &[usize], start: &[usize], sigma: f64) -> Robust {
         let mut state = Robust {
             kept: start.to_vec(),
@@ -242,7 +255,8 @@ impl Background {
         };
         let whole = start.len() == border.len();
         for _ in 0..2 {
-            let deviation = |i: usize| distance2(&image.lab[i], &state.flat.at_pixel(image, i)).sqrt();
+            let reference = if whole { &state.flat } else { &state.gradient };
+            let deviation = |i: usize| distance2(&image.lab[i], &reference.at_pixel(image, i)).sqrt();
             let deviations: Vec<f64> = border.iter().map(|&i| deviation(i)).collect();
             let spread = if whole {
                 median(deviations.clone())
@@ -271,15 +285,18 @@ impl Background {
 }
 
 impl Robust {
-    /// Whether each corner's mean is within `cut` of the fit (flat or gradient, whichever is chosen).
-    fn explains(&self, image: &Image, corners: &[Vec<usize>], sigma: f64, cut: f64) -> bool {
+    /// How many corners' means are within `cut` of the fit (flat or gradient, whichever is chosen).
+    fn explained(&self, image: &Image, corners: &[Vec<usize>], sigma: f64, cut: f64) -> usize {
         let fit = self.choose(image, sigma);
-        corners.iter().all(|corner| {
-            let n = corner.len() as f64;
-            let mean = [0, 1, 2].map(|k| corner.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n);
-            let expected = [0, 1, 2].map(|k| corner.iter().map(|&i| fit.at_pixel(image, i)[k]).sum::<f64>() / n);
-            distance2(&mean, &expected).sqrt() <= cut
-        })
+        corners
+            .iter()
+            .filter(|corner| {
+                let n = corner.len() as f64;
+                let mean = [0, 1, 2].map(|k| corner.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n);
+                let expected = [0, 1, 2].map(|k| corner.iter().map(|&i| fit.at_pixel(image, i)[k]).sum::<f64>() / n);
+                distance2(&mean, &expected).sqrt() <= cut
+            })
+            .count()
     }
 
     /// The gradient if its 6 more numbers (at about 12 bits each) are paid for by the residual it removes.
@@ -652,10 +669,12 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
     out.into_iter().map(|l| l.unwrap_or(0)).collect()
 }
 
-/// The background reaches the image's edge: a background-labelled component enclosed by parts whose mean colour is
-/// further from the background's than a border pixel may stray (`Background::cut`) -- the white of a letter on a tile
-/// against an off-white background, within `background_delta` of it -- is a colour of its own, a new label whose centre
-/// is its mean. One that is the background's colour stays a hole.
+/// The background reaches the image's edge: a background-labelled component enclosed by parts whose interior's mean
+/// colour is further from the background's than one robust deviation of a border pixel (`Background::cut` / 6) -- the
+/// white of a letter on a tile against an off-white background, within `background_delta` of it -- is a colour of its
+/// own, a new label whose centre is its mean. One that is the background's colour stays a hole, and so does one with
+/// too little interior to tell (a gap between parts, blurred by them). The interior's mean has no blurred edge, and
+/// the noise averages away in it, so one deviation is a safe margin.
 pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize], centres: &mut Vec<Lab>) {
     let (w, h) = (image.width, image.height);
     let (_, members) = components(image, labels);
@@ -673,9 +692,31 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
             })
         })
         .filter(|pixels| {
-            let seen = mean(pixels, &|i| image.lab[i]);
-            let expected = mean(pixels, &|i| background[i]);
-            distance2(&seen, &expected).sqrt() > cut
+            // its interior, clear of the blurred edge it shares with the parts around it
+            let mut inside = vec![false; w * h];
+            for &i in pixels.iter() {
+                inside[i] = true;
+            }
+            let r = INTERIOR as i64;
+            let interior: Vec<usize> = pixels
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    let (x, y) = ((i % w) as i64, (i / w) as i64);
+                    x >= r
+                        && y >= r
+                        && x + r < w as i64
+                        && y + r < h as i64
+                        && (-r..=r).all(|dy| (-r..=r).all(|dx| inside[((y + dy) * w as i64 + x + dx) as usize]))
+                })
+                .collect();
+            interior.len() >= MIN_INTERIOR
+                && distance2(
+                    &mean(&interior, &|i| image.lab[i]),
+                    &mean(&interior, &|i| background[i]),
+                )
+                .sqrt()
+                    > cut / 6.0
         })
         .collect();
     let n: usize = enclosed.iter().map(|p| p.len()).sum();
@@ -692,6 +733,10 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
     }
     centres.push(mean);
 }
+
+/// How far (px) inside an enclosed region its interior starts, and the fewest interior pixels it must have.
+const INTERIOR: usize = 2;
+const MIN_INTERIOR: usize = 16;
 
 /// A part: a connected component of one (non-background) label.
 pub struct Part {
@@ -1226,6 +1271,19 @@ mod tests {
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
         let rendered = traced.render().to_rgba8();
         assert_eq!(rendered[(32 * 64 + 32) * 4 + 3], 0, "{}", traced.canonical());
+    }
+
+    #[test]
+    fn a_speck_on_one_corner_does_not_hide_the_background() {
+        // the tile of `a_tile_filling_the_border_is_a_shape_and_its_letter_too`, and a dark speck on one corner
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <path d=\"M16 0L48 0Q64 0 64 16L64 48Q64 64 48 64L16 64Q0 64 0 48L0 16Q0 0 16 0Z\" fill=\"#2060a0\"/>\
+            <rect x=\"22\" y=\"16\" width=\"20\" height=\"32\" fill=\"#ffffff\"/>\
+            <rect x=\"0\" y=\"0\" width=\"3\" height=\"3\" fill=\"#404040\"/></svg>";
+        let (_, rgba) = photograph(svg, [244, 240, 236]);
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(distance2(&background.at(1.0, 1.0), &oklab([244, 240, 236])) < 1e-4);
     }
 
     fn photograph(svg: &str, background: [u8; 3]) -> (Document, Vec<u8>) {
