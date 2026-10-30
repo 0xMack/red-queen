@@ -18,7 +18,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
   - fits the background from the three corners that agree when noise or clutter spoils the fourth, and keeps an
     enclosed gap as a part only if its interior, clear of blurred edges, differs from the background;
   - gives back a light part the background took for faint clutter, if it stands out and touches the subject, and never
-    dissolves the background where it reaches the image's edge (a tile's rounded corner).
+    dissolves the background where it reaches the image's edge (a tile's rounded corner);
+  - cuts holes: each gap a part's shape encloses is fitted as a shape of its own and drawn as a reversed subpath.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -334,7 +335,8 @@ in order:
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape covers more
    of the other, as a fraction of it, goes below (see "Paint order by the fraction covered").
 7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
-   Bézier path (Schneider's fit, cut at corners), and the shortest `model bits + pixel_bits x misfit` wins.
+   Bézier path (Schneider's fit, cut at corners), and the shortest `model bits + pixel_bits x misfit` wins. Then
+   each gap the shape encloses is cut out as a hole while that is shorter (see "Holes").
 
 Choices made along the way, each measured on the `train` split (96 images, `python -m arena.copycat_sets --split
 train`; the held-out split was scored once, at the end):
@@ -384,7 +386,7 @@ The rest of the field is as in phase 1. By severity, against phase 1's best:
 **Not done yet:**
 
 - Symmetry (half and a mirror).
-- A region with a hole: only its outer contour is fitted, so a hole costs misfit.
+- A region with a hole: only its outer contour is fitted, so a hole costs misfit. (Since fixed: see "Holes".)
 - The incremental re-scoring API (Decision 6). Every candidate rasterizes its whole bounding box.
 
 These are phase 4's search moves, or later.
@@ -986,6 +988,56 @@ How sensitive the two thresholds are:
 
 **Next, on `icons`:** holes (the fitter only fits a part's outer contour; the subset can already say a hole), then the
 shapes' precision at edges.
+
+### Holes
+
+Each part was fitted by its outer contour, so a ring came back as a disc. The subset can already say a hole: a path
+whose inner subpath winds the other way, which the non-zero rule leaves empty. `Target::with_holes` now cuts them.
+
+1. **Find the gaps.** After a part's final shape is fitted, a gap is a 4-connected run of pixels that the shape
+   covers but that are neither the part's nor free under a part above. It counts only if:
+   - the shape encloses it (it touches no uncovered pixel and not the image's edge);
+   - it has 6 pixels or more;
+   - it has an inside: a pixel whose four neighbours are all in the gap.
+2. **Fit each gap**, largest first, as a region of its own. What it must cover is the fraction of each pixel that
+   isn't the part's, within 2 px of the gap and inside the shape.
+3. **Keep it while the whole is shorter.** The shape becomes a path, with the hole reversed if it winds the same way.
+   It is described as the outer shape's description plus the hole's, so a circle with a hole isn't charged as four
+   Béziers. Test: `a_ring_keeps_its_hole`.
+
+Two things the first version got wrong, both visible only in the score:
+
+- **A hole fitted with the pixels under parts above it free** reached under them. Those parts cover their pixels
+  only as well as their own shapes fit, so the background showed through at their edges. A hole now has to keep off
+  those pixels.
+- **A gap with no inside is a blurred band**, along the edge of a white symbol on its tile. Without the inside test
+  it became a 0.6 px hole the length of the edge: the tile with two white triangles lost 0.8 dB.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | `clean` | `light` | `medium` | `heavy` | no corruption |
+|---|---|---|---|---|---|---|---|
+| before | 32.454 | 24.82 | 32.61 | 27.85 | 21.28 | 17.54 | 31.51 |
+| holes, first version | 32.454 | 24.91 | 32.91 | 27.92 | 21.26 | 17.54 | 31.74 |
+| kept off parts above | 32.454 | 24.91 | 32.93 | 27.91 | 21.27 | 17.54 | |
+| **and an inside** | **32.454** | **24.94** | **32.99** | **27.96** | **21.27** | **17.54** | **31.85** |
+
+- `synthetic`: no image changes. Its parts are filled primitives with no holes, so there are no gaps to cut.
+- `icons`: 9 images change, 6 up, and none loses more than 0.1 dB:
+  - the compact disc, 7.4 dB up;
+  - the badminton racket's strings, 3.5;
+  - the trophy's handles, 3.3;
+  - with no corruption, the sun's ring goes from 15.2 to 41.9.
+- Held-out, scored once: `synthetic` 32.230 to 32.230; `icons` 22.63 to 23.32 (clean 28.09 to 30.83; light,
+  medium and heavy unchanged).
+
+**The light-severity sun still comes out as a crescent** (train seed 63, 15.2 dB). There, `join` joins the ring with
+two of its rays first. `join` compares shapes fitted without holes, and to it a ring is a poor disc, so absorbing two
+dots looks cheap. Holes are cut only once a part's shape is final. Giving `join` holes would mean fitting them on
+every comparison it makes.
+
+**Next, on `icons`:** the shapes' precision at edges (the largest error left on the clean render), and holes in
+`join`'s comparisons.
 
 ## The page
 

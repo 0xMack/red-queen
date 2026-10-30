@@ -20,8 +20,9 @@
 //! 6. **Order**: for each pair of touching parts, the one whose shape completed under the other covers more of it (as a
 //!    fraction) goes below (`copycat_fit`'s free pixels); a topological sort, largest first, breaks cycles and ties.
 //! 7. **Shapes**: each part fitted with everything above it free, so a hidden part completes itself; cut in two
-//!    between notches of its outline while two shapes say it more briefly (two overlapping parts of one colour); one
-//!    `<g>` per shape.
+//!    between notches of its outline while two shapes say it more briefly (two overlapping parts of one colour); then
+//!    each enclosed gap in a shape is cut out of it as a hole, while that is shorter (`Target::with_holes`); one `<g>`
+//!    per shape.
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -963,6 +964,19 @@ impl Scene<'_> {
         .fit(costs)
     }
 
+    /// A part's final shape with its holes cut (`Target::with_holes`).
+    fn holes(&self, part: &Part, above: &[&Part], fit: Fit, costs: &Costs) -> Fit {
+        let visible = self.soft(&[part]);
+        let free = mask_of(self.labels.len(), above);
+        Target {
+            width: self.image.width,
+            height: self.image.height,
+            visible: &visible,
+            free: &free,
+        }
+        .with_holes(fit, costs)
+    }
+
     fn bits(&self, parts: &[&Part], above: &[&Part], costs: &Costs) -> f64 {
         self.fit(parts, above, costs).map_or(f64::INFINITY, |f| f.bits())
     }
@@ -1048,7 +1062,7 @@ const CUT_GAIN: f64 = 3.0;
 /// One part's shapes: a part may be two of one colour that overlap (two touching parts of one colour are one
 /// component), so it is cut along the chord between two of its outline's notches -- where two outlines cross -- and
 /// each half fitted with the other's pixels free, so each completes under the other. The cut is kept, and each half
-/// cut again, while the halves are shorter to describe than the whole.
+/// cut again, while the halves are shorter to describe than the whole. Each shape it ends with has its holes cut.
 fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<Fit> {
     let Some(whole) = scene.fit(&[part], above, costs) else {
         return Vec::new();
@@ -1059,7 +1073,7 @@ fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<
         mask[i] = 1.0;
     }
     let Some(loop_) = largest_contour(&mask, w, h) else {
-        return vec![whole];
+        return vec![scene.holes(part, above, whole, costs)];
     };
     let notches: Vec<usize> = notches(&loop_, NOTCH_DEPTH).into_iter().take(NOTCHES).collect();
     let mut best: Option<(f64, Part, Part)> = None;
@@ -1093,7 +1107,7 @@ fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<
         }
     }
     let Some((_, one, two)) = best else {
-        return vec![whole];
+        return vec![scene.holes(part, above, whole, costs)];
     };
     let mut out = Vec::new();
     for (half, other) in [(&one, &two), (&two, &one)] {
@@ -1377,6 +1391,25 @@ mod tests {
         assert_eq!(rendered[(44 * 64 + 10) * 4 + 3], 255, "{}", traced.canonical());
         assert!(
             layer_recovery(&clean, &traced).iter().all(|r| *r > 0.9),
+            "{}",
+            traced.canonical()
+        );
+    }
+
+    #[test]
+    fn a_ring_keeps_its_hole() {
+        // a disc with a disc cut out of it, the inner one winding the other way
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <path d=\"M56 32C56 45.3 45.3 56 32 56C18.7 56 8 45.3 8 32C8 18.7 18.7 8 32 8C45.3 8 56 18.7 56 32Z\
+            M44 32C44 25.4 38.6 20 32 20C25.4 20 20 25.4 20 32C20 38.6 25.4 44 32 44C38.6 44 44 38.6 44 32Z\" \
+            fill=\"#f0a020\"/></svg>";
+        let (_, rgba) = photograph(svg, [244, 240, 236]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
+        assert_eq!(
+            (alpha(32, 32), alpha(32, 14), alpha(2, 2)),
+            (0, 255, 0),
             "{}",
             traced.canonical()
         );
