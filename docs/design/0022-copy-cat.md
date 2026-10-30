@@ -19,7 +19,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
     enclosed gap as a part only if its interior, clear of blurred edges, differs from the background;
   - gives back a light part the background took for faint clutter, if it stands out and touches the subject, and never
     dissolves the background where it reaches the image's edge (a tile's rounded corner);
-  - cuts holes: each gap a part's shape encloses is fitted as a shape of its own and drawn as a reversed subpath.
+  - cuts holes: each gap a part's shape encloses is fitted as a shape of its own and drawn as a reversed subpath;
+  - fits rounded rectangles, as a path described by its box and radius.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -335,7 +336,8 @@ in order:
 6. **Order:** each part is fitted with every other part free. Of two touching parts, the one whose shape covers more
    of the other, as a fraction of it, goes below (see "Paint order by the fraction covered").
 7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
-   Bézier path (Schneider's fit, cut at corners), and the shortest `model bits + pixel_bits x misfit` wins. Then
+   Bézier path (Schneider's fit, cut at corners), rounded rectangle (a path, said as its box and radius), and the
+   shortest `model bits + pixel_bits x misfit` wins. Then
    each gap the shape encloses is cut out as a hole while that is shorter (see "Holes").
 
 Choices made along the way, each measured on the `train` split (96 images, `python -m arena.copycat_sets --split
@@ -1038,6 +1040,40 @@ every comparison it makes.
 
 **Next, on `icons`:** the shapes' precision at edges (the largest error left on the clean render), and holes in
 `join`'s comparisons.
+
+### Rounded rectangles
+
+The error maps of the clean render put most of what is left at shapes' edges, in two patterns:
+
+- **Rounded rectangles** (keys, tiles, buttons) are everywhere in Twemoji. The subset's `<rect>` has no `rx`, so the
+  fitter had a rect, a circle or a Bézier path to choose from. The keyboard's keys came back as circles and plain
+  rects, and its body with polygon corners.
+- **Pointed tips** of crescent-shaped paths (a mouth, an eyebrow) are rounded off by the smooth spline.
+
+This change does the first. `rounded_rect([x, y, width, height, r])` is a path: four lines and four quarter circles
+as cubics, with `r` clamped to half the shorter side, where it becomes a stadium. It is a candidate from every box
+candidate, at radii of 0.15, 0.3 and 0.5 of the shorter side. Like any primitive it is refined, all five numbers, so the
+radius finds its own size. It is described as a shape type plus five coordinates, not as its ten segments. Test:
+`a_rounded_key_is_described_as_a_rounded_rectangle`.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | images up / down (`icons`) |
+|---|---|---|---|
+| before | 32.454 | 24.94 | |
+| **rounded rectangle, a type + 5 coordinates** | **32.430** | **25.16** | 25 / 4 |
+| with a "rounded" flag as well (+3 bits, as a spline pays) | 32.429 | 25.13 | 25 / 4 |
+
+- `icons`: the keyboard is up 5.4 dB, and four more are up 3 dB or more. The worst loss is 1.0 dB.
+- `synthetic`: two images lose 1.7 dB each. On one of them a small noisy ellipse becomes a rounded rectangle, whose
+  misfit against the noisy target really is lower. The extra flag doesn't stop it, and it costs the keyboard 3.6 dB,
+  so it isn't kept.
+- Held-out, scored once: `synthetic` 32.230 to 32.229; `icons` 23.32 to 23.24 (clean 30.83 to 30.58; light,
+  medium and heavy within 0.03). **The gain on `train` doesn't carry to held-out.** The held-out images weren't looked
+  at one by one, so that they don't become a second train set.
+
+**Next, on `icons`:** pointed tips (a spline with sharp knots), and why the rounded rectangle's gain on `train` doesn't
+hold on held-out.
 
 ## The page
 
