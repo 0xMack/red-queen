@@ -27,6 +27,8 @@ use crate::raster::{coverage, Point};
 /// `width x height` image, row-major. Everything else must stay uncovered.
 /// How many outline candidates (polygons and paths) are refined point by point: the shortest as first fitted.
 const REFINED_OUTLINES: usize = 2;
+/// A rounded rectangle's first radii, as shares of its shorter side (a half is a stadium).
+const ROUNDED_RADII: [f64; 3] = [0.15, 0.3, 0.5];
 
 pub struct Target<'a> {
     pub width: usize,
@@ -83,6 +85,11 @@ impl Costs {
     pub fn spline_bits(&self, knots: usize) -> f64 {
         2.0 * self.type_bits + self.coord_bits * (2 * knots + 1) as f64
     }
+
+    /// A rounded rectangle: a shape type, its box and its corners' radius.
+    pub fn rounded_bits(&self) -> f64 {
+        self.type_bits + self.coord_bits * 5.0
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -92,6 +99,8 @@ pub struct Fit {
     pub misfit_bits: f64,
     /// For a smooth closed spline, its knots: `geometry` is the cubics they imply, and the description is the knots.
     pub knots: Option<Vec<Point>>,
+    /// For a rounded rectangle, `[x, y, width, height, r]`: `geometry` is its path, and the description is the five.
+    pub rounded: Option<[f64; 5]>,
 }
 
 impl Fit {
@@ -156,6 +165,7 @@ impl Target<'_> {
             model_bits: costs.model_bits(&geometry),
             geometry,
             knots: None,
+            rounded: None,
         }
     }
 
@@ -167,6 +177,19 @@ impl Target<'_> {
             model_bits: costs.spline_bits(knots.len()),
             geometry,
             knots: Some(knots),
+            rounded: None,
+        }
+    }
+
+    /// A rectangle with round corners: drawn as its path, described by its box and radius.
+    fn score_rounded(&self, p: [f64; 5], costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = rounded_rect(p);
+        Fit {
+            misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+            model_bits: costs.rounded_bits(),
+            geometry,
+            knots: None,
+            rounded: Some(p),
         }
     }
 
@@ -237,9 +260,15 @@ impl Target<'_> {
             candidates.extend(fit_ellipse(&edge));
             candidates.extend(edge_rect(&edge));
         }
+        let mut boxes: Vec<Geometry> = candidates
+            .iter()
+            .filter(|g| matches!(g, Geometry::Rect { .. }))
+            .cloned()
+            .collect();
         let completed = self.completed();
         if let Some(loop_) = largest_contour(&completed, self.width, self.height) {
             candidates.extend(mask_rect(&completed, self.width));
+            boxes.extend(mask_rect(&completed, self.width));
             for tolerance in [0.7, 1.5, 3.0] {
                 let polygon = simplify_closed(&loop_, tolerance);
                 if polygon.len() >= 3 {
@@ -276,8 +305,17 @@ impl Target<'_> {
             .into_iter()
             .map(|knots| self.score_spline(knots, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        // a rounded rectangle from each box, at a few radii: refined, its radius finds its own size
+        let rounded = boxes.into_iter().flat_map(|b| {
+            let Geometry::Rect { x, y, width, height } = b else {
+                unreachable!()
+            };
+            ROUNDED_RADII
+                .map(|share| self.score_rounded([x, y, width, height, share * width.min(height)], costs, uncovered))
+        });
         let others = primitives
             .into_iter()
+            .chain(rounded)
             .chain(outlines)
             .chain(splines)
             .map(|fit| self.refine(fit, costs, uncovered))
@@ -362,6 +400,7 @@ impl Target<'_> {
                 model_bits,
                 geometry,
                 knots: None,
+                rounded: None,
             };
             if candidate.bits() < best.bits() {
                 cut = trial;
@@ -413,9 +452,10 @@ impl Target<'_> {
     /// Each number nudged by 0.5, 0.25 and 0.1 px while that shortens the description (by `outline_gain` bits, for a
     /// polygon's or path's points).
     fn descend(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
-        let mut p = match &fit.knots {
-            Some(knots) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
-            None => params(&fit.geometry),
+        let mut p = match (&fit.knots, &fit.rounded) {
+            (Some(knots), _) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
+            (_, Some(rounded)) => rounded.to_vec(),
+            _ => params(&fit.geometry),
         };
         let outline = matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_));
         let min_gain = if outline { costs.outline_gain.max(1e-9) } else { 1e-9 };
@@ -426,13 +466,14 @@ impl Target<'_> {
                     for sign in [1.0, -1.0] {
                         let mut q = p.clone();
                         q[k] += sign * step;
-                        let candidate = match &fit.knots {
-                            Some(knots) => self.score_spline(
+                        let candidate = match (&fit.knots, &fit.rounded) {
+                            (Some(knots), _) => self.score_spline(
                                 (0..knots.len()).map(|i| (q[2 * i], q[2 * i + 1])).collect(),
                                 costs,
                                 uncovered,
                             ),
-                            None => self.score(with_params(&fit.geometry, &q), costs, uncovered),
+                            (_, Some(_)) => self.score_rounded([q[0], q[1], q[2], q[3], q[4]], costs, uncovered),
+                            _ => self.score(with_params(&fit.geometry, &q), costs, uncovered),
                         };
                         if candidate.bits() < fit.bits() - min_gain {
                             fit = candidate;
@@ -597,6 +638,29 @@ fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
         out.push(add(loop_[i], scale(sub(loop_[(i + 1) % n], loop_[i]), t)));
     }
     Some(out)
+}
+
+/// The rectangle `[x, y, width, height, r]` with its corners rounded by quarter circles of radius `r` (as cubics),
+/// clamped to half the shorter side; sizes stay at least half a pixel. A radius of half the shorter side is a stadium.
+pub fn rounded_rect(p: [f64; 5]) -> Geometry {
+    let [x, y, w, h, r] = p;
+    let (w, h) = (w.max(0.5), h.max(0.5));
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    // a quarter circle's control points lie this far along its tangents
+    let k = r * (1.0 - 0.552_284_749_8);
+    let (x1, y1) = (x + w, y + h);
+    Geometry::Path(vec![
+        Segment::Move((x + r, y)),
+        Segment::Line((x1 - r, y)),
+        Segment::Cubic((x1 - k, y), (x1, y + k), (x1, y + r)),
+        Segment::Line((x1, y1 - r)),
+        Segment::Cubic((x1, y1 - k), (x1 - k, y1), (x1 - r, y1)),
+        Segment::Line((x + r, y1)),
+        Segment::Cubic((x + k, y1), (x, y1 - k), (x, y1 - r)),
+        Segment::Line((x, y + r)),
+        Segment::Cubic((x, y + k), (x + k, y), (x + r, y)),
+        Segment::Close,
+    ])
 }
 
 /// The closed Catmull-Rom spline through `knots`, as cubics: each knot's tangent is a sixth of the chord between its
@@ -1651,6 +1715,41 @@ mod tests {
         assert_eq!(fitted.len(), 5, "{fitted:?}");
         // knots found elsewhere on the curve can't trace it exactly: ~0.01 of a pixel per edge pixel is left over
         assert!(target.misfit(&fit.geometry) < 2.0, "{}", target.misfit(&fit.geometry));
+    }
+
+    #[test]
+    fn a_rounded_key_is_described_as_a_rounded_rectangle() {
+        // a keyboard's key, anti-aliased: neither a rect nor a circle, and five numbers say it
+        let truth = [10.3, 12.6, 22.4, 17.2, 4.1];
+        let mask = coverage(
+            &Shape {
+                geometry: rounded_rect(truth),
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            48,
+            48,
+        );
+        let mut visible = vec![0.0; 48 * 48];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 48 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 48 * 48];
+        let target = Target {
+            width: 48,
+            height: 48,
+            visible: &visible,
+            free: &free,
+        };
+        let fit = target.fit(&Costs::new(48, 48, 12.0)).unwrap();
+        let fitted = fit.rounded.unwrap_or_else(|| panic!("{:?}", fit.geometry));
+        for (a, b) in fitted.iter().zip(truth) {
+            assert!((a - b).abs() < 0.3, "{fitted:?} vs {truth:?}");
+        }
     }
 
     #[test]
