@@ -1142,7 +1142,60 @@ Both changes together, against the start of this work:
   0.5 dB each; with 6 images per severity, that may be one or two images.
 - Tracing time on `icons` held-out: 2988 ms an image, against 2762 ms with the rounded rectangle alone.
 
-**Next, on `icons`:** seed 53's ellipse, and holes in `join`'s comparisons.
+**Next, on `icons`:** the worst images, since the mean in dB is dominated by them.
+
+### The worst icons
+
+With no corruption, the five worst `train` icons were at 12 to 15 dB, and for two reasons that have nothing to do with
+edges.
+
+**The subject vanished.** A chicken's pale body, a speaker's cone and a boot were all missing. `restore` found each of
+them and each stood out, but each had under `RESTORE_SHARE` of its boundary with other parts (0.19 to 0.25). That test
+is there for clutter, which lies alone in the background, and a big pale body with an eye and a comb on it looks the
+same to it. No share separates them: at 0, the pale subjects come back, and clutter costs `synthetic` seed 62 12 dB.
+What does separate them is how far a region stands out, in deviations of the image's own background noise: clutter is
+at 1.4 to 2.6, and two real parts checked (`icons` seed 116) at 6.3 and 7.6. So a region `RESTORE_FAR` (5) deviations
+out needs no contact. 3.5 and 5 give the same result, and 8 starts to lose. Test:
+`a_light_body_far_from_the_background_needs_little_contact`.
+
+**The background was painted.** On a swimmer in the sea and a train on its rails, the top corners are the background
+and the bottom ones are the subject. All four fit a gradient exactly, which then matches almost nothing else, so the
+subject had to draw the difference, including a tinted shape over the empty background. `Background::fit` now:
+
+1. **Checks a gradient against its middle** (`gradient_holds`): at least a quarter of the border pixels in the middle
+   half along it must be within `cut`.
+2. **If that fails, looks for one colour:** two corners that agree, whose flat colour explains at least a quarter of the
+   border. The top pair goes first, because a subject more often rests on the bottom edge than hangs from the top.
+
+A tile on a gradient background fails the first test too, because the tile covers its border. That is why the second
+matters: the first version replaced those gradients and lost 30.6 and 7 dB. On a noisy image the corners' spread
+inflated the flat colour's tolerance until it accepted the tile, so a pixel now belongs to the two corners only if it
+is nearer them than the other two. Test: `a_subject_on_the_bottom_edge_is_not_a_gradient_of_the_background`, and
+`a_tile_on_a_gradient_background_keeps_the_gradient` as a guard for what the first version broke.
+
+Measured on `train` (fidelity, dB):
+
+| | `synthetic` | `icons` | `icons` images up / down | `icons`, no corruption |
+|---|---|---|---|---|
+| before | 32.463 | 25.33 | | 32.96 |
+| `RESTORE_SHARE` 0 | 32.281 | 25.51 | 6 / 1 | |
+| `RESTORE_SHARE` 0.15 | 32.463 | 25.40 | 3 / 0 | |
+| `RESTORE_FAR` 5 alone | 32.463 | 25.51 | 6 / 1 | |
+| gradient check, without the guards against tiles | 32.463 | 25.24 | 6 / 4 | |
+| **`RESTORE_FAR` 5 and the gradient check** | **32.463** | **25.68** | **7 / 0** | **34.34** |
+
+- `icons`: the swimmer is up 18.0 dB, the speaker 8.4, the train 7.4, and four more by 2.3 to 4.2. With no corruption,
+  the worst image goes from 12.4 to 15.9 dB.
+- `synthetic`: no image changes.
+- Held-out, scored once: **nothing changes, to every digit** (`synthetic` 32.469, `icons` 23.51), and neither does the
+  golden evaluation's small field. Seven of `train`'s 128 images are affected, so 24 images holding none is unremarkable
+  (about one chance in four), but **held-out says nothing for or against this change.** Only `train` measures it.
+- Still vanishing: on a noisier image a pale subject can stand out no further than clutter does (the chicken at
+  `medium`, 2.3 deviations).
+- The top-first order is a prior, not a measurement: a subject hanging from the top edge would lose.
+
+**Next, on `icons`:** the images now worst with no corruption (seeds 109, 21, 27, 126 and 30, at 16 to 21 dB), seed
+53's ellipse, and holes in `join`'s comparisons.
 
 ## The page
 
