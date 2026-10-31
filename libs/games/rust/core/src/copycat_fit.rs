@@ -13,6 +13,11 @@
 //! A ring is its outer shape with a hole: a gap the shape encloses, fitted as a region of its own and drawn as a subpath
 //! winding the other way (`Target::with_holes`), so the non-zero rule leaves it empty.
 //!
+//! A rounded rectangle is a path said as its box and radius, and must fit about as well as what it replaces, not just be
+//! shorter (`rounded_wins`). A part's final shape may be redrawn as a tight spline (`Target::tightened`): its handles
+//! follow each segment's own length, so knots can crowd at a small tip. Only once the structure is settled, because
+//! something that flexible makes a bad join look good.
+//!
 //! Contours come from marching squares on the region's indicator, are cut at corners, and are fitted with cubic Béziers by Schneider's algorithm ("An Algorithm for
 //! Automatically Fitting Digitized Curves", Graphics Gems, 1990). Only `+ - * /` and `sqrt` (and `log2` for the
 //! coordinate code) -- the same numbers natively and in WASM.
@@ -101,6 +106,8 @@ pub struct Fit {
     pub misfit_bits: f64,
     /// For a smooth closed spline, its knots: `geometry` is the cubics they imply, and the description is the knots.
     pub knots: Option<Vec<Point>>,
+    /// Whether those knots are drawn by `tight_spline`, not `spline`.
+    pub tight: bool,
     /// For a rounded rectangle, `[x, y, width, height, r]`: `geometry` is its path, and the description is the five.
     pub rounded: Option<[f64; 5]>,
 }
@@ -167,18 +174,20 @@ impl Target<'_> {
             model_bits: costs.model_bits(&geometry),
             geometry,
             knots: None,
+            tight: false,
             rounded: None,
         }
     }
 
     /// A smooth closed spline through `knots`: drawn as the cubics they imply, described by the knots alone.
-    fn score_spline(&self, knots: Vec<Point>, costs: &Costs, uncovered: f64) -> Fit {
-        let geometry = spline(&knots);
+    fn score_spline(&self, knots: Vec<Point>, tight: bool, costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = if tight { tight_spline(&knots) } else { spline(&knots) };
         Fit {
             misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
             model_bits: costs.spline_bits(knots.len()),
             geometry,
             knots: Some(knots),
+            tight,
             rounded: None,
         }
     }
@@ -191,6 +200,7 @@ impl Target<'_> {
             model_bits: costs.rounded_bits(),
             geometry,
             knots: None,
+            tight: false,
             rounded: Some(p),
         }
     }
@@ -301,11 +311,11 @@ impl Target<'_> {
         // before refinement, and the least-squares knots, though closer, can refine to a worse one
         let splines = knot_sets
             .into_iter()
-            .map(|knots| self.score_spline(knots, costs, uncovered))
+            .map(|knots| self.score_spline(knots, false, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
         let fitted = fitted_knots
             .into_iter()
-            .map(|knots| self.score_spline(knots, costs, uncovered))
+            .map(|knots| self.score_spline(knots, false, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
         let others = primitives
             .into_iter()
@@ -335,6 +345,38 @@ impl Target<'_> {
         match (best, rounded) {
             (Some(b), Some(r)) => Some(if rounded_wins(&r, &b, costs) { r } else { b }),
             (b, r) => b.or(r),
+        }
+    }
+
+    /// `fit` drawn as a tight spline, if that is shorter and no further off. Only for a part's final shape: with its
+    /// knots free to crowd, it is flexible enough to make a bad `join` or cut look good, were it used to compare them.
+    pub fn tightened(&self, fit: Fit, costs: &Costs) -> Fit {
+        let completed = self.completed();
+        let Some(loop_) = largest_contour(&completed, self.width, self.height) else {
+            return fit;
+        };
+        let uncovered = self.uncovered();
+        // where the outline bends, and evenly, and fitted to the true edge
+        let edge = self.true_edge();
+        let to: &[Point] = if edge.len() >= 12 { &edge } else { &loop_ };
+        let starts = [0.7, 1.5, 3.0]
+            .map(|tolerance| simplify_closed(&loop_, tolerance))
+            .into_iter()
+            .filter(|knots| knots.len() >= 3)
+            .chain(SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)))
+            .chain(FITTED_KNOTS.filter_map(|k| fit_knots(&loop_, to, k)))
+            .chain(fit.knots.clone());
+        let Some(tight) = starts
+            .map(|knots| self.score_spline(knots, true, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+        else {
+            return fit;
+        };
+        let tight = self.refine(tight, costs, uncovered);
+        if tight.bits() + FITTED_GAIN * costs.outline_gain < fit.bits() && tight.misfit_bits <= fit.misfit_bits {
+            tight
+        } else {
+            fit
         }
     }
 
@@ -409,6 +451,7 @@ impl Target<'_> {
                 model_bits,
                 geometry,
                 knots: None,
+                tight: false,
                 rounded: None,
             };
             if candidate.bits() < best.bits() {
@@ -438,7 +481,7 @@ impl Target<'_> {
                     let mut rest = points.clone();
                     rest.remove(i);
                     if is_spline {
-                        self.score_spline(rest, costs, uncovered)
+                        self.score_spline(rest, fit.tight, costs, uncovered)
                     } else {
                         self.score(Geometry::Polygon(rest), costs, uncovered)
                     }
@@ -478,6 +521,7 @@ impl Target<'_> {
                         let candidate = match (&fit.knots, &fit.rounded) {
                             (Some(knots), _) => self.score_spline(
                                 (0..knots.len()).map(|i| (q[2 * i], q[2 * i + 1])).collect(),
+                                fit.tight,
                                 costs,
                                 uncovered,
                             ),
@@ -647,6 +691,32 @@ fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
         out.push(add(loop_[i], scale(sub(loop_[(i + 1) % n], loop_[i]), t)));
     }
     Some(out)
+}
+
+/// `spline`, with each handle a third of its own segment's length, along that same tangent. Evenly spaced knots draw
+/// about the same; unevenly spaced ones, packed where the outline bends, don't overshoot.
+pub fn tight_spline(knots: &[Point]) -> Geometry {
+    let k = knots.len();
+    let unit = |v: Point| {
+        let l = length(v);
+        if l > 0.0 {
+            scale(v, 1.0 / l)
+        } else {
+            (0.0, 0.0)
+        }
+    };
+    let mut segments = vec![Segment::Move(knots[0])];
+    for i in 0..k {
+        let (p0, p1, p2, p3) = (knots[(i + k - 1) % k], knots[i], knots[(i + 1) % k], knots[(i + 2) % k]);
+        let handle = length(sub(p2, p1)) / 3.0;
+        segments.push(Segment::Cubic(
+            add(p1, scale(unit(sub(p2, p0)), handle)),
+            sub(p2, scale(unit(sub(p3, p1)), handle)),
+            p2,
+        ));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
 }
 
 /// Whether a rounded rectangle replaces the best other fit: it must be shorter, and no more than `ROUNDED_TOLERANCE`
@@ -1779,6 +1849,7 @@ mod tests {
             model_bits,
             misfit_bits: misfit * costs.pixel_bits,
             knots: None,
+            tight: false,
             rounded: None,
         };
         let outline = fit(230.0, 2.0);
@@ -1788,6 +1859,71 @@ mod tests {
         assert!(rounded_wins(&fit(60.0, 2.5), &outline, &costs));
         // closer, but not by enough to pay for itself
         assert!(!rounded_wins(&fit(240.0, 1.9), &outline, &costs));
+    }
+
+    #[test]
+    fn a_mouths_tips_are_kept_by_a_tight_spline() {
+        // a frown from a real icon: long arcs, and tips about a pixel across
+        let start = (83.5, 99.1);
+        let truth = Geometry::Path(vec![
+            Segment::Move(start),
+            Segment::Cubic((83.5, 99.0), (79.4, 83.6), (64.0, 83.6)),
+            Segment::Cubic((48.6, 83.6), (44.5, 99.0), (44.5, 99.1)),
+            Segment::Cubic((44.3, 99.9), (44.7, 100.7), (45.3, 101.1)),
+            Segment::Cubic((46.0, 101.5), (46.9, 101.4), (47.4, 100.9)),
+            Segment::Cubic((47.5, 100.8), (51.0, 97.8), (64.0, 97.8)),
+            Segment::Cubic((76.8, 97.8), (80.4, 100.7), (80.6, 100.9)),
+            Segment::Cubic((80.9, 101.2), (81.3, 101.3), (81.8, 101.3)),
+            Segment::Cubic((82.1, 101.3), (82.4, 101.3), (82.7, 101.1)),
+            Segment::Cubic((83.4, 100.7), (83.7, 99.9), start),
+            Segment::Close,
+        ]);
+        let mask = coverage(
+            &Shape {
+                geometry: truth,
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            128,
+            128,
+        );
+        let mut visible = vec![0.0; 128 * 128];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 128 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 128 * 128];
+        let target = Target {
+            width: 128,
+            height: 128,
+            visible: &visible,
+            free: &free,
+        };
+        let costs = Costs::new(128, 128, 12.0);
+        let fit = target.fit(&costs).unwrap();
+        assert!(!fit.tight);
+        let tight = target.tightened(fit.clone(), &costs);
+        assert!(tight.tight, "{:?}", tight.geometry);
+        assert!(tight.bits() < fit.bits() && tight.misfit_bits <= fit.misfit_bits);
+    }
+
+    #[test]
+    fn a_tight_spline_on_even_knots_is_about_the_same_curve() {
+        let knots: Vec<Point> = (0..8)
+            .map(|i| {
+                let a = i as f64 * std::f64::consts::TAU / 8.0;
+                (64.0 + 30.0 * a.cos(), 64.0 + 30.0 * a.sin())
+            })
+            .collect();
+        let (even, tight) = (params(&spline(&knots)), params(&tight_spline(&knots)));
+        assert_eq!(even.len(), tight.len());
+        for (a, b) in even.iter().zip(&tight) {
+            // handles of a chord/6 = 7.07 px against a segment/3 = 7.65 px
+            assert!((a - b).abs() < 0.6, "{even:?} vs {tight:?}");
+        }
     }
 
     #[test]

@@ -20,7 +20,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
   - gives back a light part the background took for faint clutter, if it stands out and touches the subject, and never
     dissolves the background where it reaches the image's edge (a tile's rounded corner);
   - cuts holes: each gap a part's shape encloses is fitted as a shape of its own and drawn as a reversed subpath;
-  - fits rounded rectangles, as a path described by its box and radius.
+  - fits rounded rectangles, as a path described by its box and radius;
+  - redraws a part's final shape as a tight spline when that is shorter and no further off.
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -338,6 +339,7 @@ in order:
 7. **Shapes:** each part is fitted with the parts above it free. The candidates are circle, ellipse, rect, polygon and
    Bézier path (Schneider's fit, cut at corners), rounded rectangle (a path, said as its box and radius), and the
    shortest `model bits + pixel_bits x misfit` wins. Then
+   the final shape is redrawn as a tight spline if that is shorter and no further off (see "Tight splines"), and
    each gap the shape encloses is cut out as a hole while that is shorter (see "Holes").
 
 Choices made along the way, each measured on the `train` split (96 images, `python -m arena.copycat_sets --split
@@ -1048,9 +1050,9 @@ The error maps of the clean render put most of what is left at shapes' edges, in
 - **Rounded rectangles** (keys, tiles, buttons) are everywhere in Twemoji. The subset's `<rect>` has no `rx`, so the
   fitter had a rect, a circle or a Bézier path to choose from. The keyboard's keys came back as circles and plain
   rects, and its body with polygon corners.
-- **Pointed tips** of crescent-shaped paths (a mouth, an eyebrow) are rounded off by the smooth spline.
+- **Small tips** of crescent-shaped paths (a mouth, an eyebrow) are lost (see "Tight splines").
 
-This change does the first. `rounded_rect([x, y, width, height, r])` is a path: four lines and four quarter circles
+This section is about the first. `rounded_rect([x, y, width, height, r])` is a path: four lines and four quarter circles
 as cubics, with `r` clamped to half the shorter side, where it becomes a stadium. It is a candidate from every box
 candidate, at radii of 0.15, 0.3 and 0.5 of the shorter side. Like any primitive it is refined, all five numbers, so the
 radius finds its own size. It is described as a shape type plus five coordinates, not as its ten segments. Test:
@@ -1096,7 +1098,51 @@ Held-out, each version scored once:
 - **The gain on held-out is still far smaller than on `train`:** 0.02 dB against 0.22. With five images supplying most
   of `train`'s gain, a set of 24 may just hold few rounded rectangles. That isn't measured.
 
-**Next, on `icons`:** pointed tips (a spline with sharp knots), and holes in `join`'s comparisons.
+### Tight splines
+
+A mouth's tips looked sharp but aren't: in the clean SVG they are small rounded ends, about a pixel across. They were
+lost because of how a spline's handles are drawn. Each is a sixth of the chord between its knot's neighbours, whatever
+the spacing, so knots crowded at a tip overshoot, and a long stretch beside them can't hold its shape.
+
+`tight_spline` keeps the tangent's direction and makes each handle a third of its own segment's length. It costs no
+extra numbers. On evenly spaced knots it draws about the same curve. It starts from knots where the outline bends, as
+well as from the even and fitted ones.
+
+**It only redraws a part's final shape** (`Target::tightened`, next to the holes). As an ordinary candidate in `fit`,
+it changed the structure: flexible enough to make a bad `join` or cut look good, it merged an ellipse and a circle into
+one blob (`synthetic` seed 31) and rearranged a part (`icons` seed 77, 1.8 dB). Like the rounded rectangle, it must also
+be shorter *and* no further off. Tests: `a_mouths_tips_are_kept_by_a_tight_spline`,
+`a_tight_spline_on_even_knots_is_about_the_same_curve`.
+
+Measured on `train` (fidelity, dB), each row on top of the rounded rectangle within 1 px:
+
+| | `synthetic` | `icons` | `icons` images up / down | worst `icons` loss |
+|---|---|---|---|---|
+| rounded rectangle only | 32.459 | 25.157 | | |
+| in `fit`, shorter is enough | 32.380 | | | |
+| in `fit`, no further off | 32.429 | 25.309 | 48 / 14 | 1.77 |
+| in `fit`, within 1 px | 32.434 | 25.294 | 48 / 15 | 1.77 |
+| **final shape, no further off** | **32.463** | **25.328** | **40 / 8** | **0.25** |
+| final shape, within 1 px | 32.442 | 25.313 | 40 / 11 | 0.88 |
+| final shape, with the rounded rectangle moved there too | 32.456 | 25.294 | | |
+
+The rounded rectangle stays in `fit`. Moved to the final shape, it lost 2.7 dB on `icons` seed 33.
+
+Both changes together, against the start of this work:
+
+| | `synthetic` train | `icons` train | `icons` no corruption | `synthetic` held-out | `icons` held-out |
+|---|---|---|---|---|---|
+| before | 32.454 | 24.94 | 31.85 | 32.230 | 23.32 |
+| **rounded rectangles and tight splines** | **32.463** | **25.33** | **32.96** | **32.469** | **23.51** |
+
+- `icons` train: 59 images up and 7 down, the worst by 0.21 dB. By severity on held-out: clean 30.83 to 31.33, light
+  about 26.5 to 26.72, medium 19.37 to 19.42, heavy 16.55 to 16.58.
+- `synthetic` train: 7 up and 2 down. Seed 53 still loses 1.7 dB, and seed 77 loses 0.34.
+- `synthetic` gains far more on held-out (0.24 dB) than on `train` (0.01). Held-out's clean and light images rose by
+  0.5 dB each; with 6 images per severity, that may be one or two images.
+- Tracing time on `icons` held-out: 2988 ms an image, against 2762 ms with the rounded rectangle alone.
+
+**Next, on `icons`:** seed 53's ellipse, and holes in `join`'s comparisons.
 
 ## The page
 
