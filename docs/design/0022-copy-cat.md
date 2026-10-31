@@ -1227,20 +1227,39 @@ The baseline, `copycat-ae2f606` (clean fidelity, dB):
 
 ### The staged plan
 
-In order of how much is left to win. Each stage measures every change with `copycat.report` against the last one, and
-scores held-out once, at the end of the change.
+Each stage measures every change with `copycat.report` against the last one, and scores held-out once, at the end of
+the change. The order comes from what a perfect tracer could reach. A warp can't be undone, so the clean SVG, drifted
+and warped as each image was, then scored against itself, is roughly the most a tracer can expect on that image (`icons/train`,
+dB):
 
-1. **Corruption on `icons`.** The biggest gap: 8.8 dB between `train` and its control, and most of it at `medium` and
-   `heavy`, where parts vanish or noise becomes parts (held-out alpha IoU 0.84, against 0.99 at `clean`). Done when
-   `icons/train` is past 27 dB with `synthetic/train` no worse.
-2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control; the rest are above 20.
-   Done when none is under 20 dB.
-3. **Layer recovery on `icons`.** 0.63, against 0.89 on `synthetic`: the picture can match while the layers don't, and
+| | `clean` | `light` | `medium` | `heavy` |
+|---|---|---|---|---|
+| now | 33.92 | 29.18 | 22.09 | 17.54 |
+| that limit | 60 (the cap) | 36.40 | 25.52 | 21.06 |
+
+It isn't a strict limit: 8 images of 128 beat it, because a fitted shape can smooth a warp away. But most of the 8.8 dB
+between `icons/train` and its control is not there to win. No single step explains it either: with one step removed,
+warp is worth 1.9 to 2.6 dB, every other step under 0.8, and removing JPEG makes things *worse* (-0.4 and -1.1), since it
+smooths noise. So the room is in `clean` and `light`, where shapes and colours are what's wrong.
+
+1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
+   takes the trophy's amber into its yellow (seed 27). Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. So does
+   keeping two clusters apart when few of their pixels lie between their centres, which tells two flat fills from one
+   colour's shading (`synthetic/train` 32.46 -> 32.39, `icons/train` 25.68 -> 25.72, 24 up and 24 down, at its best
+   setting). The rule is right about the colours: the pen's clip (seed 76) gains 6.5 dB. But on the tram (seed 89), two
+   close greys kept apart lose the rail and part of the pole, -9.2 dB. So the next thing to fix is what the later steps do
+   with two close colours, and then this rule can be tried again. Done when `icons/train-control` is past 35.5 dB with
+   `synthetic/train` no worse.
+2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
+   and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
+3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
+   becoming parts (held-out alpha IoU 0.84, against 0.99 at `clean`). Done when each is within 2 dB of the limit.
+4. **Layer recovery on `icons`.** 0.63, against 0.89 on `synthetic`: the picture can match while the layers don't, and
    the layers are what a person editing the SVG wants. Done at 0.75 on `train`.
-4. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
+5. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
    identically on them. More Twemoji converted by `arena.twemoji`, as a new set version, so a change's held-out score
    means something. This one needs new source files downloaded, so it waits for a go-ahead.
-5. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
+6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
 
 ## The page
