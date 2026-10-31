@@ -29,6 +29,8 @@ use crate::raster::{coverage, Point};
 const REFINED_OUTLINES: usize = 2;
 /// A rounded rectangle's first radii, as shares of its shorter side (a half is a stadium).
 const ROUNDED_RADII: [f64; 3] = [0.15, 0.3, 0.5];
+/// How much worse (in pixels of misfit) a rounded rectangle may fit than the shape it replaces.
+const ROUNDED_TOLERANCE: f64 = 1.0;
 
 pub struct Target<'a> {
     pub width: usize,
@@ -305,17 +307,8 @@ impl Target<'_> {
             .into_iter()
             .map(|knots| self.score_spline(knots, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
-        // a rounded rectangle from each box, at a few radii: refined, its radius finds its own size
-        let rounded = boxes.into_iter().flat_map(|b| {
-            let Geometry::Rect { x, y, width, height } = b else {
-                unreachable!()
-            };
-            ROUNDED_RADII
-                .map(|share| self.score_rounded([x, y, width, height, share * width.min(height)], costs, uncovered))
-        });
         let others = primitives
             .into_iter()
-            .chain(rounded)
             .chain(outlines)
             .chain(splines)
             .map(|fit| self.refine(fit, costs, uncovered))
@@ -323,9 +316,25 @@ impl Target<'_> {
         // a least-squares spline follows a noisy edge's noise too, so on a noisy image it must win by a margin
         let fitted = fitted.map(|fit| self.refine(fit, costs, uncovered));
         let margin = FITTED_GAIN * costs.outline_gain;
-        match (others, fitted) {
+        let best = match (others, fitted) {
             (Some(o), Some(f)) => Some(if f.bits() + margin < o.bits() { f } else { o }),
             (o, f) => o.or(f),
+        };
+        // a rounded rectangle from each box, at a few radii: refined, its radius finds its own size
+        let rounded = boxes
+            .into_iter()
+            .flat_map(|b| {
+                let Geometry::Rect { x, y, width, height } = b else {
+                    unreachable!()
+                };
+                ROUNDED_RADII
+                    .map(|share| self.score_rounded([x, y, width, height, share * width.min(height)], costs, uncovered))
+            })
+            .map(|fit| self.refine(fit, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        match (best, rounded) {
+            (Some(b), Some(r)) => Some(if rounded_wins(&r, &b, costs) { r } else { b }),
+            (b, r) => b.or(r),
         }
     }
 
@@ -638,6 +647,12 @@ fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
         out.push(add(loop_[i], scale(sub(loop_[(i + 1) % n], loop_[i]), t)));
     }
     Some(out)
+}
+
+/// Whether a rounded rectangle replaces the best other fit: it must be shorter, and no more than `ROUNDED_TOLERANCE`
+/// pixels further off. Five numbers cover most blobs roughly, so by being short alone it would square them off.
+fn rounded_wins(rounded: &Fit, best: &Fit, costs: &Costs) -> bool {
+    rounded.bits() < best.bits() && rounded.misfit_bits <= best.misfit_bits + ROUNDED_TOLERANCE * costs.pixel_bits
 }
 
 /// The rectangle `[x, y, width, height, r]` with its corners rounded by quarter circles of radius `r` (as cubics),
@@ -1750,6 +1765,29 @@ mod tests {
         for (a, b) in fitted.iter().zip(truth) {
             assert!((a - b).abs() < 0.3, "{fitted:?} vs {truth:?}");
         }
+    }
+
+    #[test]
+    fn a_rounded_rectangle_must_fit_not_just_be_short() {
+        let costs = Costs::new(128, 128, 12.0);
+        let fit = |model_bits, misfit| Fit {
+            geometry: Geometry::Circle {
+                cx: 8.0,
+                cy: 8.0,
+                r: 4.0,
+            },
+            model_bits,
+            misfit_bits: misfit * costs.pixel_bits,
+            knots: None,
+            rounded: None,
+        };
+        let outline = fit(230.0, 2.0);
+        // far shorter, and five pixels further off: shorter overall, but a lumpy blob squared off
+        assert!(!rounded_wins(&fit(60.0, 7.0), &outline, &costs));
+        // shorter, and as close to within a pixel
+        assert!(rounded_wins(&fit(60.0, 2.5), &outline, &costs));
+        // closer, but not by enough to pay for itself
+        assert!(!rounded_wins(&fit(240.0, 1.9), &outline, &costs));
     }
 
     #[test]

@@ -1056,24 +1056,47 @@ candidate, at radii of 0.15, 0.3 and 0.5 of the shorter side. Like any primitive
 radius finds its own size. It is described as a shape type plus five coordinates, not as its ten segments. Test:
 `a_rounded_key_is_described_as_a_rounded_rectangle`.
 
+**It has to fit, not just be short.** Five numbers cover most blobs roughly, so the first version could beat a much
+closer outline on length alone. So a rounded rectangle now replaces the best other fit only if it is shorter *and* no
+more than 1 pixel of misfit further off (`rounded_wins`). A real rounded rectangle passes, because it fits at least
+as well. Test: `a_rounded_rectangle_must_fit_not_just_be_short`.
+
 Measured on `train` (fidelity, dB):
 
-| | `synthetic` | `icons` | images up / down (`icons`) |
-|---|---|---|---|
-| before | 32.454 | 24.94 | |
-| **rounded rectangle, a type + 5 coordinates** | **32.430** | **25.16** | 25 / 4 |
-| with a "rounded" flag as well (+3 bits, as a spline pays) | 32.429 | 25.13 | 25 / 4 |
+| | `synthetic` | `icons` | `icons` images up / down | worst `icons` loss |
+|---|---|---|---|---|
+| before | 32.454 | 24.94 | | |
+| shorter is enough | 32.430 | 25.16 | 25 / 4 | 1.0 |
+| plus a "rounded" flag (+3 bits, as a spline pays) | 32.429 | 25.13 | 25 / 4 | 1.0 |
+| within 0 px of misfit | 32.450 | 25.16 | 23 / 2 | 0.18 |
+| **within 1 px** | **32.459** | **25.16** | **23 / 2** | **0.28** |
+| within 3 px | 32.448 | 25.15 | 23 / 4 | 1.0 |
+| within 1 px, plus the noise margin a fitted spline pays | 32.454 | 25.15 | 21 / 2 | 0.28 |
 
-- `icons`: the keyboard is up 5.4 dB, and four more are up 3 dB or more. The worst loss is 1.0 dB.
-- `synthetic`: two images lose 1.7 dB each. On one of them a small noisy ellipse becomes a rounded rectangle, whose
-  misfit against the noisy target really is lower. The extra flag doesn't stop it, and it costs the keyboard 3.6 dB,
-  so it isn't kept.
-- Held-out, scored once: `synthetic` 32.230 to 32.229; `icons` 23.32 to 23.24 (clean 30.83 to 30.58; light,
-  medium and heavy within 0.03). **The gain on `train` doesn't carry to held-out.** The held-out images weren't looked
-  at one by one, so that they don't become a second train set.
+- `icons`: the keyboard is up 5.4 dB, and four more are up 3 dB or more. Five images supplied 64% of the first version's
+  gain.
+- `synthetic`: of the first version's five losses, one is left: seed 53, 1.7 dB, where a small ellipse on a noisy image
+  becomes a rounded rectangle whose misfit against that image is lower. Neither the flag nor the noise margin stops it.
+  It is still open.
 
-**Next, on `icons`:** pointed tips (a spline with sharp knots), and why the rounded rectangle's gain on `train` doesn't
-hold on held-out.
+Held-out, each version scored once:
+
+| | `synthetic` | `icons` | `clean` | `light` | `medium` | `heavy` |
+|---|---|---|---|---|---|---|
+| before | 32.230 | 23.32 | 30.83 | | | |
+| shorter is enough | 32.229 | 23.24 | 30.58 | 26.47 | 19.37 | 16.55 |
+| **within 1 px** | **32.229** | **23.34** | **30.98** | **26.46** | **19.37** | **16.56** |
+
+- **The first version's dip was small and came from a real flaw.** `icons` held-out is 24 images, 6 per severity, so
+  its 0.08 dB is about 1.9 dB in total: the size of one image's loss on `train`. The flaw was found on `train`, in the
+  images that lost there. The held-out images weren't looked at one by one, so that they don't become a second train
+  set, which leaves it unconfirmed that the same images were behind the dip.
+- **That held-out score did prompt the search,** so the second score isn't as clean a test as the first. The tolerance
+  was still chosen on `train`.
+- **The gain on held-out is still far smaller than on `train`:** 0.02 dB against 0.22. With five images supplying most
+  of `train`'s gain, a set of 24 may just hold few rounded rectangles. That isn't measured.
+
+**Next, on `icons`:** pointed tips (a spline with sharp knots), and holes in `join`'s comparisons.
 
 ## The page
 
