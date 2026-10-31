@@ -964,17 +964,17 @@ impl Scene<'_> {
         .fit(costs)
     }
 
-    /// A part's final shape with its holes cut (`Target::with_holes`).
+    /// A part's final shape, tightened (`Target::tightened`) and with its holes cut (`Target::with_holes`).
     fn holes(&self, part: &Part, above: &[&Part], fit: Fit, costs: &Costs) -> Fit {
         let visible = self.soft(&[part]);
         let free = mask_of(self.labels.len(), above);
-        Target {
+        let target = Target {
             width: self.image.width,
             height: self.image.height,
             visible: &visible,
             free: &free,
-        }
-        .with_holes(fit, costs)
+        };
+        target.with_holes(target.tightened(fit, costs), costs)
     }
 
     fn bits(&self, parts: &[&Part], above: &[&Part], costs: &Costs) -> f64 {

@@ -4970,14 +4970,14 @@
        "smoothness_ratio": 1.4225
       },
       "light": {
-       "alpha_iou": 0.972,
-       "bytes": 374.0,
-       "fidelity": 31.1659,
-       "layer_recovery": 0.9369,
+       "alpha_iou": 0.9752,
+       "bytes": 441.0,
+       "fidelity": 32.2277,
+       "layer_recovery": 0.9585,
        "node_ratio": 0.7222,
        "palette_ratio": 1.0,
-       "psnr_black": 29.65,
-       "psnr_white": 32.6818,
+       "psnr_black": 30.8566,
+       "psnr_white": 33.5989,
        "refused": 0,
        "shape_ratio": 1.0,
        "smoothness_ratio": 0.9925
@@ -4997,14 +4997,14 @@
       }
      },
      "columns": {
-      "alpha_iou": 0.9299,
-      "bytes": 512.25,
-      "fidelity": 31.6356,
-      "layer_recovery": 0.9032,
+      "alpha_iou": 0.9307,
+      "bytes": 529.0,
+      "fidelity": 31.901,
+      "layer_recovery": 0.9086,
       "node_ratio": 1.0289,
       "palette_ratio": 1.0,
-      "psnr_black": 30.8985,
-      "psnr_white": 32.3727,
+      "psnr_black": 31.2002,
+      "psnr_white": 32.602,
       "refused": 0,
       "shape_ratio": 1.0466,
       "smoothness_ratio": 1.09
@@ -5030,23 +5030,23 @@
        "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<circle cx=\"69.8\" cy=\"32.1\" r=\"33.9\" fill=\"#c61e94\"/>\n</g>\n<g>\n<polygon points=\"82.1,43 59.1,55.9 58.9,82.2 81.4,95.5 104.3,82.7 104.6,56.4\" fill=\"#503814\"/>\n</g>\n<g>\n<rect x=\"12.7\" y=\"49.7\" width=\"32.1\" height=\"45.1\" fill=\"#503814\"/>\n</g>\n</svg>\n"
       },
       {
-       "alpha_iou": 0.972,
-       "bytes": 374,
-       "fidelity": 31.1659,
+       "alpha_iou": 0.9752,
+       "bytes": 441,
+       "fidelity": 32.2277,
        "id": "synthetic/10001",
-       "layer_recovery": 0.9369,
+       "layer_recovery": 0.9585,
        "node_ratio": 0.7222,
        "nodes": 13,
        "palette": 2,
        "palette_ratio": 1.0,
-       "psnr_black": 29.65,
-       "psnr_white": 32.6818,
+       "psnr_black": 30.8566,
+       "psnr_white": 33.5989,
        "refused": null,
        "severity": "light",
        "shape_ratio": 1.0,
        "shapes": 3,
        "smoothness_ratio": 0.9925,
-       "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<circle cx=\"90.6\" cy=\"32.1\" r=\"24.7\" fill=\"#a93181\"/>\n</g>\n<g>\n<path d=\"M74.4 71.9C70.3 79 78.1 103.5 85.5 107.7C92.9 111.8 114.7 104 118.8 96.9C123 89.8 117.9 69.3 110.5 65.2C103.1 61 78.6 64.8 74.4 71.9Z\" fill=\"#5bd2b9\"/>\n</g>\n<g>\n<ellipse cx=\"26.9\" cy=\"63\" rx=\"6.7\" ry=\"8.5\" fill=\"#5bd2b9\"/>\n</g>\n</svg>\n"
+       "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<circle cx=\"90.6\" cy=\"32.1\" r=\"24.7\" fill=\"#a93181\"/>\n</g>\n<g>\n<path d=\"M74.4 71.9C70.3 79 78.1 103.5 85.5 107.7C92.9 111.8 114.7 104 118.8 96.9C123 89.8 117.9 69.3 110.5 65.2C103.1 61 78.6 64.8 74.4 71.9Z\" fill=\"#5bd2b9\"/>\n</g>\n<g>\n<path d=\"M23.1 55.8C19.5 59.7 19.1 69.4 23.9 71.5C28.5 73.4 34.2 65.3 33.9 60.4C33.7 56.4 25.7 52.9 23.1 55.8Z\" fill=\"#5bd2b9\"/>\n</g>\n</svg>\n"
       },
       {
        "alpha_iou": 0.9098,
@@ -5093,7 +5093,7 @@
      }
     },
     "inference": {
-     "artifact_bytes": 512,
+     "artifact_bytes": 529,
      "parameters": 0
     },
     "model": {
@@ -5116,15 +5116,15 @@
      "split": "heldout"
     },
     "quality": {
-     "ci95": 9.408,
+     "ci95": 9.4055,
      "max": 44.2431,
-     "mean": 31.6356,
-     "median": 30.70215,
+     "mean": 31.901,
+     "median": 31.23305,
      "min": 20.895,
      "n": 4,
      "scores": [
       44.2431,
-      31.1659,
+      32.2277,
       30.2384,
       20.895
      ]
