@@ -35,6 +35,14 @@ class StaticRoundRobinParams(_Params):
     games: PositiveInt = Field(200, description="Games per pairing, seats alternating.")
 
 
+class CopyCatReportParams(_Params):
+    out: str | None = Field(None, description="Write the report as JSON under <data dir>/experiments/.")
+    baseline: str | None = Field(None, description="An earlier report's `out`, to compare with image by image.")
+    heldout: bool = Field(False, description="Also score the held-out sets: once per change, never for tuning.")
+    note: str | None = Field(None, description="What changed, kept with the report.")
+    workers: PositiveInt = Field(8, description="Images traced at once.")
+
+
 class ExperimentReportParams(_Params):
     experiment: str = Field(..., min_length=1, description="A stored experiment (POST /experiments).")
 
@@ -82,6 +90,15 @@ for name, game, summary in (
 register_protocol(
     Protocol(
         "checkers.sprt", "checkers", SprtParams, "report", "is A stronger than B: game pairs until the SPRT decides"
+    )
+)
+register_protocol(
+    Protocol(
+        "copycat.report",
+        "copycat",
+        CopyCatReportParams,
+        "report",
+        "the structured pipeline on train (and optionally held-out), per image, against an earlier report",
     )
 )
 register_protocol(

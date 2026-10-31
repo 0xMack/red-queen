@@ -1,0 +1,6 @@
+# One change to Copy Cat's structured pipeline, measured on train and recorded under <data dir>/experiments/<out>.json.
+# --set params.baseline=NAME compares with an earlier report; --set params.heldout=true scores held-out, once per change.
+kind: evaluate
+protocol: copycat.report
+params:
+  out: copycat-latest

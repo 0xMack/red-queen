@@ -295,6 +295,8 @@ architectural change that might conflict with a decision already made.
   - The reports are `checkers.sprt` ("is A stronger than B"), `checkers.static-round-robin`, and the experiment
     reports `experiment.snake-report`, `.rl-report` (a paired permutation test against each arm's baseline),
     `.checkers-field` and `.checkers-h2h`.
+  `copycat.report` is Copy Cat's record of a change (it has no training runs): per image on train and held-out, against
+  an earlier report, under `<data dir>/experiments/` -- measure with it, not with a throwaway script.
   `copycat.clean.v1` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):

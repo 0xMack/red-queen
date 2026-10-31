@@ -39,6 +39,9 @@ uv run python -m evaluator jobs/evaluator/specs/checkers.sprt.yaml --set params.
   three presets and a `primitive`-style hill climb at two budgets, plus one of each with the background layer deleted
   -- and phase 2's `structured` pipeline (`games.copycat.trace`, untrained, so also `entrant_kind="baseline"`), each
   run in its own process so its time per image and peak memory are its own.
+- **`copycat.report`** — one change to Copy Cat's structured pipeline, measured: `train` on both sets, `icons` at the
+  `clean` severity, optionally held-out; per image, under `<data dir>/experiments/`, compared with an earlier report
+  (`params.baseline`). Copy Cat has no training runs, so this is its record of a change (docs/design/0022).
 - **`checkers.sprt`** (was `checkers_sprt.py`) — is player A stronger than B? Game pairs over the ballot (fixed shuffled order) until the SPRT
   decides; a player is a fixed strategy (`material-6`) or a run id prefix (`672890ba@4`). `experiment.checkers-h2h`
   runs the same test for every arm against its baseline arm, seed for seed (`full: true`: the whole ballot).
