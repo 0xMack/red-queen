@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import colorsys
+import dataclasses
 import io
 import json
 import math
@@ -344,6 +345,27 @@ def write_split(split: str, out: Path, set_name: str = "synthetic") -> list[dict
     text = json.dumps({"set": set_name, "split": split, "size": SIZE, "images": manifest}, indent=1) + "\n"
     (out / "manifest.json").write_text(text, encoding="utf-8", newline="\n")
     return manifest
+
+
+def group_targets(group: str, root: Path) -> list[Any]:
+    """The images of one of `copycat.report`'s groups (`set/split`). `train` and `validate` are built under `root` on
+    first use (`corrupt.v1` is seeded, so they are always the same); `train-control` is `train` at the `clean` severity."""
+    from arena import copycat
+
+    set_name, split = group.split("/")
+    if split == "heldout":
+        return copycat.load_set(set_name=set_name)
+    built = "validate" if split == "validate" else "train"
+    where = root / set_name / built
+    if not (where / "manifest.json").exists():
+        write_split(built, where, set_name)
+    targets = copycat.load_set("train", root=where)
+    if split == "train-control":
+        return [
+            dataclasses.replace(t, png=corrupt(t.clean, t.seed, "clean")[0], severity="clean", levels={})
+            for t in targets
+        ]
+    return targets
 
 
 def main() -> None:

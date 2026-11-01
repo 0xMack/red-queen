@@ -4,6 +4,8 @@ versioned in `libs/arena`; nothing here can change what its score means."""
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt
 
 from jobcore.specs import Protocol, PublishTarget, register_protocol, register_publish_target
@@ -40,6 +42,9 @@ class CopyCatReportParams(_Params):
     baseline: str | None = Field(None, description="An earlier report's `out`, to compare with image by image.")
     heldout: bool = Field(False, description="Also score the held-out sets: once per change, never for tuning.")
     note: str | None = Field(None, description="What changed, kept with the report.")
+    decision: Literal["kept", "not_kept"] | None = Field(
+        None, description="Whether the change stays, if that's known yet (the research page can mark it later)."
+    )
     workers: PositiveInt = Field(8, description="Images traced at once.")
 
 

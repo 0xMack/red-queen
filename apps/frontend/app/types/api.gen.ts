@@ -62,6 +62,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/games/copycat/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reports */
+        get: operations["list_reports_games_copycat_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/copycat/reports/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report */
+        get: operations["get_report_games_copycat_reports__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set Decision
+         * @description Whether a change stays: asked of a person, usually after the report was written, so it isn't only the job's.
+         */
+        patch: operations["set_decision_games_copycat_reports__name__patch"];
+        trace?: never;
+    };
+    "/games/copycat/reports/{name}/images/{set_name}/{split}/{seed}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Image */
+        get: operations["get_image_games_copycat_reports__name__images__set_name___split___seed__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/games/copycat/targets": {
         parameters: {
             query?: never;
@@ -790,6 +845,116 @@ export interface components {
             /** Removed */
             removed: string[];
         };
+        /** ReportComparison */
+        ReportComparison: {
+            /** After */
+            after: number;
+            /** Before */
+            before: number;
+            /** Down */
+            down: number;
+            /** Moved */
+            moved: {
+                [key: string]: number;
+            };
+            /** Up */
+            up: number;
+        };
+        /** ReportDecision */
+        ReportDecision: {
+            /** Decision */
+            decision: ("kept" | "not_kept") | null;
+        };
+        /** ReportDetail */
+        ReportDetail: {
+            /** Baseline */
+            baseline: string | null;
+            /** Commit */
+            commit: string | null;
+            /** Compared */
+            compared: {
+                [key: string]: components["schemas"]["ReportComparison"];
+            };
+            /** Decision */
+            decision: ("kept" | "not_kept") | null;
+            /** Groups */
+            groups: {
+                [key: string]: components["schemas"]["ReportGroup"];
+            };
+            /** Held Out */
+            held_out: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Per Image */
+            per_image: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Written At */
+            written_at: number;
+        };
+        /** ReportGroup */
+        ReportGroup: {
+            /** By Severity */
+            by_severity: {
+                [key: string]: number;
+            };
+            /** Columns */
+            columns: {
+                [key: string]: number;
+            };
+            /** Mean */
+            mean: number;
+            /** Worst */
+            worst: number;
+        };
+        /** ReportImage */
+        ReportImage: {
+            /** Baseline */
+            baseline: string | null;
+            /** Baseline Fidelity */
+            baseline_fidelity: number | null;
+            /** Baseline Svg */
+            baseline_svg: string | null;
+            /** Clean */
+            clean: string;
+            /** Fidelity */
+            fidelity: number | null;
+            /** Group */
+            group: string;
+            /** Png */
+            png: string;
+            /** Seed */
+            seed: number;
+            /** Severity */
+            severity: string;
+            /** Svg */
+            svg: string | null;
+        };
+        /** ReportSummary */
+        ReportSummary: {
+            /** Baseline */
+            baseline: string | null;
+            /** Commit */
+            commit: string | null;
+            /** Decision */
+            decision: ("kept" | "not_kept") | null;
+            /** Groups */
+            groups: {
+                [key: string]: components["schemas"]["ReportGroup"];
+            };
+            /** Held Out */
+            held_out: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Written At */
+            written_at: number;
+        };
         /**
          * RunCreate
          * @description A run as a job starts it (the HTTP sink's `create_run`, docs/design/0018).
@@ -1047,6 +1212,126 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reports_games_copycat_reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSummary"][];
+                };
+            };
+        };
+    };
+    get_report_games_copycat_reports__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_decision_games_copycat_reports__name__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_image_games_copycat_reports__name__images__set_name___split___seed__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+                set_name: string;
+                split: string;
+                seed: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportImage"];
                 };
             };
             /** @description Validation Error */
