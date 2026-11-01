@@ -41,9 +41,10 @@ SIZE = 128
 SEVERITIES = ("clean", "light", "medium", "heavy")
 DATA = Path(__file__).parent / "data" / "copycat"
 
-# The splits' seeds: training from 0, held out from 10,000 (the leaderboard scores only those). Severity cycles with
-# the seed, so every severity has a quarter of each split.
-SPLITS: dict[str, range] = {"train": range(96), "heldout": range(10_000, 10_024)}
+# The splits' seeds: training from 0, held out from 10,000 (the leaderboard scores only those), and from 20,000 a larger
+# set to look at when train and held-out disagree, without spending held-out. Severity cycles with the seed, so every
+# severity has a quarter of each split.
+SPLITS: dict[str, range] = {"train": range(96), "heldout": range(10_000, 10_024), "validate": range(20_000, 20_400)}
 
 # Each severity's range per level, drawn uniformly per image. Colour levels are in 8-bit steps, blur and warp in px.
 LEVELS: dict[str, dict[str, tuple[float, float]]] = {

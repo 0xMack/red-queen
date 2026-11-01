@@ -9,7 +9,8 @@
 //! 3. **Palette**: k-means in OKLab from `colors` k-means++ seeds (`Pcg32`), then merges, closest pair first, while a
 //!    merge is shorter -- a palette entry (24 bits) and the boundary between them saved, against the residual it adds
 //!    (`ΔSSE / 2σ² ln 2` bits) -- or the two are within `merge_delta` of each other (a part's own shading, which a
-//!    flat fill can't say anyway), or a cluster is within `background_delta` of the background (faint clutter).
+//!    flat fill can't say anyway) and aren't two flat colours (`two_flat_colours`), or a cluster is within
+//!    `background_delta` of the background (faint clutter).
 //! 4. **Labels**: a 3 x 3 majority filter; then components too small (`min_area`) or too thin (an anti-aliased or
 //!    blurred edge's in-between colour) are dissolved into whatever surrounds them, but never the background where it
 //!    reaches the image's edge. A background component enclosed by parts whose colour is not quite the background's (a
@@ -515,6 +516,50 @@ impl Clustering<'_> {
     }
 }
 
+/// The noise above which close clusters merge regardless (`two_flat_colours`): it is barely over `SIGMA_FLOOR`, since
+/// keeping them apart on a noisy image only moves k-means around, and can tip faint clutter out of the background.
+const FLAT_SIGMA: f64 = 0.0025;
+/// The share of two clusters' pixels below which the middle third between their centres counts as empty.
+const FLAT_VALLEY: f64 = 0.05;
+/// The share of a cluster's pixels that must have all their neighbours in it, for it to be a colour of its own.
+const FLAT_CORE: f64 = 0.2;
+
+fn core_share(image: &Image, labels: &[usize], k: usize) -> f64 {
+    let (mut total, mut core) = (0usize, 0usize);
+    for (i, &l) in labels.iter().enumerate() {
+        if l == k {
+            total += 1;
+            core += usize::from(image.neighbours(i).all(|j| labels[j] == k));
+        }
+    }
+    core as f64 / total.max(1) as f64
+}
+
+/// Whether two close clusters are two flat colours rather than one colour's shading: few of their pixels lie in the
+/// middle third between their centres, since a ramp fills that valley. Both need a core, or the valley says nothing: a
+/// blurred edge's in-between colour is a thin rim, and its pixels are as far from the middle as a flat fill's.
+fn two_flat_colours(image: &Image, labels: &[usize], a: usize, b: usize, centres: &[Option<Lab>]) -> bool {
+    let (Some(ca), Some(cb)) = (centres[a], centres[b]) else {
+        return false;
+    };
+    let axis = [cb[0] - ca[0], cb[1] - ca[1], cb[2] - ca[2]];
+    let length2 = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
+    if length2 <= 0.0 {
+        return false;
+    }
+    let (mut total, mut middle) = (0usize, 0usize);
+    for (p, &l) in image.lab.iter().zip(labels) {
+        if l == a || l == b {
+            total += 1;
+            let t = ((p[0] - ca[0]) * axis[0] + (p[1] - ca[1]) * axis[1] + (p[2] - ca[2]) * axis[2]) / length2;
+            middle += usize::from((1.0 / 3.0..2.0 / 3.0).contains(&t));
+        }
+    }
+    (middle as f64) < FLAT_VALLEY * total as f64
+        && core_share(image, labels, a) >= FLAT_CORE
+        && core_share(image, labels, b) >= FLAT_CORE
+}
+
 pub fn segment(image: &Image, background: &Background, sigma: f64, config: &TraceConfig) -> Segmentation {
     let n = image.lab.len();
     let bg: Vec<Lab> = (0..n).map(|i| background.at_pixel(image, i)).collect();
@@ -607,7 +652,10 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                     config.merge_delta
                 };
                 let shorter = added * bits_per_sse < saved;
-                if (delta < close || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
+                let colours =
+                    a != 0 && sigma < FLAT_SIGMA && two_flat_colours(image, &labels, a, b, &clustering.centres);
+                let forced = delta < close && !colours;
+                if (forced || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
                     best = Some((delta, a, b, a == 0 && !shorter));
                 }
             }
@@ -1445,6 +1493,88 @@ mod tests {
         <circle cx=\"26\" cy=\"28\" r=\"14\" fill=\"#d03030\"/>\
         <rect x=\"30\" y=\"30\" width=\"22\" height=\"20\" fill=\"#2050c0\"/>\
         </svg>";
+
+    /// A 64 x 64 image of two colours side by side, the middle `rim` columns halfway between them, and its labels.
+    fn side_by_side(rim: usize) -> (Image, Vec<usize>, Vec<Option<Lab>>) {
+        let (one, two) = ([200u8, 60, 60], [200u8, 80, 60]);
+        let half = |a: u8, b: u8| ((a as u16 + b as u16) / 2) as u8;
+        let (mut rgba, mut labels) = (Vec::new(), Vec::new());
+        for _ in 0..64 {
+            for x in 0..64 {
+                let (rgb, label) = if x < 32 {
+                    (one, 1)
+                } else if x < 32 + rim {
+                    ([half(one[0], two[0]), half(one[1], two[1]), half(one[2], two[2])], 2)
+                } else {
+                    (two, 3)
+                };
+                rgba.extend([rgb[0], rgb[1], rgb[2], 255]);
+                labels.push(label);
+            }
+        }
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let centre = |l: usize| labels.iter().position(|&m| m == l).map(|i| image.lab[i]);
+        let centres = vec![None, centre(1), centre(2), centre(3)];
+        (image, labels, centres)
+    }
+
+    #[test]
+    fn two_solid_fills_are_two_flat_colours() {
+        let (image, labels, centres) = side_by_side(0);
+        assert!(two_flat_colours(&image, &labels, 1, 3, &centres));
+    }
+
+    #[test]
+    fn a_blurred_edges_rim_is_not_a_flat_colour() {
+        let (image, labels, centres) = side_by_side(1);
+        assert!(!two_flat_colours(&image, &labels, 1, 2, &centres));
+    }
+
+    #[test]
+    fn a_ramp_is_not_two_flat_colours() {
+        let rgba: Vec<u8> = (0..64 * 64)
+            .flat_map(|i| [200, 60 + ((i % 64) / 3) as u8, 60, 255])
+            .collect();
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let labels: Vec<usize> = (0..64 * 64).map(|i| if i % 64 < 32 { 1 } else { 2 }).collect();
+        let centres = vec![None, Some(image.lab[8]), Some(image.lab[56])];
+        assert!(!two_flat_colours(&image, &labels, 1, 2, &centres));
+    }
+
+    /// How many colours `segment` finds, besides the background, in two close blocks on white, with this much noise.
+    fn colours_of_two_close_blocks(noise: u32) -> usize {
+        let mut rng = Pcg32::new(1);
+        let mut rgba = Vec::new();
+        for y in 0..64 {
+            for x in 0..64 {
+                let rgb = match (x, y) {
+                    (8..=31, 8..=55) => [200, 60, 60],
+                    (32..=55, 8..=55) => [200, 80, 60],
+                    _ => [245, 245, 245],
+                };
+                for c in rgb {
+                    let wobble = if noise == 0 {
+                        0
+                    } else {
+                        (rng.next_u32() % (2 * noise + 1)) as i32 - noise as i32
+                    };
+                    rgba.push((c + wobble).clamp(0, 255) as u8);
+                }
+                rgba.push(255);
+            }
+        }
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let centres = segment(&image, &background, sigma, &TraceConfig::default()).centres;
+        centres.len() - 1
+    }
+
+    #[test]
+    fn close_flat_colours_stay_apart_only_without_noise() {
+        assert_eq!(colours_of_two_close_blocks(0), 2);
+        assert_eq!(colours_of_two_close_blocks(6), 1);
+    }
 
     /// A white image with these `(x0, y0, x1, y1)` boxes in red, its scene, and each box as a part.
     fn boxes(boxes: &[(usize, usize, usize, usize)]) -> (Image, Vec<Part>) {

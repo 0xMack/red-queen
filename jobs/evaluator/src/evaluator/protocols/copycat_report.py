@@ -6,9 +6,10 @@ too little to develop against. So this measures, and keeps per image:
 
 - `synthetic/train` and `icons/train`, what a change is tuned on;
 - `icons/train-control`, the same icons at the `clean` severity: what shapes and layers cost without corruption;
+- `synthetic/validate`, 400 more seeds: enough to see a change that moves few images, and free to debug on;
 - with `heldout: true`, both held-out sets. Those are for scoring once per change, at the end, never for tuning.
 
-The `train` images are built on first use (`corrupt.v1` is seeded, so they are always the same) and kept with the reports.
+The `train` and `validate` images are built on first use (`corrupt.v1` is seeded, so they are always the same) and kept with the reports.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from evaluator.registry import protocol
 
 PROTOCOL = "copycat.report"
 HELD_OUT = ("synthetic/heldout", "icons/heldout")
-TRAIN = ("synthetic/train", "icons/train", "icons/train-control")
+TRAIN = ("synthetic/train", "icons/train", "icons/train-control", "synthetic/validate")
 COLUMNS = ("fidelity", "alpha_iou", "layer_recovery", "shape_ratio", "palette_ratio", "smoothness_ratio")
 
 
@@ -38,9 +39,10 @@ def targets_of(group: str) -> list[copycat.Target]:
     set_name, split = group.split("/")
     if split == "heldout":
         return copycat.load_set(set_name=set_name)
-    root = experiments_dir() / "copycat-sets" / set_name / "train"
+    built = "validate" if split == "validate" else "train"
+    root = experiments_dir() / "copycat-sets" / set_name / built
     if not (root / "manifest.json").exists():
-        write_split("train", root, set_name)
+        write_split(built, root, set_name)
     targets = copycat.load_set("train", root=root)
     if split == "train-control":
         return [
