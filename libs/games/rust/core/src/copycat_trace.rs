@@ -1112,6 +1112,11 @@ impl Scene<'_> {
             visible: &visible,
             free: &free,
         };
+        // completing an outline can make it far worse than none (a thin, curved part on a larger one)
+        let fit = target
+            .fit_visible(costs)
+            .filter(|as_seen| as_seen.bits() + VISIBLE_PIXELS * costs.pixel_bits < fit.bits())
+            .unwrap_or(fit);
         target.with_holes(target.tightened(fit, costs), costs)
     }
 
@@ -1189,6 +1194,8 @@ fn completed_one(scene: &Scene, parts: &[Part], k: usize, costs: &Costs) -> Opti
     Some(out)
 }
 
+/// A final shape takes the visible outline over the completed one only if it saves this many wrong pixels' worth of bits.
+const VISIBLE_PIXELS: f64 = 40.0;
 /// How deep (px) inside its convex hull a part's outline must go for a notch to be a place to cut it.
 const NOTCH_DEPTH: f64 = 1.5;
 /// How many of a part's deepest notches are tried as cut ends, in pairs.
