@@ -18,7 +18,8 @@ MCTS visit counts as policy targets; 0018: workloads, a job API and the `redquee
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
 score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
-behind a generated logo or icon, scored against known clean answers) — read the relevant one before an
+behind a generated logo or icon, scored against known clean answers; 0023: the research log and process traces (proposed) -- a page
+over experiment reports, one trace format and one viewer for watching very different algorithms refine) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
