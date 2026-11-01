@@ -1253,6 +1253,45 @@ Measured with `copycat.report`, against `copycat-ae2f606` (clean fidelity, dB):
 - This treats the symptom. `order` is still wrong on these images, and the extra shape is a second shape where the clean
   SVG has one, so layer recovery doesn't move.
 
+### Two flat colours
+
+A forced merge joins colours the artist meant to differ. Few pixels in the middle third between two centres tells two flat
+fills from one colour's shading, since a ramp fills that valley. On its own that rule cost `synthetic/train` 0.08 dB,
+and two things were wrong with it, neither about colours:
+
+- **A rim is flat too.** A blurred edge's in-between colour is a cluster of its own, and its pixels are as far from the
+  middle as a fill's. On seed 53 it became a muddy outline. So both clusters need a core: at least 20% of their pixels
+  with all their neighbours in the cluster. The share hardly matters from 0.1 to 0.4. With that, `synthetic/train` didn't
+  move on any image.
+- **Noise.** That version passed `train` (`icons/train` 10 up, 0 down) and failed held-out: `synthetic/heldout` fell 32.469 to
+  32.413, and `icons/heldout` was flat. Rather than debug on held-out images, we scored 400 fresh seeds, where the rule
+  moved 11 images: 6 up, 5 down, with the 5 all at `medium` or `heavy`. On the worst (seed 20194, down 4.7) the two blues
+  really were two colours, but keeping them apart shifted k-means, and a clutter cluster that had been 0.091 from the
+  background, inside `background_delta`, no longer merged into it. So the rule applies only below a noise gate,
+  `FLAT_SIGMA` 0.0025, barely over the 0.002 floor. All five losers are above it, and so are three small gains at `heavy`.
+
+Measured with `copycat.report`, against `copycat-leftovers` (clean fidelity, dB):
+
+| | before | after | images up / down |
+|---|---|---|---|
+| `synthetic/train` | 32.464 | 32.464 | 0 / 0 |
+| `icons/train` | 25.758 | **25.929** | 8 / 0 |
+| `icons/train-control` | 34.524 | **34.780** | 16 / 1 |
+| 400 fresh seeds | 31.596 | **31.638** | 3 / 0 |
+| `synthetic/heldout` | 32.469 | 32.469 | 0 / 0 |
+| `icons/heldout` | 23.604 | 23.601 | 1 / 1 |
+
+- `icons/train`: seed 27 is up 8.1 and seed 19 up 6.3; six others gain 0.35 to 2.2.
+- `icons/train-control`: seed 106 is the one down, by 1.8.
+- The gain has not shown on `icons/heldout`: seed 10032 is up 0.15, seed 10108 down 0.21. Those 24 images may simply not
+  hold a case the rule fires on (8 of 128 on train), which is stage 5's point, but it is not confirmation.
+- Held-out was looked at twice here, and the gate came after the first look. The gate's evidence is the fresh seeds, but
+  `synthetic/heldout`'s two losers are also above it, so that set's "no change" is weaker than a first look would be.
+- The leaderboard doesn't change.
+
+Those fresh seeds are now `synthetic/validate` in the report: `train` is small enough to overfit, held-out mustn't be
+debugged on, and this caught what `train` couldn't.
+
 ### The staged plan
 
 Each stage measures every change with `copycat.report` against the last one, and scores held-out once, at the end of
@@ -1271,12 +1310,9 @@ warp is worth 1.9 to 2.6 dB, every other step under 0.8, and removing JPEG makes
 smooths noise. So the room is in `clean` and `light`, where shapes and colours are what's wrong.
 
 1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
-   takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. So does keeping
-   two clusters apart when few of their pixels lie between their centres, which tells two flat fills from one colour's
-   shading. That rule is right about the colours (the pen's clip, seed 76, gains 6.5 dB) but breaks things downstream:
-   see "Lost pieces", which fixed the worst of it. Even so, it stays out: `synthetic/train` 32.46 -> 32.39. With it,
-   `icons` at `clean` reach 34.42, so what it does to `synthetic`'s seeds 53 and 25 is next. Done when
-   `icons/train-control` is past 35.5 dB with `synthetic/train` no worse.
+   takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. "Lost pieces"
+   and "Two flat colours" took `icons/train-control` from 34.49 to 34.78. `order` is still wrong on the tram-style images,
+   so that is next. Done when `icons/train-control` is past 35.5 dB with `synthetic/train` no worse.
 2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
    and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
 3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
