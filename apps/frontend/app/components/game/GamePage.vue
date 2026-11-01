@@ -95,7 +95,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
 
     <UiPanel v-if="error" class="mt-6 border-queen-500/40 text-sm text-queen-200">
       Couldn't load the leaderboard ({{ error.message }}), so there's nothing to rank or watch -- you can still play. It's
-      produced by an evaluation job (<code class="chip">jobs/evaluate*.py</code>) and served by apis/backend.
+      produced by an evaluation job (<code class="chip">redqueen evaluate {{ game.slug }}</code>) and served by apis/backend.
     </UiPanel>
 
     <!-- Stage + side leaderboard -->
@@ -157,7 +157,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
           <UiEmpty v-else compact>No evaluations yet.</UiEmpty>
         </div>
         <template #footer>
-          {{ module.copy.scoreNote({ episodes: protocolInfo?.episodes, protocol }) }}
+          <template v-if="protocol">{{ module.copy.scoreNote({ episodes: protocolInfo?.episodes, protocol }) }}</template>
           Click an entrant to {{ mode === "play" && module.selectInPlay === "stay" ? "play against" : "watch" }} it.
           <template v-if="human">Your row is this browser only.</template>
         </template>

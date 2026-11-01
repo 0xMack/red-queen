@@ -1197,6 +1197,71 @@ Measured on `train` (fidelity, dB):
 **Next, on `icons`:** the images now worst with no corruption (seeds 109, 21, 27, 126 and 30, at 16 to 21 dB), seed
 53's ellipse, and holes in `join`'s comparisons.
 
+### Measuring as we go
+
+Until now, every number above came from throwaway scripts, and `copycat.clean.v1` had never been run into the real
+store: the public page had no leaderboard, and a change left no record except its prose here. Copy Cat has no training
+runs (it is a fixed pipeline with tuned constants), so its record is a report, not a run:
+
+    uv run python -m evaluator jobs/evaluator/specs/copycat.report.yaml --set params.out=NAME --set params.baseline=EARLIER
+
+`copycat.report` scores the structured pipeline per image, notes the commit, writes `<data dir>/experiments/NAME.json`,
+and with `baseline` says what moved, image by image. `params.heldout=true` adds the held-out sets, once per change.
+`icons/train-control` is `icons/train` at the `clean` severity, so it says what shapes and layers cost without
+corruption. (It is the `clean` severity's flat background, not the bare render "The worst icons" measured, hence 34.49
+here against 34.34 there.) After a merge that changes the pipeline, re-rank and release:
+
+    uv run redqueen evaluate copycat --wait
+    uv run redqueen publish site --wait
+    uv run redqueen dev deploy --no-site
+
+The baseline, `copycat-ae2f606` (clean fidelity, dB):
+
+| | mean | worst image | clean | light | medium | heavy | layer recovery |
+|---|---|---|---|---|---|---|---|
+| `synthetic/train` | 32.46 | 19.97 | 44.05 | 35.32 | 27.54 | 22.94 | 0.886 |
+| `icons/train` | 25.68 | 11.32 | 33.92 | 29.18 | 22.09 | 17.54 | 0.626 |
+| `icons/train-control` | 34.49 | 15.80 | 34.49 | | | | 0.709 |
+| `synthetic/heldout` | 32.47 | 20.78 | 45.30 | 34.68 | 26.87 | 23.02 | 0.888 |
+| `icons/heldout` | 23.51 | 10.24 | 31.33 | 26.72 | 19.42 | 16.58 | 0.544 |
+
+### The staged plan
+
+Each stage measures every change with `copycat.report` against the last one, and scores held-out once, at the end of
+the change. The order comes from what a perfect tracer could reach. A warp can't be undone, so the clean SVG, drifted
+and warped as each image was, then scored against itself, is roughly the most a tracer can expect on that image (`icons/train`,
+dB):
+
+| | `clean` | `light` | `medium` | `heavy` |
+|---|---|---|---|---|
+| now | 33.92 | 29.18 | 22.09 | 17.54 |
+| that limit | 60 (the cap) | 36.40 | 25.52 | 21.06 |
+
+It isn't a strict limit: 8 images of 128 beat it, because a fitted shape can smooth a warp away. But most of the 8.8 dB
+between `icons/train` and its control is not there to win. No single step explains it either: with one step removed,
+warp is worth 1.9 to 2.6 dB, every other step under 0.8, and removing JPEG makes things *worse* (-0.4 and -1.1), since it
+smooths noise. So the room is in `clean` and `light`, where shapes and colours are what's wrong.
+
+1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
+   takes the trophy's amber into its yellow (seed 27). Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. So does
+   keeping two clusters apart when few of their pixels lie between their centres, which tells two flat fills from one
+   colour's shading (`synthetic/train` 32.46 -> 32.39, `icons/train` 25.68 -> 25.72, 24 up and 24 down, at its best
+   setting). The rule is right about the colours: the pen's clip (seed 76) gains 6.5 dB. But on the tram (seed 89), two
+   close greys kept apart lose the rail and part of the pole, -9.2 dB. So the next thing to fix is what the later steps do
+   with two close colours, and then this rule can be tried again. Done when `icons/train-control` is past 35.5 dB with
+   `synthetic/train` no worse.
+2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
+   and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
+3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
+   becoming parts (held-out alpha IoU 0.84, against 0.99 at `clean`). Done when each is within 2 dB of the limit.
+4. **Layer recovery on `icons`.** 0.63, against 0.89 on `synthetic`: the picture can match while the layers don't, and
+   the layers are what a person editing the SVG wants. Done at 0.75 on `train`.
+5. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
+   identically on them. More Twemoji converted by `arena.twemoji`, as a new set version, so a change's held-out score
+   means something. This one needs new source files downloaded, so it waits for a go-ahead.
+6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
+   real artwork. A new protocol version ranks on both.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
