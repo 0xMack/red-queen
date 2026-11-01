@@ -1211,6 +1211,73 @@ fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<
 /// The fewest pixels a half of a cut part may have.
 const MIN_HALF: usize = 12;
 
+/// Shapes for what a part's shapes left uncovered. A part's pieces are joined with every other part free to lie above
+/// them, but its final shape can only pass under what ended up above it: if the order disagrees, the far piece is simply
+/// lost. So each connected piece left uncovered gets its own shape, if that's shorter than leaving its pixels wrong.
+fn leftovers(scene: &Scene, part: &Part, above: &[&Part], fits: &[Fit], costs: &Costs) -> Vec<Fit> {
+    let (w, h) = (scene.image.width, scene.image.height);
+    let mut covered = vec![0.0f64; w * h];
+    for fit in fits {
+        let shape = Shape {
+            geometry: fit.geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = shape.mask(w as u32, h as u32);
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                let i = (mask.y0 + my) * w + mask.x0 + mx;
+                covered[i] = covered[i].max(mask.data[my * mask.width + mx]);
+            }
+        }
+    }
+    let mut left = vec![false; w * h];
+    for &i in &part.pixels {
+        left[i] = covered[i] < 0.5;
+    }
+    let mut out = Vec::new();
+    for &start in &part.pixels {
+        if !left[start] {
+            continue;
+        }
+        left[start] = false;
+        let mut pixels = vec![start];
+        let mut next = 0;
+        while next < pixels.len() {
+            for j in scene.image.neighbours(pixels[next]) {
+                if left[j] {
+                    left[j] = false;
+                    pixels.push(j);
+                }
+            }
+            next += 1;
+        }
+        // a sliver along the shape's edge is its misfit, not a lost piece: a piece has a core
+        let mut member = vec![false; w * h];
+        for &i in &pixels {
+            member[i] = true;
+        }
+        let core = pixels
+            .iter()
+            .filter(|&&i| scene.image.neighbours(i).all(|j| member[j]))
+            .count();
+        if core < MIN_HALF {
+            continue;
+        }
+        let wrong = costs.pixel_bits * pixels.len() as f64;
+        let piece = Part {
+            pixels,
+            fill: part.fill,
+            label: part.label,
+        };
+        if let Some(fit) = scene.fit(&[&piece], above, costs).filter(|fit| fit.bits() < wrong) {
+            out.push(fit);
+        }
+    }
+    out
+}
+
 // --- order and shapes ---------------------------------------------------------------------------------------------
 
 fn mask_of(n: usize, parts: &[&Part]) -> Vec<bool> {
@@ -1340,7 +1407,10 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let mut groups = Vec::new();
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
-        for fit in shapes_of(&scene, &parts[k], &above, &costs) {
+        let mut fits = shapes_of(&scene, &parts[k], &above, &costs);
+        let more = leftovers(&scene, &parts[k], &above, &fits, &costs);
+        fits.extend(more);
+        for fit in fits {
             groups.push(Group { parent: None });
             shapes.push(Shape {
                 geometry: fit.geometry,
@@ -1375,6 +1445,66 @@ mod tests {
         <circle cx=\"26\" cy=\"28\" r=\"14\" fill=\"#d03030\"/>\
         <rect x=\"30\" y=\"30\" width=\"22\" height=\"20\" fill=\"#2050c0\"/>\
         </svg>";
+
+    /// A white image with these `(x0, y0, x1, y1)` boxes in red, its scene, and each box as a part.
+    fn boxes(boxes: &[(usize, usize, usize, usize)]) -> (Image, Vec<Part>) {
+        let (w, h) = (64, 64);
+        let inside = |x: usize, y: usize, b: &(usize, usize, usize, usize)| x >= b.0 && x < b.2 && y >= b.1 && y < b.3;
+        let mut rgba = Vec::new();
+        for y in 0..h {
+            for x in 0..w {
+                let red = boxes.iter().any(|b| inside(x, y, b));
+                rgba.extend(if red { [200, 40, 40, 255] } else { [255, 255, 255, 255] });
+            }
+        }
+        let image = Image::from_rgba8(&rgba, w, h).unwrap();
+        let parts = boxes
+            .iter()
+            .map(|b| Part {
+                pixels: (0..w * h).filter(|&i| inside(i % w, i / w, b)).collect(),
+                fill: [200, 40, 40],
+                label: 1,
+            })
+            .collect();
+        (image, parts)
+    }
+
+    fn left_after_fitting_the_first(boxes_: &[(usize, usize, usize, usize)]) -> usize {
+        let (image, parts) = boxes(boxes_);
+        let n = image.lab.len();
+        let white = image.lab[0];
+        let mut labels = vec![0; n];
+        for part in &parts {
+            for &i in &part.pixels {
+                labels[i] = 1;
+            }
+        }
+        let centre = image.lab[parts[0].pixels[0]];
+        let scene = Scene {
+            image: &image,
+            labels,
+            centres: vec![white, centre],
+            background: vec![white; n],
+        };
+        let costs = Costs::new(64, 64, 12.0);
+        let fit = scene.fit(&[&parts[0]], &[], &costs).unwrap();
+        let whole = Part {
+            pixels: parts.iter().flat_map(|p| p.pixels.iter().copied()).collect(),
+            fill: [200, 40, 40],
+            label: 1,
+        };
+        leftovers(&scene, &whole, &[], &[fit], &costs).len()
+    }
+
+    #[test]
+    fn a_piece_its_parts_shape_left_out_gets_a_shape() {
+        assert_eq!(left_after_fitting_the_first(&[(4, 4, 24, 24), (40, 40, 56, 56)]), 1);
+    }
+
+    #[test]
+    fn a_sliver_its_parts_shape_left_out_does_not() {
+        assert_eq!(left_after_fitting_the_first(&[(4, 4, 24, 24), (30, 40, 60, 41)]), 0);
+    }
 
     /// The scene over an opaque background colour, as RGBA bytes.
     #[test]
