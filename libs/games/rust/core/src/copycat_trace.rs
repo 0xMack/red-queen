@@ -516,6 +516,9 @@ impl Clustering<'_> {
     }
 }
 
+/// The noise above which close clusters merge regardless (`two_flat_colours`): it is barely over `SIGMA_FLOOR`, since
+/// keeping them apart on a noisy image only moves k-means around, and can tip faint clutter out of the background.
+const FLAT_SIGMA: f64 = 0.0025;
 /// The share of two clusters' pixels below which the middle third between their centres counts as empty.
 const FLAT_VALLEY: f64 = 0.05;
 /// The share of a cluster's pixels that must have all their neighbours in it, for it to be a colour of its own.
@@ -649,7 +652,9 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                     config.merge_delta
                 };
                 let shorter = added * bits_per_sse < saved;
-                let forced = delta < close && (a == 0 || !two_flat_colours(image, &labels, a, b, &clustering.centres));
+                let colours =
+                    a != 0 && sigma < FLAT_SIGMA && two_flat_colours(image, &labels, a, b, &clustering.centres);
+                let forced = delta < close && !colours;
                 if (forced || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
                     best = Some((delta, a, b, a == 0 && !shorter));
                 }
@@ -1534,6 +1539,41 @@ mod tests {
         let labels: Vec<usize> = (0..64 * 64).map(|i| if i % 64 < 32 { 1 } else { 2 }).collect();
         let centres = vec![None, Some(image.lab[8]), Some(image.lab[56])];
         assert!(!two_flat_colours(&image, &labels, 1, 2, &centres));
+    }
+
+    /// How many colours `segment` finds, besides the background, in two close blocks on white, with this much noise.
+    fn colours_of_two_close_blocks(noise: u32) -> usize {
+        let mut rng = Pcg32::new(1);
+        let mut rgba = Vec::new();
+        for y in 0..64 {
+            for x in 0..64 {
+                let rgb = match (x, y) {
+                    (8..=31, 8..=55) => [200, 60, 60],
+                    (32..=55, 8..=55) => [200, 80, 60],
+                    _ => [245, 245, 245],
+                };
+                for c in rgb {
+                    let wobble = if noise == 0 {
+                        0
+                    } else {
+                        (rng.next_u32() % (2 * noise + 1)) as i32 - noise as i32
+                    };
+                    rgba.push((c + wobble).clamp(0, 255) as u8);
+                }
+                rgba.push(255);
+            }
+        }
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let centres = segment(&image, &background, sigma, &TraceConfig::default()).centres;
+        centres.len() - 1
+    }
+
+    #[test]
+    fn close_flat_colours_stay_apart_only_without_noise() {
+        assert_eq!(colours_of_two_close_blocks(0), 2);
+        assert_eq!(colours_of_two_close_blocks(6), 1);
     }
 
     /// A white image with these `(x0, y0, x1, y1)` boxes in red, its scene, and each box as a part.
