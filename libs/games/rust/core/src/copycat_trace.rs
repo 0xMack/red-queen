@@ -186,7 +186,8 @@ impl Background {
     /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice. Pixels alone can't
     /// tell a tile filling most of the border from a background, so a prior decides: the background reaches the
     /// corners. When the border's fit leaves a corner unexplained, the fit is started again from the corners instead,
-    /// and kept if it explains three of the four.
+    /// and kept if it explains three of the four. A gradient the border doesn't bear out (`gradient_holds`) gives way
+    /// to one colour, if two corners and much of the border share it.
     pub fn fit(image: &Image, sigma: f64) -> Background {
         let (w, h) = (image.width, image.height);
         let border: Vec<usize> = (0..w * h)
@@ -223,15 +224,93 @@ impl Background {
         } else {
             6.0 * sigma
         };
-        if from_border.explained(image, &corners, sigma, cut) == corners.len() {
+        let fit = if from_border.explained(image, &corners, sigma, cut) == corners.len() {
             from_border.choose(image, sigma)
         } else if from_corners.explained(image, &corners, sigma, cut) + 1 >= corners.len() {
             from_corners.choose(image, sigma)
         } else {
             from_border.choose(image, sigma)
+        };
+        if !fit.gradient || fit.gradient_holds(image, &border) {
+            return fit;
         }
+        // Two colours, not a gradient: a subject on one edge, the background on the other. That needs two corners of
+        // one colour that much of the border shares, a pixel being theirs only if it is nearer them than the other two
+        // corners; a tile on a gradient background shows it only at its corners, whose two ends are nearly one colour.
+        // Corners in the order top-left, top-right, bottom-left, bottom-right; the top first, since a subject more
+        // often rests on the bottom edge than hangs from the top.
+        [(0, 1, 2, 3), (0, 2, 1, 3), (1, 3, 0, 2), (2, 3, 0, 1)]
+            .iter()
+            .filter(|&&(a, b, ..)| distance2(&means[a], &means[b]).sqrt() <= fit.cut)
+            .map(|&(a, b, c, d)| {
+                let start: Vec<usize> = corners[a].iter().chain(&corners[b]).copied().collect();
+                let mid = |p: &Lab, q: &Lab| [0, 1, 2].map(|k| (p[k] + q[k]) / 2.0);
+                let span = distance2(&mid(&means[a], &means[b]), &mid(&means[c], &means[d])).sqrt();
+                let flat = Background::flat_from(image, &border, &start, sigma);
+                Background {
+                    cut: flat.cut.min(span / 2.0),
+                    ..flat
+                }
+            })
+            .find(|flat| {
+                let shared = border
+                    .iter()
+                    .filter(|&&i| distance2(&image.lab[i], &flat.at_pixel(image, i)).sqrt() <= flat.cut)
+                    .count();
+                shared as f64 >= BORDER_SHARE * border.len() as f64
+            })
+            .unwrap_or(fit)
+    }
+
+    /// Whether the border explains a gradient along its length: at least `GRADIENT_MIDDLE` of the border pixels in the
+    /// middle half of it, along the axis it changes most on, are within `cut`. A gradient between two colours -- the
+    /// background at the top, the sea at the bottom -- runs through the corners and nothing else.
+    fn gradient_holds(&self, image: &Image, border: &[usize]) -> bool {
+        let c = &self.coefficients;
+        let slope = |j: usize| [0, 1, 2].map(|k| c[k][j] * c[k][j]).iter().sum::<f64>();
+        let along_x = slope(1) >= slope(2);
+        let (mut middle, mut explained) = (0usize, 0usize);
+        for &i in border {
+            let (x, y) = (i % image.width, i / image.width);
+            let t = if along_x {
+                x as f64 / (image.width.max(2) - 1) as f64
+            } else {
+                y as f64 / (image.height.max(2) - 1) as f64
+            };
+            if (0.25..=0.75).contains(&t) {
+                middle += 1;
+                if distance2(&image.lab[i], &self.at_pixel(image, i)).sqrt() <= self.cut {
+                    explained += 1;
+                }
+            }
+        }
+        explained as f64 >= GRADIENT_MIDDLE * middle as f64
+    }
+
+    /// A flat background from `start`: the border pixels within 3 robust deviations of it, refitted, twice.
+    fn flat_from(image: &Image, border: &[usize], start: &[usize], sigma: f64) -> Background {
+        let mut fit = Background::least_squares(image, start, false);
+        let mut kept = start.to_vec();
+        let mut cut = 6.0 * sigma;
+        for _ in 0..2 {
+            let deviation = |i: usize| distance2(&image.lab[i], &fit.at_pixel(image, i)).sqrt();
+            let spread = median(kept.iter().map(|&i| deviation(i)).collect());
+            cut = 3.0 * spread.max(sigma) * 2.0;
+            let within: Vec<usize> = border.iter().copied().filter(|&i| deviation(i) <= cut).collect();
+            if within.len() < 8 {
+                break;
+            }
+            kept = within;
+            fit = Background::least_squares(image, &kept, false);
+        }
+        Background { cut, ..fit }
     }
 }
+
+/// How much of the border in the middle of a gradient must be explained by it.
+const GRADIENT_MIDDLE: f64 = 0.25;
+/// How much of the border a flat colour must explain to replace a gradient that doesn't hold.
+const BORDER_SHARE: f64 = 0.25;
 
 /// The side (px) of the square at each corner the background is expected to reach.
 const CORNER: usize = 3;
@@ -727,6 +806,12 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
 /// around it -- has a mean colour further from the background's than `deviations` robust deviations (`cut` / 6 each),
 /// with at least `MIN_INTERIOR` pixels to tell by.
 fn stands_out(image: &Image, background: &[Lab], cut: f64, deviations: f64, pixels: &[usize]) -> bool {
+    deviations_out(image, background, cut, pixels).is_some_and(|d| d > deviations)
+}
+
+/// How many robust deviations (`cut` / 6 each) a region's interior's mean colour is from the background's, if it has
+/// an interior to tell by.
+fn deviations_out(image: &Image, background: &[Lab], cut: f64, pixels: &[usize]) -> Option<f64> {
     let (w, h) = (image.width, image.height);
     let mean = |pixels: &[usize], of: &dyn Fn(usize) -> Lab| {
         let n = pixels.len() as f64;
@@ -749,13 +834,14 @@ fn stands_out(image: &Image, background: &[Lab], cut: f64, deviations: f64, pixe
                 && (-r..=r).all(|dy| (-r..=r).all(|dx| inside[((y + dy) * w as i64 + x + dx) as usize]))
         })
         .collect();
-    interior.len() >= MIN_INTERIOR
-        && distance2(
+    (interior.len() >= MIN_INTERIOR).then(|| {
+        distance2(
             &mean(&interior, &|i| image.lab[i]),
             &mean(&interior, &|i| background[i]),
         )
         .sqrt()
-            > deviations * cut / 6.0
+            / (cut / 6.0)
+    })
 }
 
 /// A light part on a light background -- a white plate, a grey speaker cone -- is within `background_delta` of it, so
@@ -765,7 +851,8 @@ fn stands_out(image: &Image, background: &[Lab], cut: f64, deviations: f64, pixe
 /// - its interior's colour is `RESTORE_DEVIATIONS` robust deviations from the background's (`stands_out`): on a clean
 ///   image any light part is, while faint clutter on a noisy one is barely off the background, and
 /// - at least `RESTORE_SHARE` of its boundary is with parts: a part of the subject touches the rest of it, while clutter
-///   mostly lies alone in the background.
+///   mostly lies alone in the background. A region `RESTORE_FAR` deviations out needs no contact: a chicken's pale body
+///   has little more than an eye and a comb on it, and clutter doesn't stand out that far.
 pub fn restore(
     image: &Image,
     background: &[Lab],
@@ -797,7 +884,9 @@ pub fn restore(
                 }
             }
         }
-        if (subject as f64) < RESTORE_SHARE * (subject + empty).max(1) as f64 {
+        if !stands_out(image, background, cut, RESTORE_FAR, pixels)
+            && (subject as f64) < RESTORE_SHARE * (subject + empty).max(1) as f64
+        {
             continue;
         }
         let label = centres.len();
@@ -812,10 +901,11 @@ pub fn restore(
     }
 }
 
-/// How many robust deviations from the background a restored part's interior must be, and how much of its boundary it
-/// must share with parts.
+/// How many robust deviations from the background a restored part's interior must be, how much of its boundary it must
+/// share with parts, and how many deviations out it needn't share any.
 const RESTORE_DEVIATIONS: f64 = 3.0;
 const RESTORE_SHARE: f64 = 0.25;
+const RESTORE_FAR: f64 = 5.0;
 
 /// How far (px) inside an enclosed region its interior starts, and the fewest interior pixels it must have.
 const INTERIOR: usize = 2;
@@ -1394,6 +1484,59 @@ mod tests {
             "{}",
             traced.canonical()
         );
+    }
+
+    #[test]
+    fn a_light_body_far_from_the_background_needs_little_contact() {
+        // a light grey body with one small eye on it, and nothing else: its boundary is nearly all background
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <ellipse cx=\"32\" cy=\"34\" rx=\"25\" ry=\"22\" fill=\"#e1e8ed\"/>\
+            <circle cx=\"32\" cy=\"12\" r=\"5\" fill=\"#8a4b38\"/></svg>";
+        let (_, rgba) = photograph(svg, [246, 244, 240]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        assert_eq!(rendered[(40 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
+    }
+
+    #[test]
+    fn a_subject_on_the_bottom_edge_is_not_a_gradient_of_the_background() {
+        // the sea along the bottom, with a boat on it, and a pale sky above: the corners are two colours
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"0\" y=\"42\" width=\"64\" height=\"22\" fill=\"#55acee\"/>\
+            <rect x=\"20\" y=\"30\" width=\"24\" height=\"14\" fill=\"#8a4b38\"/></svg>";
+        let sky = [220, 236, 224];
+        let (_, rgba) = photograph(svg, sky);
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(!background.gradient);
+        assert!(distance2(&background.at(0.5, 0.5), &oklab(sky)) < 1e-4);
+    }
+
+    #[test]
+    fn a_tile_on_a_gradient_background_keeps_the_gradient() {
+        // the background shows only at the tile's cut corners, and goes from pale pink to pale cream down the image
+        let mut rgba = Vec::with_capacity(64 * 64 * 4);
+        for y in 0..64usize {
+            for x in 0..64usize {
+                let (dx, dy) = (x.min(63 - x), y.min(63 - y));
+                let t = y as f64 / 63.0;
+                let pixel = if dx + dy < 10 {
+                    [
+                        (226.0 + 24.0 * t) as u8,
+                        (200.0 + 30.0 * t) as u8,
+                        (216.0 - 10.0 * t) as u8,
+                    ]
+                } else {
+                    [64, 138, 196]
+                };
+                rgba.extend_from_slice(&pixel);
+                rgba.push(255);
+            }
+        }
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(background.gradient);
+        assert!(distance2(&background.at(0.0, 0.0), &oklab([226, 200, 216])).sqrt() < 0.02);
     }
 
     #[test]
