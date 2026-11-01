@@ -1225,6 +1225,34 @@ The baseline, `copycat-ae2f606` (clean fidelity, dB):
 | `synthetic/heldout` | 32.47 | 20.78 | 45.30 | 34.68 | 26.87 | 23.02 | 0.888 |
 | `icons/heldout` | 23.51 | 10.24 | 31.33 | 26.72 | 19.42 | 16.58 | 0.544 |
 
+### Lost pieces
+
+Keeping two close greys apart on the tram (seed 89) cost 9.2 dB, and its colours were all right: the rail's far side was
+simply missing. `join` joins two pieces of one colour with every other part free to lie above them, so the rail joined
+across the pole. Its final shape can only pass under what `order` actually put above it. When `order` put the pole below,
+the rail's shape covered the near side, and nothing noticed that the far side had gone.
+
+So `leftovers` checks: each connected piece of a part that its shapes left uncovered gets a shape of its own, if that is
+shorter than leaving its pixels wrong. A piece needs a core (`MIN_HALF` pixels with all their neighbours in the piece),
+because a sliver along a shape's edge is that shape's misfit. Without that, `synthetic/train` lost 0.1 dB and 19 images.
+
+Measured with `copycat.report`, against `copycat-ae2f606` (clean fidelity, dB):
+
+| | before | after | images up / down |
+|---|---|---|---|
+| `synthetic/train` | 32.464 | 32.464 | 0 / 0 |
+| `icons/train` | 25.683 | **25.758** | 3 / 2 |
+| `icons/train-control` | 34.491 | **34.524** | 1 / 0 |
+| `synthetic/heldout` | 32.469 | 32.469 | 0 / 0 |
+| `icons/heldout` | 23.512 | **23.604** | 1 / 0 |
+
+- `icons/train`: seed 63 is up 5.8 and seed 27 up 4.2. Seed 64 is down 0.38 and seed 18 down 0.12.
+- `icons/heldout`: seed 10073 is up 2.2, at `medium`, and nothing else moves. It is one image, so it agrees with `train`
+  more than it measures anything.
+- The leaderboard doesn't change, since `copycat.clean.v1` is `synthetic`'s held-out images.
+- This treats the symptom. `order` is still wrong on these images, and the extra shape is a second shape where the clean
+  SVG has one, so layer recovery doesn't move.
+
 ### The staged plan
 
 Each stage measures every change with `copycat.report` against the last one, and scores held-out once, at the end of
@@ -1243,13 +1271,12 @@ warp is worth 1.9 to 2.6 dB, every other step under 0.8, and removing JPEG makes
 smooths noise. So the room is in `clean` and `light`, where shapes and colours are what's wrong.
 
 1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
-   takes the trophy's amber into its yellow (seed 27). Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. So does
-   keeping two clusters apart when few of their pixels lie between their centres, which tells two flat fills from one
-   colour's shading (`synthetic/train` 32.46 -> 32.39, `icons/train` 25.68 -> 25.72, 24 up and 24 down, at its best
-   setting). The rule is right about the colours: the pen's clip (seed 76) gains 6.5 dB. But on the tram (seed 89), two
-   close greys kept apart lose the rail and part of the pole, -9.2 dB. So the next thing to fix is what the later steps do
-   with two close colours, and then this rule can be tried again. Done when `icons/train-control` is past 35.5 dB with
-   `synthetic/train` no worse.
+   takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. So does keeping
+   two clusters apart when few of their pixels lie between their centres, which tells two flat fills from one colour's
+   shading. That rule is right about the colours (the pen's clip, seed 76, gains 6.5 dB) but breaks things downstream:
+   see "Lost pieces", which fixed the worst of it. Even so, it stays out: `synthetic/train` 32.46 -> 32.39. With it,
+   `icons` at `clean` reach 34.42, so what it does to `synthetic`'s seeds 53 and 25 is next. Done when
+   `icons/train-control` is past 35.5 dB with `synthetic/train` no worse.
 2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
    and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
 3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
