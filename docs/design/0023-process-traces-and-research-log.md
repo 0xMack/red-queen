@@ -1,6 +1,6 @@
 # 0023 — Research log and process traces: watching experiments and algorithms as they run
 
-Status: **Proposed** (2026-11-01). Nothing here is built. Copy Cat (0022) is the first consumer, but nothing in it is
+Status: **Phase R built** (2026-11-01); the traces are proposed. Copy Cat (0022) is the first consumer, but nothing in it is
 specific to Copy Cat except the first algorithms it serves.
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one app, one API), [0007](0007-representations-leaderboards-and-tradeoffs.md)
 (an entry as a vector of measurements), [0009](0009-client-side-inference-at-scale.md) (WASM and ONNX in the browser),
@@ -43,6 +43,15 @@ A page for `copycat.report`'s reports, before any new recording.
 
 Held-out scores appear only where a report already has them, and the page must show when a report looked at held-out, so
 "once per change" stays visible.
+
+**As built**, three things differ from the above:
+
+- **A decision is made after the measurement,** so a spec's `decision` isn't enough: `PATCH /games/copycat/reports/{name}`
+  writes it into the report, and the page has the control. That is the page's one write.
+- **Reports keep their SVGs** (`<out>.svgs.json`, about 0.7 MB beside the report), since "ours" has to be what that change
+  drew, not what today's build draws. Older reports show the image and its clean SVG, and say theirs wasn't kept.
+- **Held-out images aren't served one by one,** only their means: `GET .../reports/{name}/images/{set}/{split}/{seed}` is a
+  404 for them, so the page can't become a way to debug on them.
 
 ## Decision 2: one trace format and one viewer, with no per-algorithm UI
 

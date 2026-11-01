@@ -10,20 +10,22 @@ too little to develop against. So this measures, and keeps per image:
 - with `heldout: true`, both held-out sets. Those are for scoring once per change, at the end, never for tuning.
 
 The `train` and `validate` images are built on first use (`corrupt.v1` is seeded, so they are always the same) and kept with the reports.
+Each image's SVG goes beside the report (`<out>.svgs.json`), so a change can be looked at later as it was (docs/design/0023).
 """
 
 from __future__ import annotations
 
 import concurrent.futures
-import dataclasses
 import json
 import multiprocessing
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
 from arena import copycat
-from arena.copycat_sets import corrupt, write_split
+from arena.copycat import compare
+from arena.copycat_sets import group_targets
 from jobcore import Sink, experiments_dir
 from jobcore.specs import EvalSpec
 
@@ -36,57 +38,28 @@ COLUMNS = ("fidelity", "alpha_iou", "layer_recovery", "shape_ratio", "palette_ra
 
 
 def targets_of(group: str) -> list[copycat.Target]:
-    set_name, split = group.split("/")
-    if split == "heldout":
-        return copycat.load_set(set_name=set_name)
-    built = "validate" if split == "validate" else "train"
-    root = experiments_dir() / "copycat-sets" / set_name / built
-    if not (root / "manifest.json").exists():
-        write_split(built, root, set_name)
-    targets = copycat.load_set("train", root=root)
-    if split == "train-control":
-        return [
-            dataclasses.replace(t, png=corrupt(t.clean, t.seed, "clean")[0], severity="clean", levels={})
-            for t in targets
-        ]
-    return targets
+    return group_targets(group, experiments_dir() / "copycat-sets")
 
 
-def score_image(target: copycat.Target) -> dict[str, Any]:
+def score_image(target: copycat.Target) -> tuple[dict[str, Any], str]:
     from games.copycat import trace
 
-    return copycat.score(target, trace(target.rgba8(), target.width, target.height).canonical())
+    svg = trace(target.rgba8(), target.width, target.height).canonical()
+    return copycat.score(target, svg), svg
 
 
-def measure(group: str, pool: concurrent.futures.Executor) -> dict[str, Any]:
+def measure(group: str, pool: concurrent.futures.Executor) -> tuple[dict[str, Any], dict[str, str]]:
     targets = targets_of(group)
-    images = list(pool.map(score_image, targets, chunksize=1))
+    images, svgs = zip(*pool.map(score_image, targets, chunksize=1), strict=True)
     summary = copycat.summarize(images)
-    return {
+    row = {
         "mean": summary["fidelity"],
         "worst": min(image["fidelity"] for image in images),
         "columns": {column: summary[column] for column in COLUMNS},
         "by_severity": {s: row["fidelity"] for s, row in copycat.by_severity(images).items()},
         "per_image": {str(t.seed): round(i["fidelity"], 3) for t, i in zip(targets, images, strict=True)},
     }
-
-
-def compare(before: dict[str, Any], after: dict[str, Any], moved: float = 0.05) -> dict[str, Any]:
-    """Each group in both reports: the means, and the images that moved by more than `moved` dB, largest first."""
-    groups = {}
-    for group, now in after.items():
-        if group not in before:
-            continue
-        was = before[group]["per_image"]
-        changes = {seed: round(dB - was[seed], 3) for seed, dB in now["per_image"].items() if seed in was}
-        groups[group] = {
-            "before": before[group]["mean"],
-            "after": now["mean"],
-            "up": sum(change > moved for change in changes.values()),
-            "down": sum(change < -moved for change in changes.values()),
-            "moved": dict(sorted(((s, c) for s, c in changes.items() if abs(c) > moved), key=lambda sc: -abs(sc[1]))),
-        }
-    return groups
+    return row, {str(t.seed): svg for t, svg in zip(targets, svgs, strict=True)}
 
 
 def commit() -> str | None:
@@ -108,8 +81,17 @@ def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
     with concurrent.futures.ProcessPoolExecutor(
         params.workers, mp_context=multiprocessing.get_context("spawn")
     ) as pool:
-        measured = {group: measure(group, pool) for group in groups}
-    result: dict[str, Any] = {"protocol": PROTOCOL, "commit": commit(), "note": params.note, "groups": measured}
+        both = {group: measure(group, pool) for group in groups}
+    measured = {group: row for group, (row, _) in both.items()}
+    result: dict[str, Any] = {
+        "protocol": PROTOCOL,
+        "commit": commit(),
+        "note": params.note,
+        "written_at": time.time(),
+        "groups": measured,
+    }
+    if params.decision:
+        result["decision"] = params.decision
     for group, row in measured.items():
         print(f"{group}: {row['mean']:.3f} dB, worst {row['worst']:.2f}")
     if params.baseline:
@@ -122,4 +104,6 @@ def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
         path = experiments_dir() / f"{params.out}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        svgs = {group: images for group, (_, images) in both.items()}
+        (path.parent / f"{params.out}.svgs.json").write_text(json.dumps(svgs), encoding="utf-8")
     return result

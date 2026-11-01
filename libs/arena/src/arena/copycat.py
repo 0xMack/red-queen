@@ -160,3 +160,22 @@ def by_severity(images: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
         for severity in SEVERITIES
         if (group := [image for image in images if image["severity"] == severity])
     }
+
+
+def compare(before: dict[str, Any], after: dict[str, Any], moved: float = 0.05) -> dict[str, Any]:
+    """Two `copycat.report`s' groups: for each group in both, the means and the images that moved by more than `moved`
+    dB, largest first."""
+    groups = {}
+    for group, now in after.items():
+        if group not in before:
+            continue
+        was = before[group]["per_image"]
+        changes = {seed: round(dB - was[seed], 3) for seed, dB in now["per_image"].items() if seed in was}
+        groups[group] = {
+            "before": before[group]["mean"],
+            "after": now["mean"],
+            "up": sum(change > moved for change in changes.values()),
+            "down": sum(change < -moved for change in changes.values()),
+            "moved": dict(sorted(((s, c) for s, c in changes.items() if abs(c) > moved), key=lambda sc: -abs(sc[1]))),
+        }
+    return groups

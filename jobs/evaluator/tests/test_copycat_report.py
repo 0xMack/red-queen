@@ -1,6 +1,6 @@
 """copycat.report's comparison, which decides what a change is said to have done."""
 
-from evaluator.protocols.copycat_report import compare
+from arena.copycat import compare
 
 
 def group(mean, **per_image):

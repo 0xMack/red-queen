@@ -32,7 +32,7 @@ def _scores(image: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in image.items() if k != "svg"}
 
 
-def _png(target: copycat.Target) -> str:
+def png_url(target: copycat.Target) -> str:
     return "data:image/png;base64," + base64.b64encode(target.png).decode()
 
 
@@ -44,7 +44,7 @@ def _describe(target: copycat.Target) -> dict[str, Any]:
         "levels": target.levels,
         "width": target.width,
         "height": target.height,
-        "png": _png(target),
+        "png": png_url(target),
     }
 
 

@@ -18,7 +18,7 @@ MCTS visit counts as policy targets; 0018: workloads, a job API and the `redquee
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
 score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
-behind a generated logo or icon, scored against known clean answers; 0023: the research log and process traces (proposed) -- a page
+behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- a page
 over experiment reports, one trace format and one viewer for watching very different algorithms refine) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
@@ -67,7 +67,8 @@ architectural change that might conflict with a decision already made.
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
       shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
-      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages).
+      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages). `/research/copycat` (unlinked and local, docs/design/0023) is
+      the research log over `copycat.report`'s files: progress over the kept changes, and one change's movers image by image.
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
       scenario, representation or measure opens a card, and "More" a side panel (`?explain=kind:id`, mounted once in
       `app.vue`). Concepts are authored once in a typed registry; the instance layer (this entrant's settings,

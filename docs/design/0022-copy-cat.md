@@ -1349,9 +1349,14 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 
 1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
    takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. "Lost pieces",
-   "Two flat colours" and "An outline as seen" took `icons/train-control` from 34.49 to 34.84. The tram's rail staying in
-   pieces, possibly `join`'s guard treating pieces an occluder cut as details, is next. Done when `icons/train-control`
-   is past 35.5 dB with `synthetic/train` no worse.
+   "Two flat colours" and "An outline as seen" took `icons/train-control` from 34.49 to 34.84. **Stopped there, short of
+   the 35.5 dB target**, which stays open with `synthetic/train` no worse. The last idea tried was loosening `join`'s
+   guard: a piece counts as a detail only if the part covering it also owns half of what's around it. Measured
+   (`copycat-join-surround`) and not kept: control 34.836 -> 34.832, 8 images up and 4 down, layer recovery 0.7153 ->
+   0.7195. It lost 3.6 dB on seed 96 (a red slash on a tail joined to the tail) and 2.7 on seed 26 (two soles joined into
+   a sliver), and won about 1 dB on four images. Neither that share (0.41 to 0.46 on both sides) nor the bits saved (81 for
+   the soles, 48 to 92 for good joins) tells them apart. The tram didn't move at all, and its most visible miss is elsewhere:
+   its rounded corner comes out a polygon. Telling a real split from a real detail needs more than one fit's bits.
 2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
    and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
 3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
@@ -1364,8 +1369,8 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
 
-After stage one, [0023](0023-process-traces-and-research-log.md)'s research log comes next, ahead of stage 2: a page over
-these reports, so the direction can be set from the results rather than from a relayed summary. Its process traces then
+[0023](0023-process-traces-and-research-log.md)'s research log (`/research/copycat`) is built: a page over these reports, so
+the direction can be set from the results rather than from a relayed summary. Its process traces then
 come before the ladder's search and gradient rungs, which would be hard to debug without them.
 
 ## The page
