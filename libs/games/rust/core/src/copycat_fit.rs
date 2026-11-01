@@ -263,6 +263,21 @@ impl Target<'_> {
 
     /// The shortest description of this region among every candidate. None if the region is empty.
     pub fn fit(&self, costs: &Costs) -> Option<Fit> {
+        self.fit_from(costs, false)
+    }
+
+    /// `fit`, with the visible outline as it is among the candidates, beside the one completed under what is free. Where
+    /// free pixels lie in the concave side of a part, completing it makes a worse outline than none. But the visible
+    /// outline is a crescent where a whole part would be, so this is only for when that is far shorter.
+    /// None if nothing was completed, when it is `fit` again.
+    pub fn fit_visible(&self, costs: &Costs) -> Option<Fit> {
+        if self.completed().as_slice() == self.visible {
+            return None;
+        }
+        self.fit_from(costs, true)
+    }
+
+    fn fit_from(&self, costs: &Costs, visible: bool) -> Option<Fit> {
         let mut candidates: Vec<Geometry> = Vec::new();
         let mut knot_sets: Vec<Vec<Point>> = Vec::new();
         let mut fitted_knots: Vec<Vec<Point>> = Vec::new();
@@ -278,25 +293,31 @@ impl Target<'_> {
             .cloned()
             .collect();
         let completed = self.completed();
-        if let Some(loop_) = largest_contour(&completed, self.width, self.height) {
-            candidates.extend(mask_rect(&completed, self.width));
-            boxes.extend(mask_rect(&completed, self.width));
+        candidates.extend(mask_rect(&completed, self.width));
+        boxes.extend(mask_rect(&completed, self.width));
+        let mut loops: Vec<_> = largest_contour(&completed, self.width, self.height)
+            .into_iter()
+            .collect();
+        if visible && completed.as_slice() != self.visible {
+            loops.extend(largest_contour(self.visible, self.width, self.height));
+        }
+        for loop_ in &loops {
             for tolerance in [0.7, 1.5, 3.0] {
-                let polygon = simplify_closed(&loop_, tolerance);
+                let polygon = simplify_closed(loop_, tolerance);
                 if polygon.len() >= 3 {
                     candidates.push(Geometry::Polygon(polygon));
                 }
             }
             for tolerance in [0.4, 0.8, 1.6] {
-                if let Some(path) = bezier_path(&loop_, tolerance) {
+                if let Some(path) = bezier_path(loop_, tolerance) {
                     candidates.push(path);
                 }
             }
-            knot_sets = SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)).collect();
+            knot_sets.extend(SPLINE_KNOTS.iter().filter_map(|&k| knots_along(loop_, k)));
             // fitted to the true edge where there is enough of it: a hidden part's outline along its occluders and its
             // completed hull is not its own
-            let to: &[Point] = if edge.len() >= 12 { &edge } else { &loop_ };
-            fitted_knots = FITTED_KNOTS.filter_map(|k| fit_knots(&loop_, to, k)).collect();
+            let to: &[Point] = if edge.len() >= 12 { &edge } else { loop_ };
+            fitted_knots.extend(FITTED_KNOTS.filter_map(|k| fit_knots(loop_, to, k)));
         }
         // Every primitive is refined (a few numbers each); of the outlines, only the REFINED_OUTLINES shortest as
         // fitted, since refining one costs two scores per point per step.
@@ -1650,6 +1671,54 @@ mod tests {
             (cx - 20.3).abs() < 0.3 && (cy - 25.1).abs() < 0.3 && (r - 13.2).abs() < 0.3,
             "{cx} {cy} {r}"
         );
+    }
+
+    #[test]
+    fn a_thin_curved_part_is_shorter_as_seen_than_completed() {
+        // a thin arc whose concave side is half free: completing it follows the free pixels' jagged edge
+        let (w, h) = (96usize, 96usize);
+        let at = |i: usize| ((i % w) as f64 + 0.5 - 48.0, (i / h) as f64 + 0.5 - 88.0);
+        let visible: Vec<f64> = (0..w * h)
+            .map(|i| {
+                let (x, y) = at(i);
+                let r = (x * x + y * y).sqrt();
+                if (70.0..78.0).contains(&r) && y < -25.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let free: Vec<bool> = (0..w * h)
+            .map(|i| {
+                let (x, y) = at(i);
+                let r = (x * x + y * y).sqrt();
+                r < 70.0 && y < -25.0 && ((x + 96.0) as usize / 6).is_multiple_of(2)
+            })
+            .collect();
+        let target = Target {
+            width: w,
+            height: h,
+            visible: &visible,
+            free: &free,
+        };
+        let costs = Costs::new(96, 96, 12.0);
+        let (completed, as_seen) = (target.fit(&costs).unwrap(), target.fit_visible(&costs).unwrap());
+        assert!(
+            as_seen.bits() < completed.bits(),
+            "{} {}",
+            as_seen.bits(),
+            completed.bits()
+        );
+        // and with nothing free there is nothing to complete
+        let none = vec![false; w * h];
+        let whole = Target {
+            width: w,
+            height: h,
+            visible: &visible,
+            free: &none,
+        };
+        assert!(whole.fit_visible(&costs).is_none());
     }
 
     #[test]

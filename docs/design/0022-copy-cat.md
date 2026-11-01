@@ -69,7 +69,7 @@ None of them isolates the subject.
 |---|---|---|
 | Tracers | the above | the baselines to beat; fast; good on already-clean art |
 | Per-image optimization | DiffVG, LIVE, Optimize & Reduce, Bézier Splatting (NeurIPS 2025) | the refinement machinery; LIVE and O&R aim at fewer paths |
-| Layered and occlusion-aware vectorization | Semantic simplification (CVPR 2024), LayerPeeler (2025, flat-colour SVG data), AmodalSVG (2026: peel layers, complete hidden parts) | the closest research to this use case; AmodalSVG's code isn't released |
+| Layered and occlusion-aware vectorization | Semantic simplification (CVPR 2025), LayerPeeler (2025, flat-colour SVG data), AmodalSVG (2026: peel layers, complete hidden parts) | the closest research to this use case; AmodalSVG's code isn't released |
 | Models that write SVG | StarVector, OmniSVG, VFig, RLRF; text-to-SVG generators (Recraft V4, LottieFiles) | the competing workflow: skip the raster entirely. Ours keeps the stronger image models for ideation |
 
 **The opening:** recover the design, not the pixels, and measure that directly. Tracers are optimizing a different
@@ -181,7 +181,9 @@ L(svg) = bits(svg) + bits(input | render(svg))
   transcendental (OKLab's cube root) comes from `libm`, as in `libs/rl`.
 - **An incremental API for search:** change one shape and re-score only its bounding box.
 - **A soft, differentiable variant** (splatting-style, after Bézier Splatting, gradients written by hand) is the
-  refinement phase's.
+  refinement phase's. Exact-coverage renderers (Windfoil) now look like a better target for flat art, and this rasterizer is
+  already exact coverage; to be measured (0023). Bézier Splatting's 30x and 150x speed-ups are for open curves, and flat
+  fills use closed ones (6x and 18x).
 
 ## The ladder
 
@@ -1292,6 +1294,42 @@ Measured with `copycat.report`, against `copycat-leftovers` (clean fidelity, dB)
 Those fresh seeds are now `synthetic/validate` in the report: `train` is small enough to overfit, held-out mustn't be
 debugged on, and this caught what `train` couldn't.
 
+### An outline as seen
+
+We set out to fix `order` with search: flip two touching parts whenever the whole order's description gets shorter. Per-part
+bits said something else. On the pen (seed 76), the thin curved clip costs 1,605 bits with anything free to lie above it
+and 381 with nothing free. More free pixels should never cost more, since the 381-bit shape is still allowed. The fitter
+just never tries it: `completed` fills the free pixels inside the part's hull, and in a concave part that gives a worse
+outline to start from. So `Target::fit_visible` also tries the visible outline as it is.
+
+Measured with `copycat.report`, against `copycat-flat-colours-gated` (clean fidelity, dB; down is images down by more
+than 0.05):
+
+| Variant | `synthetic/train` | `synthetic/validate` | `icons/train` | `icons/train-control` |
+|---|---|---|---|---|
+| before | 32.464 | 31.638 | 25.929 | 34.779 |
+| re-order search, no margin | 32.492 (17 down) | 31.672 (71 down) | 25.911 (26 down) | 34.727 (22 down) |
+| re-order search, must save 200 bits | 32.463 (1 down) | 31.645 (3 down) | 25.948 (6 down) | 34.828 (3 down) |
+| re-order search, must save 500 bits | 32.464 | 31.638 | 25.981 | 34.835 (2 down) |
+| the outline as seen, in every fit | 32.379 (15 down) | 31.629 (52 down) | 25.979 (21 down) | 34.800 (21 down) |
+| ... only in the shapes `order` and `join` compare | 32.470 (1 down) | 31.628 (15 down) | 25.915 (4 down) | 34.740 (7 down) |
+| **kept: ... in a final shape, if 40 pixels' worth shorter** | **32.464** | **31.638** | **25.983** | **34.836** |
+
+- **Kept:** the last row moves nothing on `synthetic` and no image down anywhere. Held-out, scored once: `synthetic/heldout`
+  32.469 unchanged, `icons/heldout` 23.601 to 23.677 (seed 10050 up 1.82, nothing else moves).
+- **Cost:** one more fit for each part something lies above. Icons go from about 3.8 to 4.1 s and `synthetic` from 0.33 to
+  0.38 s per image, single runs each.
+- **The re-order search is not kept.** With a margin it gets the same gain, and it doubled tracing time (icons 3.8 to 7.9 s,
+  `synthetic` 0.33 to 0.60 s). A bound to skip hopeless flips lost the pen, because that bound assumed what the 1,605 bits
+  disproved.
+- **The tram was the wrong diagnosis.** Without a margin the search does put its pole on top, as in the clean SVG, for
+  +0.02 dB. Its rail stays in pieces, which is `join`'s doing.
+- **This treats a symptom too.** The pen's clip is still painted under its body, where the clean SVG has it on top, so
+  layer recovery barely moves (`icons/train` 0.6309 to 0.6314). The gain is mostly one image: seed 76 up 6.5, seed 34 up
+  0.4 to 0.6.
+- Changing the shapes `order` compares flips as many pairs wrong as right: `order`'s fractions depend on hidden shapes
+  sprawling, and that is what it reads as "lies beneath".
+
 ### The staged plan
 
 Each stage measures every change with `copycat.report` against the last one, and scores held-out once, at the end of
@@ -1310,9 +1348,10 @@ warp is worth 1.9 to 2.6 dB, every other step under 0.8, and removing JPEG makes
 smooths noise. So the room is in `clean` and `light`, where shapes and colours are what's wrong.
 
 1. **Close colours and the layers around them.** A forced merge joins colours the artist meant to differ: `merge_delta`
-   takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. "Lost pieces"
-   and "Two flat colours" took `icons/train-control` from 34.49 to 34.78. `order` is still wrong on the tram-style images,
-   so that is next. Done when `icons/train-control` is past 35.5 dB with `synthetic/train` no worse.
+   takes the trophy's amber into its yellow. Lowering it (0.05, 0.03, 0.015) loses overall, on both sets. "Lost pieces",
+   "Two flat colours" and "An outline as seen" took `icons/train-control` from 34.49 to 34.84. The tram's rail staying in
+   pieces, possibly `join`'s guard treating pieces an occluder cut as details, is next. Done when `icons/train-control`
+   is past 35.5 dB with `synthetic/train` no worse.
 2. **The worst images without corruption.** Seeds 109 and 21 are at 16 and 17 dB in the control: a fine mesh averaged away,
    and a pale bowl lost to the background. The rest are above 20. Done when none is under 20 dB.
 3. **Corruption on `icons`.** About 3.5 dB below the limit at both `medium` and `heavy`, with parts vanishing or noise
@@ -1324,6 +1363,10 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
    means something. This one needs new source files downloaded, so it waits for a go-ahead.
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
+
+After stage one, [0023](0023-process-traces-and-research-log.md)'s research log comes next, ahead of stage 2: a page over
+these reports, so the direction can be set from the results rather than from a relayed summary. Its process traces then
+come before the ladder's search and gradient rungs, which would be hard to debug without them.
 
 ## The page
 
@@ -1352,7 +1395,9 @@ Two items from "The game, as a player sees it" are not built yet:
 - **Licences:** which icon sets (Twemoji needs attribution), and which AI-generated images can go in `wild` and be
   shown on the site.
 - **Commercial comparisons:** whether Vectorizer.AI's and Recraft's terms allow publishing a comparison, and at what
-  cost.
+  cost. As read through a summarizing tool on 2026-11-01, Vectorizer.AI's terms bar using results to benchmark AI or ML
+  systems or to validate competing ones, and Recraft's restrict competing services. A person should read the live clauses and
+  seek written consent before step 1's hand-run comparisons. LayerPeeler's vectorization step calls Recraft too.
 - **Strokes in v2:** many icons are drawn with strokes, and a stroke is the natural thing to animate as a line drawing.
 - **Gradient fills in v2:** some logos genuinely have them, and v1 would have to fake them with bands.
 - **Text:** recovering a font is out of reach. Text will come out as filled shapes. Detecting that a region is text, so
