@@ -1372,6 +1372,58 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 on the game page, so the direction can be set from the results rather than from a relayed summary. Its process traces then
 come before the ladder's search and gradient rungs, which would be hard to debug without them.
 
+### The `broad` set
+
+`icons` has been tuned on, and its 24 held-out images can't see a change that moves a few. `broad` is 616 more icons, none of
+them in `icons`, from two families, so a result isn't one artist's style: 326 Twemoji and 290 Flat Color Icons (attribution
+in `data/copycat/broad/README.md`). 120 are held out, 30 per severity. 53 of the 669 downloaded were refused rather than
+approximated, most for a transform. `copycat.report` measures `broad/train` and `broad/heldout` from here on.
+
+Where the pipeline stood, on `broad/train` (`copycat-broad-base`; clean fidelity, dB):
+
+| | all | clean | light | medium | heavy |
+|---|---|---|---|---|---|
+| Flat Color Icons | 28.43 | 40.22 | 29.98 | 23.56 | 19.73 |
+| Twemoji | 25.00 | 33.79 | 27.10 | 21.42 | 17.85 |
+
+Held-out (26.80) agrees with train (26.59). The worst images with almost no corruption were mostly a pale part that vanished
+into a pale background.
+
+**A gradient was judged by a flat colour's spread.** `Background::cut` comes from the border's spread about a flat fit, even
+when a gradient is chosen: as wide as 0.21 on these images, where a flat background's floor is 0.012. So a pale part on a
+gradient didn't "stand out". Judged by the gradient's own spread, in `enclose` and `restore`:
+
+| | `synthetic/validate` | `broad/train` | up / down | |
+|---|---|---|---|---|
+| on every image | 31.638 -> 31.410 | 26.590 -> 26.724 | 23 / 13 | faint clutter stands out too: -15.9 dB on one |
+| **only where σ is under `FLAT_SIGMA`** | **31.638** | **26.705** | **8 / 2** | clutter comes with noise in `corrupt.v1` |
+
+That gate is a real limit, not a fix: a pale part on a noisy gradient is still lost, because nothing here tells it from clutter.
+
+**A crisp edge divides what colour can't.** A white sheet and a white background can fall in one k-means cluster, and that
+region's mean is the background's. So `restore` runs a second time on what's left, on a near-noiseless image, divided by
+pixels more than 4σ from a neighbour. The first attempt replaced the first pass and lost 0.16 dB: the edge pixels sat between
+a part and what it touches, so it no longer touched anything, and thin bars were all edge. As a second pass, whose edge pixels
+join a region before anything is tested, it can only add. With the contact rule, 3 images rose and the mean moved +0.018 dB;
+without it, since clutter is what that rule is for, 5 rose by up to 9.3 dB, none fell, and the mean moved +0.057 dB.
+
+Together (`copycat-pale-parts`), with held-out scored once:
+
+| | `synthetic` | `icons` | `icons` control | `broad` |
+|---|---|---|---|---|
+| `train` | 32.464 unchanged | 25.983 unchanged | 34.836 -> 34.949 | 26.590 -> 26.763 (12 up, 2 down) |
+| held-out | 32.469 unchanged | 23.677 -> 23.949 | | 26.803 -> 26.845 (1 up, 1 down) |
+
+The two that fell on `train`, seeds 376 (-6.1 dB, still 28) and 15 (-4.2 dB, still 26), weren't looked into further.
+
+Not kept: running `enclose` again after `restore`, on the idea that a restored part's ragged holes would pass its test. +0.002
+dB, with the `icons` control down (`copycat-enclose-again`).
+
+**Next**, from the worst low-corruption images that remain:
+- restored pale parts are ragged, with holes (seeds 314, 554, 120, 384);
+- a background that isn't where the corners say (488, 473): the sky drawn as a part, the tram's rails taken for the background;
+- pale parts under noise, the limit above, which needs something other than colour to tell them from clutter.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
