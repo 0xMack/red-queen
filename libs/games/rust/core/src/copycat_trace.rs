@@ -185,6 +185,28 @@ impl Background {
         )
     }
 
+    /// What a colour is judged against, as `cut` is: 6 robust deviations. `cut` keeps what the border's spread about a
+    /// flat colour made it, which a gradient background widens several times over. So a gradient is judged by the spread
+    /// of the border pixels it explains about itself; without this, a pale part on a gradient didn't stand out.
+    pub fn judged_cut(&self, image: &Image, sigma: f64) -> f64 {
+        if !self.gradient || sigma >= FLAT_SIGMA {
+            return self.cut;
+        }
+        let (w, h) = (image.width, image.height);
+        let explained: Vec<f64> = (0..w * h)
+            .filter(|&i| {
+                let (x, y) = (i % w, i / w);
+                x < 2 || y < 2 || x + 2 >= w || y + 2 >= h
+            })
+            .map(|i| distance2(&image.lab[i], &self.at_pixel(image, i)).sqrt())
+            .filter(|&d| d <= self.cut)
+            .collect();
+        if explained.is_empty() {
+            return self.cut;
+        }
+        self.cut.min(6.0 * median(explained).max(sigma))
+    }
+
     /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice. Pixels alone can't
     /// tell a tile filling most of the border from a background, so a prior decides: the background reaches the
     /// corners. When the border's fit leaves a corner unexplained, the fit is started again from the corners instead,
@@ -1541,11 +1563,12 @@ fn run(
     let mut labels = clean_labels(&image, &segmentation.labels, config);
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
-    enclose(&image, &per_pixel, background.cut, &mut labels, &mut centres);
+    let judged = background.judged_cut(&image, sigma);
+    enclose(&image, &per_pixel, judged, &mut labels, &mut centres);
     restore(
         &image,
         &per_pixel,
-        background.cut,
+        judged,
         &segmentation.faint,
         config,
         &mut labels,
@@ -1919,6 +1942,29 @@ mod tests {
             "{}",
             traced.canonical()
         );
+    }
+
+    #[test]
+    fn a_pale_part_on_a_gradient_stands_out_from_the_gradient() {
+        // a gradient spreads its border about a flat colour far more than about itself, which hid this part
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"12\" y=\"12\" width=\"40\" height=\"30\" fill=\"#d6cdea\"/>\
+            <circle cx=\"32\" cy=\"52\" r=\"6\" fill=\"#3a7a3a\"/></svg>";
+        let (clean, _) = photograph(svg, [255, 255, 255]);
+        let drawn = clean.render().to_rgba8();
+        let mut rgba = vec![255u8; 64 * 64 * 4];
+        for i in 0..64 * 64 {
+            let t = (i % 64) as f64 / 63.0;
+            let alpha = drawn[i * 4 + 3] as f64 / 255.0;
+            for (k, (a, b)) in [(252.0, 224.0), (238.0, 232.0), (232.0, 252.0)].iter().enumerate() {
+                let bg: f64 = a * (1.0 - t) + b * t;
+                rgba[i * 4 + k] = (drawn[i * 4 + k] as f64 * alpha + bg * (1.0 - alpha)).round() as u8;
+            }
+        }
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        assert_eq!(rendered[(25 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
+        assert_eq!(rendered[(4 * 64 + 4) * 4 + 3], 0, "{}", traced.canonical());
     }
 
     #[test]
