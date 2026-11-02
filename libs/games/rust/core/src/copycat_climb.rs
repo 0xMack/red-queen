@@ -10,6 +10,7 @@
 //! Seeded through `Pcg32`, with Gaussian steps from the Irwin-Hall sum of four uniforms (no transcendentals).
 
 use crate::copycat::{Document, Geometry, Shape};
+use crate::copycat_film::{psnr, thinned, Film, Frame, Kind, Patch, View, MAX_STEPS};
 use crate::pcg::Pcg32;
 use crate::raster::{coverage, Mask};
 
@@ -202,8 +203,14 @@ impl Climber<'_> {
         }
     }
 
-    /// The next shape: the best random candidate, climbed. None if nothing it could draw would help.
-    fn next_shape(&mut self, candidates: usize, patience: usize) -> Option<Shape> {
+    /// The next shape: the best random candidate, climbed. None if nothing it could draw would help. `steps`, if asked for,
+    /// gets each state it kept and the change in squared error that state would make.
+    fn next_shape(
+        &mut self,
+        candidates: usize,
+        patience: usize,
+        mut steps: Option<&mut Vec<(Geometry, [u8; 3], f64)>>,
+    ) -> Option<Shape> {
         let mut best: Option<(Geometry, Mask, [u8; 3], f64)> = None;
         for _ in 0..candidates.max(1) {
             let geometry = self.random_shape();
@@ -214,6 +221,9 @@ impl Climber<'_> {
             }
         }
         let (mut geometry, mut mask, mut fill, mut delta) = best?;
+        if let Some(steps) = &mut steps {
+            steps.push((geometry.clone(), fill, delta));
+        }
         let mut failures = 0;
         while failures < patience {
             let candidate = self.mutate(&geometry);
@@ -221,6 +231,9 @@ impl Climber<'_> {
             let (candidate_fill, candidate_delta) = self.score(&candidate_mask);
             if candidate_delta < delta {
                 (geometry, mask, fill, delta) = (candidate, candidate_mask, candidate_fill, candidate_delta);
+                if let Some(steps) = &mut steps {
+                    steps.push((geometry.clone(), fill, delta));
+                }
                 failures = 0;
             } else {
                 failures += 1;
@@ -241,6 +254,30 @@ impl Climber<'_> {
 
 /// The hill climb's SVG for an image: `rgba` is 8-bit RGBA, `width x height`, alpha ignored (inputs are opaque).
 pub fn hill_climb(rgba: &[u8], width: u32, height: u32, config: &ClimbConfig) -> Document {
+    climb(rgba, width, height, config, None)
+}
+
+/// `hill_climb`, filmed: the canvas filling in, each shape from the best random candidate to its climbed form.
+/// `drop_bottom` is the entrant that deletes its background shape at the end.
+pub fn hill_climb_film(rgba: &[u8], width: u32, height: u32, config: &ClimbConfig, drop_bottom: bool) -> Film {
+    let mut film = Film::new(width, height, "fit to the input (dB)");
+    film.document = climb(rgba, width, height, config, Some(&mut film.frames));
+    if drop_bottom {
+        film.document.shapes.remove(0);
+        let objective = film.frames.last().map_or(f64::NAN, |f| f.objective);
+        film.frames.push(Frame {
+            stage: "Background deleted".into(),
+            note: "The first shape, the background, is deleted".into(),
+            kind: Kind::Stage,
+            view: View::Vector,
+            patch: Patch::Remove(0),
+            objective,
+        });
+    }
+    film
+}
+
+fn climb(rgba: &[u8], width: u32, height: u32, config: &ClimbConfig, mut frames: Option<&mut Vec<Frame>>) -> Document {
     let (w, h) = (width as usize, height as usize);
     assert_eq!(rgba.len(), w * h * 4, "rgba is not {width}x{height}");
     let target: Vec<f64> = rgba
@@ -282,9 +319,59 @@ pub fn hill_climb(rgba: &[u8], width: u32, height: u32, config: &ClimbConfig) ->
         opacity: 1.0,
         group: None,
     }];
-    for _ in 0..config.shapes {
-        match climber.next_shape(config.candidates, config.patience) {
-            Some(shape) => shapes.push(shape),
+    // the error of the canvas so far, against the input: only what a film draws
+    let values = (w * h * 3) as f64;
+    let mut error = if frames.is_some() {
+        target
+            .iter()
+            .zip(&climber.canvas)
+            .map(|(t, c)| (t - c) * (t - c))
+            .sum::<f64>()
+    } else {
+        0.0
+    };
+    if let Some(frames) = &mut frames {
+        frames.push(Frame {
+            stage: "Background".into(),
+            note: "The input's mean colour, as one full-size rect".into(),
+            kind: Kind::Stage,
+            view: View::Vector,
+            patch: Patch::Set(0, shapes[0].clone()),
+            objective: psnr(error / values),
+        });
+    }
+    for k in 0..config.shapes {
+        let mut steps = Vec::new();
+        let recording = if frames.is_some() { Some(&mut steps) } else { None };
+        match climber.next_shape(config.candidates, config.patience, recording) {
+            Some(shape) => {
+                if let Some(frames) = &mut frames {
+                    let kept = steps.len();
+                    let last_delta = steps.last().map_or(0.0, |s| s.2);
+                    let thinned = thinned(steps, MAX_STEPS);
+                    let last = thinned.len() - 1;
+                    for (i, (geometry, fill, delta)) in thinned.into_iter().enumerate() {
+                        frames.push(Frame {
+                            stage: format!("Shape {} of {}", k + 1, config.shapes),
+                            note: format!("Shape {}: {} changes kept", k + 1, kept - 1),
+                            kind: if i == last { Kind::Lock } else { Kind::Step },
+                            view: View::Vector,
+                            patch: Patch::Set(
+                                k + 1,
+                                Shape {
+                                    geometry,
+                                    fill,
+                                    opacity: 1.0,
+                                    group: None,
+                                },
+                            ),
+                            objective: psnr((error + delta) / values),
+                        });
+                    }
+                    error += last_delta;
+                }
+                shapes.push(shape);
+            }
             None => break,
         }
     }
@@ -335,6 +422,28 @@ mod tests {
         assert!(climbed.shapes.len() > 3);
         assert!(error(&climbed) < 0.25 * error(&background_only));
         assert_eq!(climbed, hill_climb(&rgba, 32, 32, &config));
+        // recording changes nothing, and the film ends on what was returned, with the background deleted or not
+        let film = hill_climb_film(&rgba, 32, 32, &config, false);
+        assert_eq!(film.document, climbed);
+        assert!(film.matches_output());
+        assert!(film.frames.len() > climbed.shapes.len());
+        let dropped = hill_climb_film(&rgba, 32, 32, &config, true);
+        assert_eq!(dropped.document.shapes, climbed.shapes[1..]);
+        assert!(dropped.matches_output());
+        // its fit to the input rises as it draws, to what the output really scores
+        let (first, last) = (film.frames[0].objective, film.frames.last().unwrap().objective);
+        assert!(last > first + 3.0, "{first} {last}");
+        let rendered = climbed.render();
+        let mse = rendered
+            .data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(rgba.as_chunks::<4>().0)
+            .map(|(a, b)| (0..3).map(|k| (a[k] - b[k] as f64 / 255.0).powi(2)).sum::<f64>())
+            .sum::<f64>()
+            / (32.0 * 32.0 * 3.0);
+        assert!((psnr(mse) - last).abs() < 1e-6, "{} {last}", psnr(mse));
         // the output is in the subset: its canonical form parses back
         assert_eq!(
             Document::parse(&climbed.canonical()).unwrap().shapes.len(),

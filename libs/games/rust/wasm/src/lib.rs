@@ -6,7 +6,10 @@
 
 use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::copycat::Document;
-use redqueen_games::copycat_trace::{stages, trace, Stages, TraceConfig};
+use redqueen_games::copycat_climb::{hill_climb_film, ClimbConfig};
+use redqueen_games::copycat_film::{Film, Kind, Patch, View};
+use redqueen_games::copycat_trace::{film as pipeline_film, stages, trace, Stages, TraceConfig};
+use redqueen_games::raster::Canvas;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 use wasm_bindgen::prelude::*;
 
@@ -465,5 +468,144 @@ impl CopyCatTrace {
         CopyCatGame {
             inner: self.inner.document.clone(),
         }
+    }
+}
+
+/// An entrant at work, as a film of its document (docs/design/0023).
+#[wasm_bindgen]
+pub struct CopyCatFilm {
+    inner: Film,
+    clean: Option<Canvas>,
+}
+
+#[wasm_bindgen]
+impl CopyCatFilm {
+    /// The structured pipeline on an opaque RGBA image, with its default settings.
+    pub fn pipeline(rgba: &[u8], width: u32, height: u32) -> Result<CopyCatFilm, JsError> {
+        pipeline_film(rgba, width as usize, height as usize, &TraceConfig::default())
+            .map(|inner| CopyCatFilm { inner, clean: None })
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// The hill climb on an opaque RGBA image. Throws if the bytes aren't `width x height` pixels.
+    #[allow(clippy::too_many_arguments)]
+    pub fn hill_climb(
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+        shapes: usize,
+        candidates: usize,
+        patience: usize,
+        seed: u64,
+        drop_bottom: bool,
+    ) -> Result<CopyCatFilm, JsError> {
+        if rgba.len() != width as usize * height as usize * 4 {
+            return Err(JsError::new("the bytes aren't width x height pixels"));
+        }
+        let config = ClimbConfig {
+            shapes,
+            candidates,
+            patience,
+            seed,
+        };
+        Ok(CopyCatFilm {
+            inner: hill_climb_film(rgba, width, height, &config, drop_bottom),
+            clean: None,
+        })
+    }
+
+    /// What frames are scored against. Throws for anything outside the subset.
+    pub fn set_clean(&mut self, svg: &str) -> Result<(), JsError> {
+        self.clean = Some(Document::parse(svg).map_err(|e| JsError::new(&e))?.render());
+        Ok(())
+    }
+
+    /// Clean fidelity of frame `i`, after `set_clean`.
+    pub fn fidelity_at(&self, i: usize) -> Result<f64, JsError> {
+        let clean = self.clean.as_ref().ok_or_else(|| JsError::new("no clean SVG set"))?;
+        Ok(self.inner.fidelity_at(i, clean))
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn frames(&self) -> usize {
+        self.inner.frames.len()
+    }
+
+    /// What `objective` measures.
+    #[wasm_bindgen(getter)]
+    pub fn objective_label(&self) -> String {
+        self.inner.objective.into()
+    }
+
+    pub fn stage(&self, i: usize) -> String {
+        self.inner.frames[i].stage.clone()
+    }
+
+    pub fn note(&self, i: usize) -> String {
+        self.inner.frames[i].note.clone()
+    }
+
+    /// "stage", "try", "step" or "lock".
+    pub fn kind(&self, i: usize) -> String {
+        match self.inner.frames[i].kind {
+            Kind::Stage => "stage",
+            Kind::Try => "try",
+            Kind::Step => "step",
+            Kind::Lock => "lock",
+        }
+        .into()
+    }
+
+    /// "input", "clustered", "labels" or "vector".
+    pub fn view(&self, i: usize) -> String {
+        match self.inner.frames[i].view {
+            View::Input => "input",
+            View::Clustered => "clustered",
+            View::Labels => "labels",
+            View::Vector => "vector",
+        }
+        .into()
+    }
+
+    pub fn objective(&self, i: usize) -> f64 {
+        self.inner.frames[i].objective
+    }
+
+    /// The index frame `i` changes, or -1 if none.
+    pub fn patch_index(&self, i: usize) -> i32 {
+        match &self.inner.frames[i].patch {
+            Patch::None => -1,
+            Patch::Set(k, _) | Patch::Remove(k) => *k as i32,
+        }
+    }
+
+    /// The element frame `i` sets. Undefined if it sets none: with an index, that frame removes.
+    pub fn element(&self, i: usize) -> Option<String> {
+        self.inner.element(i)
+    }
+
+    /// The SVG the entrant returned.
+    pub fn svg(&self) -> String {
+        self.inner.document.canonical()
+    }
+
+    /// Whether the last frame is that SVG's shapes.
+    pub fn matches_output(&self) -> bool {
+        self.inner.matches_output()
+    }
+
+    /// Per label, its fill as RGB bytes.
+    pub fn palette(&self) -> Vec<u8> {
+        self.inner.palette.iter().flatten().copied().collect()
+    }
+
+    /// Per pixel, its label after merging.
+    pub fn clustered(&self) -> Vec<u16> {
+        self.inner.clustered.iter().map(|&l| l as u16).collect()
+    }
+
+    /// Per pixel, its label after cleaning.
+    pub fn labels(&self) -> Vec<u16> {
+        self.inner.labels.iter().map(|&l| l as u16).collect()
     }
 }

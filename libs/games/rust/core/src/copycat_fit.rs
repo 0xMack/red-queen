@@ -25,6 +25,7 @@
 use std::collections::HashMap;
 
 use crate::copycat::{Geometry, Segment, Shape};
+use crate::copycat_film as film;
 use crate::raster::{coverage, Point};
 
 /// What a region must cover (`visible`: how much of each pixel is the region's, 0..1 -- an edge pixel's fraction comes
@@ -363,6 +364,7 @@ impl Target<'_> {
             })
             .map(|fit| self.refine(fit, costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        film::fitted();
         match (best, rounded) {
             (Some(b), Some(r)) => Some(if rounded_wins(&r, &b, costs) { r } else { b }),
             (b, r) => b.or(r),
@@ -429,6 +431,7 @@ impl Target<'_> {
         let uncovered = self.uncovered();
         let nothing_free = vec![false; w * h];
         let outer_bits = fit.model_bits;
+        film::cutting(&fit);
         let mut best = fit;
         let mut cut: Vec<Fit> = Vec::new();
         for pixels in holes {
@@ -461,7 +464,10 @@ impl Target<'_> {
                 visible: &visible,
                 free: &nothing_free,
             };
-            let Some(hole) = target.fit(costs) else { continue };
+            film::pause();
+            let hole = target.fit(costs);
+            film::resume();
+            let Some(hole) = hole else { continue };
             let mut trial = cut.clone();
             trial.push(hole);
             let geometry = punched(&outer.geometry, &trial);
@@ -478,6 +484,7 @@ impl Target<'_> {
             if candidate.bits() < best.bits() {
                 cut = trial;
                 best = candidate;
+                film::step(&best);
             }
         }
         best
@@ -487,6 +494,7 @@ impl Target<'_> {
     /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept unless the
     /// descent from there is longer by `outline_gain` or more.
     fn refine(&self, fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
+        film::attempt(&fit);
         let mut fit = self.descend(fit, costs, uncovered);
         loop {
             let (points, is_spline) = match (&fit.knots, &fit.geometry) {
@@ -511,10 +519,13 @@ impl Target<'_> {
             else {
                 break;
             };
+            let mark = film::mark();
+            film::step(&fewer);
             let fewer = self.descend(fewer, costs, uncovered);
             // a point stays only if it saves what a move of it must: on a noisy image, one that pays for itself by
             // less is following the noise
             if fewer.bits() >= fit.bits() + costs.outline_gain {
+                film::rewind(mark);
                 break;
             }
             fit = fewer;
@@ -551,6 +562,7 @@ impl Target<'_> {
                         };
                         if candidate.bits() < fit.bits() - min_gain {
                             fit = candidate;
+                            film::step(&fit);
                             p = q;
                             improved = true;
                         }

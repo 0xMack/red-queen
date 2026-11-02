@@ -212,7 +212,7 @@ pub fn number(v: f64) -> String {
     }
 }
 
-fn write_shape(out: &mut String, shape: &Shape) {
+pub fn write_shape(out: &mut String, shape: &Shape) {
     let n = number;
     match &shape.geometry {
         Geometry::Rect { x, y, width, height } => out.push_str(&format!(

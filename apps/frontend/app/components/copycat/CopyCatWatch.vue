@@ -124,6 +124,14 @@ const severityNote = (t: CopyCatTarget) => {
       </div>
     </div>
 
+    <CopyCatFilm
+      :entrant-id="entry?.entrant_id ?? null"
+      :entrant-label="entry?.label ?? 'This entrant'"
+      :detail="detail"
+      :scored-svg="output?.svg ?? null"
+      :scored-fidelity="output?.scores.fidelity ?? null"
+    />
+
     <UiPanel v-if="isPipeline" label="Live" title="The pipeline, run again in your browser">
       <template #actions>
         <UiBadge v-if="sameAsScored === true" tone="life" dot>same SVG as the leaderboard scored</UiBadge>
