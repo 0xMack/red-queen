@@ -8,7 +8,7 @@ import pytest
 from games.copycat import Svg
 from PIL import Image
 
-from arena import copycat, copycat_sets
+from arena import copycat, copycat_artwork, copycat_sets, twemoji
 
 
 def test_the_held_out_set_is_complete_and_canonical():
@@ -37,20 +37,106 @@ def test_the_held_out_set_is_what_the_generator_makes():
         assert np.abs(ours - checked_in).mean() < 1.0
 
 
-def test_the_icons_held_out_set_is_complete_and_what_the_split_makes():
-    targets = copycat.load_set(set_name="icons")
-    split = copycat_sets.icon_split("heldout")
-    assert [t.seed for t in targets] == [seed for seed, _icon, _severity in split]
-    assert {t.severity: sum(x.severity == t.severity for x in targets) for t in targets} == dict.fromkeys(
-        copycat_sets.SEVERITIES, 6
+def test_the_artwork_sets_are_pinned_to_exact_files_and_share_none():
+    sources = copycat_artwork.sources()
+    icons, broad = sources["icons"], sources["broad"]
+    assert (len(copycat_artwork.file_names(icons)), icons["held_out"]) == (152, 24)
+    assert (len(copycat_artwork.file_names(broad)), broad["held_out"]) == (616, 120)
+    twemoji = next(f for f in broad["families"] if f["id"] == "twemoji")
+    assert not set(twemoji["names"]) & set(icons["families"][0]["names"])
+    for artwork in (icons, broad):
+        for family in artwork["families"]:
+            # a tag or a commit, never a branch that moves
+            assert "/master" not in family["base"] and "/main" not in family["base"]
+        split = copycat_sets.icon_split("heldout", artwork)
+        train = copycat_sets.icon_split("train", artwork)
+        assert len(split) == artwork["held_out"]
+        assert not {i for _s, i, _v in train} & {i for _s, i, _v in split}
+        severities = [severity for _seed, _icon, severity in split]
+        assert {s: severities.count(s) for s in severities} == dict.fromkeys(
+            copycat_sets.SEVERITIES, artwork["held_out"] // 4
+        )
+    # the checked-in data is only ever synthetic's
+    assert [p.name for p in copycat_sets.DATA.iterdir() if p.is_dir()] == ["synthetic"]
+
+
+def _small_set(tmp_path):
+    """A set served from local files, so that nothing here needs the network."""
+    sources = tmp_path / "served"
+    sources.mkdir(parents=True)
+    names = [f"a{i}" for i in range(8)]
+    raw, clean = {}, {}
+    for i, name in enumerate(names):
+        body = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><circle fill="#a00" cx="18" cy="18" r="{i + 6}"/></svg>'
+        (sources / f"{name}.svg").write_text(body, encoding="utf-8")
+        raw[name] = body.encode("utf-8")
+        clean[f"x-{name}.svg"] = twemoji.convert(body).encode("utf-8")
+    return {
+        "shuffle": "test",
+        "held_out": 4,
+        "families": [
+            {"id": "x", "prefix": "x-", "base": sources.as_uri(), "names": names, "sha256": copycat_artwork.digest(raw)}
+        ],
+        "clean_sha256": copycat_artwork.digest(clean),
+        "heldout_sha256": "",
+    }, sources
+
+
+def test_a_set_is_downloaded_once_built_and_refused_if_it_differs(tmp_path):
+    artwork, served = _small_set(tmp_path)
+    root = tmp_path / "root"
+    with pytest.raises(copycat_artwork.SetNotFetched):
+        copycat_artwork.ensure("small", root, download=False, artwork=artwork)
+    clean = copycat_artwork.ensure("small", root, artwork=artwork)
+    assert sorted(p.stem for p in clean.glob("*.svg")) == copycat_artwork.file_names(artwork)
+    # built, it needs neither its sources nor permission to download
+    for path in served.iterdir():
+        path.unlink()
+    assert copycat_artwork.ensure("small", root, download=False, artwork=artwork) == clean
+
+    # a source that isn't what was pinned is refused, even if it's a perfectly good SVG
+    artwork, served = _small_set(tmp_path / "other")
+    (served / "a0.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><circle cx="1" cy="1" r="1"/></svg>',
+        encoding="utf-8",
     )
-    for target, (_seed, icon, _severity) in zip(targets, split, strict=True):
-        assert target.clean == (copycat_sets.ICONS / f"{icon}.svg").read_text(encoding="utf-8")
-        assert Svg(target.clean).canonical() == target.clean
-    # no icon is in both splits
-    train = {icon for _seed, icon, _severity in copycat_sets.icon_split("train")}
-    assert len(train) + len(split) == len(list(copycat_sets.ICONS.glob("*.svg")))
-    assert not train & {icon for _seed, icon, _severity in split}
+    with pytest.raises(copycat_artwork.SetMismatch, match="pinned"):
+        copycat_artwork.ensure("small", tmp_path / "other-root", artwork=artwork)
+
+
+def test_held_out_images_are_refused_if_they_come_out_different(tmp_path):
+    artwork, _ = _small_set(tmp_path)
+    root = tmp_path / "root"
+    with pytest.raises(copycat_artwork.SetMismatch, match="held-out"):
+        copycat_artwork.held_out("small", root, artwork=artwork)
+    where = root / "small" / "heldout"
+    files = {p.name: p.read_bytes() for p in where.iterdir()}
+    artwork["heldout_sha256"] = copycat_artwork.digest(files)
+    assert copycat_artwork.held_out("small", root, artwork=artwork) == where
+    targets = copycat.load_set("heldout", root=where, set_name="small")
+    assert len(targets) == 4 and all(t.id.startswith("small/1000") for t in targets)
+    assert all(Svg(t.clean).canonical() == t.clean for t in targets)
+
+
+def test_a_polygon_and_a_rect_scale_from_any_square_view_box():
+    from arena import twemoji
+
+    out = Svg(
+        twemoji.convert(
+            '<svg viewBox="0 0 48 48"><rect x="12" y="12" width="12" height="24" fill="#f00"/>'
+            '<g fill="#00f"><polygon points="24,12 36,12,36 36 24,36"/></g></svg>'
+        )
+    )
+    assert [(kind, fill) for kind, fill, _opacity in out.describe()] == [
+        ("rect", (255, 0, 0)),
+        ("polygon", (0, 0, 255)),
+    ]
+    for part in (0, 1):
+        assert np.frombuffer(out.coverage(part), dtype=np.float64).sum() == pytest.approx(32 * 64, rel=1e-3)
+    with pytest.raises(twemoji.Refused, match="rounded"):
+        twemoji.convert('<svg viewBox="0 0 48 48"><rect rx="2" width="4" height="4"/></svg>')
+    with pytest.raises(twemoji.Refused, match="viewBox"):
+        twemoji.convert('<svg viewBox="0 2 48 48"><circle r="4"/></svg>')
 
 
 def test_twemoji_paths_become_the_subset():

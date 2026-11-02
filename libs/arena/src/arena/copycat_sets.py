@@ -4,21 +4,25 @@ corrupted the way an image generator would corrupt them.
 - **`synthetic`**: from a seed, a stack of 2-8 whole parts -- rects, circles, ellipses, polygons and smooth Bézier
   blobs -- in 2-6 palette colours on a transparent 128 px canvas. Each part stays at least a quarter visible, so it can
   be recovered, and parts that overlap get different colours where the palette allows.
-- **`icons`**: 152 Twemoji emoji (graphics CC-BY 4.0; see `data/copycat/icons/README.md`), converted once into the
-  subset (`arena.twemoji`) and checked in as `data/copycat/icons/clean/`. A fixed shuffle holds out 24; severity cycles
-  within each split. Their parts are as the artist drew them: a part may be several pieces, and none is guaranteed
-  visible.
+- **`icons`**: 152 Twemoji emoji, downloaded and converted into the subset on first use (`arena.copycat_artwork`, and
+  `copycat_sources.json` for what and whose). A fixed shuffle holds out 24; severity cycles within each split. Their
+  parts are as the artist drew them: a part may be several pieces, and none is guaranteed visible.
+- **`broad`**: `icons` was tuned on and its 24 held-out images can't see a change that moves a few. So a second, larger
+  set with none of its icons and a second family, whose files are named for it: Twemoji and Flat Color Icons, got and
+  split and corrupted in the same way.
 - **`corrupt.v1`**: a seeded, versioned corruption at one of four severities (`clean` is the control: the bare render on
   a flat background). In order: per-part colour drift, a faint shading gradient, a slight warp, blur, a background
   (near-flat, a soft gradient, or clutter), Gaussian noise and film grain, then JPEG at quality 50-90 (Pillow). Every
   level drawn is recorded, so results can be broken down by corruption.
 
 Like an observer, `corrupt.v1` is never edited in place: a change is `corrupt.v2`. Its output depends on Pillow's JPEG
-encoder, which is why the held-out images are generated once and checked in beside their clean SVGs
-(`data/copycat/synthetic/heldout/`, with `manifest.json`), rather than regenerated:
+encoder, which is why `synthetic`'s held-out images, which we generate and the leaderboard ranks on, are generated once and
+checked in beside their clean SVGs (`data/copycat/synthetic/heldout/`, with `manifest.json`), rather than regenerated. The
+artwork sets' held-out images are checked against a digest instead:
 
-    uv run python -m arena.copycat_sets [--set icons]            # rewrite a checked-in held-out set
-    uv run python -m arena.copycat_sets [--set icons] --split train --out DIR
+    uv run python -m arena.copycat_sets                          # rewrite synthetic's held-out set
+    uv run python -m arena.copycat_sets --split train --out DIR
+    uv run python -m arena.copycat_artwork ROOT                  # download and build the artwork sets
 """
 
 from __future__ import annotations
@@ -313,26 +317,32 @@ def corrupt(clean_svg: str, seed: int, severity: str) -> tuple[bytes, dict[str, 
     return out.getvalue(), {"severity": severity, **rounded}
 
 
-ICONS = DATA / "icons" / "clean"
-ICONS_HELD_OUT = 24
-
-
-def icon_split(split: str) -> list[tuple[int, str, str]]:
-    """An `icons` split as (seed, icon, severity): the seed is the icon's index in name order (held-out ones from
+def icon_split(split: str, artwork: dict[str, Any]) -> list[tuple[int, str, str]]:
+    """A split of an artwork set as (seed, icon, severity): the seed is the icon's index in name order (held-out ones from
     10,000, as for `synthetic`), and severity cycles within the split, so each has a quarter."""
-    names = sorted(p.stem for p in ICONS.glob("*.svg"))
-    order = random.Random("copycat-icons-split").sample(range(len(names)), len(names))
-    indices = sorted(order[:ICONS_HELD_OUT] if split == "heldout" else order[ICONS_HELD_OUT:])
+    from arena.copycat_artwork import file_names
+
+    names = file_names(artwork)
+    order = random.Random(artwork["shuffle"]).sample(range(len(names)), len(names))
+    held_out = artwork["held_out"]
+    indices = sorted(order[:held_out] if split == "heldout" else order[held_out:])
     offset = 10_000 if split == "heldout" else 0
     return [(i + offset, names[i], SEVERITIES[k % len(SEVERITIES)]) for k, i in enumerate(indices)]
 
 
-def write_split(split: str, out: Path, set_name: str = "synthetic") -> list[dict[str, Any]]:
+def write_split(
+    split: str,
+    out: Path,
+    set_name: str = "synthetic",
+    clean_dir: Path | None = None,
+    artwork: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """A split's images under `out`. An artwork set needs where its clean SVGs are and its sources."""
     out.mkdir(parents=True, exist_ok=True)
-    if set_name == "icons":
+    if artwork is not None and clean_dir is not None:
         items = [
-            (seed, (ICONS / f"{icon}.svg").read_text(encoding="utf-8"), {"icon": icon}, severity)
-            for seed, icon, severity in icon_split(split)
+            (seed, (clean_dir / f"{icon}.svg").read_text(encoding="utf-8"), {"icon": icon}, severity)
+            for seed, icon, severity in icon_split(split, artwork)
         ]
     else:
         items = [(seed, *synthetic(seed), severity_of(seed)) for seed in SPLITS[split]]
@@ -347,18 +357,25 @@ def write_split(split: str, out: Path, set_name: str = "synthetic") -> list[dict
     return manifest
 
 
-def group_targets(group: str, root: Path) -> list[Any]:
+def group_targets(group: str, root: Path, download: bool = True) -> list[Any]:
     """The images of one of `copycat.report`'s groups (`set/split`). `train` and `validate` are built under `root` on
-    first use (`corrupt.v1` is seeded, so they are always the same); `train-control` is `train` at the `clean` severity."""
-    from arena import copycat
+    first use (`corrupt.v1` is seeded, so they are always the same), an artwork set downloaded for them if `download`
+    says so; `train-control` is `train` at the `clean` severity."""
+    from arena import copycat, copycat_artwork
 
     set_name, split = group.split("/")
+    artwork = copycat_artwork.sources().get(set_name)
     if split == "heldout":
-        return copycat.load_set(set_name=set_name)
+        if artwork is None:
+            return copycat.load_set(set_name=set_name)
+        return copycat.load_set(split, root=copycat_artwork.held_out(set_name, root, download), set_name=set_name)
     built = "validate" if split == "validate" else "train"
     where = root / set_name / built
     if not (where / "manifest.json").exists():
-        write_split(built, where, set_name)
+        if artwork is None:
+            write_split(built, where, set_name)
+        else:
+            write_split(built, where, set_name, copycat_artwork.ensure(set_name, root, download), artwork)
     targets = copycat.load_set("train", root=where)
     if split == "train-control":
         return [
@@ -370,14 +387,13 @@ def group_targets(group: str, root: Path) -> list[Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--set", choices=["synthetic", "icons"], default="synthetic", dest="set_name")
     parser.add_argument("--split", choices=sorted(SPLITS), default="heldout")
     parser.add_argument("--out", type=Path, help="default: the checked-in set (held-out only)")
     args = parser.parse_args()
     if args.out is None and args.split != "heldout":
         parser.error("only the held-out split is checked in: pass --out")
-    out = args.out or DATA / args.set_name / args.split
-    images = write_split(args.split, out, args.set_name)
+    out = args.out or DATA / "synthetic" / args.split
+    images = write_split(args.split, out)
     print(f"wrote {len(images)} images to {out}")
 
 

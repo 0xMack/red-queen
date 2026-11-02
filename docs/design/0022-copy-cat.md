@@ -707,15 +707,15 @@ drift. More search over shapes it does show won't supply either.
 
 ## The `icons` set
 
-`icons` is 152 Twemoji (v17.0.3, CC-BY 4.0; attribution in `libs/arena/src/arena/data/copycat/icons/README.md`).
+`icons` is 152 Twemoji (v17.0.3, graphics copyright 2019 Twitter, Inc and other contributors, CC-BY 4.0), downloaded on first use.
 They were drawn at random, by a fixed seed, from the emoji whose SVG fits the subset after conversion:
 - `arena.twemoji` scales the 36-unit viewBox to 128 px;
 - it turns relative commands, H/V/S/T and arcs into M/L/C/Q/Z;
 - it pushes a group's fill down onto its shapes;
 - it refuses anything with a transform, stroke, gradient or opacity.
 
-`copycat_sets.icon_split` shuffles the icons by a fixed seed. 24 are held out (6 per severity) and checked in with
-their `corrupt.v1` images. The other 128 are `train`, built on demand (`python -m arena.copycat_sets --set icons --split train --out DIR`).
+`copycat_sets.icon_split` shuffles the icons by a fixed seed. 24 are held out (6 per severity), the other 128 are
+`train`, and both are built on demand (`arena.copycat_artwork`).
 Only `train` has been scored; held-out waits until a change made for icons is kept.
 
 ### Results on `train`
@@ -1364,14 +1364,72 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 4. **Layer recovery on `icons`.** 0.63, against 0.89 on `synthetic`: the picture can match while the layers don't, and
    the layers are what a person editing the SVG wants. Done at 0.75 on `train`.
 5. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
-   identically on them. More Twemoji converted by `arena.twemoji`, as a new set version, so a change's held-out score
-   means something. This one needs new source files downloaded, so it waits for a go-ahead.
+   identically on them. Done as `broad`; see "The `broad` set".
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
 
 [0023](0023-process-traces-and-research-log.md)'s research log is built: each report is a run under `/runs`, with progress
 on the game page, so the direction can be set from the results rather than from a relayed summary. Its process traces then
 come before the ladder's search and gradient rungs, which would be hard to debug without them.
+
+### The `broad` set
+
+`icons` has been tuned on, and its 24 held-out images can't see a change that moves a few. `broad` is 616 more icons, none of
+them in `icons`, from two families, so a result isn't one artist's style: 326 Twemoji (v17.0.3, CC-BY 4.0) and 290 Flat Color
+Icons (Icons8, MIT). 120 are held out, 30 per severity. 53 of the 669 downloaded were refused rather than approximated, most
+for a transform. `copycat.report` measures `broad/train` and `broad/heldout` from here on.
+
+**Other people's artwork isn't in the repo.** `copycat_sources.json` pins each set: a tag or commit, the exact files, and digests of
+the files, of the SVGs converted from them, and of the held-out images. `arena.copycat_artwork` downloads and builds a set on
+first use (under `<data dir>/experiments/copycat-sets/`, about 40 s for both) and refuses one that doesn't match, since a score
+means something only on the same images. `icons` moved out the same way, and a fresh download rebuilt all 768 SVGs and every
+held-out image byte for byte. Reads never download. `synthetic` stays checked in: we generate it, and the leaderboard ranks on
+it. No test needs the network; they serve a small set from local files.
+
+Where the pipeline stood, on `broad/train` (`copycat-broad-base`; clean fidelity, dB):
+
+| | all | clean | light | medium | heavy |
+|---|---|---|---|---|---|
+| Flat Color Icons | 28.43 | 40.22 | 29.98 | 23.56 | 19.73 |
+| Twemoji | 25.00 | 33.79 | 27.10 | 21.42 | 17.85 |
+
+Held-out (26.80) agrees with train (26.59). The worst images with almost no corruption were mostly a pale part that vanished
+into a pale background.
+
+**A gradient was judged by a flat colour's spread.** `Background::cut` comes from the border's spread about a flat fit, even
+when a gradient is chosen: as wide as 0.21 on these images, where a flat background's floor is 0.012. So a pale part on a
+gradient didn't "stand out". Judged by the gradient's own spread, in `enclose` and `restore`:
+
+| | `synthetic/validate` | `broad/train` | up / down | |
+|---|---|---|---|---|
+| on every image | 31.638 -> 31.410 | 26.590 -> 26.724 | 23 / 13 | faint clutter stands out too: -15.9 dB on one |
+| **only where σ is under `FLAT_SIGMA`** | **31.638** | **26.705** | **8 / 2** | clutter comes with noise in `corrupt.v1` |
+
+That gate is a real limit, not a fix: a pale part on a noisy gradient is still lost, because nothing here tells it from clutter.
+
+**A crisp edge divides what colour can't.** A white sheet and a white background can fall in one k-means cluster, and that
+region's mean is the background's. So `restore` runs a second time on what's left, on a near-noiseless image, divided by
+pixels more than 4σ from a neighbour. The first attempt replaced the first pass and lost 0.16 dB: the edge pixels sat between
+a part and what it touches, so it no longer touched anything, and thin bars were all edge. As a second pass, whose edge pixels
+join a region before anything is tested, it can only add. With the contact rule, 3 images rose and the mean moved +0.018 dB;
+without it, since clutter is what that rule is for, 5 rose by up to 9.3 dB, none fell, and the mean moved +0.057 dB.
+
+Together (`copycat-pale-parts`), with held-out scored once:
+
+| | `synthetic` | `icons` | `icons` control | `broad` |
+|---|---|---|---|---|
+| `train` | 32.464 unchanged | 25.983 unchanged | 34.836 -> 34.949 | 26.590 -> 26.763 (12 up, 2 down) |
+| held-out | 32.469 unchanged | 23.677 -> 23.949 | | 26.803 -> 26.845 (1 up, 1 down) |
+
+The two that fell on `train`, seeds 376 (-6.1 dB, still 28) and 15 (-4.2 dB, still 26), weren't looked into further.
+
+Not kept: running `enclose` again after `restore`, on the idea that a restored part's ragged holes would pass its test. +0.002
+dB, with the `icons` control down (`copycat-enclose-again`).
+
+**Next**, from the worst low-corruption images that remain:
+- restored pale parts are ragged, with holes (seeds 314, 554, 120, 384);
+- a background that isn't where the corners say (488, 473): the sky drawn as a part, the tram's rails taken for the background;
+- pale parts under noise, the limit above, which needs something other than colour to tell them from clutter.
 
 ## The page
 
