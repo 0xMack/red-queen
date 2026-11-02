@@ -38,12 +38,18 @@ class StaticRoundRobinParams(_Params):
 
 
 class CopyCatReportParams(_Params):
-    out: str | None = Field(None, description="Write the report as JSON under <data dir>/experiments/.")
+    out: str | None = Field(
+        None, description="Write the report as JSON under <data dir>/experiments/, and record it as a run."
+    )
     baseline: str | None = Field(None, description="An earlier report's `out`, to compare with image by image.")
     heldout: bool = Field(False, description="Also score the held-out sets: once per change, never for tuning.")
     note: str | None = Field(None, description="What changed, kept with the report.")
-    decision: Literal["kept", "not_kept"] | None = Field(
-        None, description="Whether the change stays, if that's known yet (the research page can mark it later)."
+    decision: Literal["kept", "instructive", "not_kept"] | None = Field(
+        None,
+        description=(
+            "Whether the change stays, if that's known yet (its run page can mark it later). `instructive`: done "
+            "correctly, not effective, and worth showing; `not_kept` stays local."
+        ),
     )
     workers: PositiveInt = Field(8, description="Images traced at once.")
 

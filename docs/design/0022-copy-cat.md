@@ -1369,8 +1369,8 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
 
-[0023](0023-process-traces-and-research-log.md)'s research log (`/research/copycat`) is built: a page over these reports, so
-the direction can be set from the results rather than from a relayed summary. Its process traces then
+[0023](0023-process-traces-and-research-log.md)'s research log is built: each report is a run under `/runs`, with progress
+on the game page, so the direction can be set from the results rather than from a relayed summary. Its process traces then
 come before the ladder's search and gradient rungs, which would be hard to debug without them.
 
 ## The page

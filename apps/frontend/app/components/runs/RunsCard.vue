@@ -11,6 +11,9 @@ defineProps<{ r: RunRow; now: number }>()
       <div class="min-w-0">
         <p class="truncate font-medium">{{ r.meta.title }}</p>
         <p class="font-mono text-[11px] text-fg-subtle">{{ shortId(r.run.run_id) }} · {{ formatRelative(r.run.created_at, now) }}</p>
+        <UiBadge v-if="r.meta.decision === 'kept'" tone="life" dot class="mt-1">kept</UiBadge>
+        <UiBadge v-else-if="r.meta.decision === 'instructive'" tone="gold" class="mt-1">instructive</UiBadge>
+        <UiBadge v-else-if="r.meta.decision === 'not_kept'" class="mt-1">not kept</UiBadge>
       </div>
       <StatusBadge :status="r.run.status" :stale="r.stale" />
     </div>

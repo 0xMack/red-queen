@@ -49,7 +49,7 @@ export function useRunsTable(standings: Ref<{ byRun: Record<string, Standing> }>
       return {
         run,
         meta,
-        label: meta.game ? `${subject} · ${modelLabel(shape)}` : meta.title,
+        label: meta.report ?? (meta.game ? `${subject} · ${modelLabel(shape)}` : meta.title),
         heldOut: standings.value.byRun[run.run_id] ?? null,
         generations: summary?.generations ?? 0,
         best: bestFitnessOf(run) ?? summary?.best_fitness ?? null,

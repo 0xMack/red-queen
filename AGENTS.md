@@ -18,8 +18,8 @@ MCTS visit counts as policy targets; 0018: workloads, a job API and the `redquee
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
 score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
-behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- a page
-over experiment reports, one trace format and one viewer for watching very different algorithms refine) — read the relevant one before an
+behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
+one trace format and one viewer for watching very different algorithms refine) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -67,8 +67,9 @@ architectural change that might conflict with a decision already made.
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
       shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
-      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages). `/research/copycat` (unlinked and local, docs/design/0023) is
-      the research log over `copycat.report`'s files: progress over the kept changes, and one change's movers image by image.
+      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages), and `CopyCatProgress` is its `Insights`: progress over the kept
+      changes. **New results fit the existing pages**: an approach on the game page, how it works in Learn, an experiment under `/runs`. Don't add a page
+      for them (docs/design/0023 did, and it was undone).
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
       scenario, representation or measure opens a card, and "More" a side panel (`?explain=kind:id`, mounted once in
       `app.vue`). Concepts are authored once in a typed registry; the instance layer (this entrant's settings,
@@ -297,8 +298,9 @@ architectural change that might conflict with a decision already made.
   - The reports are `checkers.sprt` ("is A stronger than B"), `checkers.static-round-robin`, and the experiment
     reports `experiment.snake-report`, `.rl-report` (a paired permutation test against each arm's baseline),
     `.checkers-field` and `.checkers-h2h`.
-  `copycat.report` is Copy Cat's record of a change (it has no training runs): per image on train and held-out, against
-  an earlier report, under `<data dir>/experiments/` -- measure with it, not with a throwaway script.
+  `copycat.report` is Copy Cat's record of a change: per image on train and held-out, against an earlier report, under
+  `<data dir>/experiments/`, and a run (`config.report`) on `/runs` -- measure with it, not with a throwaway script. Its
+  decision is on the run: `kept` and `instructive` (correct, not effective, worth showing; rare) go on the public site.
   `copycat.clean.v1` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):

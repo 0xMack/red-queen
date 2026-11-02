@@ -447,30 +447,6 @@
         "title": "ReportComparison",
         "type": "object"
       },
-      "ReportDecision": {
-        "properties": {
-          "decision": {
-            "anyOf": [
-              {
-                "enum": [
-                  "kept",
-                  "not_kept"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision"
-          }
-        },
-        "required": [
-          "decision"
-        ],
-        "title": "ReportDecision",
-        "type": "object"
-      },
       "ReportDetail": {
         "properties": {
           "baseline": {
@@ -484,17 +460,6 @@
             ],
             "title": "Baseline"
           },
-          "commit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Commit"
-          },
           "compared": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ReportComparison"
@@ -502,46 +467,13 @@
             "title": "Compared",
             "type": "object"
           },
-          "decision": {
-            "anyOf": [
-              {
-                "enum": [
-                  "kept",
-                  "not_kept"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision"
-          },
-          "groups": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ReportGroup"
-            },
-            "title": "Groups",
-            "type": "object"
-          },
-          "held_out": {
-            "title": "Held Out",
+          "has_svgs": {
+            "title": "Has Svgs",
             "type": "boolean"
           },
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
           },
           "per_image": {
             "additionalProperties": {
@@ -552,59 +484,16 @@
             },
             "title": "Per Image",
             "type": "object"
-          },
-          "written_at": {
-            "title": "Written At",
-            "type": "number"
           }
         },
         "required": [
           "name",
-          "commit",
-          "note",
           "baseline",
-          "decision",
-          "written_at",
-          "held_out",
-          "groups",
+          "has_svgs",
           "per_image",
           "compared"
         ],
         "title": "ReportDetail",
-        "type": "object"
-      },
-      "ReportGroup": {
-        "properties": {
-          "by_severity": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "By Severity",
-            "type": "object"
-          },
-          "columns": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "title": "Columns",
-            "type": "object"
-          },
-          "mean": {
-            "title": "Mean",
-            "type": "number"
-          },
-          "worst": {
-            "title": "Worst",
-            "type": "number"
-          }
-        },
-        "required": [
-          "mean",
-          "worst",
-          "columns",
-          "by_severity"
-        ],
-        "title": "ReportGroup",
         "type": "object"
       },
       "ReportImage": {
@@ -698,89 +587,6 @@
           "baseline_svg"
         ],
         "title": "ReportImage",
-        "type": "object"
-      },
-      "ReportSummary": {
-        "properties": {
-          "baseline": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Baseline"
-          },
-          "commit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Commit"
-          },
-          "decision": {
-            "anyOf": [
-              {
-                "enum": [
-                  "kept",
-                  "not_kept"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision"
-          },
-          "groups": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ReportGroup"
-            },
-            "title": "Groups",
-            "type": "object"
-          },
-          "held_out": {
-            "title": "Held Out",
-            "type": "boolean"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "written_at": {
-            "title": "Written At",
-            "type": "number"
-          }
-        },
-        "required": [
-          "name",
-          "commit",
-          "note",
-          "baseline",
-          "decision",
-          "written_at",
-          "held_out",
-          "groups"
-        ],
-        "title": "ReportSummary",
         "type": "object"
       },
       "RunCreate": {
@@ -1229,31 +1035,6 @@
         ]
       }
     },
-    "/games/copycat/reports": {
-      "get": {
-        "operationId": "list_reports_games_copycat_reports_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ReportSummary"
-                  },
-                  "title": "Response List Reports Games Copycat Reports Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Reports",
-        "tags": [
-          "copycat"
-        ]
-      }
-    },
     "/games/copycat/reports/{name}": {
       "get": {
         "operationId": "get_report_games_copycat_reports__name__get",
@@ -1291,57 +1072,6 @@
           }
         },
         "summary": "Get Report",
-        "tags": [
-          "copycat"
-        ]
-      },
-      "patch": {
-        "description": "Whether a change stays: asked of a person, usually after the report was written, so it isn't only the job's.",
-        "operationId": "set_decision_games_copycat_reports__name__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "title": "Name",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportDecision"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Set Decision",
         "tags": [
           "copycat"
         ]

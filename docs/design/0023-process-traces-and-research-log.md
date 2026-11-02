@@ -23,6 +23,22 @@ would be much harder to debug this way, and the families below refine in very di
 
 ## Decision 1: the research log comes first, and it is mostly reading what already exists
 
+**Superseded the same day it shipped: there is no separate page.** A research log page didn't fit the site's model, where
+a game page shows each approach (0007), Learn explains how they work, and Runs holds the experiments. So:
+
+- **A report with an `out` is a run,** tagged `config.report` and `config.experiment = copycat.report`, so `/runs` groups
+  them like any experiment. The run holds the note, the group means and the decision; the files hold only what a run
+  can't, per-image scores and SVGs. `GET /games/copycat/reports/{name}` and its images route read those, and `/runs/{id}`
+  draws them (`CopyCatChange`). The decision is set through the existing `PATCH /runs/{id}`, so the list route and the
+  report `PATCH` below are gone.
+- **Progress is on Copy Cat's game page,** through `GameModule.Insights` (`CopyCatProgress`).
+- **The public site shows `kept` and `instructive` reports.** `instructive` means implemented correctly, not effective,
+  and showing something worth knowing, and it stays rare; a bug or a mistake is `not_kept` and stays local, as does
+  anything unmarked. So publishing rejected work is decided report by report, which answers this document's open question.
+- **The story of the changes belongs in a Learn chapter,** with the case for each piece of complexity as it was added.
+
+The original plan, kept for what it explains about the routes:
+
 A page for `copycat.report`'s reports, before any new recording.
 
 - **`GET /games/copycat/reports`** lists reports, from the files `copycat.report` already writes: name, commit, note, and
@@ -165,7 +181,7 @@ Each has a gate, so a wrong bet shows early.
 
 | Phase | Build | Gate |
 |---|---|---|
-| R: research log | The two report routes, the page, `decision` in reports | Every report since `copycat-ae2f606` is readable, with no hand-kept data |
+| R: research log | Reports as runs, on the runs and game pages (Decision 1) | Every report since `copycat-ae2f606` is readable, with no hand-kept data |
 | 0: measure | A minimal recorder on the structured pipeline and the hill climb | Bytes and frames per image are known before the schema is frozen |
 | 1: one consumer | Schema, `Recorder`, WASM entry, viewer, live only | The viewer reproduces 1,605 against 381 with no logging; goldens unchanged; final frame equals the scored SVG |
 | 2: second consumer | Hill-climb binding and trace; a shared worker shell | The hill climb needs no new `kind` |
@@ -179,7 +195,6 @@ Each has a gate, so a wrong bet shows early.
 
 - **Trace size.** Unmeasured. "A few hundred kilobytes per image" and "a keyframe every 50 frames" are guesses; phase 0 replaces them.
 - **Search and gradient needs.** The schema's fit to rungs 3 and 4 is a prediction until they exist.
-- **Publishing the research log.** Whether rejected work belongs on the public site is a person's decision, later.
 
 ## Sources
 

@@ -1,18 +1,15 @@
-"""Copy Cat's research log (docs/design/0023): `copycat.report`'s reports, read from `<data dir>/experiments/`.
+"""What a Copy Cat report's run (docs/design/0023, `config.report`) doesn't hold, read from `<data dir>/experiments/`:
 
-- `GET /games/copycat/reports`: every report, oldest first, without per-image scores;
-- `GET /games/copycat/reports/{name}`: one report, its per-image scores and its comparison with its baseline;
-- `PATCH /games/copycat/reports/{name}`: mark a report kept or not kept;
+- `GET /games/copycat/reports/{name}`: its per-image scores and its comparison with its baseline;
 - `GET /games/copycat/reports/{name}/images/{set}/{split}/{seed}`: one image, as that report and its baseline traced it.
 
-Local only: `static_site.py` doesn't export these, because publishing is outward-facing and reports name rejected work.
-Held-out images aren't served one by one, and a report says whether it looked at held-out: they are scored once per change
-and never debugged on.
+The run itself carries the note, the group means and the decision. Held-out images aren't served one by one: they are
+scored once per change and never debugged on.
 """
 
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from arena import copycat
 from arena.copycat_sets import group_targets
@@ -26,26 +23,6 @@ router = APIRouter(prefix="/games/copycat/reports", tags=["copycat"])
 
 PROTOCOL = "copycat.report"
 
-Decision = Literal["kept", "not_kept"]
-
-
-class ReportGroup(BaseModel):
-    mean: float
-    worst: float
-    columns: dict[str, float]
-    by_severity: dict[str, float]
-
-
-class ReportSummary(BaseModel):
-    name: str
-    commit: str | None
-    note: str | None
-    baseline: str | None
-    decision: Decision | None
-    written_at: float
-    held_out: bool
-    groups: dict[str, ReportGroup]
-
 
 class ReportComparison(BaseModel):
     before: float
@@ -55,13 +32,12 @@ class ReportComparison(BaseModel):
     moved: dict[str, float]
 
 
-class ReportDetail(ReportSummary):
+class ReportDetail(BaseModel):
+    name: str
+    baseline: str | None
+    has_svgs: bool
     per_image: dict[str, dict[str, float]]
     compared: dict[str, ReportComparison]
-
-
-class ReportDecision(BaseModel):
-    decision: Decision | None
 
 
 class ReportImage(BaseModel):
@@ -82,15 +58,12 @@ def _path(name: str) -> Path:
 
 
 def _read(path: Path) -> dict[str, Any] | None:
-    """A report, or None for anything else in the directory. Older reports have no date of their own: the file's."""
+    """A report, or None for anything else in the directory."""
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(report, dict) or report.get("protocol") != PROTOCOL:
-        return None
-    report.setdefault("written_at", path.stat().st_mtime)
-    return report
+    return report if isinstance(report, dict) and report.get("protocol") == PROTOCOL else None
 
 
 def _report(name: str) -> dict[str, Any]:
@@ -102,34 +75,13 @@ def _report(name: str) -> dict[str, Any]:
     return report
 
 
-def _summary(name: str, report: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "name": name,
-        "commit": report.get("commit"),
-        "note": report.get("note"),
-        "baseline": report.get("baseline"),
-        "decision": report.get("decision"),
-        "written_at": report["written_at"],
-        "held_out": any(group.endswith("/heldout") for group in report["groups"]),
-        "groups": {
-            group: {k: row[k] for k in ("mean", "worst", "columns", "by_severity")}
-            for group, row in report["groups"].items()
-        },
-    }
+def _svgs_path(name: str) -> Path:
+    return experiments_dir() / f"{name}.svgs.json"
 
 
 def _svgs(name: str) -> dict[str, dict[str, str]]:
-    path = experiments_dir() / f"{name}.svgs.json"
+    path = _svgs_path(name)
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-
-
-@router.get("")
-def list_reports() -> list[ReportSummary]:
-    if not experiments_dir().is_dir():
-        return []
-    reports = [(p.stem, _read(p)) for p in experiments_dir().glob("*.json")]
-    summaries = [_summary(name, report) for name, report in reports if report is not None]
-    return [ReportSummary(**s) for s in sorted(summaries, key=lambda s: s["written_at"])]
 
 
 @router.get("/{name}")
@@ -138,23 +90,12 @@ def get_report(name: str) -> ReportDetail:
     baseline = report.get("baseline")
     before = _read(_path(baseline)) if baseline else None
     return ReportDetail(
-        **_summary(name, report),
+        name=name,
+        baseline=baseline,
+        has_svgs=_svgs_path(name).exists(),
         per_image={group: row["per_image"] for group, row in report["groups"].items()},
         compared=copycat.compare(before["groups"], report["groups"]) if before else {},
     )
-
-
-@router.patch("/{name}")
-def set_decision(name: str, body: ReportDecision) -> ReportSummary:
-    """Whether a change stays: asked of a person, usually after the report was written, so it isn't only the job's."""
-    report = _report(name)
-    if body.decision is None:
-        report.pop("decision", None)
-    else:
-        report["decision"] = body.decision
-    # written_at is now set from the file's date, before writing the file changes it
-    _path(name).write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return ReportSummary(**_summary(name, report))
 
 
 @router.get("/{name}/images/{set_name}/{split}/{seed}")

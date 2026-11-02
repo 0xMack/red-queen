@@ -1,6 +1,50 @@
-"""copycat.report's comparison, which decides what a change is said to have done."""
+"""copycat.report's comparison, which decides what a change is said to have done, and the run it records."""
 
+from types import SimpleNamespace
+
+import pytest
 from arena.copycat import compare
+from jobcore import open_sink
+
+from evaluator.protocols import copycat_report
+
+
+def _params(out):
+    return SimpleNamespace(out=out, note="a note", baseline="before", decision=None)
+
+
+def test_a_report_with_a_name_is_a_completed_run_and_holds_no_images(tmp_path, monkeypatch):
+    monkeypatch.setenv("REDQUEEN_DATA_DIR", str(tmp_path))
+    row = {"mean": 20.0, "worst": 10.0, "columns": {}, "by_severity": {}, "per_image": {"1": 20.0}}
+    monkeypatch.setattr(copycat_report, "report", lambda params: {"groups": {"icons/heldout": row}})
+    sink = open_sink()
+    copycat_report.run(None, _params("change"), sink)
+    run = sink.registry.list_runs()[0]
+    assert run.status == "completed"
+    assert (run.config["game"], run.config["experiment"], run.config["report"]) == (
+        "copycat",
+        "copycat.report",
+        "change",
+    )
+    assert (run.config["baseline"], run.config["note"], "decision" in run.config) == ("before", "a note", False)
+    assert "per_image" not in run.summary["groups"]["icons/heldout"]
+    assert run.summary["held_out"] is True
+
+
+def test_a_report_with_no_name_records_nothing_and_a_failed_one_says_so(tmp_path, monkeypatch):
+    monkeypatch.setenv("REDQUEEN_DATA_DIR", str(tmp_path))
+    sink = open_sink()
+    monkeypatch.setattr(copycat_report, "report", lambda params: {"groups": {}})
+    copycat_report.run(None, _params(None), sink)
+    assert sink.registry.list_runs() == []
+
+    def dies(params):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(copycat_report, "report", dies)
+    with pytest.raises(RuntimeError):
+        copycat_report.run(None, _params("change"), sink)
+    assert sink.registry.list_runs()[0].status == "failed"
 
 
 def group(mean, **per_image):

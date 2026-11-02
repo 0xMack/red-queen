@@ -1,17 +1,21 @@
 <script setup lang="ts">
+import { reportGroups } from "~/data/copycatStages"
 import type { components } from "~/types/api.gen"
+import type { RunInfo } from "~/types/telemetry"
 
-// One change: what it did to each group against its baseline, then the images it moved, worst first. An image opens as
-// it was given, as the baseline and this report traced it, and clean. Held-out images aren't opened one by one: they are
-// scored once per change and never debugged on, so only their means are here.
+// A Copy Cat report's run page (docs/design/0023): what the change did to each group against its baseline, then the
+// images it moved, worst first. An image opens as it was given, as the baseline and this report traced it, and clean.
+// Held-out images aren't opened one by one: they are scored once per change and never debugged on, so only their means
+// are here. Marking whether the change stays needs a live backend, and is what decides if the public site shows it.
 type Detail = components["schemas"]["ReportDetail"]
 type Image = components["schemas"]["ReportImage"]
-type Decision = "kept" | "not_kept" | null
+type Decision = "kept" | "instructive" | "not_kept" | null
 
-const props = defineProps<{ name: string }>()
+const props = defineProps<{ run: RunInfo }>()
 const emit = defineEmits<{ decided: [] }>()
 
 const api = useApi()
+const name = computed(() => props.run.config!.report as string)
 const report = ref<Detail | null>(null)
 const failed = ref<string | null>(null)
 const group = ref<string | null>(null)
@@ -19,19 +23,21 @@ const seed = ref<string | null>(null)
 const image = ref<Image | null>(null)
 
 const isHeldOut = (g: string) => g.endsWith("/heldout")
+const groups = computed(() => reportGroups(props.run))
+const heldOut = computed(() => props.run.summary?.held_out === true)
 
 watch(
-  () => props.name,
-  async (name) => {
+  name,
+  async (wanted) => {
     report.value = null
     failed.value = null
     seed.value = null
     try {
-      const loaded = await api.fetch<Detail>(`/games/copycat/reports/${name}`)
-      if (name !== props.name) return
+      const loaded = await api.fetch<Detail>(`/games/copycat/reports/${wanted}`)
+      if (wanted !== name.value) return
       report.value = loaded
-      const groups = Object.keys(loaded.groups).filter((g) => !isHeldOut(g))
-      group.value = groups.find((g) => g === group.value) ?? groups.find((g) => loaded.compared[g]?.down) ?? groups[0] ?? null
+      const open = Object.keys(groups.value).filter((g) => !isHeldOut(g))
+      group.value = open.find((g) => g === group.value) ?? open.find((g) => loaded.compared[g]?.down) ?? open[0] ?? null
     } catch (e) {
       failed.value = e instanceof Error ? e.message : String(e)
     }
@@ -42,21 +48,20 @@ watch(
 watch([seed, group], async ([s, g]) => {
   image.value = null
   if (!s || !g) return
-  const wanted = `/games/copycat/reports/${props.name}/images/${g}/${s}`
   try {
-    const loaded = await api.fetch<Image>(wanted)
+    const loaded = await api.fetch<Image>(`/games/copycat/reports/${name.value}/images/${g}/${s}`)
     if (s === seed.value && g === group.value) image.value = loaded
   } catch (e) {
     failed.value = e instanceof Error ? e.message : String(e)
   }
 })
 
-const rows = computed(() => {
-  const r = report.value
-  if (!r) return []
-  return Object.entries(r.groups).map(([g, row]) => ({ group: g, mean: row.mean, worst: row.worst, lr: row.columns.layer_recovery, compared: r.compared[g] ?? null }))
-})
-const groupOptions = computed(() => Object.keys(report.value?.groups ?? {}).filter((g) => !isHeldOut(g)))
+const rows = computed(() =>
+  Object.entries(groups.value).map(([g, row]) => ({ group: g, mean: row.mean, worst: row.worst, lr: row.columns.layer_recovery, compared: report.value?.compared[g] ?? null })),
+)
+const groupOptions = computed(() => Object.keys(groups.value).filter((g) => !isHeldOut(g)))
+// The public site holds a report's images only if it kept its SVGs (`static_site._report_images`).
+const openable = computed(() => api.live || report.value?.has_svgs === true)
 /** The images this group moved, worst first. */
 const movers = computed(() => {
   const moved = report.value && group.value ? report.value.compared[group.value]?.moved : null
@@ -70,15 +75,14 @@ const worstImages = computed(() => {
 
 const DECISIONS = [
   { value: "kept", label: "Kept" },
+  { value: "instructive", label: "Instructive" },
   { value: "not_kept", label: "Not kept" },
   { value: null, label: "Unmarked" },
 ] as const
 const decision = computed<Decision>({
-  get: () => report.value?.decision ?? null,
+  get: () => (props.run.config?.decision as Decision | undefined) ?? null,
   set: async (value) => {
-    if (!report.value) return
-    report.value.decision = value
-    await api.fetch(`/games/copycat/reports/${props.name}`, { method: "PATCH", body: { decision: value } })
+    await api.fetch(`/runs/${props.run.run_id}`, { method: "PATCH", body: { config: { decision: value } } })
     emit("decided")
   },
 })
@@ -87,18 +91,21 @@ const decision = computed<Decision>({
 <template>
   <UiPanel label="One change" :title="name">
     <template #actions>
-      <UiSegmented v-model="decision" :options="DECISIONS" aria-label="Whether this change stays" />
+      <UiSegmented v-if="api.live" v-model="decision" :options="DECISIONS" aria-label="Whether this change stays" />
+      <UiBadge v-else-if="decision === 'kept'" tone="life" dot>kept</UiBadge>
+      <UiBadge v-else-if="decision === 'instructive'" tone="gold">tried, not kept</UiBadge>
     </template>
     <p v-if="failed" class="text-sm text-fg-subtle">This report couldn't be loaded ({{ failed }}).</p>
     <div v-else-if="report" class="space-y-5">
-      <p class="text-sm text-fg-muted">
-        {{ report.note ?? "No note." }}
-        <span class="font-mono text-xs text-fg-subtle">{{ report.commit }} · {{ formatTimestamp(report.written_at) }}</span>
+      <p v-if="api.live" class="text-xs text-fg-subtle">
+        Kept and instructive reports go on the public site. Instructive means done correctly, not effective, and worth
+        showing; a bug or a mistake is just not kept.
       </p>
       <div class="flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
         <span v-if="report.baseline">Against <span class="font-mono">{{ report.baseline }}</span></span>
         <span v-else>No baseline</span>
-        <UiBadge v-if="report.held_out" tone="gold" dot>looked at held-out</UiBadge>
+        <span class="font-mono">{{ run.config?.commit }}</span>
+        <UiBadge v-if="heldOut" tone="gold" dot>looked at held-out</UiBadge>
       </div>
 
       <div class="overflow-x-auto">
@@ -129,7 +136,7 @@ const decision = computed<Decision>({
         </table>
       </div>
 
-      <div v-if="group" class="space-y-3">
+      <div v-if="group && openable" class="space-y-3">
         <UiSegmented v-model="group" :options="groupOptions.map((g) => ({ value: g, label: g }))" aria-label="Which group's images" />
         <div class="flex flex-wrap gap-1.5">
           <template v-if="report.baseline">
