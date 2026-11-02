@@ -53,6 +53,43 @@ def test_the_icons_held_out_set_is_complete_and_what_the_split_makes():
     assert not train & {icon for _seed, icon, _severity in split}
 
 
+def test_the_broad_set_is_two_families_and_shares_no_icon_with_icons():
+    targets = copycat.load_set(set_name="broad")
+    split = copycat_sets.icon_split("heldout", "broad")
+    assert [t.seed for t in targets] == [seed for seed, _icon, _severity in split]
+    assert {t.severity: sum(x.severity == t.severity for x in targets) for t in targets} == dict.fromkeys(
+        copycat_sets.SEVERITIES, 30
+    )
+    assert {icon.split("-")[0] for _seed, icon, _severity in split} == {"twemoji", "flat"}
+    for target, (_seed, icon, _severity) in zip(targets, split, strict=True):
+        assert target.clean == (copycat_sets.BROAD / f"{icon}.svg").read_text(encoding="utf-8")
+    broad = {p.stem.removeprefix("twemoji-") for p in copycat_sets.BROAD.glob("twemoji-*.svg")}
+    assert not broad & {p.stem for p in copycat_sets.ICONS.glob("*.svg")}
+    # the icons set's split didn't move when the second set arrived
+    assert copycat_sets.icon_split("heldout")[0][0] == copycat.load_set(set_name="icons")[0].seed
+
+
+def test_a_polygon_and_a_rect_scale_from_any_square_view_box():
+    from arena import twemoji
+
+    out = Svg(
+        twemoji.convert(
+            '<svg viewBox="0 0 48 48"><rect x="12" y="12" width="12" height="24" fill="#f00"/>'
+            '<g fill="#00f"><polygon points="24,12 36,12,36 36 24,36"/></g></svg>'
+        )
+    )
+    assert [(kind, fill) for kind, fill, _opacity in out.describe()] == [
+        ("rect", (255, 0, 0)),
+        ("polygon", (0, 0, 255)),
+    ]
+    for part in (0, 1):
+        assert np.frombuffer(out.coverage(part), dtype=np.float64).sum() == pytest.approx(32 * 64, rel=1e-3)
+    with pytest.raises(twemoji.Refused, match="rounded"):
+        twemoji.convert('<svg viewBox="0 0 48 48"><rect rx="2" width="4" height="4"/></svg>')
+    with pytest.raises(twemoji.Refused, match="viewBox"):
+        twemoji.convert('<svg viewBox="0 2 48 48"><circle r="4"/></svg>')
+
+
 def test_twemoji_paths_become_the_subset():
     from arena import twemoji
 

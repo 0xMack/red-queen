@@ -12,7 +12,7 @@ const runsStore = useRunsStore()
 onMounted(() => runsStore.ensureLoaded())
 
 const COLOURS = [palette.queen400, palette.signal400, palette.life400, palette.gold400, palette.queen200, palette.signal300]
-const TABLE_GROUPS = ["synthetic/train", "icons/train", "icons/train-control", "synthetic/validate"]
+const TABLE_GROUPS = ["synthetic/train", "icons/train", "icons/train-control", "synthetic/validate", "broad/train"]
 
 const reports = computed(() =>
   runsStore.runs.filter((r) => typeof r.config?.report === "string" && r.status === "completed").sort((a, b) => a.created_at - b.created_at),

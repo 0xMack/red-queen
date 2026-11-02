@@ -1,0 +1,2106 @@
+{
+ "set": "broad",
+ "split": "heldout",
+ "size": 128,
+ "images": [
+  {
+   "id": "broad/10002",
+   "seed": 10002,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-add_column"
+  },
+  {
+   "id": "broad/10005",
+   "seed": 10005,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.378,
+    "shading": 0.007,
+    "warp": 0.392,
+    "blur": 0.572,
+    "noise": 1.244,
+    "grain": 1.096,
+    "jpeg": 85,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-add_row"
+  },
+  {
+   "id": "broad/10018",
+   "seed": 10018,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.286,
+    "shading": 0.075,
+    "warp": 0.715,
+    "blur": 0.828,
+    "noise": 2.918,
+    "grain": 3.884,
+    "jpeg": 80,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-bar_chart"
+  },
+  {
+   "id": "broad/10019",
+   "seed": 10019,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 14.051,
+    "shading": 0.119,
+    "warp": 1.363,
+    "blur": 1.404,
+    "noise": 6.548,
+    "grain": 4.954,
+    "jpeg": 67,
+    "background": {
+     "kind": "clutter",
+     "shapes": 7
+    }
+   },
+   "icon": "flat-bbc"
+  },
+  {
+   "id": "broad/10021",
+   "seed": 10021,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-binoculars"
+  },
+  {
+   "id": "broad/10022",
+   "seed": 10022,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.38,
+    "shading": 0.036,
+    "warp": 0.098,
+    "blur": 0.41,
+    "noise": 1.572,
+    "grain": 1.29,
+    "jpeg": 88,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-biohazard"
+  },
+  {
+   "id": "broad/10024",
+   "seed": 10024,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.826,
+    "shading": 0.043,
+    "warp": 0.682,
+    "blur": 0.892,
+    "noise": 4.731,
+    "grain": 2.777,
+    "jpeg": 71,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-biotech"
+  },
+  {
+   "id": "broad/10028",
+   "seed": 10028,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 14.035,
+    "shading": 0.17,
+    "warp": 1.6,
+    "blur": 1.098,
+    "noise": 8.606,
+    "grain": 5.644,
+    "jpeg": 53,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "flat-bullish"
+  },
+  {
+   "id": "broad/10029",
+   "seed": 10029,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-business"
+  },
+  {
+   "id": "broad/10033",
+   "seed": 10033,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.191,
+    "shading": 0.02,
+    "warp": 0.477,
+    "blur": 0.572,
+    "noise": 1.55,
+    "grain": 0.147,
+    "jpeg": 88,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-butting_in"
+  },
+  {
+   "id": "broad/10037",
+   "seed": 10037,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 8.487,
+    "shading": 0.057,
+    "warp": 0.737,
+    "blur": 0.782,
+    "noise": 4.504,
+    "grain": 3.883,
+    "jpeg": 83,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-call_transfer"
+  },
+  {
+   "id": "broad/10038",
+   "seed": 10038,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 14.811,
+    "shading": 0.13,
+    "warp": 1.05,
+    "blur": 1.424,
+    "noise": 8.226,
+    "grain": 5.861,
+    "jpeg": 68,
+    "background": {
+     "kind": "clutter",
+     "shapes": 4
+    }
+   },
+   "icon": "flat-callback"
+  },
+  {
+   "id": "broad/10045",
+   "seed": 10045,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-capacitor"
+  },
+  {
+   "id": "broad/10046",
+   "seed": 10046,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.039,
+    "shading": 0.036,
+    "warp": 0.396,
+    "blur": 0.579,
+    "noise": 0.356,
+    "grain": 0.059,
+    "jpeg": 85,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-cd_logo"
+  },
+  {
+   "id": "broad/10049",
+   "seed": 10049,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.767,
+    "shading": 0.076,
+    "warp": 0.872,
+    "blur": 0.742,
+    "noise": 4.386,
+    "grain": 2.361,
+    "jpeg": 76,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-checkmark"
+  },
+  {
+   "id": "broad/10051",
+   "seed": 10051,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.782,
+    "shading": 0.165,
+    "warp": 1.423,
+    "blur": 1.396,
+    "noise": 8.573,
+    "grain": 4.561,
+    "jpeg": 55,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "flat-clapperboard"
+  },
+  {
+   "id": "broad/10053",
+   "seed": 10053,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-close_up_mode"
+  },
+  {
+   "id": "broad/10064",
+   "seed": 10064,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.141,
+    "shading": 0.033,
+    "warp": 0.107,
+    "blur": 0.555,
+    "noise": 0.465,
+    "grain": 1.443,
+    "jpeg": 85,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-copyleft"
+  },
+  {
+   "id": "broad/10069",
+   "seed": 10069,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.693,
+    "shading": 0.055,
+    "warp": 0.799,
+    "blur": 0.713,
+    "noise": 3.327,
+    "grain": 2.189,
+    "jpeg": 75,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-customer_support"
+  },
+  {
+   "id": "broad/10071",
+   "seed": 10071,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.081,
+    "shading": 0.125,
+    "warp": 1.747,
+    "blur": 1.466,
+    "noise": 6.87,
+    "grain": 6.358,
+    "jpeg": 67,
+    "background": {
+     "kind": "clutter",
+     "shapes": 4
+    }
+   },
+   "icon": "flat-data_backup"
+  },
+  {
+   "id": "broad/10075",
+   "seed": 10075,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-data_recovery"
+  },
+  {
+   "id": "broad/10080",
+   "seed": 10080,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.485,
+    "shading": 0.026,
+    "warp": 0.33,
+    "blur": 0.515,
+    "noise": 0.782,
+    "grain": 0.17,
+    "jpeg": 86,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-decision"
+  },
+  {
+   "id": "broad/10081",
+   "seed": 10081,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.702,
+    "shading": 0.041,
+    "warp": 0.934,
+    "blur": 0.855,
+    "noise": 4.436,
+    "grain": 3.07,
+    "jpeg": 75,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-department"
+  },
+  {
+   "id": "broad/10087",
+   "seed": 10087,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 15.67,
+    "shading": 0.152,
+    "warp": 1.713,
+    "blur": 1.174,
+    "noise": 5.13,
+    "grain": 5.851,
+    "jpeg": 52,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "icon": "flat-donate"
+  },
+  {
+   "id": "broad/10090",
+   "seed": 10090,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-down_left"
+  },
+  {
+   "id": "broad/10091",
+   "seed": 10091,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.354,
+    "shading": 0.033,
+    "warp": 0.2,
+    "blur": 0.505,
+    "noise": 1.104,
+    "grain": 1.705,
+    "jpeg": 86,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-down_right"
+  },
+  {
+   "id": "broad/10095",
+   "seed": 10095,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.611,
+    "shading": 0.063,
+    "warp": 0.788,
+    "blur": 0.852,
+    "noise": 4.657,
+    "grain": 2.448,
+    "jpeg": 80,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-electrical_sensor"
+  },
+  {
+   "id": "broad/10102",
+   "seed": 10102,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 11.594,
+    "shading": 0.178,
+    "warp": 1.054,
+    "blur": 1.033,
+    "noise": 5.243,
+    "grain": 5.004,
+    "jpeg": 65,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "icon": "flat-end_call"
+  },
+  {
+   "id": "broad/10110",
+   "seed": 10110,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-faq"
+  },
+  {
+   "id": "broad/10111",
+   "seed": 10111,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.349,
+    "shading": 0.027,
+    "warp": 0.407,
+    "blur": 0.57,
+    "noise": 0.733,
+    "grain": 0.088,
+    "jpeg": 88,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-feed_in"
+  },
+  {
+   "id": "broad/10117",
+   "seed": 10117,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.028,
+    "shading": 0.068,
+    "warp": 0.805,
+    "blur": 0.747,
+    "noise": 4.352,
+    "grain": 3.701,
+    "jpeg": 71,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-film_reel"
+  },
+  {
+   "id": "broad/10132",
+   "seed": 10132,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.248,
+    "shading": 0.176,
+    "warp": 1.119,
+    "blur": 1.273,
+    "noise": 7.122,
+    "grain": 5.479,
+    "jpeg": 55,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "icon": "flat-graduation_cap"
+  },
+  {
+   "id": "broad/10134",
+   "seed": 10134,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-headset"
+  },
+  {
+   "id": "broad/10136",
+   "seed": 10136,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.516,
+    "shading": 0.037,
+    "warp": 0.385,
+    "blur": 0.351,
+    "noise": 0.273,
+    "grain": 0.872,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-high_battery"
+  },
+  {
+   "id": "broad/10153",
+   "seed": 10153,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.09,
+    "shading": 0.088,
+    "warp": 0.605,
+    "blur": 0.841,
+    "noise": 3.581,
+    "grain": 2.115,
+    "jpeg": 75,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-leave"
+  },
+  {
+   "id": "broad/10160",
+   "seed": 10160,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.581,
+    "shading": 0.11,
+    "warp": 1.033,
+    "blur": 1.525,
+    "noise": 5.38,
+    "grain": 6.809,
+    "jpeg": 51,
+    "background": {
+     "kind": "clutter",
+     "shapes": 7
+    }
+   },
+   "icon": "flat-like_placeholder"
+  },
+  {
+   "id": "broad/10162",
+   "seed": 10162,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-link"
+  },
+  {
+   "id": "broad/10165",
+   "seed": 10165,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.811,
+    "shading": 0.019,
+    "warp": 0.371,
+    "blur": 0.318,
+    "noise": 1.714,
+    "grain": 1.398,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-lock_landscape"
+  },
+  {
+   "id": "broad/10168",
+   "seed": 10168,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.532,
+    "shading": 0.097,
+    "warp": 0.586,
+    "blur": 0.706,
+    "noise": 4.945,
+    "grain": 2.048,
+    "jpeg": 80,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "flat-low_priority"
+  },
+  {
+   "id": "broad/10169",
+   "seed": 10169,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.449,
+    "shading": 0.111,
+    "warp": 1.206,
+    "blur": 1.384,
+    "noise": 7.12,
+    "grain": 4.881,
+    "jpeg": 68,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-make_decision"
+  },
+  {
+   "id": "broad/10170",
+   "seed": 10170,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-manager"
+  },
+  {
+   "id": "broad/10183",
+   "seed": 10183,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.289,
+    "shading": 0.005,
+    "warp": 0.067,
+    "blur": 0.465,
+    "noise": 0.493,
+    "grain": 1.553,
+    "jpeg": 86,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-music"
+  },
+  {
+   "id": "broad/10186",
+   "seed": 10186,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.564,
+    "shading": 0.089,
+    "warp": 0.687,
+    "blur": 0.938,
+    "noise": 4.299,
+    "grain": 2.848,
+    "jpeg": 73,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "flat-news"
+  },
+  {
+   "id": "broad/10187",
+   "seed": 10187,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.102,
+    "shading": 0.172,
+    "warp": 1.334,
+    "blur": 1.292,
+    "noise": 5.821,
+    "grain": 4.958,
+    "jpeg": 70,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "flat-next"
+  },
+  {
+   "id": "broad/10189",
+   "seed": 10189,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-night_landscape"
+  },
+  {
+   "id": "broad/10197",
+   "seed": 10197,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.172,
+    "shading": 0.039,
+    "warp": 0.013,
+    "blur": 0.329,
+    "noise": 1.793,
+    "grain": 1.993,
+    "jpeg": 89,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-org_unit"
+  },
+  {
+   "id": "broad/10201",
+   "seed": 10201,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.575,
+    "shading": 0.077,
+    "warp": 0.836,
+    "blur": 0.77,
+    "noise": 4.887,
+    "grain": 2.911,
+    "jpeg": 76,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "icon": "flat-panorama"
+  },
+  {
+   "id": "broad/10203",
+   "seed": 10203,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.796,
+    "shading": 0.132,
+    "warp": 1.336,
+    "blur": 1.234,
+    "noise": 5.889,
+    "grain": 5.822,
+    "jpeg": 63,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "icon": "flat-phone"
+  },
+  {
+   "id": "broad/10217",
+   "seed": 10217,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-puzzle"
+  },
+  {
+   "id": "broad/10220",
+   "seed": 10220,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.96,
+    "shading": 0.024,
+    "warp": 0.266,
+    "blur": 0.57,
+    "noise": 1.76,
+    "grain": 1.092,
+    "jpeg": 88,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-rating"
+  },
+  {
+   "id": "broad/10226",
+   "seed": 10226,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.697,
+    "shading": 0.099,
+    "warp": 0.587,
+    "blur": 0.723,
+    "noise": 2.386,
+    "grain": 3.088,
+    "jpeg": 85,
+    "background": {
+     "kind": "clutter",
+     "shapes": 6
+    }
+   },
+   "icon": "flat-refresh"
+  },
+  {
+   "id": "broad/10227",
+   "seed": 10227,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.329,
+    "shading": 0.1,
+    "warp": 1.44,
+    "blur": 1.502,
+    "noise": 7.902,
+    "grain": 6.144,
+    "jpeg": 57,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "flat-registered_trademark"
+  },
+  {
+   "id": "broad/10229",
+   "seed": 10229,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-right"
+  },
+  {
+   "id": "broad/10237",
+   "seed": 10237,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.816,
+    "shading": 0.035,
+    "warp": 0.486,
+    "blur": 0.513,
+    "noise": 0.836,
+    "grain": 1.762,
+    "jpeg": 89,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-sales_performance"
+  },
+  {
+   "id": "broad/10248",
+   "seed": 10248,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 8.353,
+    "shading": 0.041,
+    "warp": 0.757,
+    "blur": 0.615,
+    "noise": 3.35,
+    "grain": 3.545,
+    "jpeg": 73,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-signature"
+  },
+  {
+   "id": "broad/10256",
+   "seed": 10256,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 14.224,
+    "shading": 0.179,
+    "warp": 1.181,
+    "blur": 1.562,
+    "noise": 5.444,
+    "grain": 4.896,
+    "jpeg": 52,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "flat-sports_mode"
+  },
+  {
+   "id": "broad/10279",
+   "seed": 10279,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-video_file"
+  },
+  {
+   "id": "broad/10280",
+   "seed": 10280,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.204,
+    "shading": 0.025,
+    "warp": 0.363,
+    "blur": 0.411,
+    "noise": 1.441,
+    "grain": 0.201,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "flat-video_projector"
+  },
+  {
+   "id": "broad/10282",
+   "seed": 10282,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.599,
+    "shading": 0.092,
+    "warp": 0.701,
+    "blur": 0.961,
+    "noise": 3.217,
+    "grain": 3.808,
+    "jpeg": 82,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "flat-vip"
+  },
+  {
+   "id": "broad/10285",
+   "seed": 10285,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 17.051,
+    "shading": 0.174,
+    "warp": 1.117,
+    "blur": 1.333,
+    "noise": 6.537,
+    "grain": 4.704,
+    "jpeg": 56,
+    "background": {
+     "kind": "clutter",
+     "shapes": 4
+    }
+   },
+   "icon": "flat-voicemail"
+  },
+  {
+   "id": "broad/10299",
+   "seed": 10299,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f235"
+  },
+  {
+   "id": "broad/10300",
+   "seed": 10300,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.913,
+    "shading": 0.003,
+    "warp": 0.146,
+    "blur": 0.588,
+    "noise": 1.592,
+    "grain": 0.694,
+    "jpeg": 87,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f238"
+  },
+  {
+   "id": "broad/10302",
+   "seed": 10302,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 4.33,
+    "shading": 0.071,
+    "warp": 0.851,
+    "blur": 0.819,
+    "noise": 4.682,
+    "grain": 2.81,
+    "jpeg": 76,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f300"
+  },
+  {
+   "id": "broad/10306",
+   "seed": 10306,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 16.713,
+    "shading": 0.116,
+    "warp": 1.579,
+    "blur": 1.516,
+    "noise": 5.851,
+    "grain": 6.755,
+    "jpeg": 65,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f31b"
+  },
+  {
+   "id": "broad/10312",
+   "seed": 10312,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f354"
+  },
+  {
+   "id": "broad/10321",
+   "seed": 10321,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.61,
+    "shading": 0.013,
+    "warp": 0.128,
+    "blur": 0.393,
+    "noise": 0.597,
+    "grain": 0.936,
+    "jpeg": 86,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f382"
+  },
+  {
+   "id": "broad/10322",
+   "seed": 10322,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.002,
+    "shading": 0.058,
+    "warp": 0.747,
+    "blur": 0.708,
+    "noise": 2.233,
+    "grain": 2.909,
+    "jpeg": 75,
+    "background": {
+     "kind": "clutter",
+     "shapes": 7
+    }
+   },
+   "icon": "twemoji-1f387"
+  },
+  {
+   "id": "broad/10328",
+   "seed": 10328,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 11.133,
+    "shading": 0.136,
+    "warp": 1.152,
+    "blur": 1.255,
+    "noise": 6.126,
+    "grain": 5.118,
+    "jpeg": 65,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "twemoji-1f3a6"
+  },
+  {
+   "id": "broad/10330",
+   "seed": 10330,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f3ab"
+  },
+  {
+   "id": "broad/10333",
+   "seed": 10333,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.474,
+    "shading": 0.019,
+    "warp": 0.073,
+    "blur": 0.381,
+    "noise": 0.602,
+    "grain": 0.358,
+    "jpeg": 89,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f3b9"
+  },
+  {
+   "id": "broad/10344",
+   "seed": 10344,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.239,
+    "shading": 0.095,
+    "warp": 0.875,
+    "blur": 0.636,
+    "noise": 2.648,
+    "grain": 2.285,
+    "jpeg": 73,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f3df"
+  },
+  {
+   "id": "broad/10352",
+   "seed": 10352,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.697,
+    "shading": 0.103,
+    "warp": 1.412,
+    "blur": 1.554,
+    "noise": 5.333,
+    "grain": 6.012,
+    "jpeg": 64,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f401"
+  },
+  {
+   "id": "broad/10356",
+   "seed": 10356,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f40d"
+  },
+  {
+   "id": "broad/10361",
+   "seed": 10361,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.428,
+    "shading": 0.03,
+    "warp": 0.276,
+    "blur": 0.548,
+    "noise": 0.76,
+    "grain": 0.706,
+    "jpeg": 90,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f41d"
+  },
+  {
+   "id": "broad/10371",
+   "seed": 10371,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.307,
+    "shading": 0.04,
+    "warp": 0.928,
+    "blur": 0.935,
+    "noise": 2.843,
+    "grain": 3.756,
+    "jpeg": 73,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f440"
+  },
+  {
+   "id": "broad/10386",
+   "seed": 10386,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 12.27,
+    "shading": 0.153,
+    "warp": 1.474,
+    "blur": 1.287,
+    "noise": 8.299,
+    "grain": 4.421,
+    "jpeg": 54,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "icon": "twemoji-1f494"
+  },
+  {
+   "id": "broad/10392",
+   "seed": 10392,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f4ab"
+  },
+  {
+   "id": "broad/10404",
+   "seed": 10404,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.517,
+    "shading": 0.023,
+    "warp": 0.399,
+    "blur": 0.543,
+    "noise": 0.227,
+    "grain": 1.182,
+    "jpeg": 89,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f4d0"
+  },
+  {
+   "id": "broad/10406",
+   "seed": 10406,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.566,
+    "shading": 0.047,
+    "warp": 0.998,
+    "blur": 0.989,
+    "noise": 3.317,
+    "grain": 2.355,
+    "jpeg": 80,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f4d6"
+  },
+  {
+   "id": "broad/10411",
+   "seed": 10411,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 11.578,
+    "shading": 0.156,
+    "warp": 1.474,
+    "blur": 1.37,
+    "noise": 5.92,
+    "grain": 5.368,
+    "jpeg": 68,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f4f7"
+  },
+  {
+   "id": "broad/10412",
+   "seed": 10412,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f500"
+  },
+  {
+   "id": "broad/10414",
+   "seed": 10414,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 1.142,
+    "shading": 0.004,
+    "warp": 0.371,
+    "blur": 0.39,
+    "noise": 0.619,
+    "grain": 0.329,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f502"
+  },
+  {
+   "id": "broad/10422",
+   "seed": 10422,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.512,
+    "shading": 0.086,
+    "warp": 0.72,
+    "blur": 0.711,
+    "noise": 4.233,
+    "grain": 2.428,
+    "jpeg": 74,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f534"
+  },
+  {
+   "id": "broad/10427",
+   "seed": 10427,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.935,
+    "shading": 0.112,
+    "warp": 1.664,
+    "blur": 1.402,
+    "noise": 8.591,
+    "grain": 4.151,
+    "jpeg": 52,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "twemoji-1f550"
+  },
+  {
+   "id": "broad/10432",
+   "seed": 10432,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f55b"
+  },
+  {
+   "id": "broad/10445",
+   "seed": 10445,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.198,
+    "shading": 0.033,
+    "warp": 0.472,
+    "blur": 0.307,
+    "noise": 1.59,
+    "grain": 0.219,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f5dd"
+  },
+  {
+   "id": "broad/10446",
+   "seed": 10446,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.633,
+    "shading": 0.064,
+    "warp": 0.61,
+    "blur": 0.852,
+    "noise": 4.986,
+    "grain": 3.255,
+    "jpeg": 79,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f5e1"
+  },
+  {
+   "id": "broad/10451",
+   "seed": 10451,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 11.726,
+    "shading": 0.173,
+    "warp": 1.357,
+    "blur": 1.293,
+    "noise": 8.666,
+    "grain": 6.831,
+    "jpeg": 62,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "twemoji-1f608"
+  },
+  {
+   "id": "broad/10457",
+   "seed": 10457,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f61a"
+  },
+  {
+   "id": "broad/10463",
+   "seed": 10463,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.892,
+    "shading": 0.031,
+    "warp": 0.418,
+    "blur": 0.46,
+    "noise": 1.564,
+    "grain": 0.806,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f627"
+  },
+  {
+   "id": "broad/10464",
+   "seed": 10464,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 5.418,
+    "shading": 0.046,
+    "warp": 0.921,
+    "blur": 0.959,
+    "noise": 4.557,
+    "grain": 2.777,
+    "jpeg": 83,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f628"
+  },
+  {
+   "id": "broad/10466",
+   "seed": 10466,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.151,
+    "shading": 0.167,
+    "warp": 1.55,
+    "blur": 1.217,
+    "noise": 6.55,
+    "grain": 4.278,
+    "jpeg": 52,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f632"
+  },
+  {
+   "id": "broad/10472",
+   "seed": 10472,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f688"
+  },
+  {
+   "id": "broad/10480",
+   "seed": 10480,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.839,
+    "shading": 0.017,
+    "warp": 0.187,
+    "blur": 0.514,
+    "noise": 1.541,
+    "grain": 1.899,
+    "jpeg": 89,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f6a2"
+  },
+  {
+   "id": "broad/10485",
+   "seed": 10485,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.679,
+    "shading": 0.089,
+    "warp": 0.734,
+    "blur": 0.876,
+    "noise": 2.549,
+    "grain": 2.205,
+    "jpeg": 79,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f6bf"
+  },
+  {
+   "id": "broad/10490",
+   "seed": 10490,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 15.13,
+    "shading": 0.106,
+    "warp": 1.116,
+    "blur": 1.556,
+    "noise": 8.61,
+    "grain": 6.436,
+    "jpeg": 67,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "twemoji-1f6e5"
+  },
+  {
+   "id": "broad/10493",
+   "seed": 10493,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f7e1"
+  },
+  {
+   "id": "broad/10496",
+   "seed": 10496,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 3.764,
+    "shading": 0.015,
+    "warp": 0.455,
+    "blur": 0.571,
+    "noise": 1.145,
+    "grain": 0.77,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f7ea"
+  },
+  {
+   "id": "broad/10505",
+   "seed": 10505,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 6.969,
+    "shading": 0.066,
+    "warp": 0.774,
+    "blur": 0.903,
+    "noise": 4.605,
+    "grain": 3.212,
+    "jpeg": 78,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f93c"
+  },
+  {
+   "id": "broad/10518",
+   "seed": 10518,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.633,
+    "shading": 0.172,
+    "warp": 1.187,
+    "blur": 1.327,
+    "noise": 6.711,
+    "grain": 6.721,
+    "jpeg": 57,
+    "background": {
+     "kind": "clutter",
+     "shapes": 10
+    }
+   },
+   "icon": "twemoji-1f970"
+  },
+  {
+   "id": "broad/10521",
+   "seed": 10521,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f980"
+  },
+  {
+   "id": "broad/10525",
+   "seed": 10525,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.515,
+    "shading": 0.003,
+    "warp": 0.487,
+    "blur": 0.411,
+    "noise": 1.455,
+    "grain": 1.275,
+    "jpeg": 89,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f986"
+  },
+  {
+   "id": "broad/10528",
+   "seed": 10528,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.203,
+    "shading": 0.061,
+    "warp": 0.711,
+    "blur": 0.766,
+    "noise": 3.212,
+    "grain": 3.578,
+    "jpeg": 85,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f998"
+  },
+  {
+   "id": "broad/10531",
+   "seed": 10531,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 10.699,
+    "shading": 0.142,
+    "warp": 1.442,
+    "blur": 1.117,
+    "noise": 6.259,
+    "grain": 6.52,
+    "jpeg": 50,
+    "background": {
+     "kind": "clutter",
+     "shapes": 7
+    }
+   },
+   "icon": "twemoji-1f9a4"
+  },
+  {
+   "id": "broad/10537",
+   "seed": 10537,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1f9bc"
+  },
+  {
+   "id": "broad/10549",
+   "seed": 10549,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.538,
+    "shading": 0.018,
+    "warp": 0.071,
+    "blur": 0.307,
+    "noise": 0.198,
+    "grain": 1.263,
+    "jpeg": 85,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1f9e4"
+  },
+  {
+   "id": "broad/10563",
+   "seed": 10563,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.448,
+    "shading": 0.085,
+    "warp": 0.656,
+    "blur": 0.879,
+    "noise": 3.971,
+    "grain": 2.197,
+    "jpeg": 85,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1fa9b"
+  },
+  {
+   "id": "broad/10571",
+   "seed": 10571,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 16.951,
+    "shading": 0.138,
+    "warp": 1.471,
+    "blur": 1.438,
+    "noise": 8.75,
+    "grain": 4.759,
+    "jpeg": 69,
+    "background": {
+     "kind": "clutter",
+     "shapes": 9
+    }
+   },
+   "icon": "twemoji-1fad4"
+  },
+  {
+   "id": "broad/10573",
+   "seed": 10573,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-1fad9"
+  },
+  {
+   "id": "broad/10575",
+   "seed": 10575,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.638,
+    "shading": 0.03,
+    "warp": 0.082,
+    "blur": 0.495,
+    "noise": 0.526,
+    "grain": 0.219,
+    "jpeg": 87,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-1fae6"
+  },
+  {
+   "id": "broad/10580",
+   "seed": 10580,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 9.699,
+    "shading": 0.073,
+    "warp": 0.888,
+    "blur": 0.729,
+    "noise": 2.737,
+    "grain": 2.711,
+    "jpeg": 81,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-2049"
+  },
+  {
+   "id": "broad/10584",
+   "seed": 10584,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 15.094,
+    "shading": 0.161,
+    "warp": 1.112,
+    "blur": 1.575,
+    "noise": 5.676,
+    "grain": 4.65,
+    "jpeg": 67,
+    "background": {
+     "kind": "clutter",
+     "shapes": 5
+    }
+   },
+   "icon": "twemoji-23f0"
+  },
+  {
+   "id": "broad/10585",
+   "seed": 10585,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-25c0"
+  },
+  {
+   "id": "broad/10587",
+   "seed": 10587,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 0.478,
+    "shading": 0.031,
+    "warp": 0.078,
+    "blur": 0.499,
+    "noise": 1.049,
+    "grain": 0.634,
+    "jpeg": 89,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-25fc"
+  },
+  {
+   "id": "broad/10592",
+   "seed": 10592,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.091,
+    "shading": 0.084,
+    "warp": 0.559,
+    "blur": 0.727,
+    "noise": 3.133,
+    "grain": 3.607,
+    "jpeg": 79,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-267f"
+  },
+  {
+   "id": "broad/10594",
+   "seed": 10594,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 13.14,
+    "shading": 0.143,
+    "warp": 1.744,
+    "blur": 1.406,
+    "noise": 8.682,
+    "grain": 5.246,
+    "jpeg": 53,
+    "background": {
+     "kind": "clutter",
+     "shapes": 8
+    }
+   },
+   "icon": "twemoji-269c"
+  },
+  {
+   "id": "broad/10595",
+   "seed": 10595,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "clean",
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-26a0"
+  },
+  {
+   "id": "broad/10604",
+   "seed": 10604,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "light",
+    "drift": 2.107,
+    "shading": 0.019,
+    "warp": 0.324,
+    "blur": 0.51,
+    "noise": 1.624,
+    "grain": 1.537,
+    "jpeg": 86,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-26fd"
+  },
+  {
+   "id": "broad/10611",
+   "seed": 10611,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "medium",
+    "drift": 7.028,
+    "shading": 0.045,
+    "warp": 0.86,
+    "blur": 0.662,
+    "noise": 3.462,
+    "grain": 2.576,
+    "jpeg": 70,
+    "background": {
+     "kind": "flat"
+    }
+   },
+   "icon": "twemoji-2753"
+  },
+  {
+   "id": "broad/10613",
+   "seed": 10613,
+   "corruption": "corrupt.v1",
+   "levels": {
+    "severity": "heavy",
+    "drift": 12.075,
+    "shading": 0.143,
+    "warp": 1.656,
+    "blur": 1.471,
+    "noise": 7.731,
+    "grain": 6.967,
+    "jpeg": 56,
+    "background": {
+     "kind": "gradient"
+    }
+   },
+   "icon": "twemoji-2934"
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<rect x="2.7" y="101.3" width="122.7" height="5.3" fill="#ff9800"/>
+<rect x="66.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<rect x="82.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<rect x="98.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<rect x="50.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<rect x="34.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<rect x="18.7" y="48" width="10.7" height="42.7" fill="#ff9800"/>
+<polygon points="114.7,42.7 13.3,42.7 13.3,34.7 64,10.7 114.7,34.7" fill="#ff9800"/>
+<rect x="13.3" y="90.7" width="101.3" height="5.3" fill="#ff9800"/>
+<rect x="66.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="82.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="98.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="50.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="34.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="18.7" y="42.7" width="10.7" height="5.3" fill="#ef6c00"/>
+<rect x="8" y="96" width="112" height="5.3" fill="#ef6c00"/>
+<circle cx="64" cy="29.3" r="5.3" fill="#ef6c00"/>
+</svg>

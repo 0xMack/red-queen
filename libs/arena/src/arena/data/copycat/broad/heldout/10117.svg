@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<path d="M114.7 104L114.7 64L104 64L104 104C104 117.3 114.7 128 128 128L128 117.3C120.5 117.3 114.7 111.5 114.7 104Z" fill="#3f51b5"/>
+<circle cx="64" cy="64" r="50.7" fill="#90a4ae"/>
+<circle cx="64" cy="64" r="5.3" fill="#37474f"/>
+<circle cx="64" cy="37.3" r="13.3" fill="#253278"/>
+<circle cx="64" cy="90.7" r="13.3" fill="#253278"/>
+<circle cx="90.7" cy="64" r="13.3" fill="#253278"/>
+<circle cx="37.3" cy="64" r="13.3" fill="#253278"/>
+</svg>

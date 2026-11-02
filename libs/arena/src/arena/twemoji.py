@@ -1,12 +1,13 @@
-"""Twemoji SVGs into Copy Cat's SVG subset (docs/design/0022 Decision 1, the `icons` set): the 36 x 36 artwork scaled
-to the 128 px canvas, a group's fill pushed down onto its shapes, and every path made absolute with only M/L/C/Q/Z
-(H/V become L, S/T become C/Q, an arc becomes cubics). A file using anything the subset refuses -- a transform, a
+"""Flat-colour icon SVGs into Copy Cat's SVG subset (docs/design/0022 Decision 1, the `icons` and `broad` sets): the square
+artwork scaled to the 128 px canvas, a group's fill pushed down onto its shapes, and every path made absolute with only
+M/L/C/Q/Z (H/V become L, S/T become C/Q, an arc becomes cubics). A file using anything the subset refuses -- a transform, a
 stroke, opacity, an unknown element -- is refused with the reason, never approximated.
 
 The checked-in `data/copycat/icons/clean/` was made once from a seeded sample of Twemoji v17.0.3's single-codepoint
-SVGs under 6 KB (`SAMPLE_SEED`; 160 drawn, 152 converted):
+SVGs under 6 KB (`SAMPLE_SEED`; 160 drawn, 152 converted). `data/copycat/broad/clean/` is another sample of them, none in
+`icons` (`BROAD_SEED`; 340 drawn), beside all of Flat Color Icons (`FLAT_SOURCE`), each file named for its family:
 
-    uv run python -m arena.twemoji DOWNLOADED_SVG_DIR OUT_DIR
+    uv run python -m arena.twemoji DOWNLOADED_SVG_DIR OUT_DIR [--prefix twemoji-]
 """
 
 from __future__ import annotations
@@ -23,7 +24,8 @@ from arena.copycat_sets import SIZE
 
 SOURCE = "https://github.com/jdecked/twemoji/tree/v17.0.3/assets/svg"
 SAMPLE_SEED = "copycat-icons-v1"
-SCALE = SIZE / 36
+BROAD_SEED = "copycat-broad-v1"
+FLAT_SOURCE = "https://github.com/icons8/flat-color-icons/tree/1bf90d5ff118bc6690120ff9fdfe234565b7e414/svg"
 SVG_NS = "{http://www.w3.org/2000/svg}"
 NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
 COMMAND = re.compile(r"([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)")
@@ -179,18 +181,20 @@ def absolute(d: str) -> list[tuple]:
     return out
 
 
-def _path(d: str) -> str:
+def _path(d: str, scale: float) -> str:
     def point(p: Point) -> str:
-        return f"{p[0] * SCALE:.2f} {p[1] * SCALE:.2f}"
+        return f"{p[0] * scale:.2f} {p[1] * scale:.2f}"
 
     return " ".join(seg[0] + " ".join(point(p) for p in seg[1:]) for seg in absolute(d))
 
 
 def convert(text: str) -> str:
-    """One Twemoji SVG as a canonical subset document. Raises Refused for what the subset can't say."""
+    """One icon's SVG as a canonical subset document. Raises Refused for what the subset can't say."""
     root = ET.fromstring(text)
-    if root.get("viewBox", "").split() != ["0", "0", "36", "36"]:
+    box = root.get("viewBox", "").split()
+    if len(box) != 4 or box[:2] != ["0", "0"] or box[2] != box[3]:
         raise Refused(f"viewBox {root.get('viewBox')!r}")
+    scale = SIZE / float(box[2])
     lines: list[str] = []
 
     def walk(element: ET.Element, inherited: str | None) -> None:
@@ -205,9 +209,19 @@ def convert(text: str) -> str:
                 walk(child, fill)
                 continue
             fill = fill or "#000000"
-            s = {k: float(attrs.get(k, 0)) * SCALE for k in ("cx", "cy", "r", "rx", "ry")}
+            s = {k: float(attrs.get(k, 0)) * scale for k in ("cx", "cy", "r", "rx", "ry", "x", "y", "width", "height")}
             if tag == "path":
-                lines.append(f'<path d="{_path(attrs["d"])}" fill="{fill}"/>')
+                lines.append(f'<path d="{_path(attrs["d"], scale)}" fill="{fill}"/>')
+            elif tag == "polygon":
+                numbers = [float(n) * scale for n in NUMBER.findall(attrs["points"])]
+                points = " ".join(f"{x:.2f},{y:.2f}" for x, y in zip(numbers[::2], numbers[1::2], strict=True))
+                lines.append(f'<polygon points="{points}" fill="{fill}"/>')
+            elif tag == "rect":
+                if "rx" in attrs or "ry" in attrs:
+                    raise Refused("rect with rounded corners")
+                lines.append(
+                    f'<rect x="{s["x"]:.2f}" y="{s["y"]:.2f}" width="{s["width"]:.2f}" height="{s["height"]:.2f}" fill="{fill}"/>'
+                )
             elif tag == "circle":
                 lines.append(f'<circle cx="{s["cx"]:.2f}" cy="{s["cy"]:.2f}" r="{s["r"]:.2f}" fill="{fill}"/>')
             elif tag == "ellipse":
@@ -226,6 +240,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", type=Path, help="a directory of downloaded Twemoji SVGs")
     parser.add_argument("out", type=Path)
+    parser.add_argument("--prefix", default="", help="put before each file's name: its family")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     kept = 0
@@ -235,7 +250,7 @@ def main() -> None:
         except Refused as e:
             print(f"refused {path.name}: {e}")
             continue
-        (args.out / path.name).write_text(canonical, encoding="utf-8", newline="\n")
+        (args.out / f"{args.prefix}{path.name}").write_text(canonical, encoding="utf-8", newline="\n")
         kept += 1
     print(f"converted {kept}")
 

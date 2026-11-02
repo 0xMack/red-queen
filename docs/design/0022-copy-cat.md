@@ -1364,8 +1364,7 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 4. **Layer recovery on `icons`.** 0.63, against 0.89 on `synthetic`: the picture can match while the layers don't, and
    the layers are what a person editing the SVG wants. Done at 0.75 on `train`.
 5. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
-   identically on them. More Twemoji converted by `arena.twemoji`, as a new set version, so a change's held-out score
-   means something. This one needs new source files downloaded, so it waits for a go-ahead.
+   identically on them. Done as `broad`; see "The `broad` set".
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
    real artwork. A new protocol version ranks on both.
 

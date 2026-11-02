@@ -8,6 +8,9 @@ corrupted the way an image generator would corrupt them.
   subset (`arena.twemoji`) and checked in as `data/copycat/icons/clean/`. A fixed shuffle holds out 24; severity cycles
   within each split. Their parts are as the artist drew them: a part may be several pieces, and none is guaranteed
   visible.
+- **`broad`**: `icons` was tuned on and its 24 held-out images can't see a change that moves a few. So a second, larger
+  set with none of its icons and a second family, whose files are named for it: Twemoji and Flat Color Icons (see
+  `data/copycat/broad/README.md`), split and corrupted in the same way.
 - **`corrupt.v1`**: a seeded, versioned corruption at one of four severities (`clean` is the control: the bare render on
   a flat background). In order: per-part colour drift, a faint shading gradient, a slight warp, blur, a background
   (near-flat, a soft gradient, or clutter), Gaussian noise and film grain, then JPEG at quality 50-90 (Pillow). Every
@@ -17,8 +20,8 @@ Like an observer, `corrupt.v1` is never edited in place: a change is `corrupt.v2
 encoder, which is why the held-out images are generated once and checked in beside their clean SVGs
 (`data/copycat/synthetic/heldout/`, with `manifest.json`), rather than regenerated:
 
-    uv run python -m arena.copycat_sets [--set icons]            # rewrite a checked-in held-out set
-    uv run python -m arena.copycat_sets [--set icons] --split train --out DIR
+    uv run python -m arena.copycat_sets [--set icons|broad]            # rewrite a checked-in held-out set
+    uv run python -m arena.copycat_sets [--set icons|broad] --split train --out DIR
 """
 
 from __future__ import annotations
@@ -314,25 +317,28 @@ def corrupt(clean_svg: str, seed: int, severity: str) -> tuple[bytes, dict[str, 
 
 
 ICONS = DATA / "icons" / "clean"
-ICONS_HELD_OUT = 24
+BROAD = DATA / "broad" / "clean"
+# Each artwork set: where its clean SVGs are, how many are held out, and the seed of its shuffle.
+ARTWORK = {"icons": (ICONS, 24, "copycat-icons-split"), "broad": (BROAD, 120, "copycat-broad-split")}
 
 
-def icon_split(split: str) -> list[tuple[int, str, str]]:
-    """An `icons` split as (seed, icon, severity): the seed is the icon's index in name order (held-out ones from
+def icon_split(split: str, set_name: str = "icons") -> list[tuple[int, str, str]]:
+    """A split of an artwork set as (seed, icon, severity): the seed is the icon's index in name order (held-out ones from
     10,000, as for `synthetic`), and severity cycles within the split, so each has a quarter."""
-    names = sorted(p.stem for p in ICONS.glob("*.svg"))
-    order = random.Random("copycat-icons-split").sample(range(len(names)), len(names))
-    indices = sorted(order[:ICONS_HELD_OUT] if split == "heldout" else order[ICONS_HELD_OUT:])
+    clean, held_out, shuffle = ARTWORK[set_name]
+    names = sorted(p.stem for p in clean.glob("*.svg"))
+    order = random.Random(shuffle).sample(range(len(names)), len(names))
+    indices = sorted(order[:held_out] if split == "heldout" else order[held_out:])
     offset = 10_000 if split == "heldout" else 0
     return [(i + offset, names[i], SEVERITIES[k % len(SEVERITIES)]) for k, i in enumerate(indices)]
 
 
 def write_split(split: str, out: Path, set_name: str = "synthetic") -> list[dict[str, Any]]:
     out.mkdir(parents=True, exist_ok=True)
-    if set_name == "icons":
+    if set_name in ARTWORK:
         items = [
-            (seed, (ICONS / f"{icon}.svg").read_text(encoding="utf-8"), {"icon": icon}, severity)
-            for seed, icon, severity in icon_split(split)
+            (seed, (ARTWORK[set_name][0] / f"{icon}.svg").read_text(encoding="utf-8"), {"icon": icon}, severity)
+            for seed, icon, severity in icon_split(split, set_name)
         ]
     else:
         items = [(seed, *synthetic(seed), severity_of(seed)) for seed in SPLITS[split]]
@@ -370,7 +376,7 @@ def group_targets(group: str, root: Path) -> list[Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--set", choices=["synthetic", "icons"], default="synthetic", dest="set_name")
+    parser.add_argument("--set", choices=["synthetic", *ARTWORK], default="synthetic", dest="set_name")
     parser.add_argument("--split", choices=sorted(SPLITS), default="heldout")
     parser.add_argument("--out", type=Path, help="default: the checked-in set (held-out only)")
     args = parser.parse_args()
