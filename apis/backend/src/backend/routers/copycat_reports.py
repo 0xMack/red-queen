@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from arena import copycat
+from arena.copycat_artwork import SetNotFetched
 from arena.copycat_sets import group_targets
 from fastapi import APIRouter, HTTPException
 from jobcore import experiments_dir
@@ -104,7 +105,11 @@ def get_image(name: str, set_name: str, split: str, seed: int) -> ReportImage:
     report = _report(name)
     if split == "heldout" or group not in report["groups"]:
         raise HTTPException(status_code=404, detail=f"report {name} has no images to show for {group}")
-    target = next((t for t in group_targets(group, experiments_dir() / "copycat-sets") if t.seed == seed), None)
+    try:
+        targets = group_targets(group, experiments_dir() / "copycat-sets", download=False)
+    except SetNotFetched as e:  # a read never downloads
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    target = next((t for t in targets if t.seed == seed), None)
     if target is None:
         raise HTTPException(status_code=404, detail=f"{group} has no image with seed {seed}")
     baseline = report.get("baseline")

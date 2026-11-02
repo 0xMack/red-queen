@@ -7,7 +7,8 @@ too little to develop against. So this measures, and keeps per image:
 - `synthetic/train` and `icons/train`, what a change is tuned on;
 - `icons/train-control`, the same icons at the `clean` severity: what shapes and layers cost without corruption;
 - `synthetic/validate`, 400 more seeds: enough to see a change that moves few images, and free to debug on;
-- with `heldout: true`, both held-out sets. Those are for scoring once per change, at the end, never for tuning.
+- `broad/train`, icons nothing was tuned on before it, from two families: what a change does beyond `icons`;
+- with `heldout: true`, the three held-out sets. Those are for scoring once per change, at the end, never for tuning.
 
 The `train` and `validate` images are built on first use (`corrupt.v1` is seeded, so they are always the same) and kept with the reports.
 Each image's SVG goes beside the report (`<out>.svgs.json`), so a change can be looked at later as it was (docs/design/0023).
@@ -33,8 +34,8 @@ from jobcore.specs import EvalSpec
 from evaluator.registry import protocol
 
 PROTOCOL = "copycat.report"
-HELD_OUT = ("synthetic/heldout", "icons/heldout")
-TRAIN = ("synthetic/train", "icons/train", "icons/train-control", "synthetic/validate")
+HELD_OUT = ("synthetic/heldout", "icons/heldout", "broad/heldout")
+TRAIN = ("synthetic/train", "icons/train", "icons/train-control", "synthetic/validate", "broad/train")
 COLUMNS = ("fidelity", "alpha_iou", "layer_recovery", "shape_ratio", "palette_ratio", "smoothness_ratio")
 
 

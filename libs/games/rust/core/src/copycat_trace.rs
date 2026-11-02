@@ -185,6 +185,29 @@ impl Background {
         )
     }
 
+    /// What a colour is judged against, as `cut` is: 6 robust deviations. `cut` keeps what the border's spread about a
+    /// flat colour made it, which a gradient background widens several times over. So a gradient on a near-noiseless
+    /// image is judged by the spread of the border pixels it explains about itself; without this, a pale part on it
+    /// didn't stand out. On a noisy image the wide cut stays: faint clutter would stand out too (`FLAT_SIGMA`).
+    pub fn judged_cut(&self, image: &Image, sigma: f64) -> f64 {
+        if !self.gradient || sigma >= FLAT_SIGMA {
+            return self.cut;
+        }
+        let (w, h) = (image.width, image.height);
+        let explained: Vec<f64> = (0..w * h)
+            .filter(|&i| {
+                let (x, y) = (i % w, i / w);
+                x < 2 || y < 2 || x + 2 >= w || y + 2 >= h
+            })
+            .map(|i| distance2(&image.lab[i], &self.at_pixel(image, i)).sqrt())
+            .filter(|&d| d <= self.cut)
+            .collect();
+        if explained.is_empty() {
+            return self.cut;
+        }
+        self.cut.min(6.0 * median(explained).max(sigma))
+    }
+
     /// Fitted to a 2-pixel border; outliers past 3 robust deviations dropped and refitted, twice. Pixels alone can't
     /// tell a tile filling most of the border from a background, so a prior decides: the background reaches the
     /// corners. When the border's fit leaves a corner unexplained, the fit is started again from the corners instead,
@@ -902,20 +925,50 @@ fn deviations_out(image: &Image, background: &[Lab], cut: f64, pixels: &[usize])
 /// - at least `RESTORE_SHARE` of its boundary is with parts: a part of the subject touches the rest of it, while clutter
 ///   mostly lies alone in the background. A region `RESTORE_FAR` deviations out needs no contact: a chicken's pale body
 ///   has little more than an eye and a comb on it, and clutter doesn't stand out that far.
+///
+/// That runs twice. The second time, on a near-noiseless image, what's left is divided by its crisp edges first
+/// (`crisp_edges`): a white sheet and a white background, one region to their colours, are two to their edge.
+#[allow(clippy::too_many_arguments)]
 pub fn restore(
     image: &Image,
     background: &[Lab],
     cut: f64,
+    sigma: f64,
     faint: &[bool],
     config: &TraceConfig,
     labels: &mut [usize],
     centres: &mut Vec<Lab>,
 ) {
+    let no_edges = vec![false; labels.len()];
+    restore_regions(image, background, cut, faint, &no_edges, config, labels, centres);
+    let edges = crisp_edges(image, sigma);
+    if edges.iter().any(|&e| e) {
+        restore_regions(image, background, cut, faint, &edges, config, labels, centres);
+    }
+}
+
+/// One pass of `restore`, over the faint background's regions as `edges` divide them.
+#[allow(clippy::too_many_arguments)]
+fn restore_regions(
+    image: &Image,
+    background: &[Lab],
+    cut: f64,
+    faint: &[bool],
+    edges: &[bool],
+    config: &TraceConfig,
+    labels: &mut [usize],
+    centres: &mut Vec<Lab>,
+) {
     let candidate: Vec<usize> = (0..labels.len())
-        .map(|i| usize::from(faint[i] && labels[i] == 0))
+        .map(|i| match (faint[i] && labels[i] == 0, edges[i]) {
+            (false, _) => 0,
+            (true, false) => 1,
+            (true, true) => 2,
+        })
         .collect();
-    let (id, members) = components(image, &candidate);
-    for pixels in members.iter().filter(|p| candidate[p[0]] == 1) {
+    let (mut id, mut members) = components(image, &candidate);
+    give_edges_to_regions(image, &candidate, &mut id, &mut members);
+    for pixels in members.iter().filter(|p| !p.is_empty() && candidate[p[0]] == 1) {
         if pixels.len() < config.min_area
             || eroded(image, &id, pixels, 1) * 4 < pixels.len()
             || !stands_out(image, background, cut, RESTORE_DEVIATIONS, pixels)
@@ -933,7 +986,9 @@ pub fn restore(
                 }
             }
         }
-        if !stands_out(image, background, cut, RESTORE_FAR, pixels)
+        // with crisp edges to go by the image is near-noiseless, so clutter isn't what this could be
+        if !edges.iter().any(|&e| e)
+            && !stands_out(image, background, cut, RESTORE_FAR, pixels)
             && (subject as f64) < RESTORE_SHARE * (subject + empty).max(1) as f64
         {
             continue;
@@ -949,6 +1004,70 @@ pub fn restore(
         centres.push(mean);
     }
 }
+
+/// Each edge pixel (`candidate` 2) joins the neighbouring region whose mean colour it's nearest, working outward from the
+/// regions (`candidate` 1), so that a region's boundary is with what's across the edge.
+fn give_edges_to_regions(image: &Image, candidate: &[usize], id: &mut [usize], members: &mut [Vec<usize>]) {
+    let means: Vec<Lab> = members
+        .iter()
+        .map(|pixels| {
+            let n = pixels.len().max(1) as f64;
+            [0, 1, 2].map(|k| pixels.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n)
+        })
+        .collect();
+    let mut waiting: Vec<usize> = (0..candidate.len()).filter(|&i| candidate[i] == 2).collect();
+    for &i in &waiting {
+        members[id[i]].clear();
+        id[i] = usize::MAX;
+    }
+    loop {
+        let reached: Vec<(usize, usize)> = waiting
+            .iter()
+            .filter_map(|&i| {
+                image
+                    .neighbours(i)
+                    .filter(|&j| candidate[j] == 1 || (candidate[j] == 2 && id[j] != usize::MAX))
+                    .map(|j| id[j])
+                    .min_by(|&a, &b| {
+                        distance2(&image.lab[i], &means[a]).total_cmp(&distance2(&image.lab[i], &means[b]))
+                    })
+                    .map(|region| (i, region))
+            })
+            .collect();
+        if reached.is_empty() {
+            break;
+        }
+        for &(i, region) in &reached {
+            id[i] = region;
+            members[region].push(i);
+        }
+        waiting.retain(|&i| id[i] == usize::MAX);
+    }
+    // an edge with no region to join stays where it was: it never counts as one
+    let last = members.len();
+    for i in waiting {
+        id[i] = last;
+    }
+}
+
+/// The pixels on a crisp edge: more than `EDGE_SIGMAS` σ from a neighbour, where σ says that means anything. A gradient
+/// background changes far more slowly than that, so an edge is what a part ends at. None on a noisy image.
+fn crisp_edges(image: &Image, sigma: f64) -> Vec<bool> {
+    let n = image.width * image.height;
+    if sigma >= FLAT_SIGMA {
+        return vec![false; n];
+    }
+    let limit = (EDGE_SIGMAS * sigma).powi(2);
+    (0..n)
+        .map(|i| {
+            image
+                .neighbours(i)
+                .any(|j| distance2(&image.lab[i], &image.lab[j]) > limit)
+        })
+        .collect()
+}
+
+const EDGE_SIGMAS: f64 = 4.0;
 
 /// How many robust deviations from the background a restored part's interior must be, how much of its boundary it must
 /// share with parts, and how many deviations out it needn't share any.
@@ -1541,11 +1660,13 @@ fn run(
     let mut labels = clean_labels(&image, &segmentation.labels, config);
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
-    enclose(&image, &per_pixel, background.cut, &mut labels, &mut centres);
+    let judged = background.judged_cut(&image, sigma);
+    enclose(&image, &per_pixel, judged, &mut labels, &mut centres);
     restore(
         &image,
         &per_pixel,
-        background.cut,
+        judged,
+        sigma,
         &segmentation.faint,
         config,
         &mut labels,
@@ -1919,6 +2040,70 @@ mod tests {
             "{}",
             traced.canonical()
         );
+    }
+
+    #[test]
+    fn a_pale_part_on_a_gradient_stands_out_from_the_gradient() {
+        // a gradient spreads its border about a flat colour far more than about itself, which hid this part
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"12\" y=\"12\" width=\"40\" height=\"30\" fill=\"#d6cdea\"/>\
+            <circle cx=\"32\" cy=\"52\" r=\"6\" fill=\"#3a7a3a\"/></svg>";
+        let (clean, _) = photograph(svg, [255, 255, 255]);
+        let drawn = clean.render().to_rgba8();
+        let mut rgba = vec![255u8; 64 * 64 * 4];
+        for i in 0..64 * 64 {
+            let t = (i % 64) as f64 / 63.0;
+            let alpha = drawn[i * 4 + 3] as f64 / 255.0;
+            for (k, (a, b)) in [(252.0, 224.0), (238.0, 232.0), (232.0, 252.0)].iter().enumerate() {
+                let bg: f64 = a * (1.0 - t) + b * t;
+                rgba[i * 4 + k] = (drawn[i * 4 + k] as f64 * alpha + bg * (1.0 - alpha)).round() as u8;
+            }
+        }
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        assert_eq!(rendered[(25 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
+        assert_eq!(rendered[(4 * 64 + 4) * 4 + 3], 0, "{}", traced.canonical());
+    }
+
+    #[test]
+    fn a_crisp_edge_divides_a_white_sheet_from_a_white_background() {
+        // one k-means cluster took both, so to their colours they're one region, whose mean is near the background's
+        let (w, h) = (64usize, 64usize);
+        let mut rgba = vec![255u8; w * h * 4];
+        for i in 0..w * h {
+            let sheet = i % w >= 24 && i / w >= 12;
+            let colour = if sheet { [245, 248, 250] } else { [233, 237, 240] };
+            rgba[i * 4..i * 4 + 3].copy_from_slice(&colour);
+        }
+        let image = Image::from_rgba8(&rgba, w, h).unwrap();
+        let background = vec![image.lab[0]; w * h];
+        let (mut labels, mut centres) = (vec![0; w * h], vec![[0.0; 3]]);
+        let (sigma, cut) = (0.002, 0.05);
+        restore(
+            &image,
+            &background,
+            cut,
+            sigma,
+            &vec![true; w * h],
+            &TraceConfig::default(),
+            &mut labels,
+            &mut centres,
+        );
+        assert_eq!(labels[40 * w + 44], 1);
+        assert_eq!(labels[4 * w + 4], 0);
+        // on a noisy image an edge says nothing, so the same pixels stay one region and stay background
+        let (mut labels, mut centres) = (vec![0; w * h], vec![[0.0; 3]]);
+        restore(
+            &image,
+            &background,
+            cut,
+            FLAT_SIGMA,
+            &vec![true; w * h],
+            &TraceConfig::default(),
+            &mut labels,
+            &mut centres,
+        );
+        assert!(labels.iter().all(|&l| l == 0));
     }
 
     #[test]
