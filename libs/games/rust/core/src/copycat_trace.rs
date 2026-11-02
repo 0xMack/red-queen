@@ -27,7 +27,8 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::copycat::{Document, Group, Shape};
+use crate::copycat::{Document, Geometry, Group, Shape};
+use crate::copycat_film::{self as film_log, thinned, Film, Frame, Kind, Patch, View, MAX_STEPS};
 use crate::copycat_fit::{inside_polygon, largest_contour, notches, solve, Costs, Fit, Target};
 use crate::pcg::Pcg32;
 
@@ -1409,6 +1410,84 @@ pub fn order(image: &Image, parts: &[Part], completed: &[Option<Vec<f64>>]) -> V
     out
 }
 
+fn stage_frame(stage: &str, note: String, view: View, objective: f64) -> Frame {
+    Frame {
+        stage: stage.into(),
+        note,
+        kind: Kind::Stage,
+        view,
+        patch: Patch::None,
+        objective,
+    }
+}
+
+/// Where a part goes in the film.
+struct PartShot {
+    stage: String,
+    fill: [u8; 3],
+    /// The index of its first shape.
+    first: usize,
+}
+
+/// A part's frames, from what the fitter logged for it: each candidate of its first fit, then each final shape's way
+/// to its final form. Returns the description so far, with these shapes in it.
+fn film_part(film: &mut Film, shot: &PartShot, fits: &[Fit], mut description: f64) -> f64 {
+    let log = film_log::take();
+    let shape = |geometry: Geometry| Shape {
+        geometry,
+        fill: shot.fill,
+        opacity: 1.0,
+        group: None,
+    };
+    let tried = log.first_fit.unwrap_or(log.attempts.len());
+    for attempt in &log.attempts[..tried] {
+        let Some((geometry, bits)) = attempt.states.last() else {
+            continue;
+        };
+        film.frames.push(Frame {
+            stage: shot.stage.clone(),
+            note: format!("Trying a {}: {bits:.0} bits", attempt.kind),
+            kind: Kind::Try,
+            view: View::Vector,
+            patch: Patch::Set(shot.first, shape(geometry.clone())),
+            objective: description + bits,
+        });
+    }
+    if fits.is_empty() && tried > 0 {
+        film.frames.push(Frame {
+            stage: shot.stage.clone(),
+            note: "Nothing shorter than leaving it out".into(),
+            kind: Kind::Stage,
+            view: View::Vector,
+            patch: Patch::Remove(shot.first),
+            objective: description,
+        });
+    }
+    for (i, fit) in fits.iter().enumerate() {
+        let chain = thinned(log.chain(&fit.geometry), MAX_STEPS);
+        for (geometry, bits) in chain.into_iter().filter(|(g, _)| *g != fit.geometry) {
+            film.frames.push(Frame {
+                stage: shot.stage.clone(),
+                note: format!("Refining: {bits:.0} bits"),
+                kind: Kind::Step,
+                view: View::Vector,
+                patch: Patch::Set(shot.first + i, shape(geometry)),
+                objective: description + bits,
+            });
+        }
+        description += fit.bits();
+        film.frames.push(Frame {
+            stage: shot.stage.clone(),
+            note: format!("Kept: {:.0} bits", fit.bits()),
+            kind: Kind::Lock,
+            view: View::Vector,
+            patch: Patch::Set(shot.first + i, shape(fit.geometry.clone())),
+            objective: description,
+        });
+    }
+    description
+}
+
 /// What each stage made, for showing the pipeline at work (the game page draws them).
 pub struct Stages {
     pub sigma: f64,
@@ -1430,6 +1509,31 @@ pub fn trace(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> 
 
 /// The whole pipeline, keeping what each stage made.
 pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Stages, String> {
+    run(rgba, width, height, config, None)
+}
+
+/// The whole pipeline, filmed: its stages, then each part from the bottom up, with what it tried, and how the
+/// winner got to its final form. Its objective is the description so far, a part not yet drawn counting as all wrong.
+pub fn film(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Film, String> {
+    let mut film = Film::new(width as u32, height as u32, "description length (bits)");
+    film_log::start();
+    let stages = run(rgba, width, height, config, Some(&mut film));
+    film_log::stop();
+    let stages = stages?;
+    film.document = stages.document;
+    film.clustered = stages.clustered;
+    film.labels = stages.labels;
+    film.palette = stages.palette;
+    Ok(film)
+}
+
+fn run(
+    rgba: &[u8],
+    width: usize,
+    height: usize,
+    config: &TraceConfig,
+    mut film: Option<&mut Film>,
+) -> Result<Stages, String> {
     let image = Image::from_rgba8(rgba, width, height)?;
     let sigma = noise_sigma(&image);
     let background = Background::fit(&image, sigma);
@@ -1460,11 +1564,40 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
     let order = order(&image, &parts, &completed);
     let mut shapes = Vec::new();
     let mut groups = Vec::new();
+    // the description so far: each part not yet drawn is all wrong
+    let mut description: f64 = parts.iter().map(|p| costs.pixel_bits * p.pixels.len() as f64).sum();
+    if let Some(film) = &mut film {
+        let frame = |stage: &str, note: String, view| stage_frame(stage, note, view, description);
+        film.frames
+            .push(frame("The image", "What it was given".into(), View::Input));
+        film.frames.push(frame(
+            "Palette",
+            format!("k-means in OKLab, merged; noise σ {sigma:.3}"),
+            View::Clustered,
+        ));
+        film.frames
+            .push(frame("Regions", "Specks and thin bands dissolved".into(), View::Labels));
+        film.frames.push(frame(
+            "Parts",
+            format!("{} parts, in paint order; drawing from the bottom", parts.len()),
+            View::Vector,
+        ));
+        film_log::take();
+    }
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
         let mut fits = shapes_of(&scene, &parts[k], &above, &costs);
         let more = leftovers(&scene, &parts[k], &above, &fits, &costs);
         fits.extend(more);
+        if let Some(film) = &mut film {
+            description -= costs.pixel_bits * parts[k].pixels.len() as f64;
+            let shot = PartShot {
+                stage: format!("Part {} of {}", place + 1, order.len()),
+                fill: parts[k].fill,
+                first: shapes.len(),
+            };
+            description = film_part(film, &shot, &fits, description);
+        }
         for fit in fits {
             groups.push(Group { parent: None });
             shapes.push(Shape {
@@ -1644,6 +1777,41 @@ mod tests {
     }
 
     /// The scene over an opaque background colour, as RGBA bytes.
+    #[test]
+    fn a_film_changes_nothing_and_ends_on_the_output() {
+        // a ring, for a hole's frames, and two parts of one colour, for a cut's
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <rect x=\"6\" y=\"6\" width=\"24\" height=\"24\" fill=\"#d03030\"/>\
+            <circle cx=\"32\" cy=\"32\" r=\"10\" fill=\"#d03030\"/>\
+            <path d=\"M40 40L58 40L58 58L40 58ZM45 45L45 53L53 53L53 45Z\" fill=\"#2050c0\"/></svg>";
+        let (_, rgba) = photograph(svg, [245, 240, 230]);
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        let recorded = film(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert_eq!(recorded.document, traced);
+        assert!(recorded.matches_output());
+        assert_eq!(recorded.frames[0].view, View::Input);
+        let locks = recorded.frames.iter().filter(|f| f.kind == Kind::Lock).count();
+        assert_eq!(locks, traced.shapes.len());
+        assert!(recorded.frames.iter().any(|f| f.kind == Kind::Try));
+        // the description falls as parts are drawn, from every part all wrong
+        let (first, last) = (recorded.frames[0].objective, recorded.frames.last().unwrap().objective);
+        assert!(last < first / 2.0, "{first} {last}");
+        // and nothing is left logging: a later trace isn't recorded
+        film_log::attempt(&Fit {
+            geometry: Geometry::Circle {
+                cx: 1.0,
+                cy: 1.0,
+                r: 1.0,
+            },
+            model_bits: 0.0,
+            misfit_bits: 0.0,
+            knots: None,
+            tight: false,
+            rounded: None,
+        });
+        assert!(film_log::take().attempts.is_empty());
+    }
+
     #[test]
     fn two_overlapping_parts_of_one_colour_are_cut_apart() {
         // one component of one colour: a square with a disk standing out of its corner

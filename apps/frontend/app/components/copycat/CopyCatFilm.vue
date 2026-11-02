@@ -1,0 +1,280 @@
+<script setup lang="ts">
+import type { CopyCatTargetDetail } from "~/utils/copycat"
+import type { ChartSeries } from "~/types/chart"
+
+// A timelapse of the entrant on stage making its SVG for this image (docs/design/0023): each change it kept, played back,
+// paused, scrubbed or stepped, with one score for every entrant under it. The entrant really runs here, in WebAssembly,
+// so what plays is what it does: an entrant with no process to record says so, and gets no invented animation.
+const props = defineProps<{ entrantId: string | null; entrantLabel: string; detail: CopyCatTargetDetail | null; scoredSvg: string | null; scoredFidelity: number | null }>()
+
+const recipe = computed(() => filmRecipe(props.entrantId))
+const subject = computed(() => {
+  const d = props.detail
+  return d && recipe.value ? { png: d.png, seed: d.seed, clean: d.clean, recipe: recipe.value } : null
+})
+const { film, scores, failed } = useCopyCatFilm(subject)
+
+const frames = computed(() => film.value?.frames ?? [])
+const times = computed(() => filmTimes(frames.value))
+const duration = computed(() => times.value[times.value.length - 1] ?? 0)
+
+const time = ref(0)
+const paused = ref(false)
+const speed = ref(1)
+const SPEED_CHOICES = [0.25, 0.5, 1, 2, 4] as const
+const current = computed(() => frameAt(times.value, time.value))
+const ended = computed(() => duration.value > 0 && time.value >= duration.value)
+
+// a new film starts from the top, playing unless the reader asked for less motion
+watch(film, (next) => {
+  time.value = 0
+  paused.value = !next || (import.meta.client && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+})
+
+let raf = 0
+let last = 0
+function tick(now: number) {
+  if (!paused.value && !ended.value) time.value = Math.min(duration.value, time.value + ((now - last) / 1000) * speed.value)
+  last = now
+  raf = requestAnimationFrame(tick)
+}
+onMounted(() => {
+  last = performance.now()
+  raf = requestAnimationFrame(tick)
+})
+onBeforeUnmount(() => cancelAnimationFrame(raf))
+
+function setPaused(next: boolean) {
+  if (!next && ended.value) time.value = 0
+  paused.value = next
+}
+const replay = () => {
+  time.value = 0
+  paused.value = false
+}
+function seekFrame(i: number) {
+  paused.value = true
+  const clamped = Math.max(0, Math.min(frames.value.length - 1, i))
+  time.value = times.value[clamped] ?? 0
+}
+function onScrub(event: Event) {
+  paused.value = true
+  time.value = Number((event.target as HTMLInputElement).value)
+}
+const toEnd = () => {
+  paused.value = true
+  time.value = duration.value
+}
+
+const frame = computed(() => frames.value[current.value] ?? null)
+const elements = computed(() => elementsAt(frames.value, current.value))
+const inner = computed(() => elements.value.join(""))
+
+function labelImage(labels: Uint16Array | undefined) {
+  const d = props.detail
+  if (!labels?.length || !d || !film.value) return null
+  return { data: labelPixels(labels, film.value.palette), width: d.width, height: d.height }
+}
+const clusteredImage = computed(() => labelImage(film.value?.clustered))
+const labelsImage = computed(() => labelImage(film.value?.labels))
+const stageCanvas = ref<HTMLCanvasElement | null>(null)
+const pixels = computed(() => (frame.value?.view === "clustered" ? clusteredImage.value : frame.value?.view === "labels" ? labelsImage.value : null))
+watchEffect(() => {
+  const el = stageCanvas.value
+  const p = pixels.value
+  if (!el || !p) return
+  el.width = p.width
+  el.height = p.height
+  el.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(p.data), p.width, p.height), 0, 0)
+})
+
+// the timeline, in the entrant's own stages
+const spans = computed(() => {
+  const out: { stage: string; start: number; share: number; first: number }[] = []
+  frames.value.forEach((f, i) => {
+    const t = times.value[i]!
+    const open = out[out.length - 1]
+    if (open?.stage === f.stage) return
+    out.push({ stage: f.stage, start: t, share: 0, first: i })
+  })
+  out.forEach((span, i) => {
+    span.share = ((out[i + 1]?.start ?? duration.value) - span.start) / (duration.value || 1)
+  })
+  return out
+})
+const activeSpan = computed(() => {
+  let found = 0
+  spans.value.forEach((span, i) => {
+    if (span.first <= current.value) found = i
+  })
+  return found
+})
+
+// the charts: clean fidelity for every entrant, its own objective beside it, on the frames that stayed on its path
+const scored = computed(() => [...scores.value.entries()].sort((a, b) => a[0] - b[0]))
+const fidelityNow = computed(() => {
+  let best: number | null = null
+  for (const [i, value] of scored.value) {
+    if (i > current.value) break
+    best = value
+  }
+  return best
+})
+const inDb = computed(() => film.value?.objectiveLabel.includes("dB") ?? false)
+const x = computed(() => scored.value.map(([i]) => i))
+const fidelitySeries = computed<ChartSeries[]>(() => {
+  const series: ChartSeries[] = [{ key: "fidelity", label: "clean fidelity (dB)", color: palette.queen400, values: scored.value.map(([, v]) => v), width: 2 }]
+  if (inDb.value) {
+    series.push({ key: "input", label: film.value!.objectiveLabel, color: palette.signal400, values: scored.value.map(([i]) => frames.value[i]!.objective), width: 2 })
+  }
+  return series
+})
+const shapesAt = (i: number) => elementsAt(frames.value, i).length
+const secondSeries = computed<ChartSeries[]>(() =>
+  inDb.value
+    ? [{ key: "shapes", label: "shapes", color: palette.gold400, values: scored.value.map(([i]) => shapesAt(i)), width: 2 }]
+    : [{ key: "objective", label: film.value?.objectiveLabel ?? "", color: palette.signal400, values: scored.value.map(([i]) => frames.value[i]!.objective), width: 2 }],
+)
+const allScored = computed(() => film.value !== null && scores.value.size === samplesOf(frames.value).length && scores.value.size > 0)
+
+const stats = computed(() => {
+  if (!frame.value) return []
+  const objective = frame.value.objective
+  return [
+    { label: "Frame", value: `${current.value + 1} / ${frames.value.length}` },
+    { label: "Shapes", value: elements.value.length },
+    { label: "Clean fidelity", value: fidelityNow.value === null ? "--" : `${fidelityNow.value.toFixed(1)} dB`, tone: "queen" as const },
+    { label: inDb.value ? "Fit to the input" : "Description", value: !Number.isFinite(objective) ? "--" : inDb.value ? `${objective.toFixed(1)} dB` : `${Math.round(objective).toLocaleString()} bits` },
+  ]
+})
+
+// the rule the film is held to: it ends on exactly what the leaderboard scored
+const lastScore = computed(() => {
+  const last = scores.value.get(frames.value.length - 1)
+  return last === undefined ? null : last
+})
+const sameAsScored = computed(() => {
+  if (!film.value || props.scoredSvg === null) return null
+  if (film.value.svg !== props.scoredSvg || !film.value.matchesOutput) return false
+  if (allScored.value && lastScore.value !== null && props.scoredFidelity !== null) return Math.abs(lastScore.value - props.scoredFidelity) < 0.001
+  return true
+})
+const KB = (n: number) => `${(n / 1024).toFixed(0)} KB`
+const filmBytes = computed(() => frames.value.reduce((sum, f) => sum + (f.element?.length ?? 0) + f.note.length + f.stage.length + 16, 0))
+const hasRun = computed(() => recipe.value !== null)
+</script>
+
+<template>
+  <UiPanel label="Timelapse" :title="hasRun ? `How ${entrantLabel} got there` : `${entrantLabel}: no process recorded`">
+    <template #actions>
+      <UiBadge v-if="sameAsScored === true" tone="life" dot>ends on the SVG the leaderboard scored</UiBadge>
+      <UiBadge v-else-if="sameAsScored === false" tone="gold" dot>differs from the scored SVG</UiBadge>
+    </template>
+
+    <div v-if="!hasRun" class="space-y-3">
+      <p class="text-sm text-fg-muted">
+        This is an outside tool that hands back only its result, so there is nothing true to play. Pick the structured pipeline or a hill climb to watch one at work.
+      </p>
+    </div>
+    <p v-else-if="failed" class="text-sm text-fg-subtle">It couldn't be run in this browser ({{ failed }}).</p>
+    <UiEmpty v-else-if="!film" compact class="h-48">Running {{ entrantLabel }}…</UiEmpty>
+
+    <div v-else class="space-y-4">
+      <div class="grid gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <figure class="min-w-0">
+          <div class="checker relative aspect-square overflow-hidden rounded-[8px] border border-line" data-testid="film-stage">
+            <img v-if="frame?.view === 'input'" :src="detail?.png" alt="The image it was given" class="pixelated size-full" />
+            <canvas v-else-if="pixels" ref="stageCanvas" class="pixelated size-full" />
+            <!-- eslint-disable-next-line vue/no-v-html -- our own WASM's numbers, never text from an image or a person -->
+            <svg v-else xmlns="http://www.w3.org/2000/svg" :viewBox="`0 0 ${detail?.width} ${detail?.height}`" class="size-full" v-html="inner" />
+          </div>
+          <figcaption class="mt-1.5 flex items-baseline justify-between gap-3 text-xs">
+            <span class="truncate font-medium text-fg">{{ frame?.stage }}</span>
+            <span class="min-w-0 truncate font-mono text-[11px] text-fg-subtle">{{ frame?.note }}</span>
+          </figcaption>
+        </figure>
+        <div class="min-w-0 space-y-4">
+          <div class="grid max-w-[340px] grid-cols-2 gap-4">
+            <CopyCatImage label="Given" :src="detail?.png" :note="detail?.severity" />
+            <CopyCatImage label="Clean, never seen" :svg="detail?.clean" />
+          </div>
+          <UiStats :items="stats" :cols="2" />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <input
+          type="range"
+          class="w-full accent-queen-400"
+          aria-label="Position in the film"
+          :min="0"
+          :max="duration"
+          step="any"
+          :value="time"
+          data-testid="film-scrub"
+          @input="onScrub"
+        />
+        <div class="flex h-5 w-full gap-px overflow-hidden rounded-[4px]" role="group" aria-label="Stages">
+          <button
+            v-for="(span, i) in spans"
+            :key="span.first"
+            type="button"
+            class="min-w-px transition-colors"
+            :class="i === activeSpan ? 'bg-queen-400' : i < activeSpan ? 'bg-queen-400/35' : 'bg-line hover:bg-line-strong'"
+            :style="{ flexGrow: Math.max(span.share, 0.001), flexBasis: 0 }"
+            :title="span.stage"
+            :aria-label="`Jump to ${span.stage}`"
+            @click="seekFrame(span.first)"
+          />
+        </div>
+      </div>
+
+      <PlaybackControls
+        :paused="paused || ended"
+        :speed="speed"
+        :speeds="SPEED_CHOICES"
+        new-game-label="Replay"
+        @update:paused="setPaused"
+        @update:speed="(s) => (speed = s)"
+        @new-game="replay"
+      >
+        <span class="order-first flex gap-1" role="group" aria-label="Step">
+          <button class="btn-ghost btn-sm" aria-label="Previous frame" @click="seekFrame(current - 1)">‹</button>
+          <button class="btn-ghost btn-sm" aria-label="Next frame" @click="seekFrame(current + 1)">›</button>
+          <button class="btn-ghost btn-sm" aria-label="Last frame" @click="toEnd">⇥</button>
+        </span>
+      </PlaybackControls>
+
+      <div v-if="x.length > 1" class="grid gap-4 md:grid-cols-2">
+        <div>
+          <UiLegend :series="fidelitySeries" />
+          <LineChart :x="x" :series="fidelitySeries" x-label="frame" :height="160" :marker="current" clickable :format="(v) => v.toFixed(1)" @select="seekFrame" />
+        </div>
+        <div>
+          <UiLegend :series="secondSeries" />
+          <LineChart :x="x" :series="secondSeries" x-label="frame" :height="160" :marker="current" clickable :format="(v) => Math.round(v).toLocaleString()" @select="seekFrame" />
+        </div>
+      </div>
+      <p class="text-xs text-fg-subtle" data-testid="film-size">
+        Run just now in your browser: {{ Math.round(film.ms) }} ms, {{ frames.length }} frames, {{ KB(filmBytes) }}<template v-if="!allScored">, still scoring frames</template>. Steps are thinned to
+        a few per shape. Clean fidelity is what the leaderboard ranks; the entrant never sees the clean SVG.
+      </p>
+    </div>
+  </UiPanel>
+</template>
+
+<style scoped>
+.checker {
+  background-color: var(--color-raised);
+  background-image:
+    linear-gradient(45deg, var(--color-line) 25%, transparent 25%, transparent 75%, var(--color-line) 75%),
+    linear-gradient(45deg, var(--color-line) 25%, transparent 25%, transparent 75%, var(--color-line) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    8px 8px;
+}
+.pixelated {
+  image-rendering: pixelated;
+}
+</style>

@@ -67,7 +67,7 @@ architectural change that might conflict with a decision already made.
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
       shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
-      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages), and `CopyCatProgress` is its `Insights`: progress over the kept
+      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages), `CopyCatFilm` is a timelapse of the entrant on stage (docs/design/0023: `copycat_film.rs`, run live in `workers/copycatFilm.worker.ts`, with the leaderboard's own score on each frame), and `CopyCatProgress` is its `Insights`: progress over the kept
       changes. `/learn/tracing-images` explains the pipeline (`TraceLab`) and `/learn/earning-complexity` is the case study of its changes, hard-coded from 0022. **New results fit the existing pages**: an approach on the game page, how it works in Learn, an experiment under `/runs`. Don't add a page
       for them (docs/design/0023 did, and it was undone).
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,

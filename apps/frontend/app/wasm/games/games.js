@@ -215,6 +215,265 @@ export class CheckersStrategy {
 if (Symbol.dispose) CheckersStrategy.prototype[Symbol.dispose] = CheckersStrategy.prototype.free;
 
 /**
+ * An entrant at work, as a film of its document (docs/design/0023).
+ */
+export class CopyCatFilm {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(CopyCatFilm.prototype);
+        obj.__wbg_ptr = ptr;
+        CopyCatFilmFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CopyCatFilmFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_copycatfilm_free(ptr, 0);
+    }
+    /**
+     * Per pixel, its label after merging.
+     * @returns {Uint16Array}
+     */
+    clustered() {
+        const ret = wasm.copycatfilm_clustered(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * The element frame `i` sets. Undefined if it sets none: with an index, that frame removes.
+     * @param {number} i
+     * @returns {string | undefined}
+     */
+    element(i) {
+        const ret = wasm.copycatfilm_element(this.__wbg_ptr, i);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * Clean fidelity of frame `i`, after `set_clean`.
+     * @param {number} i
+     * @returns {number}
+     */
+    fidelity_at(i) {
+        const ret = wasm.copycatfilm_fidelity_at(this.__wbg_ptr, i);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0];
+    }
+    /**
+     * @returns {number}
+     */
+    get frames() {
+        const ret = wasm.copycatfilm_frames(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * The hill climb on an opaque RGBA image. Throws if the bytes aren't `width x height` pixels.
+     * @param {Uint8Array} rgba
+     * @param {number} width
+     * @param {number} height
+     * @param {number} shapes
+     * @param {number} candidates
+     * @param {number} patience
+     * @param {bigint} seed
+     * @param {boolean} drop_bottom
+     * @returns {CopyCatFilm}
+     */
+    static hill_climb(rgba, width, height, shapes, candidates, patience, seed, drop_bottom) {
+        const ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatfilm_hill_climb(ptr0, len0, width, height, shapes, candidates, patience, seed, drop_bottom);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return CopyCatFilm.__wrap(ret[0]);
+    }
+    /**
+     * "stage", "try", "step" or "lock".
+     * @param {number} i
+     * @returns {string}
+     */
+    kind(i) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_kind(this.__wbg_ptr, i);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Per pixel, its label after cleaning.
+     * @returns {Uint16Array}
+     */
+    labels() {
+        const ret = wasm.copycatfilm_labels(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * Whether the last frame is that SVG's shapes.
+     * @returns {boolean}
+     */
+    matches_output() {
+        const ret = wasm.copycatfilm_matches_output(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {number} i
+     * @returns {string}
+     */
+    note(i) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_note(this.__wbg_ptr, i);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} i
+     * @returns {number}
+     */
+    objective(i) {
+        const ret = wasm.copycatfilm_objective(this.__wbg_ptr, i);
+        return ret;
+    }
+    /**
+     * What `objective` measures.
+     * @returns {string}
+     */
+    get objective_label() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_objective_label(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Per label, its fill as RGB bytes.
+     * @returns {Uint8Array}
+     */
+    palette() {
+        const ret = wasm.copycatfilm_palette(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * The index frame `i` changes, or -1 if none.
+     * @param {number} i
+     * @returns {number}
+     */
+    patch_index(i) {
+        const ret = wasm.copycatfilm_patch_index(this.__wbg_ptr, i);
+        return ret;
+    }
+    /**
+     * The structured pipeline on an opaque RGBA image, with its default settings.
+     * @param {Uint8Array} rgba
+     * @param {number} width
+     * @param {number} height
+     * @returns {CopyCatFilm}
+     */
+    static pipeline(rgba, width, height) {
+        const ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatfilm_pipeline(ptr0, len0, width, height);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return CopyCatFilm.__wrap(ret[0]);
+    }
+    /**
+     * What frames are scored against. Throws for anything outside the subset.
+     * @param {string} svg
+     */
+    set_clean(svg) {
+        const ptr0 = passStringToWasm0(svg, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatfilm_set_clean(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * @param {number} i
+     * @returns {string}
+     */
+    stage(i) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_stage(this.__wbg_ptr, i);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * The SVG the entrant returned.
+     * @returns {string}
+     */
+    svg() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_svg(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * "input", "clustered", "labels" or "vector".
+     * @param {number} i
+     * @returns {string}
+     */
+    view(i) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.copycatfilm_view(this.__wbg_ptr, i);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) CopyCatFilm.prototype[Symbol.dispose] = CopyCatFilm.prototype.free;
+
+/**
  * Copy Cat (docs/design/0022), phase 1: an SVG read in the protocol's subset, rendered by the same rasterizer the
  * protocol scores with. The game page and its search moves come later.
  */
@@ -702,6 +961,9 @@ const CheckersGameFinalization = (typeof FinalizationRegistry === 'undefined')
 const CheckersStrategyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_checkersstrategy_free(ptr >>> 0, 1));
+const CopyCatFilmFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_copycatfilm_free(ptr >>> 0, 1));
 const CopyCatGameFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_copycatgame_free(ptr >>> 0, 1));

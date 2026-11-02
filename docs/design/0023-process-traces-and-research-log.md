@@ -1,7 +1,8 @@
 # 0023 — Research log and process traces: watching experiments and algorithms as they run
 
-Status: **Phase R built** (2026-11-01); the traces are proposed. Copy Cat (0022) is the first consumer, but nothing in it is
-specific to Copy Cat except the first algorithms it serves.
+Status: **Phase R built** (2026-11-01), and **a first slice of the traces, the film** (2026-11-01, see "What was built first");
+the rest of the traces are proposed. Copy Cat (0022) is the first consumer, but nothing in it is specific to Copy Cat except
+the first algorithms it serves.
 Relates to: [0005](0005-frontend-and-api-contracts.md) (one app, one API), [0007](0007-representations-leaderboards-and-tradeoffs.md)
 (an entry as a vector of measurements), [0009](0009-client-side-inference-at-scale.md) (WASM and ONNX in the browser),
 [0018](0018-workloads-api-and-cli.md) (jobs), [0019](0019-static-hosting.md) (the static copy),
@@ -191,9 +192,41 @@ Each has a gate, so a wrong bet shows early.
 | 6: gradients | 0022's step 4 | Fit to input and to clean, on noisy images, through `copycat.report` |
 | 7: exhibits | A recorded external method | Licences and terms read by a person; labelled as recorded |
 
+## What was built first: the film
+
+A much smaller slice than phases 0-2, because the question was "can I watch it get there?", on the game page:
+`copycat_film.rs` records, `CopyCatFilm` plays it on the Watch stage (play, pause, speed, step, scrub, a stage strip), for the
+structured pipeline and the hill climbs. VTracer says "no process recorded" (Decision 3's level 0).
+
+- **One `vector` track as patches, plus the pipeline's two label images.** A frame sets or removes one shape, replayed from the
+  start. No keyframes: replaying a few hundred patches takes no time. None of the other kinds, the ledger included, so the phase 1
+  gate (reproducing 1,605 against 381) is not met; frame notes only say each candidate's bits.
+- **Live only.** The entrant runs in a worker when it comes on stage (Decision 5's "second, untimed pass"). Nothing is stored, so
+  no new route and nothing for the static site beyond the WASM it already serves. Entrants that can't run in a browser will need
+  phase 3.
+- **Accepted state only, thinned** (Decision 5): at most 24 frames per shape's way to its final form, since most steps look alike.
+- **Frames are scored as the leaderboard scores them** (Decision 4): as canonical text, parsed again. The fitter's exact
+  coordinates scored 30.18 where the leaderboard said 30.24, on one image.
+- **The fitter reports through a thread-local log,** off unless a film is recording, rather than through every call's
+  signature: its descent runs many calls deep, and mostly for fits that are only compared. After a part is fitted, the log finds which
+  attempt became its final shape.
+- **Time is not frames.** A film runs 14 s at 1x whatever its length, a stage holding longer than a step.
+
+Measured on the 24 held-out `synthetic` images, in the browser (median, and worst):
+
+| Entrant | Frames | Patches | Recording, per image |
+|---|---|---|---|
+| Structured pipeline | 99, 221 | 19 KB, 45 KB | 589 ms, 1,895 ms |
+| Hill climb 16 | 127, 162 | 14 KB, 18 KB | 79 ms, 111 ms |
+| Hill climb 64 | 361, 422 | 42 KB, 48 KB | 168 ms, 232 ms |
+
+All 96 films end on exactly the SVG the leaderboard scored, and their last frame's fidelity agrees with its score to 0.0001.
+Hill climbs reproduce in WASM from the same seed. `icons` are not on the Watch stage yet, and are not measured here.
+
 ## Open questions
 
-- **Trace size.** Unmeasured. "A few hundred kilobytes per image" and "a keyframe every 50 frames" are guesses; phase 0 replaces them.
+- **Trace size.** Measured above for the film: tens of kilobytes, not "a few hundred", thinned. "A keyframe every 50 frames" looks
+  unnecessary at this size. A stored format still has to be measured for what phase 3 stores.
 - **Search and gradient needs.** The schema's fit to rungs 3 and 4 is a prediction until they exist.
 
 ## Sources
