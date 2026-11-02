@@ -15,6 +15,8 @@ export type ChapterArtKind =
   | "bandit"
   | "strength"
   | "league"
+  | "layers"
+  | "rungs"
 
 export interface LearnChapter {
   slug: string
@@ -412,6 +414,52 @@ export const learnChapters: LearnChapter[] = [
       "Replaying champions in the browser",
     ],
   },
+  {
+    slug: "tracing-images",
+    title: "From Image to Layered SVG",
+    short: "Image to SVG",
+    summary:
+      "A generated logo is a raster full of noise. Recover the design behind it by looking for the shortest description: a near-circle becomes a circle, noise isn't worth a shape, and a hidden part is cheapest whole. Nothing is trained, and it runs live in your browser.",
+    path: "/learn/tracing-images",
+    status: "available",
+    home: "image-to-svg",
+    readMinutes: 9,
+    tags: ["minimum description length", "vectorization", "SVG", "k-means", "OKLab", "Bézier", "PSNR"],
+    art: "layers",
+    sections: [
+      "Likeness is the wrong score",
+      "The shortest description",
+      "From pixels to parts",
+      "Stacked, not cut out",
+      "Choosing a shape",
+      "Where the objective wasn't enough",
+      "How it does",
+    ],
+  },
+  {
+    slug: "earning-complexity",
+    title: "Earning Each Piece of Complexity",
+    short: "Earning complexity",
+    summary:
+      "A case study: how the tracing pipeline grew from 29 to 32.5 dB, one measured change at a time. Find the error before adding anything, score each change once on images it never saw, and report what didn't work.",
+    path: "/learn/earning-complexity",
+    status: "available",
+    home: "image-to-svg",
+    readMinutes: 10,
+    tags: ["case study", "oracles", "held-out", "overfitting", "Copy Cat"],
+    art: "rungs",
+    prerequisites: ["tracing-images"],
+    related: ["teaching-a-snake"],
+    sections: [
+      "Find the error before adding anything",
+      "Each rung against the last",
+      "The one that didn't carry over",
+      "A new set, and the same pipeline at 18 dB",
+      "When a number can't be trusted",
+      "Two dead ends worth knowing",
+      "Where it stands",
+    ],
+  },
 ]
 
 // The chapter that explains how a run's algorithm (its config.representation) works -- "read how it was trained".
@@ -428,6 +476,7 @@ const CHAPTER_FOR_REPRESENTATION: Record<string, string> = {
   ppo: "policy-gradients",
   td_lambda: "self-play",
   alphazero: "self-play",
+  structured_pipeline: "tracing-images",
 }
 
 export function chapterForRepresentation(representation: string): LearnChapter | null {
@@ -437,7 +486,7 @@ export function chapterForRepresentation(representation: string): LearnChapter |
 
 // --- Learning paths ------------------------------------------------------------------------------------------------
 
-export type LearnPathId = "evolution" | "rl" | "neural-nets" | "under-the-hood"
+export type LearnPathId = "evolution" | "rl" | "neural-nets" | "image-to-svg" | "under-the-hood"
 
 export interface LearnPath {
   id: LearnPathId
@@ -446,7 +495,7 @@ export interface LearnPath {
   goal: string
   summary: string
   // A palette token (utils/palette.ts) -- the path's line on the map, its marker everywhere else.
-  color: "life400" | "signal400" | "violet400" | "gold400"
+  color: "life400" | "signal400" | "violet400" | "teal400" | "gold400"
   chapters: string[] // slugs, in reading order
   // Chapters from other paths this one takes as read -- offered as "start here if you haven't" rather than as stops.
   assumes?: string[]
@@ -481,6 +530,14 @@ export const learnPaths: LearnPath[] = [
     summary: "Reverse-mode autodiff with no framework underneath, then a character-level transformer trained on it.",
     color: "violet400",
     chapters: ["autodiff", "transformers"],
+  },
+  {
+    id: "image-to-svg",
+    title: "Image to SVG",
+    goal: "Recover the design behind a generated image",
+    summary: "A single objective that turns a noisy raster into clean, layered shapes, then how each piece of it had to prove its worth.",
+    color: "teal400",
+    chapters: ["tracing-images", "earning-complexity"],
   },
   {
     id: "under-the-hood",
