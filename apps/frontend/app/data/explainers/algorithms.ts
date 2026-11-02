@@ -22,7 +22,7 @@ export const ALGORITHMS: ExplainConcept[] = [
       "Noise and background: it estimates the noise level from neighbouring pixels and fits the background to the border (flat or a gradient). The background is left transparent.",
       "Palette: k-means in OKLab, then merges two colours whenever saying one is shorter than the error it adds.",
       "Regions: small specks and thin anti-aliased bands are dissolved into what surrounds them.",
-      "Order: each part is fitted with every other part allowed over it. Whichever reaches further under the other goes below.",
+      "Order: each part is fitted with every other part allowed over it. Of two touching parts, the one whose shape covers more of the other, as a fraction of it, goes below.",
       "Shapes: each part becomes whichever of circle, ellipse, rect, polygon, smooth spline or Bézier path is shortest to describe, counting the pixels it gets wrong. Pixels under the parts above are free, so a hidden part completes itself.",
       "A smooth spline is a closed curve through a few knots, its tangents set by the neighbouring knots: a blob costs its knots, not the cubics that draw it. The knots are found by least squares: each edge point is matched to the nearest point of the curve, which is a fixed mix of four knots, so the best knots solve a linear system.",
       "Refinement: every number of the leading candidates -- a circle's centre, a polygon's vertices, a spline's knots -- is nudged while that shortens the description, and a polygon or spline drops a point when it can. On a noisy image a move must save more bits, and so must a point to stay, so outlines don't chase the noise.",
@@ -32,7 +32,11 @@ export const ALGORITHMS: ExplainConcept[] = [
     good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: Play traces your own image."],
     bad: [
       "Flat fills only: a part's shading or colour drift comes back as its average.",
-      "No symmetry, and a region with a hole keeps only its outline.",
+      "No symmetry.",
+    ],
+    chapter: [
+      { slug: "tracing-images", section: "The shortest description", label: "How it works" },
+      { slug: "earning-complexity", section: "Each rung against the last", label: "How it got here" },
     ],
     related: ["metric:layer-recovery", "algorithm:vtracer", "algorithm:hill-climb"],
   },

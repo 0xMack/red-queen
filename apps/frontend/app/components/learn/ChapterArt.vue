@@ -385,5 +385,36 @@ const attention = (() => {
       <circle v-for="i in 5" :key="i" :cx="120 + i * 40" cy="190" r="3" :fill="palette.life400" :fill-opacity="0.2 + i * 0.16" />
       <text x="200" y="215" text-anchor="middle" :fill="palette.life300">one event per generation</text>
     </g>
+
+    <!-- A blurry raster beside the same design as whole parts, a circle completed under the square. -->
+    <g v-else-if="kind === 'layers'" font-family="Geist Mono, monospace" font-size="10">
+      <g style="filter: blur(2.5px)">
+        <circle cx="96" cy="112" r="44" :fill="palette.queen400" />
+        <rect x="96" y="104" width="62" height="62" :fill="palette.teal400" />
+      </g>
+      <text x="115" y="205" text-anchor="middle" :fill="palette.fgSubtle">given</text>
+      <line x1="180" y1="125" x2="212" y2="125" :stroke="palette.fgSubtle" stroke-width="1.5" marker-end="url(#art-arrow)" />
+      <circle cx="274" cy="98" r="44" :fill="palette.queen400" />
+      <rect x="282" y="108" width="62" height="62" :fill="palette.teal400" fill-opacity="0.8" />
+      <text x="290" y="205" text-anchor="middle" :fill="palette.fg">whole parts, in layers</text>
+    </g>
+
+    <!-- Fidelity climbing a change at a time, with a rejected rung below the line. -->
+    <g v-else-if="kind === 'rungs'" font-family="Geist Mono, monospace" font-size="10">
+      <rect
+        v-for="(h, i) in [46, 72, 84, 88, 106, 108, 118, 128]"
+        :key="i"
+        :x="58 + i * 36"
+        :y="190 - h"
+        width="26"
+        :height="h"
+        rx="3"
+        :fill="palette.raised"
+        :stroke="i === 7 ? palette.teal400 : palette.lineStrong"
+      />
+      <rect x="130" y="190" width="26" height="14" rx="3" fill="none" :stroke="palette.queen400" stroke-dasharray="3 3" />
+      <text x="143" y="218" text-anchor="middle" :fill="palette.queen300">not kept</text>
+      <text x="340" y="50" text-anchor="end" :fill="palette.fgSubtle">each one measured</text>
+    </g>
   </svg>
 </template>

@@ -115,6 +115,9 @@ const changeTone = (change: number | null) =>
           </tbody>
         </table>
       </div>
+      <p class="text-xs text-fg-subtle">
+        <NuxtLink to="/learn/earning-complexity" class="underline hover:text-fg">Earning Each Piece of Complexity</NuxtLink> tells the story behind these changes.
+      </p>
       <p v-if="unmarkedOrRejected" class="text-xs text-fg-subtle">
         {{ unmarkedOrRejected }} more {{ unmarkedOrRejected === 1 ? "report is" : "reports are" }} under
         <NuxtLink to="/runs" class="underline hover:text-fg">Runs</NuxtLink>, unmarked or not kept.
