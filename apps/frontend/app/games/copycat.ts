@@ -1,4 +1,5 @@
 import CopyCatPlay from "~/components/copycat/CopyCatPlay.vue"
+import CopyCatProgress from "~/components/copycat/CopyCatProgress.vue"
 import CopyCatWatch from "~/components/copycat/CopyCatWatch.vue"
 import type { GameModule, LeaderboardColumn } from "~/games/types"
 import type { EvaluationRecord } from "~/types/leaderboard"
@@ -74,5 +75,6 @@ export const copycatModule: GameModule = {
   },
   Watch: CopyCatWatch,
   Play: CopyCatPlay,
+  Insights: CopyCatProgress,
   sections: { pareto: true, headToHead: false, representations: false },
 }

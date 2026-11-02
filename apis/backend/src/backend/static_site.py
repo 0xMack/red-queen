@@ -11,6 +11,7 @@ asks for exactly those paths. What a static host can't do is done ahead of time 
   run's latest, and each one a leaderboard ranks;
 - runs still `running`/`paused` are left out (a static copy would look frozen), and nothing live is exported (the
   metrics stream, run control, jobs, experiments, schedules, the write endpoints);
+- of Copy Cat's reports, only those marked kept or instructive are published, each with the images its page offers;
 - of the model store, only what a catalog or an exported package refers to is copied, and catalogs' `base_url` is the
   public models URL. The `scale-test` catalog (~340 MB, for the unlinked /dev/inference page) is left out unless asked.
 
@@ -41,6 +42,8 @@ from telemetry import models_dir, workspace_root
 LIVE = frozenset({"running", "paused"})
 GAMES = ("snake", "checkers", "bandit", "copycat")  # the game pages: a leaderboard (and interfaces) each
 SKIPPED_CATALOGS = frozenset({"scale-test"})
+PUBLIC_DECISIONS = frozenset({"kept", "instructive"})  # of a Copy Cat report's run: the rest stay local
+LOWEST_IMAGES = 12  # as many as a report's page lists
 # What a published `hardware` block says instead of the machine's own description (the game page's cost caption reads
 # "Timings are from <hardware_class> -- only compare them within the same hardware class").
 PUBLIC_HARDWARE_CLASS = "one desktop computer"
@@ -122,6 +125,27 @@ def _env(name: str, value: str) -> Iterator[None]:
             os.environ[name] = old
 
 
+def _public(run: dict[str, Any]) -> bool:
+    """A Copy Cat report is published only once a person has said it should be: kept, or instructive."""
+    config = run["config"]
+    return "report" not in config or config.get("decision") in PUBLIC_DECISIONS
+
+
+def _report_images(report: dict[str, Any]) -> list[tuple[str, str]]:
+    """The images a report's page offers (`CopyCatChange.vue`): those it moved and its lowest, never a held-out one. A
+    report with no SVGs has nothing to compare, so its page offers none."""
+    if not report["has_svgs"]:
+        return []
+    images = set()
+    for group, scores in report["per_image"].items():
+        if group.endswith("/heldout"):
+            continue
+        lowest = sorted(scores, key=lambda seed: (scores[seed], int(seed)))[:LOWEST_IMAGES]
+        moved = report["compared"].get(group, {}).get("moved", {})
+        images |= {(group, seed) for seed in (*lowest, *moved)}
+    return sorted(images)
+
+
 class _Writer:
     def __init__(self, root: Path):
         self.root = root
@@ -161,7 +185,7 @@ def export(
             response.raise_for_status()
             return response
 
-        runs = [r for r in get("/runs").json() if r["status"] not in LIVE]
+        runs = [r for r in get("/runs").json() if r["status"] not in LIVE and _public(r)]
         published = {r["run_id"] for r in runs}
         writer.json("api/runs.json", runs)
         writer.json("api/runs/summaries.json", [s for s in get("/runs/summaries").json() if s["run_id"] in published])
@@ -195,6 +219,13 @@ def export(
         for target in response.json():
             seed = target["seed"]
             writer.write(f"api/games/copycat/targets/{seed}.json", get(f"/games/copycat/targets/{seed}").content)
+
+        for name in sorted(r["config"]["report"] for r in runs if "report" in r["config"]):
+            response = get(f"/games/copycat/reports/{name}")
+            writer.write(f"api/games/copycat/reports/{name}.json", response.content)
+            for group, seed in _report_images(response.json()):
+                path = f"games/copycat/reports/{name}/images/{group}/{seed}"
+                writer.write(f"api/{path}.json", get(f"/{path}").content)
 
         games = {r["run_id"]: r["config"].get("game") for r in runs}
         packages: set[str] = set()

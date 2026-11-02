@@ -14,6 +14,9 @@ defineProps<{ r: RunRow; now: number; nested?: boolean }>()
       <NuxtLink :to="`/runs/${r.run.run_id}`" class="font-medium text-fg group-hover:text-queen-300" @click.stop>
         {{ r.label }}
       </NuxtLink>
+      <UiBadge v-if="r.meta.decision === 'kept'" tone="life" dot class="ml-1.5">kept</UiBadge>
+      <UiBadge v-else-if="r.meta.decision === 'instructive'" tone="gold" class="ml-1.5">instructive</UiBadge>
+      <UiBadge v-else-if="r.meta.decision === 'not_kept'" class="ml-1.5">not kept</UiBadge>
       <p class="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-fg-subtle">
         {{ shortId(r.run.run_id) }}
         <span v-if="r.meta.note" class="truncate font-sans italic">· {{ r.meta.note }}</span>

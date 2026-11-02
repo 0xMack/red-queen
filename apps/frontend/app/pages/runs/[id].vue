@@ -39,9 +39,18 @@ async function loadStanding() {
 
 onMounted(() => {
   metricsStream.start(runId)
-  loadRun().then(loadStanding)
+  loadRun().then(() => {
+    if (meta.value?.report) metricsStream.stop() // measured, not trained: no generations will ever arrive
+    return loadStanding()
+  })
 })
 onUnmounted(() => metricsStream.stop())
+
+const runsStore = useRunsStore()
+function decided() {
+  runsStore.loadedAt = 0 // the game page's progress reads this list
+  return loadRun()
+}
 
 const meta = computed(() => (run.value ? describeRun(run.value) : null))
 const terms = computed(() => meta.value?.terms ?? EVOLUTION_TERMS)
@@ -171,7 +180,7 @@ async function copyId() {
     <UiSectionHeader :level="1" :eyebrow="meta?.representationLabel ?? 'Training run'" :title="meta?.title ?? 'Run'" :back="{ to: '/runs', label: 'Runs' }">
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <StatusBadge v-if="run" :status="run.status" :stale="stale" />
-        <UiBadge :tone="metricsStream.connected ? 'life' : 'neutral'" :pulse="metricsStream.connected" dot :title="metricsStream.connected ? 'Receiving new generations over SSE' : 'Stream not connected'">
+        <UiBadge v-if="!meta?.report" :tone="metricsStream.connected ? 'life' : 'neutral'" :pulse="metricsStream.connected" dot :title="metricsStream.connected ? 'Receiving new generations over SSE' : 'Stream not connected'">
           {{ metricsStream.connected ? "stream live" : "stream idle" }}
         </UiBadge>
         <button class="chip transition hover:text-fg" title="Copy run id" @click="copyId">{{ copied ? "copied!" : shortId(runId) }}</button>
@@ -192,6 +201,8 @@ async function copyId() {
     </UiSectionHeader>
 
     <UiPanel v-if="metricsStream.error || runError" class="mt-8 border-queen-500/40 text-queen-200">{{ metricsStream.error ?? runError }}</UiPanel>
+
+    <CopyCatChange v-else-if="run && meta?.report" class="mt-8" :run="run" @decided="decided" />
 
     <template v-else>
       <!-- Stat tiles -->

@@ -11,6 +11,8 @@ too little to develop against. So this measures, and keeps per image:
 
 The `train` and `validate` images are built on first use (`corrupt.v1` is seeded, so they are always the same) and kept with the reports.
 Each image's SVG goes beside the report (`<out>.svgs.json`), so a change can be looked at later as it was (docs/design/0023).
+A report with an `out` is also a run, tagged `config.report`: that is how it reaches the runs and game pages, and where
+its decision lives. The files hold what a run doesn't: each image's score and SVG.
 """
 
 from __future__ import annotations
@@ -19,14 +21,13 @@ import concurrent.futures
 import json
 import multiprocessing
 import subprocess
-import time
 from pathlib import Path
 from typing import Any
 
 from arena import copycat
 from arena.copycat import compare
 from arena.copycat_sets import group_targets
-from jobcore import Sink, experiments_dir
+from jobcore import Sink, experiments_dir, recorded_run
 from jobcore.specs import EvalSpec
 
 from evaluator.registry import protocol
@@ -75,8 +76,44 @@ def commit() -> str | None:
     return sha.stdout.strip() + ("+dirty" if dirty.stdout.strip() else "")
 
 
+def run_config(
+    name: str, commit: str | None, note: str | None, baseline: str | None, decision: str | None
+) -> dict[str, Any]:
+    """A report's run. `experiment` and `arm` are what the runs page groups by; `decision` is left out until there is one."""
+    config = {
+        "game": "copycat",
+        "representation": "structured_pipeline",
+        "experiment": PROTOCOL,
+        "arm": name,
+        "report": name,
+        "baseline": baseline,
+        "commit": commit,
+        "note": note,
+        "decision": decision,
+    }
+    return {k: v for k, v in config.items() if v is not None}
+
+
+def run_summary(groups: dict[str, Any]) -> dict[str, Any]:
+    """What the pages read without opening the report: each group's numbers, not its images."""
+    return {
+        "groups": {g: {k: v for k, v in row.items() if k != "per_image"} for g, row in groups.items()},
+        "held_out": any(g in HELD_OUT for g in groups),
+    }
+
+
 @protocol(PROTOCOL)
 def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+    if not params.out:
+        return report(params)
+    config = run_config(params.out, commit(), params.note, params.baseline, params.decision)
+    with recorded_run(config, sink) as recorded:
+        result = report(params)
+        recorded.set_summary(run_summary(result["groups"]))
+    return result
+
+
+def report(params) -> dict[str, Any]:
     groups = (*TRAIN, *HELD_OUT) if params.heldout else TRAIN
     with concurrent.futures.ProcessPoolExecutor(
         params.workers, mp_context=multiprocessing.get_context("spawn")
@@ -87,11 +124,8 @@ def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
         "protocol": PROTOCOL,
         "commit": commit(),
         "note": params.note,
-        "written_at": time.time(),
         "groups": measured,
     }
-    if params.decision:
-        result["decision"] = params.decision
     for group, row in measured.items():
         print(f"{group}: {row['mean']:.3f} dB, worst {row['worst']:.2f}")
     if params.baseline:

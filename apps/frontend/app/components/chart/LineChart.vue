@@ -84,7 +84,10 @@ const geometry = computed(() => {
   }
 
   const yTicks = niceTicks(yMin, yMax, 5).map((v) => ({ v, y: sy(v) }))
-  const xTicks = niceTicks(xMin, xMax, Math.max(2, Math.floor(innerW / 90))).map((v) => ({ v, x: sx(v) }))
+  const whole = xs.every(Number.isInteger) // generations and the like: no tick between two of them
+  const xTicks = niceTicks(xMin, xMax, Math.max(2, Math.floor(innerW / 90)))
+    .filter((v) => !whole || Number.isInteger(v))
+    .map((v) => ({ v, x: sx(v) }))
 
   return { sx, sy, lines, bandPath, yTicks, xTicks, innerW, innerH, xMin, xMax }
 })
