@@ -186,11 +186,12 @@ impl Background {
     }
 
     /// What a colour is judged against, as `cut` is: 6 robust deviations. `cut` keeps what the border's spread about a
-    /// flat colour made it, which a gradient background widens several times over. So a gradient on a near-noiseless
-    /// image is judged by the spread of the border pixels it explains about itself; without this, a pale part on it
-    /// didn't stand out. On a noisy image the wide cut stays: faint clutter would stand out too (`FLAT_SIGMA`).
+    /// flat colour made it, before the last refit, which a gradient background or a subject along the border widens
+    /// several times over. So on a near-noiseless image the background is judged by the spread of the border pixels it
+    /// explains about itself; without this, a pale part on it didn't stand out. On a noisy image the wide cut stays:
+    /// faint clutter would stand out too (`FLAT_SIGMA`).
     pub fn judged_cut(&self, image: &Image, sigma: f64) -> f64 {
-        if !self.gradient || sigma >= FLAT_SIGMA {
+        if sigma >= FLAT_SIGMA {
             return self.cut;
         }
         let (w, h) = (image.width, image.height);
@@ -2040,6 +2041,19 @@ mod tests {
             "{}",
             traced.canonical()
         );
+    }
+
+    #[test]
+    fn a_flat_background_is_judged_by_its_own_spread_on_a_near_noiseless_image() {
+        let image = Image::from_rgba8(&[230u8, 228, 240, 255].repeat(16 * 16), 16, 16).unwrap();
+        let flat = Background {
+            coefficients: [0, 1, 2].map(|k| [image.lab[0][k], 0.0, 0.0]),
+            gradient: false,
+            // what a subject along the border leaves it, from the fit before the last one
+            cut: 0.0875,
+        };
+        assert!((flat.judged_cut(&image, SIGMA_FLOOR) - 6.0 * SIGMA_FLOOR).abs() < 1e-9);
+        assert_eq!(flat.judged_cut(&image, FLAT_SIGMA), 0.0875);
     }
 
     #[test]
