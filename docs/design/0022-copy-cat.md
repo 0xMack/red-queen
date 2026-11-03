@@ -1479,6 +1479,25 @@ the two colours must also be further apart than twice the corner cut (`copycat-b
 
 No other group moves.
 
+**A restored region keeps its colours.** `restore` gave each region it took one colour, the mean of its pixels. A pale
+calendar and its grey squares, both near enough the background to join it, came back as one grey. On a near-noiseless
+image a region taken is now divided by its crisp edges, and its pieces grouped by colour, each measured off its edges
+(`colours_of`). A colour past the largest must stand out by itself, or a blurred region's fringe, the background's colour,
+comes back as slivers (73, a light image: 11 shapes to 27, -2.2 dB, before that rule) (`copycat-restored-colours`):
+
+| Clean fidelity, dB | Before | After | Images |
+|---|---|---|---|
+| `broad/train` | 26.895 | 27.026 | 15 up (147 +11.4, 401 +8.7, 441 +8.7, 1 +7.9), 2 down (-1.5, -1.0) |
+| `icons/train` | 25.983 | 26.000 | 1 up (+3.8), 1 down (-1.6) |
+| `icons/train-control` | 34.949 | 35.023 | 5 up, 0 down |
+| `icons/heldout` (scored once) | 23.949 | 24.494 | 2 up (+10.7, +2.4), 0 down |
+| `broad/heldout` (scored once) | 26.928 | 26.920 | 1 up (+1.1), 1 down (-2.0) |
+
+Two other changes for pale parts were dropped. Holding the border's fit to the corner fit's cut, which stays tight under
+a gradient, lost on every set (`broad/train` 26.895 -> 26.755, 19 up, 26 down), and even on near-noiseless images alone
+(9 down by up to 17 dB, none up): the wide cut also keeps faint clutter and compression's ringing in the background.
+Running the pass divided by edges first, instead of dividing what the first pass takes, fixed as many images as it broke.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):

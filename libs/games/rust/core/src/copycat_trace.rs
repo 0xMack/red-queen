@@ -946,7 +946,9 @@ fn deviations_out(image: &Image, background: &[Lab], cut: f64, pixels: &[usize])
 ///   has little more than an eye and a comb on it, and clutter doesn't stand out that far.
 ///
 /// That runs twice. The second time, on a near-noiseless image, what's left is divided by its crisp edges first
-/// (`crisp_edges`): a white sheet and a white background, one region to their colours, are two to their edge.
+/// (`crisp_edges`): a white sheet and a white background, one region to their colours, are two to their edge. The
+/// first time, a region taken is divided by them after (`colours_of`): a calendar and its grey squares, both pale
+/// enough to join the background, are one region, but two colours.
 #[allow(clippy::too_many_arguments)]
 pub fn restore(
     image: &Image,
@@ -959,14 +961,19 @@ pub fn restore(
     centres: &mut Vec<Lab>,
 ) {
     let no_edges = vec![false; labels.len()];
-    restore_regions(image, background, cut, faint, &no_edges, config, labels, centres);
     let edges = crisp_edges(image, sigma);
+    restore_regions(
+        image, background, cut, faint, &no_edges, &edges, config, labels, centres,
+    );
     if edges.iter().any(|&e| e) {
-        restore_regions(image, background, cut, faint, &edges, config, labels, centres);
+        restore_regions(
+            image, background, cut, faint, &edges, &no_edges, config, labels, centres,
+        );
     }
 }
 
-/// One pass of `restore`, over the faint background's regions as `edges` divide them.
+/// One pass of `restore`, over the faint background's regions as `edges` divide them; a region taken is divided into
+/// its colours by `split`.
 #[allow(clippy::too_many_arguments)]
 fn restore_regions(
     image: &Image,
@@ -974,6 +981,7 @@ fn restore_regions(
     cut: f64,
     faint: &[bool],
     edges: &[bool],
+    split: &[bool],
     config: &TraceConfig,
     labels: &mut [usize],
     centres: &mut Vec<Lab>,
@@ -1012,16 +1020,85 @@ fn restore_regions(
         {
             continue;
         }
-        let label = centres.len();
-        let mut mean = [0.0; 3];
-        for &i in pixels {
-            for (k, m) in mean.iter_mut().enumerate() {
-                *m += image.lab[i][k] / pixels.len() as f64;
+        for (n, colour) in colours_of(image, pixels, split, cut, config.min_area)
+            .into_iter()
+            .enumerate()
+        {
+            // past the first, a colour must stand out by itself: a blurred region's fringe is the background's colour,
+            // and a thin ring of a colour of its own has no interior for `stands_out` to judge
+            let off = distance2(
+                &core_mean(&colour, split, |i| image.lab[i]),
+                &core_mean(&colour, split, |i| background[i]),
+            )
+            .sqrt()
+                / (cut / 6.0);
+            if n > 0 && off < RESTORE_DEVIATIONS {
+                continue;
             }
-            labels[i] = label;
+            let label = centres.len();
+            let mut mean = [0.0; 3];
+            for &i in &colour {
+                for (k, m) in mean.iter_mut().enumerate() {
+                    *m += image.lab[i][k] / colour.len() as f64;
+                }
+                labels[i] = label;
+            }
+            centres.push(mean);
         }
-        centres.push(mean);
     }
+}
+
+/// The mean of `f` over the pixels off `edges`, whose colours are the anti-aliased mix of two (all of them, if all are).
+fn core_mean(pixels: &[usize], edges: &[bool], f: impl Fn(usize) -> Lab) -> Lab {
+    let core: Vec<usize> = pixels.iter().copied().filter(|&i| !edges[i]).collect();
+    let core = if core.is_empty() { pixels } else { &core[..] };
+    [0, 1, 2].map(|k| core.iter().map(|&i| f(i)[k]).sum::<f64>() / core.len() as f64)
+}
+
+/// A region's colours, largest first: the pieces its `edges` divide it into, each joining the first colour within `cut`
+/// of its own, or the nearest if it's under `min_area`, or else making a colour of its own. Without edges, one colour.
+fn colours_of(image: &Image, pixels: &[usize], edges: &[bool], cut: f64, min_area: usize) -> Vec<Vec<usize>> {
+    if !pixels.iter().any(|&i| edges[i]) {
+        return vec![pixels.to_vec()];
+    }
+    let mut candidate = vec![0usize; image.lab.len()];
+    for &i in pixels {
+        candidate[i] = if edges[i] { 2 } else { 1 };
+    }
+    let (mut id, mut members) = components(image, &candidate);
+    give_edges_to_regions(image, &candidate, &mut id, &mut members);
+    let mut pieces: Vec<Vec<usize>> = members
+        .into_iter()
+        .filter(|p| !p.is_empty() && candidate[p[0]] == 1)
+        .collect();
+    if pieces.is_empty() {
+        return vec![pixels.to_vec()];
+    }
+    pieces.sort_by_key(|p| std::cmp::Reverse(p.len()));
+    let mut colours: Vec<(Lab, Vec<usize>)> = Vec::new();
+    let nearest = |colours: &[(Lab, Vec<usize>)], c: &Lab| {
+        (0..colours.len()).min_by(|&a, &b| distance2(&colours[a].0, c).total_cmp(&distance2(&colours[b].0, c)))
+    };
+    for piece in pieces {
+        let own = core_mean(&piece, edges, |i| image.lab[i]);
+        match nearest(&colours, &own) {
+            Some(k) if piece.len() < min_area || distance2(&colours[k].0, &own).sqrt() <= cut => {
+                colours[k].1.extend(piece)
+            }
+            _ => colours.push((own, piece)),
+        }
+    }
+    // an edge pixel with no piece to join goes to the colour nearest its own
+    let placed: Vec<bool> = {
+        let mut placed = vec![false; image.lab.len()];
+        colours.iter().flat_map(|c| &c.1).for_each(|&i| placed[i] = true);
+        placed
+    };
+    for &i in pixels.iter().filter(|&&i| !placed[i]) {
+        let k = nearest(&colours, &image.lab[i]).unwrap();
+        colours[k].1.push(i);
+    }
+    colours.into_iter().map(|c| c.1).collect()
 }
 
 /// Each edge pixel (`candidate` 2) joins the neighbouring region whose mean colour it's nearest, working outward from the
@@ -2136,6 +2213,42 @@ mod tests {
             &mut centres,
         );
         assert!(labels.iter().all(|&l| l == 0));
+    }
+
+    #[test]
+    fn a_restored_region_keeps_its_colours() {
+        // a pale calendar with grey squares on it, all of it given to the background: one region, two colours
+        let (w, h) = (64usize, 64usize);
+        let mut rgba = vec![255u8; w * h * 4];
+        for i in 0..w * h {
+            let (x, y) = (i % w, i / w);
+            let body = (12..52).contains(&x) && (12..52).contains(&y);
+            let square =
+                (20..30).contains(&x) && (24..34).contains(&y) || (34..44).contains(&x) && (24..34).contains(&y);
+            let colour = match (square, body) {
+                (true, _) => [176, 184, 192],
+                (false, true) => [214, 220, 226],
+                _ => [246, 247, 248],
+            };
+            rgba[i * 4..i * 4 + 3].copy_from_slice(&colour);
+        }
+        let image = Image::from_rgba8(&rgba, w, h).unwrap();
+        let background = vec![image.lab[0]; w * h];
+        let (mut labels, mut centres) = (vec![0; w * h], vec![[0.0; 3]]);
+        let (body, square) = (16 * w + 16, 28 * w + 24);
+        let faint: Vec<bool> = (0..w * h).map(|i| image.lab[i] != image.lab[0]).collect();
+        restore(
+            &image,
+            &background,
+            0.012,
+            0.002,
+            &faint,
+            &TraceConfig::default(),
+            &mut labels,
+            &mut centres,
+        );
+        assert_eq!((labels[0] == 0, labels[body] != 0), (true, true));
+        assert!(distance2(&centres[labels[square]], &image.lab[square]).sqrt() < 0.01);
     }
 
     #[test]
