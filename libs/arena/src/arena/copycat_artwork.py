@@ -49,6 +49,12 @@ def file_names(artwork: dict[str, Any]) -> list[str]:
     return sorted(family["prefix"] + name for family in artwork["families"] for name in family["names"])
 
 
+def family_of(set_name: str, icon: str) -> dict[str, Any]:
+    """The family an artwork set's image came from: where it is, its credit and its licence."""
+    families = sources()[set_name]["families"]
+    return max((f for f in families if icon.startswith(f["prefix"])), key=lambda f: len(f["prefix"]))
+
+
 def _download(url: str, path: Path) -> None:
     for attempt in range(ATTEMPTS):
         try:

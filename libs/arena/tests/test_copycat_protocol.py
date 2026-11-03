@@ -82,6 +82,13 @@ def _small_set(tmp_path):
     }, sources
 
 
+def test_an_artwork_image_is_credited_to_its_family():
+    family = copycat_artwork.family_of
+    assert (family("icons", "1f304")["id"], family("icons", "1f304")["licence"]) == ("twemoji", "CC-BY-4.0")
+    assert (family("broad", "flat-add_column")["id"], family("broad", "flat-add_column")["licence"]) == ("flat", "MIT")
+    assert family("broad", "twemoji-1f304")["id"] == "twemoji"
+
+
 def test_a_set_is_downloaded_once_built_and_refused_if_it_differs(tmp_path):
     artwork, served = _small_set(tmp_path)
     root = tmp_path / "root"
@@ -209,3 +216,22 @@ def test_summaries_use_geometric_means_for_ratios():
     assert summary["fidelity"] == 2.0
     assert summary["refused"] == 1
     assert set(copycat.by_severity(images)) == {"clean", "heavy"}
+
+
+def test_every_set_weighs_the_same_however_many_images_it_has():
+    def image(set_name: str, fidelity: float, shape_ratio: float) -> dict:
+        columns = {**dict.fromkeys(copycat.COLUMNS, 1.0), "fidelity": fidelity, "shape_ratio": shape_ratio}
+        return {**columns, "id": f"{set_name}/1", "severity": "clean", "refused": None}
+
+    images = [image("synthetic", 30.0, 4.0), *[image("broad", 20.0, 0.25)] * 5]
+    summary, by_set = copycat.summarize_sets(images)
+    assert (by_set["synthetic"]["fidelity"], by_set["broad"]["fidelity"]) == (30.0, 20.0)
+    assert summary["fidelity"] == 25.0  # not 21.67, the mean over images
+    assert summary["shape_ratio"] == pytest.approx(1.0)
+    assert copycat.summarize_sets(images[:1])[0] == copycat.summarize(images[:1])
+
+
+def test_a_protocol_with_artwork_sets_needs_a_root_to_build_them_under():
+    assert [t.set_name for t in copycat.held_out("copycat.clean.v1")] == ["synthetic"] * 24
+    with pytest.raises(ValueError, match="root"):
+        copycat.held_out("copycat.clean.v2")

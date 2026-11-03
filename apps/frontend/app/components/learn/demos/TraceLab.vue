@@ -9,31 +9,32 @@ const SEVERITIES = ["clean", "light", "medium", "heavy"] as const
 
 const api = useApi()
 const targets = ref<CopyCatTarget[]>([])
-const seed = ref<number | null>(null)
+const id = ref<string | null>(null)
 const detail = ref<CopyCatTargetDetail | null>(null)
 const stages = ref<CopyCatStages | null>(null)
 const failed = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    targets.value = await api.fetch<CopyCatTarget[]>("/games/copycat/targets")
-    seed.value = targets.value.find((t) => t.severity === "medium")?.seed ?? targets.value[0]?.seed ?? null
+    // our own synthetic images only: the chapter is about how the pipeline works, and these show it cleanly
+    targets.value = (await api.fetch<CopyCatTarget[]>("/games/copycat/targets")).filter((t) => t.set === "synthetic")
+    id.value = targets.value.find((t) => t.severity === "medium")?.id ?? targets.value[0]?.id ?? null
   } catch (e) {
     failed.value = e instanceof Error ? e.message : String(e)
   }
 })
 
-watch(seed, async (s) => {
+watch(id, async (s) => {
   if (s === null) return
   detail.value = null
   stages.value = null
   try {
     const loaded = await api.fetch<CopyCatTargetDetail>(`/games/copycat/targets/${s}`)
-    if (s !== seed.value) return
+    if (s !== id.value) return
     detail.value = loaded
     await loadCopyCat()
     const pixels = await dataUrlPixels(loaded.png)
-    if (s === seed.value) stages.value = traceStages(pixels.data, pixels.width, pixels.height)
+    if (s === id.value) stages.value = traceStages(pixels.data, pixels.width, pixels.height)
   } catch (e) {
     failed.value = e instanceof Error ? e.message : String(e)
   }
@@ -66,12 +67,12 @@ const cleanShapes = computed(() => detail.value?.clean.match(/<(rect|circle|elli
           <div class="flex flex-wrap gap-1.5">
             <button
               v-for="t in targets.filter((x) => x.severity === severity)"
-              :key="t.seed"
+              :key="t.id"
               type="button"
               class="size-10 overflow-hidden rounded-[6px] border transition"
-              :class="t.seed === seed ? 'border-queen-400 ring-1 ring-queen-400' : 'border-line hover:border-line-strong'"
+              :class="t.id === id ? 'border-queen-400 ring-1 ring-queen-400' : 'border-line hover:border-line-strong'"
               :aria-label="`Image ${t.seed}, ${severity}`"
-              @click="seed = t.seed"
+              @click="id = t.id"
             >
               <img :src="t.png" alt="" class="size-full" style="image-rendering: pixelated" />
             </button>

@@ -1,0 +1,4 @@
+# The copycat.clean.v2 leaderboard: every entrant on the held-out synthetic, icons and broad images, scored as the
+# protocol (libs/arena) defines -- nothing to set. The artwork sets are downloaded and built on first use.
+kind: evaluate
+protocol: copycat.clean.v2

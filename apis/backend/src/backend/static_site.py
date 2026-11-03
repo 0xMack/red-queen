@@ -217,8 +217,8 @@ def export(
         response = get("/games/copycat/targets")
         writer.write("api/games/copycat/targets.json", response.content)
         for target in response.json():
-            seed = target["seed"]
-            writer.write(f"api/games/copycat/targets/{seed}.json", get(f"/games/copycat/targets/{seed}").content)
+            path = f"games/copycat/targets/{target['set']}/{target['seed']}"
+            writer.write(f"api/{path}.json", get(f"/{path}").content)
 
         for name in sorted(r["config"]["report"] for r in runs if "report" in r["config"]):
             response = get(f"/games/copycat/reports/{name}")

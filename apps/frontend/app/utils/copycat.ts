@@ -7,8 +7,12 @@ import gamesWasmUrl from "~/wasm/games/games_bg.wasm?url"
 
 /** One held-out image, as `GET /games/copycat/targets` lists it. */
 export interface CopyCatTarget {
+  /** `set/seed`, which is also its path under `/games/copycat/targets/` (seeds repeat across sets). */
   id: string
+  set: string
   seed: number
+  /** Where an artwork image's clean SVG came from, with its credit and licence; null for our own synthetic images. */
+  source: { url: string; credit: string; licence: string } | null
   severity: "clean" | "light" | "medium" | "heavy"
   levels: Record<string, unknown>
   width: number
@@ -38,7 +42,7 @@ export interface CopyCatImageScores {
   image_us?: number
 }
 
-/** One held-out image with the clean SVG behind it and every entrant's SVG for it (`GET /games/copycat/targets/{seed}`). */
+/** One held-out image with the clean SVG behind it and every entrant's SVG for it (`GET /games/copycat/targets/{set}/{seed}`). */
 export interface CopyCatTargetDetail extends CopyCatTarget {
   clean: string
   protocol: string

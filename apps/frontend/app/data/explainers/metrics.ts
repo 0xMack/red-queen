@@ -17,7 +17,7 @@ export const METRICS: ExplainConcept[] = [
       "Both SVGs are rendered by the game core's own rasterizer, so a score is the same number everywhere.",
       "Each render is composited over black and over white, and the PSNR of the two is averaged: a leftover background or a halo loses over one of them.",
       "Identical renders score the cap, 60 dB. Every 10 dB is a tenth of the squared error.",
-      "Averaged over the 24 held-out images, six per corruption level.",
+      "Averaged over each held-out set's images (24 synthetic, 24 Twemoji, 120 broad icons), then over the three sets, so each set counts the same however many images it has.",
     ],
     code: "fidelity = (psnr(ours, clean, over=black) + psnr(ours, clean, over=white)) / 2",
     facts: [
