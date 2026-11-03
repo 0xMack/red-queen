@@ -21,7 +21,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
     dissolves the background where it reaches the image's edge (a tile's rounded corner);
   - cuts holes: each gap a part's shape encloses is fitted as a shape of its own and drawn as a reversed subpath;
   - fits rounded rectangles, as a path described by its box and radius;
-  - redraws a part's final shape as a tight spline when that is shorter and no further off.
+  - redraws a part's final shape as a tight spline when that is shorter and no further off;
+  - polishes every shape against the whole image as drawn, with the structure fixed (see "Polish").
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
@@ -201,7 +202,8 @@ Each rung is an experiment against the one below, on the same held-out sets:
    5. hidden parts completed: the simplest shape that covers the visible region and stays inside the visible region
       plus its occluders.
 3. **Search over the whole structure under L:** merge, split, snap, re-order and delete moves, by hill climbing,
-   annealing or a GA (`evolve`). Optimize & Reduce's pruning becomes one move among them.
+   annealing or a GA (`evolve`). Optimize & Reduce's pruning becomes one move among them. Measured before building:
+   even judged by the answer, these moves win under 0.2 dB (see "Search over the structure").
 4. **Gradient refinement:** the soft rasterizer plus Adam (`libs/rl` has one), refining coordinates and colours with
    the structure held fixed.
 5. **Learned parts, only where an experiment shows they pay.** Candidates:
@@ -1520,6 +1522,64 @@ leads the next entrant by 13 dB. It takes 0.4 s an image on `synthetic`, 4.0 on 
 
 Seeds repeat across sets (`synthetic` and `broad` both have 10002), so an image is named `set/seed` everywhere:
 `GET /games/copycat/targets/{set}/{seed}` and `?image=icons/10057` on the page.
+
+### Search over the structure, measured before it was built
+
+The ladder's next rung was search over the whole structure. Before building one, we measured how much it could win:
+a greedy hill climb over the pipeline's own SVGs, with clean fidelity itself as the judge (an oracle, on `train`
+only). Its moves were deleting a shape, swapping two neighbours in paint order, and recolouring a shape to another of
+the SVG's fills. Even judged by the answer, it gained only +0.15 dB on `synthetic`, +0.08 on `icons`, +0.04 on the
+control and +0.16 on `broad`. A search judged by L could only do worse, so it wasn't built.
+
+Splitting the error by where it falls says why. We set each class of pixel right, and measured the dB gained (`train`):
+
+| | coverage wrong | edges | colour inside the silhouette |
+|---|---|---|---|
+| `synthetic` | +2.21 | **+4.25** | +0.99 |
+| `icons` | +3.34 | +1.63 | **+3.59** |
+| `icons` control | +1.07 | **+4.01** | +3.33 |
+| `broad` | **+3.28** | +2.65 | +2.43 |
+
+Edges are unbiased (the mean signed offset is +0.01 to 0.05 px), but they are off by 0.2 to 0.34 px. Each part was fitted
+alone to its own soft mask, never against the image as drawn.
+
+### Polish: the shapes against the whole image
+
+`copycat_polish.rs` runs after every part is fitted. It judges every shape as it is drawn: under the shapes above, over the
+ones below and the background estimate, against the input image. The error is the squared error of that composite, with
+the rasterizer's exact coverage, so what is polished is what the SVG draws. Coordinate descent nudges each shape's
+numbers in the form it was fitted in: a spline's knots, a rounded rectangle's five numbers, or a primitive's own. A plain
+path's anchors move with their handles. The structure is fixed: the number of shapes, their kind, colour and order.
+
+| Run (train, dB) | `synthetic` | `icons` | control | `synthetic/validate` | `broad` | smoothness, `synthetic` |
+|---|---|---|---|---|---|---|
+| before (`copycat-restored-colours`) | 32.46 | 26.00 | 35.02 | 31.64 | 27.03 | 1.068x |
+| a: every geometry's own numbers | 33.88 | 26.64 | 36.66 | 33.15 | 28.05 | 1.214x |
+| b: in the fitted form | 33.61 | 26.54 | 36.16 | 32.91 | 27.96 | 1.072x |
+| **d: b, steps 1 px to 0.02 px, 6 rounds** | **33.90** | **26.72** | **36.60** | **33.31** | **28.35** | **1.074x** |
+
+Run a polished a spline as its cubics, which broke its smoothness (a smooth knot turned into a corner). Coarse steps
+alone (e) reached 33.68 and fine steps alone (f) 33.87, so d keeps both. It adds 0.3 s an icon (4.1 s -> 4.4 s), and
+0.02 s on `synthetic`. Most images that lose are `light` ones, where polishing follows the warp. On held-out, scored once
+(`copycat-polish`):
+
+| Clean fidelity, dB | Before | After | Images |
+|---|---|---|---|
+| `synthetic/heldout` | 32.469 | **34.666** | 18 up, 4 down (at most -0.24) |
+| `icons/heldout` | 24.494 | **25.093** | 15 up, 5 down (at most -0.48) |
+| `broad/heldout` | 26.920 | **27.952** | 97 up, 11 down (at most -2.06) |
+
+On `copycat.clean.v2` the pipeline goes from 27.96 ± 1.75 to **29.24** ± 2.10 dB. Layer recovery is level everywhere.
+The control reaching 36.60 meets the staged plan's 35.5 dB target, which shape and
+colour rules alone had stopped short of at 34.84.
+
+Not kept: polishing each palette colour too (every shape of one fill, together) lost 0.13 dB on `synthetic/train` and
+0.15 on `synthetic/validate`. Fitting colour to the image fits the corruption's colour drift, which the clean SVG
+doesn't have.
+
+After polish, edges are still worth +2.0 to 4.4 dB. An error map of the control shows why: the error now lies along
+almost every outline, where a few knots can't follow a Twemoji curve. A few small details are still missing (a boot's
+streak, a mosquito's eyes). The next gains are in the shapes' vocabulary, not their placement.
 
 ## The page
 

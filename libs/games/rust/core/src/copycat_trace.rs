@@ -1780,6 +1780,7 @@ fn run(
     let completed = join(&scene, &mut parts, &costs);
     let order = order(&image, &parts, &completed);
     let mut shapes = Vec::new();
+    let mut forms = Vec::new();
     let mut groups = Vec::new();
     // the description so far: each part not yet drawn is all wrong
     let mut description: f64 = parts.iter().map(|p| costs.pixel_bits * p.pixels.len() as f64).sum();
@@ -1816,12 +1817,52 @@ fn run(
             description = film_part(film, &shot, &fits, description);
         }
         for fit in fits {
+            forms.push(crate::copycat_polish::Form::of(&fit));
             groups.push(Group { parent: None });
             shapes.push(Shape {
                 geometry: fit.geometry,
                 fill: parts[k].fill,
                 opacity: 1.0,
                 group: Some(groups.len() - 1),
+            });
+        }
+    }
+    let fitted = shapes.clone();
+    let pixels: Vec<[f64; 3]> = image.rgb.iter().map(|c| c.map(|v| v as f64 / 255.0)).collect();
+    let under: Vec<[f64; 3]> = scene
+        .background
+        .iter()
+        .map(|&lab| crate::copycat_polish::srgb(lab))
+        .collect();
+    crate::copycat_polish::Judge {
+        width,
+        height,
+        image: &pixels,
+        background: &under,
+    }
+    .polish(&mut shapes, &mut forms);
+    if let Some(film) = &mut film {
+        let moved: Vec<usize> = (0..shapes.len())
+            .filter(|&i| shapes[i].geometry != fitted[i].geometry)
+            .collect();
+        film.frames.push(stage_frame(
+            "Polish",
+            format!(
+                "{} of {} shapes nudged against the whole image",
+                moved.len(),
+                shapes.len()
+            ),
+            View::Vector,
+            description,
+        ));
+        for i in moved {
+            film.frames.push(Frame {
+                stage: "Polish".into(),
+                note: format!("Shape {} of {}", i + 1, shapes.len()),
+                kind: Kind::Step,
+                view: View::Vector,
+                patch: Patch::Set(i, shapes[i].clone()),
+                objective: description,
             });
         }
     }

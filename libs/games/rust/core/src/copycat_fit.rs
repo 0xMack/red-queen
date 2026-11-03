@@ -949,7 +949,7 @@ fn punched(outer: &Geometry, holes: &[Fit]) -> Geometry {
 }
 
 /// A shape's numbers, in a fixed order: a primitive's parameters, or every point of a polygon or path.
-fn params(geometry: &Geometry) -> Vec<f64> {
+pub(crate) fn params(geometry: &Geometry) -> Vec<f64> {
     match geometry {
         Geometry::Circle { cx, cy, r } => vec![*cx, *cy, *r],
         Geometry::Ellipse { cx, cy, rx, ry } => vec![*cx, *cy, *rx, *ry],
@@ -971,7 +971,7 @@ fn params(geometry: &Geometry) -> Vec<f64> {
 }
 
 /// `geometry` with its numbers replaced by `p` (same order as `params`); sizes stay at least half a pixel.
-fn with_params(geometry: &Geometry, p: &[f64]) -> Geometry {
+pub(crate) fn with_params(geometry: &Geometry, p: &[f64]) -> Geometry {
     match geometry {
         Geometry::Circle { .. } => Geometry::Circle {
             cx: p[0],
