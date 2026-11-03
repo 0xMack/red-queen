@@ -12,6 +12,7 @@ const SYNTHETIC = [
   { change: "A point must earn its keep", score: 32.0 },
   { change: "Paint order by fraction", score: 32.23 },
   { change: "Rounded rects, tight splines", score: 32.47 },
+  { change: "Polish", score: 34.67 },
 ]
 const ICONS = [
   { change: "The pipeline, unchanged", score: 18.52 },
@@ -25,6 +26,9 @@ const ICONS = [
   { change: "Lost pieces", score: 23.6 },
   { change: "Two flat colours", score: 23.6 },
   { change: "An outline as seen", score: 23.68 },
+  { change: "Pale parts", score: 23.95 },
+  { change: "Restored colours", score: 24.49 },
+  { change: "Polish", score: 25.09 },
 ]
 const seriesOf = (key: string, label: string, color: string, points: { score: number }[]) => [
   { key, label, color, values: points.map((p) => p.score), width: 2.5 },
@@ -55,7 +59,8 @@ const steps = (points: unknown[]) => points.map((_, i) => i + 1)
       </div>
       <template #caption>
         Each point is a kept change, scored on held-out images once it was done. The first table below names the left chart's
-        first six points, and the last two came from the icon work. The second names the right chart's points after the first.
+        first six points, the next two came from the icon work, and the last is the polish. The second names the right chart's
+        points up to "an outline as seen"; the pale-part work and the polish follow.
         For comparison, VTracer scores 20.18 dB on held-out <code>synthetic</code>.
       </template>
     </UiFigure>
@@ -201,16 +206,50 @@ const steps = (points: unknown[]) => points.map((_, i) => i + 1)
       </li>
     </ul>
 
+    <h2>Measure a rung before building it</h2>
+    <p>
+      The plan's next rung was a search over the whole structure: delete a shape, swap two in paint order, recolour one. Before
+      building it, we ran those moves judged by the answer itself, the clean SVG, which no real search could see. Even that
+      oracle won under 0.2 dB on every set, so the search was never built.
+    </p>
+    <p>
+      Setting each kind of pixel right, one kind at a time, showed where the error was: edges and colours, not structure. Edges
+      were off by a fraction of a pixel, with no bias either way, because each part had been fitted to its own mask, alone. So
+      the rung became a polish: every shape nudged against the whole image as drawn, in the numbers it was fitted in.
+    </p>
+    <div class="card not-prose my-6 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left label">
+            <th class="px-4 py-2 font-medium">Held-out, scored once</th>
+            <th class="px-4 py-2 text-right font-medium">Before</th>
+            <th class="px-4 py-2 text-right font-medium">After polish</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-line/60"><td class="px-4 py-2"><code>synthetic</code></td><td class="num px-4 py-2 text-right">32.47</td><td class="num px-4 py-2 text-right">34.67</td></tr>
+          <tr class="border-b border-line/60"><td class="px-4 py-2"><code>icons</code></td><td class="num px-4 py-2 text-right">24.49</td><td class="num px-4 py-2 text-right">25.09</td></tr>
+          <tr><td class="px-4 py-2"><code>broad</code></td><td class="num px-4 py-2 text-right">26.92</td><td class="num px-4 py-2 text-right">27.95</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <Callout variant="note" title="Polishing the right numbers">
+      Polished as its raw cubics, a spline gained as much fidelity but lost its smoothness, since a smooth knot could turn into a
+      corner (turning 1.07× to 1.21× the clean SVG's). Polished by its knots, it stays a spline. Polishing the colours too lost
+      0.13 dB: fitting a colour to the image fits the corruption's colour drift, which the clean SVG doesn't have.
+    </Callout>
+
     <h2>Where it stands</h2>
     <p>
-      Stage one of the current plan aimed for 35.5 dB on training icons with no corruption, and stopped at 34.84, so that target
-      is still open. The corrupted images are limited too: a warped copy of the clean SVG, scored against itself, reaches only
-      25.52 dB on <code>medium</code> and 21.06 on <code>heavy</code>, where the pipeline has 22.09 and 17.54.
+      Stage one of the plan aimed for 35.5 dB on training icons with no corruption. Shape and colour rules stopped at 34.84, and
+      the polish took it to 36.60. The corrupted images are limited too: a warped copy of the clean SVG, scored against itself,
+      reaches only 25.52 dB on <code>medium</code> and 21.06 on <code>heavy</code>.
     </p>
     <p>
       Layer recovery on icons is 0.63, against 0.89 on <code>synthetic</code>. A picture can match while its layers don't, and the
-      layers are what someone editing the SVG wants, so that has a stage of its own. Search over the whole structure, gradient
-      refinement and learned parts are all still ahead, and each will have to show the same thing the pieces here did. You can
+      layers are what someone editing the SVG wants, so that has a stage of its own. After polish, most of the error lies along
+      outlines a few knots can't follow, so the next gains are in what shapes can say. Learned parts are still ahead, and each
+      will have to show the same thing the pieces here did. You can
       follow it on the <NuxtLink to="/games/copycat">game page</NuxtLink>, and each report is under
       <NuxtLink to="/runs">Runs</NuxtLink>.
     </p>

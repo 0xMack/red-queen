@@ -11,6 +11,7 @@ pub mod copycat;
 pub mod copycat_climb;
 pub mod copycat_film;
 pub mod copycat_fit;
+pub mod copycat_polish;
 pub mod copycat_trace;
 pub mod nets;
 pub mod pcg;

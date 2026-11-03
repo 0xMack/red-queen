@@ -94,6 +94,12 @@ import * as math from "~/data/math/tracing-images"
       The final shape can then have holes cut in it, each one kept only while the whole gets shorter. So a ring is a disc with a
       reversed subpath inside it, and the subset of SVG the benchmark accepts can draw it.
     </p>
+    <p>
+      Each part was fitted to its own mask, alone. A last pass, the polish, judges every shape as it is drawn: under the shapes
+      above it, over the ones below and the background, against the image itself. It nudges each shape's numbers, in the form the
+      shape was fitted in (a spline's knots, so a smooth curve stays one), for as long as the squared error falls. What it
+      can't do is change what the shapes are: their number, kind, colour and order are fixed by then.
+    </p>
 
     <h2>Where the objective wasn't enough</h2>
     <p>
@@ -140,12 +146,12 @@ import * as math from "~/data/math/tracing-images"
         <tbody class="num">
           <tr class="border-b border-line/60">
             <td class="px-4 py-2 font-sans">The pipeline</td>
-            <td class="px-4 py-2 text-right">32.47 dB</td>
-            <td class="px-4 py-2 text-right">45.30</td>
-            <td class="px-4 py-2 text-right">23.02</td>
+            <td class="px-4 py-2 text-right">34.67 dB</td>
+            <td class="px-4 py-2 text-right">52.52</td>
+            <td class="px-4 py-2 text-right">23.08</td>
             <td class="px-4 py-2 text-right">0.89</td>
             <td class="px-4 py-2 text-right">0.99×</td>
-            <td class="px-4 py-2 text-right">322 ms</td>
+            <td class="px-4 py-2 text-right">340 ms</td>
           </tr>
           <tr>
             <td class="px-4 py-2 font-sans">VTracer, background deleted</td>
@@ -162,7 +168,7 @@ import * as math from "~/data/math/tracing-images"
     <p>
       The pipeline is about 40 times slower, and still fast enough to run in your browser. Those images flatter it, though:
       <code>synthetic</code> is random stacks of primitives and blobs, which suit its candidates. On the held-out
-      <code>icons</code>, real Twemoji with thin details and many parts, it scores 23.68 dB, and those icons take about 4 seconds
+      <code>icons</code>, real Twemoji with thin details and many parts, it scores 25.09 dB, and those icons take about 4.4 seconds
       each. The <NuxtLink to="/games/copycat">game page</NuxtLink> has the full field, and you can drop in your own image there.
     </p>
   </article>
