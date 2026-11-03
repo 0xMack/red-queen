@@ -1431,6 +1431,32 @@ dB, with the `icons` control down (`copycat-enclose-again`).
 - a background that isn't where the corners say (488, 473): the sky drawn as a part, the tram's rails taken for the background;
 - pale parts under noise, the limit above, which needs something other than colour to tell them from clutter.
 
+**Pale parts under noise, tried and dropped.** Averaging a pixel with the background pixels around it removes noise, so a
+third `restore` pass could find pale parts on noisy images: anything off the background by more than the border is.
+
+| Limit | `synthetic/validate` | `broad/train` | up / down |
+|---|---|---|---|
+| 3 x the border's median | 31.638 -> 30.367 | 26.763 -> 26.548 | 21 / 43 |
+| 6 x the border's median | 31.638 -> 31.257 | 26.763 -> 26.769 | 13 / 13 |
+| the border's farthest | 31.638 -> 31.365 | 26.763 -> 26.784 | 9 / 9 |
+| 1.5 x the border's farthest | 31.638 -> 31.551 | 26.763 -> 26.754 | 4 / 5 |
+
+It finds them (+16 dB on one image) and restores clutter just as readily (-17 dB on another). Over the candidates on flat and
+gradient backgrounds, 88% of the area was a real part; on cluttered ones, 16%. Neither contact, solidity, size nor colour
+distance separated the two on a cluttered background, and counting regions alone in the background didn't either: clutter
+joins into one region that touches the subject. The dark specks `corrupt.v1` adds would give clutter away, but that would
+be tuning to our own corruption, so a pale part on a noisy background stays lost.
+
+**A flat background's cut was stale too.** `cut` is computed before the last refit, so a subject along the border leaves it
+wide on a clean image: 0.0875 on a flat background whose floor is 0.012. `judged_cut` now applies to flat backgrounds as well,
+which removes a condition (`copycat-flat-judged`). One image moves: seed 532, +2.77 dB, so `broad/train` 26.763 -> 26.768. No
+other group moves, held-out included, so this is a correction more than a gain.
+
+Two other low-noise changes lost and were dropped. Dropping the contact rule from `restore`'s first pass, so edges don't cut a
+whole part into pieces, fixed one ragged image (+4.68 dB) and hurt two (-7.45, -2.33). Holding a gradient to 12σ in
+`gradient_holds`, for tiles that fill the bottom of the border, cost -16.4 and -13.4 dB on two images and helped none. The
+ragged restored parts and that background misfit remain.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
