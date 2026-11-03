@@ -257,33 +257,49 @@ impl Background {
         } else {
             from_border.choose(image, sigma)
         };
-        if !fit.gradient || fit.gradient_holds(image, &border) {
+        // judged by the corner fit's cut: when the subject covers most of the border, the border's own is wide enough
+        // to let a gradient from the background into the subject hold
+        if !fit.gradient || fit.gradient_holds(image, &border, fit.cut.min(cut)) {
             return fit;
         }
         // Two colours, not a gradient: a subject on one edge, the background on the other. That needs two corners of
-        // one colour that much of the border shares, a pixel being theirs only if it is nearer them than the other two
-        // corners; a tile on a gradient background shows it only at its corners, whose two ends are nearly one colour.
-        // Corners in the order top-left, top-right, bottom-left, bottom-right; the top first, since a subject more
-        // often rests on the bottom edge than hangs from the top.
+        // one colour -- nearer each other than a quarter of the way to the other two, which may differ by a gradient
+        // of their own -- whose pieces at those corners cover some of the image, a pixel being theirs only if it is
+        // nearer them than the other two corners: a tile on a gradient background leaves only slivers at its corners,
+        // and a subject from top to bottom can split the background in two. And the two colours must be further apart
+        // than the noise: on a noisy image, corners that differ by less are one background. Corners in the order
+        // top-left, top-right, bottom-left, bottom-right; the top first, since a subject more often rests on the bottom
+        // edge than hangs from the top.
+        let mid = |p: &Lab, q: &Lab| [0, 1, 2].map(|k| (p[k] + q[k]) / 2.0);
+        let span = |&(a, b, c, d): &(usize, usize, usize, usize)| {
+            distance2(&mid(&means[a], &means[b]), &mid(&means[c], &means[d])).sqrt()
+        };
         [(0, 1, 2, 3), (0, 2, 1, 3), (1, 3, 0, 2), (2, 3, 0, 1)]
             .iter()
-            .filter(|&&(a, b, ..)| distance2(&means[a], &means[b]).sqrt() <= fit.cut)
-            .map(|&(a, b, c, d)| {
-                let start: Vec<usize> = corners[a].iter().chain(&corners[b]).copied().collect();
-                let mid = |p: &Lab, q: &Lab| [0, 1, 2].map(|k| (p[k] + q[k]) / 2.0);
-                let span = distance2(&mid(&means[a], &means[b]), &mid(&means[c], &means[d])).sqrt();
-                let flat = Background::flat_from(image, &border, &start, sigma);
-                Background {
-                    cut: flat.cut.min(span / 2.0),
-                    ..flat
-                }
+            .filter(|pair| {
+                let (a, b, ..) = **pair;
+                distance2(&means[a], &means[b]).sqrt() <= span(pair) / 4.0 && span(pair) / 2.0 >= cut
             })
-            .find(|flat| {
-                let shared = border
+            .find_map(|pair| {
+                let (a, b, ..) = *pair;
+                let start: Vec<usize> = corners[a].iter().chain(&corners[b]).copied().collect();
+                let flat = Background::flat_from(image, &border, &start, sigma);
+                let flat = Background {
+                    cut: flat.cut.min(span(pair) / 2.0),
+                    ..flat
+                };
+                let theirs: Vec<usize> = (0..image.lab.len())
+                    .map(|i| usize::from(distance2(&image.lab[i], &flat.at_pixel(image, i)).sqrt() <= flat.cut))
+                    .collect();
+                let (id, members) = components(image, &theirs);
+                let mut pieces: Vec<usize> = [a, b]
                     .iter()
-                    .filter(|&&i| distance2(&image.lab[i], &flat.at_pixel(image, i)).sqrt() <= flat.cut)
-                    .count();
-                shared as f64 >= BORDER_SHARE * border.len() as f64
+                    .flat_map(|&k| corners[k].iter().filter(|&&i| theirs[i] == 1).map(|&i| id[i]))
+                    .collect();
+                pieces.sort_unstable();
+                pieces.dedup();
+                let area: usize = pieces.iter().map(|&p| members[p].len()).sum();
+                (area as f64 >= CORNER_AREA * image.lab.len() as f64).then_some(flat)
             })
             .unwrap_or(fit)
     }
@@ -291,7 +307,7 @@ impl Background {
     /// Whether the border explains a gradient along its length: at least `GRADIENT_MIDDLE` of the border pixels in the
     /// middle half of it, along the axis it changes most on, are within `cut`. A gradient between two colours -- the
     /// background at the top, the sea at the bottom -- runs through the corners and nothing else.
-    fn gradient_holds(&self, image: &Image, border: &[usize]) -> bool {
+    fn gradient_holds(&self, image: &Image, border: &[usize], cut: f64) -> bool {
         let c = &self.coefficients;
         let slope = |j: usize| [0, 1, 2].map(|k| c[k][j] * c[k][j]).iter().sum::<f64>();
         let along_x = slope(1) >= slope(2);
@@ -305,7 +321,7 @@ impl Background {
             };
             if (0.25..=0.75).contains(&t) {
                 middle += 1;
-                if distance2(&image.lab[i], &self.at_pixel(image, i)).sqrt() <= self.cut {
+                if distance2(&image.lab[i], &self.at_pixel(image, i)).sqrt() <= cut {
                     explained += 1;
                 }
             }
@@ -335,8 +351,10 @@ impl Background {
 
 /// How much of the border in the middle of a gradient must be explained by it.
 const GRADIENT_MIDDLE: f64 = 0.25;
-/// How much of the border a flat colour must explain to replace a gradient that doesn't hold.
-const BORDER_SHARE: f64 = 0.25;
+
+/// The share of the image a colour's pieces at two corners must cover to be the background, a subject filling the
+/// other edge: a tile's cut corners cover under 3% of it (`a_tile_on_a_gradient_background_keeps_the_gradient`).
+const CORNER_AREA: f64 = 0.05;
 
 /// The side (px) of the square at each corner the background is expected to reach.
 const CORNER: usize = 3;
@@ -2144,6 +2162,53 @@ mod tests {
         let background = Background::fit(&image, noise_sigma(&image));
         assert!(!background.gradient);
         assert!(distance2(&background.at(0.5, 0.5), &oklab(sky)) < 1e-4);
+    }
+
+    #[test]
+    fn a_subject_across_the_bottom_corners_is_not_a_gradient_of_the_background() {
+        // a banknote with rounded corners from edge to edge: pale lavender over a purple band, whose colours lie near
+        // a gradient from the pink background at the top to the band
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\
+            <path d=\"M3 14L61 14Q64 14 64 17L64 61Q64 64 61 64L3 64Q0 64 0 61L0 17Q0 14 3 14Z\" fill=\"#cfbbeb\"/>\
+            <path d=\"M0 50L64 50L64 61Q64 64 61 64L3 64Q0 64 0 61Z\" fill=\"#9468cd\"/></svg>";
+        let pink = [253, 224, 251];
+        let (_, rgba) = photograph(svg, pink);
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(!background.gradient);
+        assert!(distance2(&background.at(0.5, 0.5), &oklab(pink)) < 1e-4);
+    }
+
+    #[test]
+    fn a_shaded_background_split_by_the_subject_is_still_the_background() {
+        // a tram: a wire along the top, its pantograph, its body across the middle and the rail along the bottom, on a
+        // background shading from green to blue
+        let mut rgba = Vec::with_capacity(64 * 64 * 4);
+        let shade = |x: usize| {
+            let t = x as f64 / 63.0;
+            [
+                (229.0 - 8.0 * t) as u8,
+                (249.0 + 4.0 * t) as u8,
+                (237.0 + 13.0 * t) as u8,
+            ]
+        };
+        for y in 0..64usize {
+            for x in 0..64usize {
+                let pixel = match y {
+                    0..3 if (6..58).contains(&x) => [102, 117, 127],
+                    // the pantograph, from the wire to the roof, splits the background in two
+                    3..24 if (30..34).contains(&x) => [102, 117, 127],
+                    24..54 => [221, 46, 68],
+                    54.. => [147, 149, 152],
+                    _ => shade(x),
+                };
+                rgba.extend_from_slice(&pixel);
+                rgba.push(255);
+            }
+        }
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let background = Background::fit(&image, noise_sigma(&image));
+        assert!(distance2(&background.at(0.5, 0.0), &oklab(shade(32))).sqrt() < 0.02);
     }
 
     #[test]

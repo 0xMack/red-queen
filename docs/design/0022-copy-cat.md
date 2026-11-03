@@ -1455,7 +1455,29 @@ other group moves, held-out included, so this is a correction more than a gain.
 Two other low-noise changes lost and were dropped. Dropping the contact rule from `restore`'s first pass, so edges don't cut a
 whole part into pieces, fixed one ragged image (+4.68 dB) and hurt two (-7.45, -2.33). Holding a gradient to 12σ in
 `gradient_holds`, for tiles that fill the bottom of the border, cost -16.4 and -13.4 dB on two images and helped none. The
-ragged restored parts and that background misfit remain.
+ragged restored parts remain.
+
+**A subject across both bottom corners.** The background fit expects the background at the corners. When a subject covers
+both bottom corners (a banknote, a bed, a tram on its rail), three things went wrong:
+
+| Image | What happened | The fix |
+|---|---|---|
+| 397, a banknote | The border's own cut, widened by the subject on half of it, let a gradient from the pink background into the purple band hold, and the lavender note joined the background | `gradient_holds` judged by the corner fit's cut |
+| 488, a bed | The two top corners differ by the background's own slight gradient, more than the corner cut, so they didn't count as one colour | Two corners are one colour if nearer each other than a quarter of the way to the other two |
+| 473, a tram | The sky shares 21% of the border, under the 25% asked of it, and the rail at the bottom took its place | The colour's pieces at the two corners must cover 5% of the image, not 25% of the border |
+
+The share rule existed to tell this from a tile on a gradient background, which shows the gradient only at its cut corners.
+In its test they cover under 3% of the image; the tram's sky, even split in two, covers more than 5%. Connecting the two
+corners through the image would have been the cleaner rule, but the tram's pantograph runs from the wire to the roof and
+splits its sky in two. Without a guard, the looser rules took two noisy images' corners for two colours (-9.0, -4.2 dB), so
+the two colours must also be further apart than twice the corner cut (`copycat-background-misfit`):
+
+| Clean fidelity, dB | Before | After | Images |
+|---|---|---|---|
+| `broad/train` | 26.768 | 26.895 | 4 up (397 +27.0, 488 +18.2, 473 +17.5, 481 +0.3), 0 down |
+| `broad/heldout` (scored once) | 26.845 | 26.928 | 2 up (+5.5, +4.4), 0 down |
+
+No other group moves.
 
 ## The page
 
