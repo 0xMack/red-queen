@@ -96,6 +96,11 @@ for name, game, summary in (
         "copycat",
         "image -> SVG on 24 held-out synthetic images, scored against the clean SVGs, ranked by clean fidelity",
     ),
+    (
+        "copycat.clean.v2",
+        "copycat",
+        "image -> SVG on 168 held-out synthetic, icons and broad images, ranked by the mean of each set's clean fidelity",
+    ),
 ):
     register_protocol(Protocol(name, game, NoParams, "leaderboard", summary))
 register_protocol(

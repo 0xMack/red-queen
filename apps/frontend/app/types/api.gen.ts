@@ -105,7 +105,8 @@ export interface paths {
         };
         /**
          * Get Targets
-         * @description The held-out images of `copycat.clean.v1`, in seed order, each as a PNG data URL with its corruption levels.
+         * @description The held-out images of the latest protocol, set by set in seed order, each as a PNG data URL with its corruption
+         *     levels and, for artwork, where it came from.
          */
         get: operations["get_targets_games_copycat_targets_get"];
         put?: never;
@@ -116,7 +117,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/games/copycat/targets/{seed}": {
+    "/games/copycat/targets/{set_name}/{seed}": {
         parameters: {
             query?: never;
             header?: never;
@@ -125,10 +126,10 @@ export interface paths {
         };
         /**
          * Get Target
-         * @description One held-out image: its PNG, the clean SVG it was made from, and per entrant (of the protocol's records) the SVG
-         *     it wrote for this image and that SVG's scores.
+         * @description One held-out image: its PNG, the clean SVG it was made from, and per entrant (of the latest protocol's records)
+         *     the SVG it wrote for this image and that SVG's scores.
          */
-        get: operations["get_target_games_copycat_targets__seed__get"];
+        get: operations["get_target_games_copycat_targets__set_name___seed__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -208,7 +209,7 @@ export interface paths {
          * Get Leaderboard
          * @description Every evaluation of `game` (optionally one protocol), best mean score first. Records from
          *     different protocols aren't comparable -- a client showing more than one groups by protocol. Copy Cat's per-image
-         *     SVGs are left out (they are `/games/copycat/targets/{seed}`'s).
+         *     SVGs are left out (they are `/games/copycat/targets/{set}/{seed}`'s).
          */
         get: operations["get_leaderboard_games__game__leaderboard_get"];
         put?: never;
@@ -1238,11 +1239,12 @@ export interface operations {
             };
         };
     };
-    get_target_games_copycat_targets__seed__get: {
+    get_target_games_copycat_targets__set_name___seed__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                set_name: string;
                 seed: number;
             };
             cookie?: never;

@@ -3,10 +3,10 @@ import type { GameDevice } from "~/games/types"
 import type { EvaluationRecord } from "~/types/leaderboard"
 import type { CopyCatStages, CopyCatTarget, CopyCatTargetDetail } from "~/utils/copycat"
 
-// Copy Cat's Watch stage (docs/design/0022): pick a held-out image and see what the entrant on stage made of it, beside
-// the corrupted input it was given and the clean SVG it was scored against, with its scores for that image. For the
-// structured pipeline the stage also re-runs it here, in WebAssembly, to show its stages -- and checks it wrote the
-// same SVG the leaderboard scored.
+// Copy Cat's Watch stage (docs/design/0022): pick a held-out image and see what the entrant on stage made of it -- its
+// timelapse, ending on the SVG the leaderboard scored (CopyCatFilm) -- beside the corrupted input it was given and the
+// clean SVG it was scored against. For the structured pipeline the stage also re-runs it here, in WebAssembly, to show
+// its stages -- and checks it wrote the same SVG the leaderboard scored.
 // Props spelled out (StageProps, games/types.ts): the SFC compiler can't resolve an imported type as the whole props.
 const props = defineProps<{ mode: "watch" | "play"; entry: EvaluationRecord | null; entries: EvaluationRecord[]; device: GameDevice }>()
 
@@ -16,15 +16,29 @@ const router = useRouter()
 
 const targets = ref<CopyCatTarget[]>([])
 const failed = ref<string | null>(null)
-const details = reactive(new Map<number, CopyCatTargetDetail>())
+const details = reactive(new Map<string, CopyCatTargetDetail>())
 const SEVERITIES = ["clean", "light", "medium", "heavy"] as const
 
-const seed = computed<number | null>(() => {
-  const asked = Number(route.query.image)
-  if (targets.value.some((t) => t.seed === asked)) return asked
-  return targets.value.find((t) => t.severity === "medium")?.seed ?? targets.value[0]?.seed ?? null
+// an image is `set/seed` (seeds repeat across sets); a bare seed is a link from before there was more than one set
+const id = computed<string | null>(() => {
+  const raw = String(route.query.image ?? "")
+  const asked = raw.includes("/") ? raw : `synthetic/${raw}`
+  if (targets.value.some((t) => t.id === asked)) return asked
+  return targets.value.find((t) => t.severity === "medium")?.id ?? targets.value[0]?.id ?? null
 })
-const pick = (s: number) => router.replace({ query: { ...route.query, image: String(s) } })
+const pick = (next: string) => router.replace({ query: { ...route.query, image: next } })
+
+const sets = computed(() => [...new Set(targets.value.map((t) => t.set))])
+const shownSet = computed({
+  get: () => id.value?.split("/")[0] ?? sets.value[0] ?? "",
+  set: (s: string) => {
+    const first = targets.value.find((t) => t.set === s && t.severity === "medium") ?? targets.value.find((t) => t.set === s)
+    if (first) pick(first.id)
+  },
+})
+const setOptions = computed(() =>
+  sets.value.map((s) => ({ value: s, label: `${s} (${targets.value.filter((t) => t.set === s).length})` })),
+)
 
 onMounted(async () => {
   try {
@@ -34,7 +48,7 @@ onMounted(async () => {
   }
 })
 watch(
-  seed,
+  id,
   async (s) => {
     if (s === null || details.has(s)) return
     try {
@@ -46,9 +60,8 @@ watch(
   { immediate: true },
 )
 
-const detail = computed(() => (seed.value === null ? null : (details.get(seed.value) ?? null)))
+const detail = computed(() => (id.value === null ? null : (details.get(id.value) ?? null)))
 const output = computed(() => (props.entry && detail.value ? (detail.value.outputs[props.entry.entrant_id] ?? null) : null))
-const clean = computed(() => (detail.value ? describeSvgSafe(detail.value.clean) : null))
 
 // the pipeline, re-run here when it is the entrant on stage
 const isPipeline = computed(() => props.entry?.entrant_id === "baseline:structured")
@@ -66,24 +79,6 @@ watch(
 )
 const sameAsScored = computed(() => (stages.value && output.value ? stages.value.svg === output.value.svg : null))
 
-function describeSvgSafe(svg: string) {
-  const counts = svg.match(/<(rect|circle|ellipse|polygon|path)\b/g)?.length ?? 0
-  const colours = new Set(svg.match(/fill="#[0-9a-f]{6}"/g) ?? []).size
-  return { shapes: counts, palette: colours }
-}
-
-const scoreStats = computed(() => {
-  const s = output.value?.scores
-  if (!s) return []
-  return [
-    { label: "Clean fidelity", value: `${s.fidelity.toFixed(1)} dB`, tone: "queen" as const },
-    { label: "Alpha IoU", value: s.alpha_iou.toFixed(2) },
-    { label: "Layer recovery", value: s.layer_recovery.toFixed(2) },
-    { label: "Shapes", value: `${s.shapes} (clean ${clean.value?.shapes ?? "?"})` },
-    { label: "Colours", value: `${s.palette} (clean ${clean.value?.palette ?? "?"})` },
-    { label: "Size", value: `${(s.bytes / 1024).toFixed(1)} KB` },
-  ]
-})
 const severityNote = (t: CopyCatTarget) => {
   const background = (t.levels.background as { kind?: string } | undefined)?.kind
   return [t.severity, background && t.severity !== "clean" ? `${background} background` : null].filter(Boolean).join(" · ")
@@ -94,43 +89,33 @@ const severityNote = (t: CopyCatTarget) => {
   <div class="space-y-5">
     <p v-if="failed" class="text-sm text-fg-subtle">The held-out images couldn't be loaded ({{ failed }}).</p>
 
-    <div class="grid gap-4 sm:grid-cols-3">
-      <CopyCatImage label="The image it was given" :src="detail?.png" :note="detail ? severityNote(detail) : undefined" />
-      <CopyCatImage :label="entry ? `${entry.label}'s SVG` : 'An entrant\'s SVG'" :svg="output?.svg" :note="output ? `${output.scores.shapes} shapes` : undefined">
-        <template #empty>{{ entry && detail ? "No SVG recorded for this image" : "Loading…" }}</template>
-      </CopyCatImage>
-      <CopyCatImage label="The clean SVG behind it" :svg="detail?.clean" :note="clean ? `${clean.shapes} shapes` : undefined" />
-    </div>
-
-    <UiStats v-if="scoreStats.length" :items="scoreStats" :cols="6" />
-    <p v-if="output?.scores.refused" class="text-xs text-queen-300">Refused: {{ output.scores.refused }} -- scored as an empty SVG.</p>
-
-    <div class="space-y-2">
-      <div v-for="severity in SEVERITIES" :key="severity" class="flex items-center gap-3">
-        <span class="label w-16 shrink-0">{{ severity }}</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="t in targets.filter((x) => x.severity === severity)"
-            :key="t.seed"
-            type="button"
-            class="size-11 overflow-hidden rounded-[6px] border transition"
-            :class="t.seed === seed ? 'border-queen-400 ring-1 ring-queen-400' : 'border-line hover:border-line-strong'"
-            :title="`Image ${t.seed} (${severityNote(t)})`"
-            @click="pick(t.seed)"
-          >
-            <img :src="t.png" :alt="`held-out image ${t.seed}`" class="size-full" style="image-rendering: pixelated" />
-          </button>
-        </div>
-      </div>
-    </div>
-
     <CopyCatFilm
       :entrant-id="entry?.entrant_id ?? null"
       :entrant-label="entry?.label ?? 'This entrant'"
       :detail="detail"
-      :scored-svg="output?.svg ?? null"
-      :scored-fidelity="output?.scores.fidelity ?? null"
+      :result="output"
+      :given-note="detail ? severityNote(detail) : undefined"
     />
+
+    <div class="space-y-2">
+      <UiSegmented v-if="sets.length > 1" v-model="shownSet" :options="setOptions" aria-label="Which held-out set" />
+      <div v-for="severity in SEVERITIES" :key="severity" class="flex items-start gap-3">
+        <span class="label w-16 shrink-0 pt-3">{{ severity }}</span>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="t in targets.filter((x) => x.set === shownSet && x.severity === severity)"
+            :key="t.id"
+            type="button"
+            class="size-11 overflow-hidden rounded-[6px] border transition"
+            :class="t.id === id ? 'border-queen-400 ring-1 ring-queen-400' : 'border-line hover:border-line-strong'"
+            :title="`Image ${t.id} (${severityNote(t)})`"
+            @click="pick(t.id)"
+          >
+            <img :src="t.png" :alt="`held-out image ${t.id}`" class="size-full" style="image-rendering: pixelated" />
+          </button>
+        </div>
+      </div>
+    </div>
 
     <UiPanel v-if="isPipeline" label="Live" title="The pipeline, run again in your browser">
       <template #actions>

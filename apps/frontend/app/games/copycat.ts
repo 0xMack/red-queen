@@ -6,7 +6,7 @@ import type { EvaluationRecord } from "~/types/leaderboard"
 
 // Copy Cat (docs/design/0022): not a game you step but an image-to-SVG task. An entrant turns each held-out image -- a
 // clean SVG rendered and corrupted the way a generator would (`corrupt.v1`) -- into an SVG, scored against the clean
-// SVG behind it under `copycat.clean.v1` (`arena.copycat`). Watch shows what an entrant made of each image; Play traces
+// SVG behind it under `copycat.clean.v2` (`arena.copycat`). Watch shows what an entrant made of each image; Play traces
 // your own image with the structured pipeline, in the browser.
 
 const columns = (r: EvaluationRecord) => r.metrics.copycat?.columns
@@ -27,6 +27,20 @@ function ratio(id: string, header: string, key: "shape_ratio" | "palette_ratio" 
   }
 }
 
+/** One held-out set's clean fidelity (copycat.clean.v2 ranks by their mean). */
+function setFidelity(set: string, header: string, title: string): LeaderboardColumn {
+  return {
+    id: `fidelity-${set}`,
+    header,
+    title,
+    explain: "metric:clean-fidelity",
+    cell: (r) => {
+      const v = r.metrics.copycat?.by_set?.[set]?.fidelity
+      return v === undefined ? null : { text: v.toFixed(1), sub: "dB", tone: "muted" }
+    },
+  }
+}
+
 export const copycatModule: GameModule = {
   slug: "copycat",
   score: {
@@ -37,6 +51,9 @@ export const copycatModule: GameModule = {
     explain: "metric:clean-fidelity",
   },
   columns: [
+    setFidelity("synthetic", "Synthetic", "clean fidelity on our own 24 held-out synthetic logos"),
+    setFidelity("icons", "Icons", "clean fidelity on 24 held-out Twemoji"),
+    setFidelity("broad", "Broad", "clean fidelity on 120 held-out icons: Twemoji and Icons8's Flat Color Icons"),
     {
       id: "alpha-iou",
       header: "Alpha IoU",
@@ -69,9 +86,9 @@ export const copycatModule: GameModule = {
     playLabel: "Your image",
     play: "Drop in your own image -- a generated logo or icon -- and the structured pipeline turns it into a layered SVG with a transparent background, here on your device.",
     scoreNote: ({ protocol }) =>
-      `Clean fidelity on 24 held-out images (${protocol}): PSNR of the SVG's render against the clean SVG's, over black and over white, averaged.`,
+      `Clean fidelity on held-out images (${protocol}): PSNR of the SVG's render against the clean SVG's, over black and over white, averaged within each set, then over the sets.`,
     leaderboardIntro: () =>
-      "Ranked by clean fidelity on the 24 held-out synthetic images, six per corruption level. Every entrant is scored against the clean SVG the image was made from -- never against the corrupted input -- so reproducing the noise loses, and so does keeping the background.",
+      "Ranked by clean fidelity on 168 held-out images in three sets, each counting the same: 24 of our own synthetic logos, 24 Twemoji, and 120 broad icons (Twemoji and Icons8's Flat Color Icons). Every entrant is scored against the clean SVG the image was made from -- never against the corrupted input -- so reproducing the noise loses, and so does keeping the background.",
   },
   Watch: CopyCatWatch,
   Play: CopyCatPlay,

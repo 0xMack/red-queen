@@ -66,7 +66,7 @@ architectural change that might conflict with a decision already made.
       every pull (`BanditTape`), Thompson's `BeliefCurves`, a same-seed `BanditRace` and the `BanditReveal`;
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
-      shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
+      shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{set}/{seed}`: seeds repeat across sets) and traces a dropped-in image
       in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages), `CopyCatFilm` is a timelapse of the entrant on stage (docs/design/0023: `copycat_film.rs`, run live in `workers/copycatFilm.worker.ts`, with the leaderboard's own score on each frame), and `CopyCatProgress` is its `Insights`: progress over the kept
       changes. `/learn/tracing-images` explains the pipeline (`TraceLab`) and `/learn/earning-complexity` is the case study of its changes, hard-coded from 0022. **New results fit the existing pages**: an approach on the game page, how it works in Learn, an experiment under `/runs`. Don't add a page
       for them (docs/design/0023 did, and it was undone).
@@ -208,8 +208,8 @@ architectural change that might conflict with a decision already made.
     raise the SDK's `ToolError` for an expected failure, or the agent sees only "Error executing tool".
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
-    `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v1`, scoring an entrant's SVG against the clean SVG behind a
-    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`, which we generate. The `icons` and `broad` sets are other people's artwork, so never in the repo: `copycat_sources.json` pins them and `arena.copycat_artwork` downloads, verifies and converts them on first use, or `redqueen dev fetch-sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
+    `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v2` (v1 was `synthetic` alone), scoring an entrant's SVG against the clean SVG behind a
+    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`, which we generate, and the held-out `icons` and `broad` sets, each set weighing the same. The `icons` and `broad` sets are other people's artwork, so never in the repo: `copycat_sources.json` pins them and `arena.copycat_artwork` downloads, verifies and converts them on first use, or `redqueen dev fetch-sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
     (`arena.versus_stats`) and the training-cost meter (`arena.costs`). No I/O beyond reading Copy Cat's checked-in set; training and leaderboard jobs both
     import it, so a held-out curve and a leaderboard play by the same rules.
   - **Representations (docs/design/0007)**: a game's observation is chosen by an *observer*, and a
@@ -301,7 +301,7 @@ architectural change that might conflict with a decision already made.
   `copycat.report` is Copy Cat's record of a change: per image on train and held-out, against an earlier report, under
   `<data dir>/experiments/`, and a run (`config.report`) on `/runs` -- measure with it, not with a throwaway script. Its
   decision is on the run: `kept` and `instructive` (correct, not effective, worth showing; rare) go on the public site.
-  `copycat.clean.v1` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
+  `copycat.clean.v2` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):
   - `snake` exports champions (fp64 + fp32) to the local model store and catalog, measuring agreement on the

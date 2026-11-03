@@ -1,5 +1,6 @@
 """Copy Cat leaderboard evaluation (docs/design/0022): every entrant turns each held-out image into an SVG, scored
-against the clean SVG behind it under protocol `copycat.clean.v1` (`arena.copycat`).
+against the clean SVG behind it under protocol `copycat.clean.v2` (`arena.copycat`: the held-out `synthetic`, `icons`
+and `broad` sets; `copycat.clean.v1` was `synthetic` alone, and still runs).
 
 Phase 1's entrants are the baselines of the ladder's first rung, all of them tracing or approximating the *input*:
 
@@ -35,19 +36,17 @@ from typing import Any
 from arena.copycat import (
     GAME,
     INTERFACE,
-    PROTOCOL,
-    SET,
+    PROTOCOLS,
     SPLIT,
     Target,
     by_severity,
-    load_set,
+    held_out,
     score,
-    summarize,
+    summarize_sets,
 )
 from arena.copycat_sets import CORRUPTION
 from arena.costs import hardware_fingerprint, peak_rss_bytes
-from jobcore import Sink
-from jobcore.specs import EvalSpec
+from jobcore import Sink, experiments_dir
 from telemetry import EvaluationRecord
 
 from evaluator.registry import protocol
@@ -169,7 +168,20 @@ def run_entrant(settings: dict[str, Any], targets: list[Target]) -> dict[str, An
     return {"svgs": svgs, "image_us": image_us, "baseline_rss_bytes": baseline, "peak_rss_bytes": peak_rss_bytes()}
 
 
-def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> EvaluationRecord:
+def ci95(images: list[dict[str, Any]]) -> float:
+    """The 95% interval's half-width of the mean of the sets' mean fidelities (one set: of the plain mean)."""
+    sets: dict[str, list[float]] = {}
+    for image in images:
+        sets.setdefault(image["id"].split("/")[0], []).append(image["fidelity"])
+    if len(sets) == 1:
+        (fidelity,) = sets.values()
+        sd = statistics.stdev(fidelity) if len(fidelity) > 1 else 0.0
+        return round(1.96 * sd / len(fidelity) ** 0.5, 4)
+    variance = sum(statistics.variance(f) / len(f) if len(f) > 1 else 0.0 for f in sets.values()) / len(sets) ** 2
+    return round(1.96 * variance**0.5, 4)
+
+
+def record_for(protocol_name: str, key: str, targets: list[Target], hardware: dict[str, Any]) -> EvaluationRecord:
     label, description, settings = ENTRANTS[key]
     with concurrent.futures.ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn")) as pool:
         ran = pool.submit(run_entrant, settings, targets).result()
@@ -177,13 +189,13 @@ def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> Eva
         {**score(target, svg), "image_us": us, "svg": svg}
         for target, svg, us in zip(targets, ran["svgs"], ran["image_us"], strict=True)
     ]
-    summary = summarize(images)
+    summary, by_set = summarize_sets(images)
     fidelity = [image["fidelity"] for image in images]
-    sd = statistics.stdev(fidelity) if len(fidelity) > 1 else 0.0
+    sets = PROTOCOLS[protocol_name]
     peak, baseline = ran["peak_rss_bytes"], ran["baseline_rss_bytes"]
     return EvaluationRecord(
         game=GAME,
-        protocol=PROTOCOL,
+        protocol=protocol_name,
         entrant_id=f"baseline:{key}",
         entrant_kind="baseline",
         label=label,
@@ -193,7 +205,7 @@ def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> Eva
             "quality": {
                 "n": len(fidelity),
                 "mean": summary["fidelity"],
-                "ci95": round(1.96 * sd / len(fidelity) ** 0.5, 4),
+                "ci95": ci95(images),
                 "median": statistics.median(fidelity),
                 "min": min(fidelity),
                 "max": max(fidelity),
@@ -207,16 +219,24 @@ def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> Eva
             "training": {"measured": True, "none": True},
             "model": {"description": description, "observer_level": 1, "note": None, "shape": {"algorithm": label}},
             "protocol": {
-                "set": SET,
+                "set": "+".join(sets),
                 "split": SPLIT,
                 "corruption": CORRUPTION,
                 "images": len(targets),
-                "held_out_seeds": [targets[0].seed, targets[-1].seed],
-                "metric": "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged",
+                **(
+                    {"held_out_seeds": [targets[0].seed, targets[-1].seed]}
+                    if len(sets) == 1
+                    else {"images_per_set": {name: sum(t.set_name == name for t in targets) for name in sets}}
+                ),
+                "metric": (
+                    "clean fidelity: PSNR (dB) against the clean render over black and over white, averaged"
+                    + ("" if len(sets) == 1 else "; the mean of each set's mean")
+                ),
             },
             "copycat": {
                 "settings": settings,
                 "columns": summary,
+                **({"by_set": by_set} if len(sets) > 1 else {}),
                 "by_severity": by_severity(images),
                 "images": images,
                 "memory": {
@@ -233,28 +253,33 @@ def record_for(key: str, targets: list[Target], hardware: dict[str, Any]) -> Eva
 def table(records: list[EvaluationRecord]) -> str:
     columns = ("fidelity", "alpha_iou", "layer_recovery", "shape_ratio", "palette_ratio", "smoothness_ratio")
     lines = [
-        "| entrant | severity | " + " | ".join(columns) + " |",
+        "| entrant | group | " + " | ".join(columns) + " |",
         "|---|---|" + "---|" * len(columns),
     ]
     for record in records:
         cc = record.metrics["copycat"]
-        for severity, row in [("all", cc["columns"]), *cc["by_severity"].items()]:
-            lines.append(f"| {record.label} | {severity} | " + " | ".join(f"{row[c]:.3g}" for c in columns) + " |")
+        rows = [("all", cc["columns"]), *cc.get("by_set", {}).items(), *cc["by_severity"].items()]
+        for group, row in rows:
+            lines.append(f"| {record.label} | {group} | " + " | ".join(f"{row[c]:.3g}" for c in columns) + " |")
     return "\n".join(lines)
 
 
-@protocol(PROTOCOL)
-def run(spec: EvalSpec, params, sink: Sink) -> dict[str, Any]:
+def run(protocol_name: str, sink: Sink) -> dict[str, Any]:
     store = sink.evaluations
     hardware = hardware_fingerprint()
-    targets = load_set()
-    records = [record_for(key, targets, hardware) for key in ENTRANTS]
+    targets = held_out(protocol_name, experiments_dir() / "copycat-sets")
+    records = [record_for(protocol_name, key, targets, hardware) for key in ENTRANTS]
     for record in records:
         store.put(record)
-    removed = store.prune(GAME, PROTOCOL, {r.entrant_id for r in records})
+    removed = store.prune(GAME, protocol_name, {r.entrant_id for r in records})
     for entrant_id in removed:
         print(f"removed {entrant_id}: no longer an entrant")
     records.sort(key=lambda r: -r.metrics["quality"]["mean"])
-    print(f"Clean fidelity (dB) and the other columns on {len(targets)} held-out {SET} images ({CORRUPTION})\n")
+    sets = "+".join(PROTOCOLS[protocol_name])
+    print(f"Clean fidelity (dB) and the other columns on {len(targets)} held-out {sets} images ({CORRUPTION})\n")
     print(table(records))
-    return {"protocol": PROTOCOL, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}
+    return {"protocol": protocol_name, "evaluated": sorted(r.entrant_id for r in records), "removed": sorted(removed)}
+
+
+for _name in PROTOCOLS:
+    protocol(_name)(lambda spec, params, sink, _name=_name: run(_name, sink))

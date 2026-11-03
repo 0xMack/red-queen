@@ -26,7 +26,7 @@ def _mean(record: EvaluationRecord) -> float:
 def get_leaderboard(game: str, store: EvaluationStoreDep, protocol: str | None = None) -> list[EvaluationRecord]:
     """Every evaluation of `game` (optionally one protocol), best mean score first. Records from
     different protocols aren't comparable -- a client showing more than one groups by protocol. Copy Cat's per-image
-    SVGs are left out (they are `/games/copycat/targets/{seed}`'s)."""
+    SVGs are left out (they are `/games/copycat/targets/{set}/{seed}`'s)."""
     return sorted((without_outputs(r) for r in store.list(game, protocol)), key=_mean, reverse=True)
 
 

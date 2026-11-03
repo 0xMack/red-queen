@@ -1366,7 +1366,7 @@ smooths noise. So the room is in `clean` and `light`, where shapes and colours a
 5. **A bigger validation set.** 24 icons can't see a change that affects 7 images in 128: "The worst icons" scored
    identically on them. Done as `broad`; see "The `broad` set".
 6. **`icons` on the public leaderboard.** `copycat.clean.v1` is `synthetic` only, which flatters every entrant against
-   real artwork. A new protocol version ranks on both.
+   real artwork. Done as `copycat.clean.v2`, which ranks on all three sets; see "`copycat.clean.v2`".
 
 [0023](0023-process-traces-and-research-log.md)'s research log is built: each report is a run under `/runs`, with progress
 on the game page, so the direction can be set from the results rather than from a relayed summary. Its process traces then
@@ -1498,16 +1498,40 @@ a gradient, lost on every set (`broad/train` 26.895 -> 26.755, 19 up, 26 down), 
 (9 down by up to 17 dB, none up): the wide cut also keeps faint clutter and compression's ringing in the background.
 Running the pass divided by edges first, instead of dividing what the first pass takes, fixed as many images as it broke.
 
+### `copycat.clean.v2`: the leaderboard on real artwork
+
+`copycat.clean.v1` scored only `synthetic`, so the public number was the pipeline's best one (32.5 dB) and no change
+measured on `icons` or `broad` could move it. `copycat.clean.v2` scores the held-out images of all three sets (24
+`synthetic`, 24 `icons`, 120 `broad`), downloaded and built on first use like `copycat.report`'s. It ranks by the mean
+of the three sets' means, so each set counts the same: a mean over all 168 images would be mostly `broad`. The interval
+is the same mean's (each set's variance over its count, summed, over nine). Each record keeps `by_set`, and the
+leaderboard shows one column per set. v1 is unchanged and still runs; its golden case still matches.
+
+| entrant | v2 | synthetic | icons | broad | v1 |
+|---|---|---|---|---|---|
+| Structured pipeline | **27.96** ± 1.75 | 32.47 | 24.49 | 26.92 | 32.47 |
+| VTracer (defaults), background deleted | 15.01 ± 1.08 | 20.18 | 11.95 | 12.89 | 20.18 |
+| VTracer (polygons) | 12.82 | 11.37 | 13.88 | 13.21 | 11.37 |
+| Hill climb (64 shapes) | 12.61 | 11.43 | 13.44 | 12.95 | 11.43 |
+
+The order holds, but the gaps change. Deleting VTracer's bottom layer was worth 9 dB on `synthetic`, whose backgrounds
+are a separate layer, and costs 1.9 dB on `icons` and 0.3 on `broad` against VTracer's defaults. The pipeline still
+leads the next entrant by 13 dB. It takes 0.4 s an image on `synthetic`, 4.0 on `icons` and 3.5 on `broad`.
+
+Seeds repeat across sets (`synthetic` and `broad` both have 10002), so an image is named `set/seed` everywhere:
+`GET /games/copycat/targets/{set}/{seed}` and `?image=icons/10057` on the page.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
 
 - **The leaderboard** ranks by clean fidelity. Its columns are alpha IoU, layer recovery, and the shape, colour and
   turning ratios.
-- **Watch** shows one held-out image at a time: the input, the entrant's SVG, and the clean SVG, with that image's
-  scores.
+- **Watch** shows one held-out image at a time, from any of the protocol's sets: the entrant's SVG beside the input and
+  the clean SVG, with that image's scores, in one panel with its timelapse (0023), which plays on the same stage and
+  ends on the scored SVG. An artwork image credits where its clean SVG came from.
   - Each entrant's SVG per image is stored in its evaluation record, so what you see is exactly what was scored.
-  - `GET /leaderboard` strips the SVGs. `GET /games/copycat/targets/{seed}` serves one image with every entrant's
+  - `GET /leaderboard` strips the SVGs. `GET /games/copycat/targets/{set}/{seed}` serves one image with every entrant's
     output, and the static site copies both routes.
   - For the structured pipeline, the page also re-runs it in the browser (WASM `CopyCatTrace`) and shows its stages:
     the k-means palette, the cleaned regions, and the layers pulled apart. A badge says whether the result is the same
