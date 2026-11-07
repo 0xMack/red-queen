@@ -1861,7 +1861,14 @@ fn run(
                 note: format!("Shape {} of {}", i + 1, shapes.len()),
                 kind: Kind::Step,
                 view: View::Vector,
-                patch: Patch::Set(i, shapes[i].clone()),
+                // a frame's shapes stand alone: their groups are the document's, not the film's
+                patch: Patch::Set(
+                    i,
+                    Shape {
+                        group: None,
+                        ..shapes[i].clone()
+                    },
+                ),
                 objective: description,
             });
         }
@@ -2051,6 +2058,15 @@ mod tests {
         let locks = recorded.frames.iter().filter(|f| f.kind == Kind::Lock).count();
         assert_eq!(locks, traced.shapes.len());
         assert!(recorded.frames.iter().any(|f| f.kind == Kind::Try));
+        // every frame can be scored, the polish's included
+        let clean = Document::parse(svg).unwrap().render();
+        assert!(recorded
+            .frames
+            .iter()
+            .any(|f| f.stage == "Polish" && f.kind == Kind::Step));
+        for i in 0..recorded.frames.len() {
+            assert!(recorded.fidelity_at(i, &clean).is_finite(), "frame {i}");
+        }
         // the description falls as parts are drawn, from every part all wrong
         let (first, last) = (recorded.frames[0].objective, recorded.frames.last().unwrap().objective);
         assert!(last < first / 2.0, "{first} {last}");
