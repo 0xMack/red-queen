@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { COPYCAT_STAGES, reportGroups } from "~/data/copycatStages"
+import { COPYCAT_VERSIONS } from "~/data/copycatVersions"
 import type { ChartSeries } from "~/types/chart"
 
 // Copy Cat's game page, `GameModule.Insights`: what the kept changes have added up to, each group's mean over them with
@@ -17,10 +18,14 @@ const TABLE_GROUPS = ["synthetic/train", "icons/train", "icons/train-control", "
 const reports = computed(() =>
   runsStore.runs.filter((r) => typeof r.config?.report === "string" && r.status === "completed").sort((a, b) => a.created_at - b.created_at),
 )
+/** The MDL tracer version a kept report became (data/copycatVersions.ts), if it is one. */
+const versionOf = new Map(COPYCAT_VERSIONS.filter((v) => v.report).map((v) => [v.report!, v.version]))
 const kept = computed(() => reports.value.filter((r) => r.config?.decision === "kept"))
+// the x axis is the tracer's version where every kept report has one (data/copycatVersions.ts), else the count
+const versioned = computed(() => kept.value.length > 0 && kept.value.every((r) => versionOf.has(r.config?.report as string)))
+const x = computed(() => kept.value.map((r, i) => (versioned.value ? versionOf.get(r.config?.report as string)! : i + 1)))
 const unmarkedOrRejected = computed(() => reports.value.filter((r) => r.config?.decision !== "kept" && r.config?.decision !== "instructive").length)
 
-const x = computed(() => kept.value.map((_, i) => i + 1))
 const series = computed<ChartSeries[]>(() => {
   const first = kept.value[0]
   if (!first) return []
@@ -83,10 +88,10 @@ const changeTone = (change: number | null) =>
       <LineChart
         :x="x"
         :series="series"
-        x-label="kept change"
+        :x-label="versioned ? 'version' : 'kept change'"
         clickable
         :format="(v) => v.toFixed(2)"
-        @select="(i) => navigateTo(`/runs/${kept[i - 1]!.run_id}`)"
+        @select="(at) => navigateTo(`/runs/${kept[x.indexOf(at)]!.run_id}`)"
       />
       <UiLegend :series="series" />
       <div class="overflow-x-auto">
@@ -100,6 +105,7 @@ const changeTone = (change: number | null) =>
           <tbody>
             <tr v-for="{ run, cells } in rows" :key="run.run_id" class="border-t border-line">
               <td class="max-w-md py-2 pr-3">
+                <span v-if="versionOf.has(run.config?.report as string)" class="label mr-1.5">v{{ versionOf.get(run.config?.report as string) }}</span>
                 <NuxtLink :to="`/runs/${run.run_id}`" class="font-mono text-xs text-fg hover:text-queen-300">{{ run.config?.report }}</NuxtLink>
                 <UiBadge v-if="run.config?.decision === 'instructive'" tone="gold" class="ml-1.5">tried, not kept</UiBadge>
                 <p class="text-xs text-fg-subtle">{{ run.config?.note }}</p>

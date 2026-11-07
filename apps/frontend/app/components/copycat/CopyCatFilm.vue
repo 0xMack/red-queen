@@ -3,16 +3,19 @@ import type { CopyCatImageScores, CopyCatTargetDetail } from "~/utils/copycat"
 import type { ChartSeries } from "~/types/chart"
 
 // Copy Cat's stage: the entrant's SVG for this image beside what it was given and the clean SVG it is scored against,
-// with the image's scores -- and, as a timelapse (docs/design/0023), how it got there: each change it kept, played back,
-// paused, scrubbed or stepped, with one score for every entrant under it, ending on the SVG the leaderboard scored. The
-// entrant really runs here, in WebAssembly, so what plays is what it does: an entrant with no process to record shows
-// only its SVG, and gets no invented animation.
+// with the image's scores and its shapes as layers pulled apart -- and, as a timelapse (docs/design/0023), how it got
+// there: each change it kept, played back, paused, scrubbed or stepped, with one score for every entrant under it, ending
+// on the SVG the leaderboard scored. The entrant really runs here, in WebAssembly, so what plays is what it does: an
+// entrant with no process to record shows only its SVG, and gets no invented animation. While the pipeline runs, the
+// stage shows its SVG so far, and how long it has left.
 const props = defineProps<{
   entrantId: string | null
   entrantLabel: string
   detail: CopyCatTargetDetail | null
   result: { svg: string; scores: CopyCatImageScores } | null
   givenNote?: string
+  /** For your own image: what its SVG downloads as. */
+  downloadName?: string
 }>()
 
 const recipe = computed(() => filmRecipe(props.entrantId))
@@ -20,7 +23,7 @@ const subject = computed(() => {
   const d = props.detail
   return d && recipe.value ? { png: d.png, seed: d.seed, clean: d.clean, recipe: recipe.value } : null
 })
-const { film, scores, failed } = useCopyCatFilm(subject)
+const { film, scores, failed, live } = useCopyCatFilm(subject)
 
 const frames = computed(() => film.value?.frames ?? [])
 const times = computed(() => filmTimes(frames.value))
@@ -33,8 +36,15 @@ const SPEED_CHOICES = [0.25, 0.5, 1, 2, 4] as const
 const current = computed(() => frameAt(times.value, time.value))
 const ended = computed(() => duration.value > 0 && time.value >= duration.value)
 
-// a new film starts from the top, playing unless the reader asked for less motion
+/** A run the reader watched for longer than this (ms) has been seen being built: its film waits at the end. */
+const WATCHED_LIVE = 1500
+// a new film starts from the top, playing unless the reader asked for less motion -- or just watched it being made
 watch(film, (next) => {
+  if (next && (live.value?.elapsed ?? 0) > WATCHED_LIVE) {
+    time.value = filmTimes(next.frames).at(-1) ?? 0
+    paused.value = true
+    return
+  }
   time.value = 0
   paused.value = !next || (import.meta.client && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
 })
@@ -77,6 +87,23 @@ const toEnd = () => {
 const frame = computed(() => frames.value[current.value] ?? null)
 const elements = computed(() => elementsAt(frames.value, current.value))
 const inner = computed(() => elements.value.join(""))
+
+// a run in progress, before its film is ready
+const running = computed(() => (film.value ? null : live.value))
+const leftNote = computed(() => {
+  const left = running.value?.left
+  if (left === null || left === undefined) return "estimating time left…"
+  return left < 1000 ? "under a second left" : `about ${Math.round(left / 1000)} s left`
+})
+
+// the shapes on stage, each one its own SVG, for the layers pulled apart: the frame's, the run's so far, or the scored SVG's
+const SHAPE = /<(?:rect|circle|ellipse|polygon|path)\b[^>]*\/>/g
+const layers = computed(() => {
+  const d = props.detail
+  if (!d) return []
+  const shown = film.value ? elements.value : (running.value?.elements ?? props.result?.svg ?? "").match(SHAPE) ?? []
+  return shown.map((el) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${d.width} ${d.height}">${el}</svg>`)
+})
 
 function labelImage(labels: Uint16Array | undefined) {
   const d = props.detail
@@ -167,6 +194,26 @@ const sameAsScored = computed(() => {
   if (allScored.value && lastScore.value !== null) return Math.abs(lastScore.value - props.result.scores.fidelity) < 0.001
   return true
 })
+const yours = computed(() => props.detail?.id === OWN_IMAGE)
+function download() {
+  if (!film.value) return
+  const url = URL.createObjectURL(new Blob([film.value.svg], { type: "image/svg+xml" }))
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `${props.downloadName ?? "traced"}.svg`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+// a phone's width fits two readouts a row; three or four would cut every value short
+const narrow = ref(false)
+let narrowQuery: MediaQueryList | null = null
+const onNarrow = () => (narrow.value = narrowQuery?.matches ?? false)
+onMounted(() => {
+  narrowQuery = window.matchMedia("(max-width: 639px)")
+  onNarrow()
+  narrowQuery.addEventListener("change", onNarrow)
+})
+onBeforeUnmount(() => narrowQuery?.removeEventListener("change", onNarrow))
 const KB = (n: number) => `${(n / 1024).toFixed(0)} KB`
 const filmBytes = computed(() => frames.value.reduce((sum, f) => sum + (f.element?.length ?? 0) + f.note.length + f.stage.length + 16, 0))
 const hasRun = computed(() => recipe.value !== null)
@@ -191,13 +238,8 @@ const scoredStats = computed(() => {
 </script>
 
 <template>
-  <UiPanel label="Watch" :title="`${entrantLabel} on this image`">
-    <template #actions>
-      <UiBadge v-if="sameAsScored === true" tone="life" dot>ends on the SVG the leaderboard scored</UiBadge>
-      <UiBadge v-else-if="sameAsScored === false" tone="gold" dot>differs from the scored SVG</UiBadge>
-    </template>
-
-    <div class="space-y-4">
+  <!-- the stage's own panel (GamePage) already names the entrant, so this is its body, not a panel of its own -->
+  <div class="space-y-4">
       <div class="grid gap-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <figure class="min-w-0">
           <div class="checker relative aspect-square overflow-hidden rounded-[8px] border border-line" data-testid="film-stage">
@@ -207,24 +249,52 @@ const scoredStats = computed(() => {
               <!-- eslint-disable-next-line vue/no-v-html -- our own WASM's numbers, never text from an image or a person -->
               <svg v-else xmlns="http://www.w3.org/2000/svg" :viewBox="`0 0 ${detail?.width} ${detail?.height}`" class="size-full" v-html="inner" />
             </template>
+            <!-- eslint-disable-next-line vue/no-v-html -- our own WASM's numbers, never text from an image or a person -->
+            <svg v-else-if="running" xmlns="http://www.w3.org/2000/svg" :viewBox="`0 0 ${detail?.width} ${detail?.height}`" class="size-full" v-html="running.elements" />
             <img v-else-if="scoredUrl" :src="scoredUrl" :alt="`${entrantLabel}'s SVG`" class="size-full object-contain" draggable="false" />
-            <UiEmpty v-else class="absolute inset-0" compact>{{ entrantId && detail ? "No SVG recorded for this image" : "Loading…" }}</UiEmpty>
+            <UiEmpty v-else class="absolute inset-0" compact>{{ !entrantId || !detail ? "Loading…" : yours ? "This entrant can't run here" : "No SVG recorded for this image" }}</UiEmpty>
           </div>
           <figcaption class="mt-1.5 flex items-baseline justify-between gap-3 text-xs">
             <template v-if="film">
-              <span class="truncate font-medium text-fg">{{ frame?.stage }}</span>
-              <span class="min-w-0 truncate font-mono text-[11px] text-fg-subtle">{{ frame?.note }}</span>
+              <span class="shrink-0 font-medium text-fg">{{ frame?.stage }}</span>
+              <span :title="frame?.note" class="min-w-0 truncate font-mono text-[11px] text-fg-subtle">{{ frame?.note }}</span>
+            </template>
+            <template v-else-if="running">
+              <span class="shrink-0 font-medium text-fg">{{ running.stage || "Reading the image" }}</span>
+              <span :title="running.note" class="min-w-0 truncate font-mono text-[11px] text-fg-subtle">{{ running.note || "noise, background, palette, parts" }}</span>
             </template>
             <template v-else>
-              <span class="truncate font-medium text-fg">The SVG it wrote</span>
+              <span class="shrink-0 font-medium text-fg">The SVG it wrote</span>
               <span v-if="hasRun && !failed" class="min-w-0 truncate text-[11px] text-fg-subtle">running the timelapse…</span>
             </template>
           </figcaption>
+          <div v-if="running" class="mt-2 space-y-1" data-testid="film-progress">
+            <div
+              class="h-1.5 overflow-hidden rounded-full bg-line"
+              role="progressbar"
+              aria-label="Tracing"
+              :aria-valuenow="Math.round(running.done * 100)"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div class="h-full bg-queen-400 transition-[width] duration-150" :style="{ width: `${running.done * 100}%` }" />
+            </div>
+            <p class="flex justify-between font-mono text-[11px] text-fg-subtle">
+              <span>{{ Math.round(running.done * 100) }}% · {{ (running.elapsed / 1000).toFixed(1) }} s</span>
+              <span>{{ leftNote }}</span>
+            </p>
+          </div>
+          <div class="mt-3">
+            <slot name="picker" />
+          </div>
         </figure>
         <div class="min-w-0 space-y-4">
-          <div class="grid max-w-[340px] grid-cols-2 gap-4">
+          <div class="grid max-w-[540px] grid-cols-3 gap-3">
             <CopyCatImage label="Given" :src="detail?.png" :note="givenNote" />
-            <CopyCatImage label="Clean, never seen" :svg="detail?.clean" :note="cleanShapes !== null ? `${cleanShapes} shapes` : undefined" />
+            <CopyCatImage label="Clean, never seen" :svg="detail?.clean" :note="cleanShapes ? `${cleanShapes} shapes` : undefined">
+              <template #empty>{{ yours ? "None: it's your image" : "Loading…" }}</template>
+            </CopyCatImage>
+            <CopyCatLayers :layers="layers" label="Its layers" />
           </div>
           <p v-if="detail?.source" class="text-[11px] text-fg-subtle">
             Clean SVG:
@@ -232,16 +302,29 @@ const scoredStats = computed(() => {
             ({{ detail.source.licence }}), rendered and corrupted here.
           </p>
           <div v-if="scoredStats.length">
-            <p class="label mb-1.5">Scored on this image</p>
-            <UiStats :items="scoredStats" :cols="3" />
+            <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <p class="label">Scored on this image</p>
+              <UiBadge v-if="sameAsScored === true" tone="life" dot>the timelapse ends on this SVG</UiBadge>
+              <UiBadge v-else-if="sameAsScored === false" tone="gold" dot title="The entrant run here wrote a different SVG from the one the leaderboard scored: the code has changed since it was scored">
+                the timelapse ends on a different SVG
+              </UiBadge>
+            </div>
+            <UiStats :items="scoredStats" :cols="narrow ? 2 : 3" />
           </div>
           <p v-if="result?.scores.refused" class="text-xs text-queen-300">Refused: {{ result.scores.refused }} -- scored as an empty SVG.</p>
           <div v-if="film">
             <p class="label mb-1.5">This frame</p>
-            <UiStats :items="stats" :cols="4" />
+            <UiStats :items="stats" :cols="narrow ? 2 : 4" />
           </div>
+          <div v-if="film && yours" class="flex flex-wrap items-center gap-3">
+            <button type="button" class="btn-primary btn-sm" @click="download">Download {{ downloadName ?? "traced" }}.svg</button>
+            <span class="text-xs text-fg-subtle">Traced on this device; nothing was uploaded. No clean SVG, so no score.</span>
+          </div>
+          <p v-else-if="!hasRun && yours" class="text-xs text-fg-subtle">
+            This entrant doesn't run in the browser. Pick the MDL tracer or a hill climb to trace your image.
+          </p>
           <p v-else-if="!hasRun" class="text-xs text-fg-subtle">
-            An outside tool that hands back only its result, so there is no process to play. Pick the structured pipeline or a hill climb to watch one at work.
+            An outside tool that hands back only its result, so there is no process to play. Pick the MDL tracer or a hill climb to watch one at work.
           </p>
           <p v-else-if="failed" class="text-xs text-fg-subtle">The timelapse couldn't be run in this browser ({{ failed }}).</p>
         </div>
@@ -302,12 +385,11 @@ const scoredStats = computed(() => {
         </div>
       </div>
       <p class="text-xs text-fg-subtle" data-testid="film-size">
-        Run just now in your browser: {{ Math.round(film.ms) }} ms, {{ frames.length }} frames, {{ KB(filmBytes) }}<template v-if="!allScored">, still scoring frames</template>. Steps are thinned to
+        Run just now in your browser: {{ Math.round(film.ms) }} ms, {{ frames.length }} frames, {{ KB(filmBytes) }}<template v-if="!allScored && !yours">, still scoring frames</template>. Steps are thinned to
         a few per shape. Clean fidelity is what the leaderboard ranks; the entrant never sees the clean SVG.
       </p>
       </template>
-    </div>
-  </UiPanel>
+  </div>
 </template>
 
 <style scoped>

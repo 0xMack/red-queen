@@ -6,7 +6,6 @@ import type { CopyCatStages } from "~/utils/copycat"
 // another shows whole.
 const props = defineProps<{ stages: CopyCatStages }>()
 
-const explode = ref(0.6)
 const hex = (rgb: readonly number[]) => `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`
 const colours = computed(() => props.stages.palette.slice(1).map(hex))
 const clustered = computed(() => ({
@@ -28,12 +27,6 @@ const stats = computed(() => [
   { label: "Time", value: `${Math.round(props.stages.ms)} ms` },
 ])
 const KIND: Record<string, string> = { rect: "Rect", circle: "Circle", ellipse: "Ellipse", polygon: "Polygon", path: "Bézier path" }
-// bottom layer at the back: each one lifted toward the viewer by its place in the stack
-const layerStyle = (i: number) => {
-  const n = props.stages.layers.length
-  const depth = (i - (n - 1) / 2) * 34 * explode.value
-  return { transform: `rotateX(${52 * explode.value}deg) rotateZ(${-30 * explode.value}deg) translateZ(${depth}px)` }
-}
 </script>
 
 <template>
@@ -44,28 +37,7 @@ const layerStyle = (i: number) => {
         <template #empty>Tracing…</template>
       </CopyCatImage>
       <CopyCatImage label="Regions, cleaned" :pixels="cleaned" note="background: transparent" />
-      <figure class="min-w-0">
-        <div class="stack-frame relative aspect-square overflow-hidden rounded-[8px] border border-line bg-sunken">
-          <div class="stack absolute inset-[12%]">
-            <img
-              v-for="(layer, i) in stages.layers"
-              :key="i"
-              :src="svgDataUrl(layer.svg)"
-              :alt="`layer ${i + 1}`"
-              class="layer absolute inset-0 size-full"
-              :style="layerStyle(i)"
-              draggable="false"
-            />
-          </div>
-        </div>
-        <figcaption class="mt-1.5 flex items-center justify-between gap-3 text-xs">
-          <span class="font-medium text-fg">Layers, pulled apart</span>
-          <label class="flex items-center gap-2 font-mono text-[11px] text-fg-subtle">
-            explode
-            <input v-model.number="explode" type="range" min="0" max="1" step="0.05" class="w-24 accent-queen-400" />
-          </label>
-        </figcaption>
-      </figure>
+      <CopyCatLayers :layers="stages.layers.map((l) => l.svg)" />
     </div>
     <div class="flex flex-wrap items-center gap-2 text-xs">
       <span class="label">Palette</span>
@@ -82,16 +54,3 @@ const layerStyle = (i: number) => {
     </ol>
   </div>
 </template>
-
-<style scoped>
-.stack-frame {
-  perspective: 900px;
-}
-.stack {
-  transform-style: preserve-3d;
-}
-.layer {
-  transition: transform 0.35s ease;
-  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.35));
-}
-</style>

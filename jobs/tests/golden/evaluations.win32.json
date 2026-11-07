@@ -4939,7 +4939,7 @@
    "entrant_kind": "baseline",
    "game": "copycat",
    "interface": "copycat/rgb8.v1+svg-subset.v1",
-   "label": "Structured pipeline",
+   "label": "MDL tracer 23",
    "metrics": {
     "copycat": {
      "by_severity": {
@@ -4957,17 +4957,17 @@
        "smoothness_ratio": 1.0
       },
       "heavy": {
-       "alpha_iou": 0.8284,
-       "bytes": 1071.0,
-       "fidelity": 20.6596,
-       "layer_recovery": 0.819,
-       "node_ratio": 1.5517,
+       "alpha_iou": 0.8266,
+       "bytes": 1128.0,
+       "fidelity": 20.6241,
+       "layer_recovery": 0.8192,
+       "node_ratio": 1.7931,
        "palette_ratio": 1.0,
-       "psnr_black": 18.2934,
-       "psnr_white": 23.0259,
+       "psnr_black": 18.237,
+       "psnr_white": 23.0112,
        "refused": 0,
        "shape_ratio": 1.2,
-       "smoothness_ratio": 1.3627
+       "smoothness_ratio": 1.3885
       },
       "light": {
        "alpha_iou": 0.978,
@@ -4997,17 +4997,17 @@
       }
      },
      "columns": {
-      "alpha_iou": 0.9289,
-      "bytes": 536.0,
-      "fidelity": 35.9621,
+      "alpha_iou": 0.9284,
+      "bytes": 550.25,
+      "fidelity": 35.9532,
       "layer_recovery": 0.9104,
-      "node_ratio": 1.0289,
+      "node_ratio": 1.0668,
       "palette_ratio": 1.0,
-      "psnr_black": 34.9078,
-      "psnr_white": 37.0164,
+      "psnr_black": 34.8937,
+      "psnr_white": 37.0127,
       "refused": 0,
       "shape_ratio": 1.0466,
-      "smoothness_ratio": 1.0784
+      "smoothness_ratio": 1.0835
      },
      "images": [
       {
@@ -5068,40 +5068,41 @@
        "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<path d=\"M95 25.3C89.1 27.8 82.9 41.7 86.4 46.1C89.9 50.5 110.1 54.3 116.1 51.8C122.1 49.3 125.8 35.4 122.3 31C118.8 26.6 101 22.8 95 25.3Z\" fill=\"#52ba2c\"/>\n</g>\n<g>\n<rect x=\"80.4\" y=\"79.4\" width=\"13.1\" height=\"13\" fill=\"#cd75f7\"/>\n</g>\n</svg>\n"
       },
       {
-       "alpha_iou": 0.8284,
-       "bytes": 1071,
-       "fidelity": 20.6596,
+       "alpha_iou": 0.8266,
+       "bytes": 1128,
+       "fidelity": 20.6241,
        "id": "synthetic/10003",
-       "layer_recovery": 0.819,
-       "node_ratio": 1.5517,
-       "nodes": 45,
+       "layer_recovery": 0.8192,
+       "node_ratio": 1.7931,
+       "nodes": 52,
        "palette": 5,
        "palette_ratio": 1.0,
-       "psnr_black": 18.2934,
-       "psnr_white": 23.0259,
+       "psnr_black": 18.237,
+       "psnr_white": 23.0112,
        "refused": null,
        "severity": "heavy",
        "shape_ratio": 1.2,
        "shapes": 6,
-       "smoothness_ratio": 1.3627,
-       "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<polygon points=\"63.2,4.2 55.8,10 48.7,20.2 41.8,35.2 35.7,45.6 51.7,50.6 58.5,50.1 82.7,37.2 95.9,40.9 106.5,36.8 116.9,24.3 113.1,16.7 96.6,6.7 87.9,6.1 81.9,12.7 73.9,5.8\" fill=\"#cca7db\"/>\n</g>\n<g>\n<circle cx=\"69.5\" cy=\"98.5\" r=\"10.2\" fill=\"#acaf41\"/>\n</g>\n<g>\n<path d=\"M78.2 46.8C76.1 47.8 74.9 54.9 75.4 57.7C75.9 60.4 78.3 62.6 81.1 63.3C83.9 64.1 91.1 64 92.2 62C93.4 60.1 90.3 54.2 88 51.7C85.6 49.1 80.2 45.8 78.2 46.8Z\" fill=\"#683f59\"/>\n</g>\n<g>\n<path d=\"M90.7 8.3C84 9.8 73.7 24.9 72.6 29.4C71.5 34 79.8 34.1 83.9 35.6C87.9 37.1 92.8 39.1 96.8 38.5C100.8 37.9 105.4 35 108.1 32C110.8 29 115.9 24.4 113 20.4C110.1 16.5 97.4 6.8 90.7 8.3Z\" fill=\"#5c67eb\"/>\n</g>\n<g>\n<path d=\"M65.2 6.2C61.1 6.7 57.2 11.5 54.2 15.5C51.2 19.5 48.3 25.6 47.2 30.5C46.1 35.3 45.4 41.8 47.6 44.5C49.8 47.2 55.5 50.3 60.5 46.7C65.6 43.1 74.8 28.4 77.9 22.8C81 17.1 81.4 15.4 79.3 12.6C77.2 9.9 69.4 5.8 65.2 6.2Z\" fill=\"#a236b0\"/>\n</g>\n<g>\n<ellipse cx=\"66.8\" cy=\"34.9\" rx=\"11.7\" ry=\"12.6\" fill=\"#acaf41\"/>\n</g>\n</svg>\n"
+       "smoothness_ratio": 1.3885,
+       "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n<g>\n<polygon points=\"63.3,4.7 59,6.9 55.9,10.3 47.6,21 46.9,26.4 40.3,35.9 36.2,45.1 42.1,48 53.3,50.6 58.5,50.1 82.8,37.1 94.4,40.7 102,39 105.9,36.5 113.3,29.8 116.4,22.9 115,19.9 112.8,16.5 96.7,6.7 87.9,6.1 81.9,12.7 74.3,6.2 67.9,4.4\" fill=\"#cca7db\"/>\n</g>\n<g>\n<circle cx=\"69.5\" cy=\"98.5\" r=\"10.2\" fill=\"#acaf41\"/>\n</g>\n<g>\n<path d=\"M78.2 46.8C76.1 47.8 74.9 54.9 75.4 57.7C75.9 60.4 78.3 62.6 81.1 63.3C83.9 64.1 91.1 64 92.2 62C93.4 60.1 90.3 54.2 88 51.7C85.6 49.1 80.2 45.8 78.2 46.8Z\" fill=\"#683f59\"/>\n</g>\n<g>\n<path d=\"M90.7 8.3C84 9.8 73.7 24.9 72.6 29.4C71.5 34 79.8 34.1 83.9 35.6C87.9 37.1 92.8 39.1 96.8 38.5C100.8 37.9 105.4 35 108.1 32C110.8 29 115.9 24.4 113 20.4C110.1 16.5 97.4 6.8 90.7 8.3Z\" fill=\"#5c67eb\"/>\n</g>\n<g>\n<path d=\"M65.3 6.2C61.1 6.7 57.2 11.4 54.2 15.5C51.1 19.6 48.2 25.8 47.2 30.7C46.1 35.5 45.4 41.9 47.7 44.6C49.9 47.3 55.6 50.3 60.6 46.7C65.7 43 74.9 28.3 78 22.6C81.1 17 81.4 15.3 79.3 12.6C77.2 9.9 69.4 5.8 65.3 6.2Z\" fill=\"#a236b0\"/>\n</g>\n<g>\n<ellipse cx=\"66.8\" cy=\"34.9\" rx=\"11.7\" ry=\"12.6\" fill=\"#acaf41\"/>\n</g>\n</svg>\n"
       }
      ],
      "memory": {},
      "settings": {
       "tracer": "structured"
-     }
+     },
+     "version": 23
     },
     "inference": {
-     "artifact_bytes": 536,
+     "artifact_bytes": 550,
      "parameters": 0
     },
     "model": {
-     "description": "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, rect, polygon, smooth spline or Bezier path) and refined point by point, hidden parts completed, a part of one colour cut in two where two shapes overlap; transparent, one group per shape.",
+     "description": "Copy Cat's minimum-description-length tracer: noise and background estimated, an OKLab palette merged by description length, cleaned labels, parts ordered by how much of each other they cover, holes cut, and each part fitted with its shortest shape (circle, ellipse, rect, rounded rect, polygon, smooth spline or Bezier path), hidden parts completed; then every shape polished against the whole image, adding a point only where the error it saves pays for it. Transparent, one group per shape.",
      "note": null,
      "observer_level": 1,
      "shape": {
-      "algorithm": "Structured pipeline"
+      "algorithm": "MDL tracer 23"
      }
     },
     "protocol": {
@@ -5116,17 +5117,17 @@
      "split": "heldout"
     },
     "quality": {
-     "ci95": 16.533,
+     "ci95": 16.5435,
      "max": 60.0,
-     "mean": 35.9621,
+     "mean": 35.9532,
      "median": 31.59435,
-     "min": 20.6596,
+     "min": 20.6241,
      "n": 4,
      "scores": [
       60.0,
       32.9521,
       30.2366,
-      20.6596
+      20.6241
      ]
     },
     "training": {

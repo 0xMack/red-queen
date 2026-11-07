@@ -38,6 +38,7 @@ export const copycatfilm_objective_label: (a: number) => [number, number];
 export const copycatfilm_palette: (a: number) => [number, number];
 export const copycatfilm_patch_index: (a: number, b: number) => number;
 export const copycatfilm_pipeline: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const copycatfilm_pipeline_live: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
 export const copycatfilm_set_clean: (a: number, b: number, c: number) => [number, number];
 export const copycatfilm_stage: (a: number, b: number) => [number, number];
 export const copycatfilm_svg: (a: number) => [number, number];

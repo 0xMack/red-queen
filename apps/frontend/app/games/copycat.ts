@@ -1,4 +1,3 @@
-import CopyCatPlay from "~/components/copycat/CopyCatPlay.vue"
 import CopyCatProgress from "~/components/copycat/CopyCatProgress.vue"
 import CopyCatWatch from "~/components/copycat/CopyCatWatch.vue"
 import type { GameModule, LeaderboardColumn } from "~/games/types"
@@ -6,8 +5,8 @@ import type { EvaluationRecord } from "~/types/leaderboard"
 
 // Copy Cat (docs/design/0022): not a game you step but an image-to-SVG task. An entrant turns each held-out image -- a
 // clean SVG rendered and corrupted the way a generator would (`corrupt.v1`) -- into an SVG, scored against the clean
-// SVG behind it under `copycat.clean.v2` (`arena.copycat`). Watch shows what an entrant made of each image; Play traces
-// your own image with the structured pipeline, in the browser.
+// SVG behind it under `copycat.clean.v2` (`arena.copycat`). Its one stage shows what an entrant made of each image, and
+// traces your own image too, in the browser; there is no separate Play.
 
 const columns = (r: EvaluationRecord) => r.metrics.copycat?.columns
 
@@ -82,16 +81,13 @@ export const copycatModule: GameModule = {
   selectInPlay: "watch",
   copy: {
     watch:
-      "A clean, layered SVG was rendered, then blurred, noised, compressed and set on a background, the way an image generator delivers a logo. Pick an image and see what each entrant recovered, beside the clean SVG it is scored against.",
-    playLabel: "Your image",
-    play: "Drop in your own image -- a generated logo or icon -- and the structured pipeline turns it into a layered SVG with a transparent background, here on your device.",
+      "A clean, layered SVG was rendered, then blurred, noised, compressed and set on a background, the way an image generator delivers a logo. Pick an image and see what each entrant recovered, beside the clean SVG it is scored against -- or add your own, and trace it here on your device.",
     scoreNote: ({ protocol }) =>
       `Clean fidelity on held-out images (${protocol}): PSNR of the SVG's render against the clean SVG's, over black and over white, averaged within each set, then over the sets.`,
     leaderboardIntro: () =>
       "Ranked by clean fidelity on 168 held-out images in three sets, each counting the same: 24 of our own synthetic logos, 24 Twemoji, and 120 broad icons (Twemoji and Icons8's Flat Color Icons). Every entrant is scored against the clean SVG the image was made from -- never against the corrupted input -- so reproducing the noise loses, and so does keeping the background.",
   },
   Watch: CopyCatWatch,
-  Play: CopyCatPlay,
   Insights: CopyCatProgress,
   sections: { pareto: true, headToHead: false, representations: false },
 }

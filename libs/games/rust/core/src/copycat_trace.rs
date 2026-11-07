@@ -28,7 +28,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::copycat::{Document, Geometry, Group, Shape};
-use crate::copycat_film::{self as film_log, thinned, Film, Frame, Kind, Patch, View, MAX_STEPS};
+use crate::copycat_film::{self as film_log, thinned, Film, Frame, Kind, Listener, Patch, View, MAX_STEPS};
 use crate::copycat_fit::{inside_polygon, largest_contour, notches, solve, Costs, Fit, Target};
 use crate::pcg::Pcg32;
 
@@ -161,6 +161,24 @@ pub fn noise_sigma(image: &Image) -> f64 {
 
 /// 8-bit quantization's noise σ in OKLab, about: no image's estimate goes lower.
 const SIGMA_FLOOR: f64 = 0.002;
+
+/// What a point the polish adds to a spline or polygon must save (`copycat_polish`'s growth), as a share of its two
+/// coordinates' bits in pixel-error bits. The description length alone (1.0) let almost no point in: an outline is
+/// cheap to state wrong, since its error lies on thin edge pixels. Tuned on `train` (docs/design/0022, "Growth"): the
+/// gain rose as the price fell, with `synthetic/validate` never falling, and flattened below this.
+const POINT_PRICE: f64 = 0.02;
+/// What every radian an outline turns costs the polish's growth, in bits. A convex outline turns a full circle however
+/// many points it has, so this charges only dents and zigzags: growth priced by its coordinates alone followed the
+/// corruption's noise into wiggles (outlines turning 1.5x as much as the clean SVG's). Tuned on `train`
+/// (docs/design/0022, "Growth"): at 32 bits outlines turn within 5% of what they did before growth, for about 0.1 dB.
+const TURN_BITS: f64 = 32.0;
+/// How far through its time a filmed run is when each stage ends, as `Film::report` tells it: measured in WebAssembly,
+/// where films run, on `icons` and `broad` training images (the slow ones, where an estimate of the time left matters).
+/// Joining takes about a seventh of the time, fitting two fifths, and the polish, since it grows points, two fifths.
+const SEGMENTED: f64 = 0.03;
+const CLEANED: f64 = 0.04;
+const JOINED: f64 = 0.19;
+const FITTED: f64 = 0.60;
 
 /// The background: per OKLab channel, `c + gx x + gy y` (x and y in 0..1); `gx`, `gy` are zero for a constant one.
 #[derive(Clone, Copy, Debug)]
@@ -1730,7 +1748,19 @@ pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) ->
 /// The whole pipeline, filmed: its stages, then each part from the bottom up, with what it tried, and how the
 /// winner got to its final form. Its objective is the description so far, a part not yet drawn counting as all wrong.
 pub fn film(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Film, String> {
+    film_with(rgba, width, height, config, None)
+}
+
+/// `film`, telling `progress` how far it is as it goes (`Film::progress`).
+pub fn film_with(
+    rgba: &[u8],
+    width: usize,
+    height: usize,
+    config: &TraceConfig,
+    progress: Option<Listener>,
+) -> Result<Film, String> {
     let mut film = Film::new(width as u32, height as u32, "description length (bits)");
+    film.progress = progress;
     film_log::start();
     let stages = run(rgba, width, height, config, Some(&mut film));
     film_log::stop();
@@ -1739,7 +1769,15 @@ pub fn film(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> R
     film.clustered = stages.clustered;
     film.labels = stages.labels;
     film.palette = stages.palette;
+    film.progress = None;
     Ok(film)
+}
+
+/// `Film::report`, when there is a film.
+fn tell(film: &mut Option<&mut Film>, done: f64) {
+    if let Some(film) = film.as_deref_mut() {
+        film.report(done);
+    }
 }
 
 fn run(
@@ -1753,6 +1791,7 @@ fn run(
     let sigma = noise_sigma(&image);
     let background = Background::fit(&image, sigma);
     let segmentation = segment(&image, &background, sigma, config);
+    tell(&mut film, SEGMENTED);
     let mut labels = clean_labels(&image, &segmentation.labels, config);
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
@@ -1774,10 +1813,12 @@ fn run(
         centres,
         background: per_pixel,
     };
+    tell(&mut film, CLEANED);
     let mut costs = Costs::new(width, height, config.pixel_bits);
     costs.outline_gain = config.outline_gain * (sigma - SIGMA_FLOOR) * 1000.0;
     let mut parts = parts(&image, &scene.labels);
     let completed = join(&scene, &mut parts, &costs);
+    tell(&mut film, JOINED);
     let order = order(&image, &parts, &completed);
     let mut shapes = Vec::new();
     let mut forms = Vec::new();
@@ -1801,7 +1842,15 @@ fn run(
             View::Vector,
         ));
         film_log::take();
+        film.report(JOINED);
     }
+    // how far the run is: the fits take time about in proportion to the pixels they cover
+    let total: f64 = order
+        .iter()
+        .map(|&k| parts[k].pixels.len() as f64)
+        .sum::<f64>()
+        .max(1.0);
+    let mut fitted_pixels = 0.0;
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
         let mut fits = shapes_of(&scene, &parts[k], &above, &costs);
@@ -1815,6 +1864,8 @@ fn run(
                 first: shapes.len(),
             };
             description = film_part(film, &shot, &fits, description);
+            fitted_pixels += parts[k].pixels.len() as f64;
+            film.report(JOINED + (FITTED - JOINED) * fitted_pixels / total);
         }
         for fit in fits {
             forms.push(crate::copycat_polish::Form::of(&fit));
@@ -1839,8 +1890,12 @@ fn run(
         height,
         image: &pixels,
         background: &under,
+        knot_price: POINT_PRICE * 2.0 * costs.coord_bits / costs.pixel_bits,
+        turn_price: TURN_BITS / costs.pixel_bits,
     }
-    .polish(&mut shapes, &mut forms);
+    .polish_with(&mut shapes, &mut forms, &mut |done| {
+        tell(&mut film, FITTED + (1.0 - FITTED) * done)
+    });
     if let Some(film) = &mut film {
         let moved: Vec<usize> = (0..shapes.len())
             .filter(|&i| shapes[i].geometry != fitted[i].geometry)
@@ -1861,10 +1916,18 @@ fn run(
                 note: format!("Shape {} of {}", i + 1, shapes.len()),
                 kind: Kind::Step,
                 view: View::Vector,
-                patch: Patch::Set(i, shapes[i].clone()),
+                // a frame's shapes stand alone: their groups are the document's, not the film's
+                patch: Patch::Set(
+                    i,
+                    Shape {
+                        group: None,
+                        ..shapes[i].clone()
+                    },
+                ),
                 objective: description,
             });
         }
+        film.report(1.0);
     }
     Ok(Stages {
         sigma,
@@ -2051,6 +2114,15 @@ mod tests {
         let locks = recorded.frames.iter().filter(|f| f.kind == Kind::Lock).count();
         assert_eq!(locks, traced.shapes.len());
         assert!(recorded.frames.iter().any(|f| f.kind == Kind::Try));
+        // every frame can be scored, the polish's included
+        let clean = Document::parse(svg).unwrap().render();
+        assert!(recorded
+            .frames
+            .iter()
+            .any(|f| f.stage == "Polish" && f.kind == Kind::Step));
+        for i in 0..recorded.frames.len() {
+            assert!(recorded.fidelity_at(i, &clean).is_finite(), "frame {i}");
+        }
         // the description falls as parts are drawn, from every part all wrong
         let (first, last) = (recorded.frames[0].objective, recorded.frames.last().unwrap().objective);
         assert!(last < first / 2.0, "{first} {last}");
@@ -2068,6 +2140,30 @@ mod tests {
             rounded: None,
         });
         assert!(film_log::take().attempts.is_empty());
+    }
+
+    #[test]
+    fn a_film_reports_its_progress_as_it_goes_and_ends_the_same() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">            <rect x=\"6\" y=\"6\" width=\"24\" height=\"24\" fill=\"#d03030\"/>            <circle cx=\"40\" cy=\"40\" r=\"14\" fill=\"#2050c0\"/></svg>";
+        let (_, rgba) = photograph(svg, [245, 240, 230]);
+        let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let log = heard.clone();
+        let listener: Listener = Box::new(move |film: &Film, done: f64| {
+            log.borrow_mut().push((done, film.frames.len(), film.elements_now()));
+        });
+        let live = film_with(&rgba, 64, 64, &TraceConfig::default(), Some(listener)).unwrap();
+        let quiet = film(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert_eq!(live.document, quiet.document);
+        assert_eq!(live.frames.len(), quiet.frames.len());
+        let heard = heard.borrow();
+        // the prelude, each part, and the end, never going back
+        assert!(heard.len() >= 4, "{} reports", heard.len());
+        assert!(heard.windows(2).all(|w| w[0].0 <= w[1].0 && w[0].1 <= w[1].1));
+        let (done, frames, elements) = heard.last().unwrap();
+        assert_eq!((*done, *frames), (1.0, live.frames.len()));
+        assert_eq!(*elements, live.elements_now());
+        // and before the end, part of the drawing is there
+        assert!(heard.iter().any(|(d, _, e)| *d < 1.0 && !e.is_empty()));
     }
 
     #[test]

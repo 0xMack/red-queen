@@ -146,6 +146,9 @@ export function labelPixels(labels: Uint16Array, palette: readonly (readonly num
 /** The largest side a dropped-in image is scaled to before tracing: the held-out images are 128 px. */
 export const TRACE_MAX_SIDE = 192
 
+/** The Watch stage's id for your own image, beside the held-out images' `set/seed`. */
+export const OWN_IMAGE = "yours"
+
 /** A picked or dropped image file as opaque RGBA pixels, scaled down to `maxSide` and flattened onto white. */
 export async function imageFilePixels(file: Blob, maxSide = TRACE_MAX_SIDE): Promise<ImageData> {
   const bitmap = await createImageBitmap(file)

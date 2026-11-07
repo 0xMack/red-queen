@@ -25,6 +25,17 @@ const ranked = computed(() =>
     return { record: r, rank: i + 1, tiedWithPrev }
   }),
 )
+// A column that says the same for every entrant is dropped (Copy Cat: one representation, no parameters, nothing
+// trained): what it would repeat on every row, the stage's header already says once.
+const showRepresentation = computed(() => new Set(props.entries.map((r) => r.interface)).size > 1)
+const showParams = computed(() => props.entries.some((r) => r.metrics.inference.parameters || r.metrics.inference.artifact_bytes))
+const showTraining = computed(() => props.entries.some((r) => !r.metrics.training.none))
+/** A time per decision, in the unit that keeps it short. */
+function perDecision(us: number): string {
+  if (us < 1000) return `${us.toFixed(1)} µs`
+  if (us < 1_000_000) return `${(us / 1000).toFixed(us < 10_000 ? 1 : 0)} ms`
+  return `${(us / 1_000_000).toFixed(1)} s`
+}
 const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.map((r) => r.metrics.quality.mean + r.metrics.quality.ci95)))
 </script>
 
@@ -35,7 +46,7 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
         <tr class="border-b border-line text-left label">
           <th class="px-4 py-3 font-medium">#</th>
           <th class="px-3 py-3 font-medium">Entrant</th>
-          <th class="px-3 py-3 font-medium">
+          <th v-if="showRepresentation" class="px-3 py-3 font-medium">
             <span class="inline-flex items-center gap-1.5">Representation<InfoTip subject="metric:level" label="representation levels" size="xs" /></span>
           </th>
           <th class="px-3 py-3 font-medium">
@@ -47,8 +58,8 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
           <th class="px-3 py-3 text-right font-medium" title="per decision: encoding the board + running the model">
             <span class="inline-flex items-center gap-1.5"><InfoTip subject="metric:cost" label="cost" size="xs" />Inference</span>
           </th>
-          <th class="px-3 py-3 text-right font-medium">Params</th>
-          <th class="px-3 py-3 text-right font-medium">Training</th>
+          <th v-if="showParams" class="px-3 py-3 text-right font-medium">Params</th>
+          <th v-if="showTraining" class="px-3 py-3 text-right font-medium">Training</th>
         </tr>
       </thead>
       <tbody>
@@ -78,7 +89,7 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
               <span v-if="r.metrics.model.note" class="italic"> · {{ r.metrics.model.note }}</span>
             </p>
           </td>
-          <td class="px-3 py-3">
+          <td v-if="showRepresentation" class="px-3 py-3">
             <span class="flex items-center gap-1.5">
               <span class="chip" :style="{ color: LEVEL_COLORS[r.metrics.model.observer_level] }">L{{ r.metrics.model.observer_level }} {{ interfacesById[r.interface]?.observer.level_name ?? "" }}</span>
               <InfoTip :subject="`representation:${r.interface}`" :label="r.interface" size="xs" />
@@ -108,16 +119,16 @@ const maxMean = computed(() => Math.max(props.score.scaleMin, ...props.entries.m
             </template>
           </td>
           <td class="num px-3 py-3 text-right text-xs">
-            <span class="text-fg">{{ r.metrics.inference.total_us.toFixed(1) }} µs</span>
+            <span class="text-fg">{{ perDecision(r.metrics.inference.total_us) }}</span>
             <p v-if="r.metrics.inference.encode_us !== undefined && r.metrics.inference.decide_us !== undefined" class="text-[10px] text-fg-subtle">
               {{ r.metrics.inference.encode_us.toFixed(1) }} + {{ r.metrics.inference.decide_us.toFixed(1) }}
             </p>
           </td>
-          <td class="num px-3 py-3 text-right text-xs text-fg-muted">
+          <td v-if="showParams" class="num px-3 py-3 text-right text-xs text-fg-muted">
             {{ r.metrics.inference.parameters ? r.metrics.inference.parameters.toLocaleString() : "0" }}
             <p v-if="r.metrics.inference.artifact_bytes" class="text-[10px] text-fg-subtle">{{ compactNumber(r.metrics.inference.artifact_bytes) }}B</p>
           </td>
-          <td class="num px-3 py-3 text-right text-xs">
+          <td v-if="showTraining" class="num px-3 py-3 text-right text-xs">
             <span v-if="r.metrics.training.none" class="text-fg-subtle">none</span>
             <template v-else>
               <span class="text-fg" :title="r.metrics.training.measured ? 'measured' : 'estimated from config + timestamps (recorded before cost tracking)'">
