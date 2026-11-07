@@ -2060,7 +2060,10 @@ mod tests {
         assert!(recorded.frames.iter().any(|f| f.kind == Kind::Try));
         // every frame can be scored, the polish's included
         let clean = Document::parse(svg).unwrap().render();
-        assert!(recorded.frames.iter().any(|f| f.stage == "Polish" && f.kind == Kind::Step));
+        assert!(recorded
+            .frames
+            .iter()
+            .any(|f| f.stage == "Polish" && f.kind == Kind::Step));
         for i in 0..recorded.frames.len() {
             assert!(recorded.fidelity_at(i, &clean).is_finite(), "frame {i}");
         }
