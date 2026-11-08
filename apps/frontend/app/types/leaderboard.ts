@@ -87,10 +87,12 @@ export type EvaluationRecord = Omit<GeneratedRecord, "metrics" | "hardware"> & {
       scenarios: Record<string, BanditScenarioResult>
     }
     // Copy Cat entrants only (evaluator.protocols.copycat_clean, docs/design/0022): how it ran, every column summarized
-    // (ratios by geometric mean), per severity, and per image (without the SVGs: /games/copycat/targets/{seed} has them).
+    // (ratios by geometric mean), per set (from copycat.clean.v2), per severity, and per image (without the SVGs:
+    // /games/copycat/targets/{set}/{seed} has them).
     copycat?: {
       settings: Record<string, unknown>
       columns: CopyCatColumns
+      by_set?: Record<string, CopyCatColumns>
       by_severity: Record<string, CopyCatColumns>
       images: import("~/utils/copycat").CopyCatImageScores[]
     }

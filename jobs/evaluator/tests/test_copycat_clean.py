@@ -1,9 +1,12 @@
 """copycat.clean.v1's entrants: the VTracer adapter keeps VTracer's shapes, only written in the subset."""
 
+import re
+from pathlib import Path
+
 from arena.copycat import load_set
 from games.copycat import Svg
 
-from evaluator.protocols.copycat_clean import ENTRANTS, drop_bottom, trace, vtracer_to_subset
+from evaluator.protocols.copycat_clean import ENTRANTS, MDL_TRACER_VERSION, drop_bottom, trace, vtracer_to_subset
 
 VTRACER = """<?xml version="1.0" encoding="UTF-8"?>
 <!-- Generator: visioncortex VTracer 0.6.12 -->
@@ -26,3 +29,12 @@ def test_every_entrant_writes_the_subset():
     for key, (_label, _description, settings) in ENTRANTS.items():
         svg = Svg(trace(settings, target))  # raises if not in the subset
         assert (svg.width, svg.height) == (128, 128), key
+
+
+def test_the_tracer_s_version_is_the_last_one_listed():
+    """A kept change adds a row to the frontend's version list and bumps MDL_TRACER_VERSION: neither without the other."""
+    listed = Path(__file__).parents[3] / "apps/frontend/app/data/copycatVersions.ts"
+    versions = [int(v) for v in re.findall(r"\bversion: (\d+),", listed.read_text(encoding="utf-8"))]
+    assert versions == list(range(1, len(versions) + 1))
+    assert versions[-1] == MDL_TRACER_VERSION
+    assert ENTRANTS["structured"][0] == f"MDL tracer {MDL_TRACER_VERSION}"

@@ -62,6 +62,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/games/copycat/reports/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report */
+        get: operations["get_report_games_copycat_reports__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/copycat/reports/{name}/images/{set_name}/{split}/{seed}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Image */
+        get: operations["get_image_games_copycat_reports__name__images__set_name___split___seed__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/games/copycat/targets": {
         parameters: {
             query?: never;
@@ -71,7 +105,8 @@ export interface paths {
         };
         /**
          * Get Targets
-         * @description The held-out images of `copycat.clean.v1`, in seed order, each as a PNG data URL with its corruption levels.
+         * @description The held-out images of the latest protocol, set by set in seed order, each as a PNG data URL with its corruption
+         *     levels and, for artwork, where it came from.
          */
         get: operations["get_targets_games_copycat_targets_get"];
         put?: never;
@@ -82,7 +117,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/games/copycat/targets/{seed}": {
+    "/games/copycat/targets/{set_name}/{seed}": {
         parameters: {
             query?: never;
             header?: never;
@@ -91,10 +126,10 @@ export interface paths {
         };
         /**
          * Get Target
-         * @description One held-out image: its PNG, the clean SVG it was made from, and per entrant (of the protocol's records) the SVG
-         *     it wrote for this image and that SVG's scores.
+         * @description One held-out image: its PNG, the clean SVG it was made from, and per entrant (of the latest protocol's records)
+         *     the SVG it wrote for this image and that SVG's scores.
          */
-        get: operations["get_target_games_copycat_targets__seed__get"];
+        get: operations["get_target_games_copycat_targets__set_name___seed__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -174,7 +209,7 @@ export interface paths {
          * Get Leaderboard
          * @description Every evaluation of `game` (optionally one protocol), best mean score first. Records from
          *     different protocols aren't comparable -- a client showing more than one groups by protocol. Copy Cat's per-image
-         *     SVGs are left out (they are `/games/copycat/targets/{seed}`'s).
+         *     SVGs are left out (they are `/games/copycat/targets/{set}/{seed}`'s).
          */
         get: operations["get_leaderboard_games__game__leaderboard_get"];
         put?: never;
@@ -790,6 +825,63 @@ export interface components {
             /** Removed */
             removed: string[];
         };
+        /** ReportComparison */
+        ReportComparison: {
+            /** After */
+            after: number;
+            /** Before */
+            before: number;
+            /** Down */
+            down: number;
+            /** Moved */
+            moved: {
+                [key: string]: number;
+            };
+            /** Up */
+            up: number;
+        };
+        /** ReportDetail */
+        ReportDetail: {
+            /** Baseline */
+            baseline: string | null;
+            /** Compared */
+            compared: {
+                [key: string]: components["schemas"]["ReportComparison"];
+            };
+            /** Has Svgs */
+            has_svgs: boolean;
+            /** Name */
+            name: string;
+            /** Per Image */
+            per_image: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+        };
+        /** ReportImage */
+        ReportImage: {
+            /** Baseline */
+            baseline: string | null;
+            /** Baseline Fidelity */
+            baseline_fidelity: number | null;
+            /** Baseline Svg */
+            baseline_svg: string | null;
+            /** Clean */
+            clean: string;
+            /** Fidelity */
+            fidelity: number | null;
+            /** Group */
+            group: string;
+            /** Png */
+            png: string;
+            /** Seed */
+            seed: number;
+            /** Severity */
+            severity: string;
+            /** Svg */
+            svg: string | null;
+        };
         /**
          * RunCreate
          * @description A run as a job starts it (the HTTP sink's `create_run`, docs/design/0018).
@@ -1060,6 +1152,71 @@ export interface operations {
             };
         };
     };
+    get_report_games_copycat_reports__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_image_games_copycat_reports__name__images__set_name___split___seed__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+                set_name: string;
+                split: string;
+                seed: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportImage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_targets_games_copycat_targets_get: {
         parameters: {
             query?: never;
@@ -1082,11 +1239,12 @@ export interface operations {
             };
         };
     };
-    get_target_games_copycat_targets__seed__get: {
+    get_target_games_copycat_targets__set_name___seed__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                set_name: string;
                 seed: number;
             };
             cookie?: never;

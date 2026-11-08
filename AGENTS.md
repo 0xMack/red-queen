@@ -17,10 +17,10 @@ fine-tune; 0016: scaling the self-play recipe -- a longer TD phase, a wider netw
 MCTS visit counts as policy targets; 0018: workloads, a job API and the `redqueen` CLI; 0019: hosting the site with no
 server -- a static copy of the API's public reads on Cloudflare; the runbook is docs/deploying.md; 0020: AlphaZero,
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
-score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-2 built: the measurement, the structured MDL pipeline) -- recover the clean, layered SVG
-behind a generated logo or icon, scored against known clean answers); 0023: Copy Cat as Bayesian image parsing (proposed) --
-a posterior over layered scenes, the corruption in the model, sampled by reversible-jump MCMC; sampler configurations
-as `copycat.mcmc` runs) — read the relevant one before an
+score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
+behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
+one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat as Bayesian image parsing (proposed) --
+a posterior over layered scenes, the corruption in the model, sampled by reversible-jump MCMC) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -67,8 +67,10 @@ architectural change that might conflict with a decision already made.
       every pull (`BanditTape`), Thompson's `BeliefCurves`, a same-seed `BanditRace` and the `BanditReveal`;
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
-      shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{seed}`) and traces a dropped-in image
-      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages).
+      shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{set}/{seed}`: seeds repeat across sets) and traces a dropped-in image
+      in the browser (the MDL tracer, `baseline:structured`, versioned by kept change), `CopyCatFilm` is a timelapse of the entrant on stage (docs/design/0023: `copycat_film.rs`, run live in `workers/copycatFilm.worker.ts`, with the leaderboard's own score on each frame), and `CopyCatProgress` is its `Insights`: progress over the kept
+      changes. `/learn/tracing-images` explains the pipeline (`TraceLab`) and `/learn/earning-complexity` is the case study of its changes, hard-coded from 0022. **New results fit the existing pages**: an approach on the game page, how it works in Learn, an experiment under `/runs`. Don't add a page
+      for them (docs/design/0023 did, and it was undone).
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
       scenario, representation or measure opens a card, and "More" a side panel (`?explain=kind:id`, mounted once in
       `app.vue`). Concepts are authored once in a typed registry; the instance layer (this entrant's settings,
@@ -207,8 +209,8 @@ architectural change that might conflict with a decision already made.
     raise the SDK's `ToolError` for an expected failure, or the agent sees only "Error executing tool".
   - `arena/` — measurement as a domain (docs/design/0018): each game's versioned evaluation protocol and playing
     under it (`arena.snake`, `arena.checkers` -- game pairs over the ballot, every Checkers seed range --,
-    `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v1`, scoring an entrant's SVG against the clean SVG behind a
-    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
+    `arena.bandit`, `arena.copycat` -- Copy Cat's `copycat.clean.v2` (v1 was `synthetic` alone), scoring an entrant's SVG against the clean SVG behind a
+    `corrupt.v1` image, with the checked-in held-out `synthetic` set in `arena.copycat_sets`, which we generate, and the held-out `icons` and `broad` sets, each set weighing the same. The `icons` and `broad` sets are other people's artwork, so never in the repo: `copycat_sources.json` pins them and `arena.copycat_artwork` downloads, verifies and converts them on first use, or `redqueen dev fetch-sets`), training-seed strategies (`arena.seeding`), two-player strength statistics
     (`arena.versus_stats`) and the training-cost meter (`arena.costs`). No I/O beyond reading Copy Cat's checked-in set; training and leaderboard jobs both
     import it, so a held-out curve and a leaderboard play by the same rules.
   - **Representations (docs/design/0007)**: a game's observation is chosen by an *observer*, and a
@@ -297,7 +299,10 @@ architectural change that might conflict with a decision already made.
   - The reports are `checkers.sprt` ("is A stronger than B"), `checkers.static-round-robin`, and the experiment
     reports `experiment.snake-report`, `.rl-report` (a paired permutation test against each arm's baseline),
     `.checkers-field` and `.checkers-h2h`.
-  `copycat.clean.v1` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
+  `copycat.report` is Copy Cat's record of a change: per image on train and held-out, against an earlier report, under
+  `<data dir>/experiments/`, and a run (`config.report`) on `/runs` -- measure with it, not with a throwaway script. Its
+  decision is on the run: `kept` and `instructive` (correct, not effective, worth showing; rare) go on the public site.
+  `copycat.clean.v2` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):
   - `snake` exports champions (fp64 + fp32) to the local model store and catalog, measuring agreement on the
@@ -378,7 +383,8 @@ Each directory has its own README with specifics — this file is the map, not t
   ignore `apps/frontend/wrangler.jsonc`; `build-static.mjs` pins `NITRO_PRESET=static` for that reason.
 - Writing LaTeX or other backslash-heavy source through a Bash heredoc on this Windows setup can collapse `\\` to `\`
   (so a TS `"\\beta"` lands as `"\beta"` -- a backspace plus `eta`). Use the Write/Edit tools for such files, or a
-  script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas.
+  script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas, and
+  `jobs/tests/test_source_text.py` anywhere (a `\b` that became a backspace once silently broke a regex).
 - Long jobs: redirected stdout is block-buffered (an empty log ≠ a dead job — use `python -u`), and git-bash
   `ps` can't see Windows processes (`Get-CimInstance Win32_Process` can). Check a run's metrics file before
   concluding it died or launching a second copy.

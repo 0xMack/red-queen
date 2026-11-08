@@ -10,6 +10,14 @@
 //! segment. **Free pixels** -- those covered by a shape above this one -- cost nothing either way, which is how a hidden
 //! part completes itself (Decision 5): the cheapest circle behind a square is the whole circle, not a crescent.
 //!
+//! A ring is its outer shape with a hole: a gap the shape encloses, fitted as a region of its own and drawn as a subpath
+//! winding the other way (`Target::with_holes`), so the non-zero rule leaves it empty.
+//!
+//! A rounded rectangle is a path said as its box and radius, and must fit about as well as what it replaces, not just be
+//! shorter (`rounded_wins`). A part's final shape may be redrawn as a tight spline (`Target::tightened`): its handles
+//! follow each segment's own length, so knots can crowd at a small tip. Only once the structure is settled, because
+//! something that flexible makes a bad join look good.
+//!
 //! Contours come from marching squares on the region's indicator, are cut at corners, and are fitted with cubic Béziers by Schneider's algorithm ("An Algorithm for
 //! Automatically Fitting Digitized Curves", Graphics Gems, 1990). Only `+ - * /` and `sqrt` (and `log2` for the
 //! coordinate code) -- the same numbers natively and in WASM.
@@ -17,6 +25,7 @@
 use std::collections::HashMap;
 
 use crate::copycat::{Geometry, Segment, Shape};
+use crate::copycat_film as film;
 use crate::raster::{coverage, Point};
 
 /// What a region must cover (`visible`: how much of each pixel is the region's, 0..1 -- an edge pixel's fraction comes
@@ -24,6 +33,10 @@ use crate::raster::{coverage, Point};
 /// `width x height` image, row-major. Everything else must stay uncovered.
 /// How many outline candidates (polygons and paths) are refined point by point: the shortest as first fitted.
 const REFINED_OUTLINES: usize = 2;
+/// A rounded rectangle's first radii, as shares of its shorter side (a half is a stadium).
+const ROUNDED_RADII: [f64; 3] = [0.15, 0.3, 0.5];
+/// How much worse (in pixels of misfit) a rounded rectangle may fit than the shape it replaces.
+const ROUNDED_TOLERANCE: f64 = 1.0;
 
 pub struct Target<'a> {
     pub width: usize,
@@ -74,6 +87,17 @@ impl Costs {
         };
         self.type_bits + self.coord_bits * coords as f64
     }
+
+    /// A smooth closed spline through `knots` points: a shape type, a "smooth" flag, the count, and each knot. Its
+    /// tangents follow from the neighbouring knots, so they cost nothing.
+    pub fn spline_bits(&self, knots: usize) -> f64 {
+        2.0 * self.type_bits + self.coord_bits * (2 * knots + 1) as f64
+    }
+
+    /// A rounded rectangle: a shape type, its box and its corners' radius.
+    pub fn rounded_bits(&self) -> f64 {
+        self.type_bits + self.coord_bits * 5.0
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +105,12 @@ pub struct Fit {
     pub geometry: Geometry,
     pub model_bits: f64,
     pub misfit_bits: f64,
+    /// For a smooth closed spline, its knots: `geometry` is the cubics they imply, and the description is the knots.
+    pub knots: Option<Vec<Point>>,
+    /// Whether those knots are drawn by `tight_spline`, not `spline`.
+    pub tight: bool,
+    /// For a rounded rectangle, `[x, y, width, height, r]`: `geometry` is its path, and the description is the five.
+    pub rounded: Option<[f64; 5]>,
 }
 
 impl Fit {
@@ -144,6 +174,35 @@ impl Target<'_> {
             misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
             model_bits: costs.model_bits(&geometry),
             geometry,
+            knots: None,
+            tight: false,
+            rounded: None,
+        }
+    }
+
+    /// A smooth closed spline through `knots`: drawn as the cubics they imply, described by the knots alone.
+    fn score_spline(&self, knots: Vec<Point>, tight: bool, costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = if tight { tight_spline(&knots) } else { spline(&knots) };
+        Fit {
+            misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+            model_bits: costs.spline_bits(knots.len()),
+            geometry,
+            knots: Some(knots),
+            tight,
+            rounded: None,
+        }
+    }
+
+    /// A rectangle with round corners: drawn as its path, described by its box and radius.
+    fn score_rounded(&self, p: [f64; 5], costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = rounded_rect(p);
+        Fit {
+            misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+            model_bits: costs.rounded_bits(),
+            geometry,
+            knots: None,
+            tight: false,
+            rounded: Some(p),
         }
     }
 
@@ -205,27 +264,61 @@ impl Target<'_> {
 
     /// The shortest description of this region among every candidate. None if the region is empty.
     pub fn fit(&self, costs: &Costs) -> Option<Fit> {
+        self.fit_from(costs, false)
+    }
+
+    /// `fit`, with the visible outline as it is among the candidates, beside the one completed under what is free. Where
+    /// free pixels lie in the concave side of a part, completing it makes a worse outline than none. But the visible
+    /// outline is a crescent where a whole part would be, so this is only for when that is far shorter.
+    /// None if nothing was completed, when it is `fit` again.
+    pub fn fit_visible(&self, costs: &Costs) -> Option<Fit> {
+        if self.completed().as_slice() == self.visible {
+            return None;
+        }
+        self.fit_from(costs, true)
+    }
+
+    fn fit_from(&self, costs: &Costs, visible: bool) -> Option<Fit> {
         let mut candidates: Vec<Geometry> = Vec::new();
+        let mut knot_sets: Vec<Vec<Point>> = Vec::new();
+        let mut fitted_knots: Vec<Vec<Point>> = Vec::new();
         let edge = self.true_edge();
         if edge.len() >= 6 {
             candidates.extend(fit_circle(&edge));
             candidates.extend(fit_ellipse(&edge));
             candidates.extend(edge_rect(&edge));
         }
+        let mut boxes: Vec<Geometry> = candidates
+            .iter()
+            .filter(|g| matches!(g, Geometry::Rect { .. }))
+            .cloned()
+            .collect();
         let completed = self.completed();
-        if let Some(loop_) = largest_contour(&completed, self.width, self.height) {
-            candidates.extend(mask_rect(&completed, self.width));
+        candidates.extend(mask_rect(&completed, self.width));
+        boxes.extend(mask_rect(&completed, self.width));
+        let mut loops: Vec<_> = largest_contour(&completed, self.width, self.height)
+            .into_iter()
+            .collect();
+        if visible && completed.as_slice() != self.visible {
+            loops.extend(largest_contour(self.visible, self.width, self.height));
+        }
+        for loop_ in &loops {
             for tolerance in [0.7, 1.5, 3.0] {
-                let polygon = simplify_closed(&loop_, tolerance);
+                let polygon = simplify_closed(loop_, tolerance);
                 if polygon.len() >= 3 {
                     candidates.push(Geometry::Polygon(polygon));
                 }
             }
             for tolerance in [0.4, 0.8, 1.6] {
-                if let Some(path) = bezier_path(&loop_, tolerance) {
+                if let Some(path) = bezier_path(loop_, tolerance) {
                     candidates.push(path);
                 }
             }
+            knot_sets.extend(SPLINE_KNOTS.iter().filter_map(|&k| knots_along(loop_, k)));
+            // fitted to the true edge where there is enough of it: a hidden part's outline along its occluders and its
+            // completed hull is not its own
+            let to: &[Point] = if edge.len() >= 12 { &edge } else { loop_ };
+            fitted_knots.extend(FITTED_KNOTS.filter_map(|k| fit_knots(loop_, to, k)));
         }
         // Every primitive is refined (a few numbers each); of the outlines, only the REFINED_OUTLINES shortest as
         // fitted, since refining one costs two scores per point per step.
@@ -236,18 +329,179 @@ impl Target<'_> {
             .partition(|fit| matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_)));
         outlines.sort_by(|a, b| a.bits().total_cmp(&b.bits()));
         outlines.truncate(REFINED_OUTLINES);
-        primitives
+        // and the shortest spline as fitted, of each start: a spline's evenly spaced knots are rough, so it rarely leads
+        // before refinement, and the least-squares knots, though closer, can refine to a worse one
+        let splines = knot_sets
+            .into_iter()
+            .map(|knots| self.score_spline(knots, false, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        let fitted = fitted_knots
+            .into_iter()
+            .map(|knots| self.score_spline(knots, false, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        let others = primitives
             .into_iter()
             .chain(outlines)
+            .chain(splines)
             .map(|fit| self.refine(fit, costs, uncovered))
-            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        // a least-squares spline follows a noisy edge's noise too, so on a noisy image it must win by a margin
+        let fitted = fitted.map(|fit| self.refine(fit, costs, uncovered));
+        let margin = FITTED_GAIN * costs.outline_gain;
+        let best = match (others, fitted) {
+            (Some(o), Some(f)) => Some(if f.bits() + margin < o.bits() { f } else { o }),
+            (o, f) => o.or(f),
+        };
+        // a rounded rectangle from each box, at a few radii: refined, its radius finds its own size
+        let rounded = boxes
+            .into_iter()
+            .flat_map(|b| {
+                let Geometry::Rect { x, y, width, height } = b else {
+                    unreachable!()
+                };
+                ROUNDED_RADII
+                    .map(|share| self.score_rounded([x, y, width, height, share * width.min(height)], costs, uncovered))
+            })
+            .map(|fit| self.refine(fit, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()));
+        film::fitted();
+        match (best, rounded) {
+            (Some(b), Some(r)) => Some(if rounded_wins(&r, &b, costs) { r } else { b }),
+            (b, r) => b.or(r),
+        }
     }
 
-    /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points --
-    /// then, for a polygon, deleting the vertex that costs least to lose, kept if the descent from there is shorter.
+    /// `fit` drawn as a tight spline, if that is shorter and no further off. Only for a part's final shape: with its
+    /// knots free to crowd, it is flexible enough to make a bad `join` or cut look good, were it used to compare them.
+    pub fn tightened(&self, fit: Fit, costs: &Costs) -> Fit {
+        let completed = self.completed();
+        let Some(loop_) = largest_contour(&completed, self.width, self.height) else {
+            return fit;
+        };
+        let uncovered = self.uncovered();
+        // where the outline bends, and evenly, and fitted to the true edge
+        let edge = self.true_edge();
+        let to: &[Point] = if edge.len() >= 12 { &edge } else { &loop_ };
+        let starts = [0.7, 1.5, 3.0]
+            .map(|tolerance| simplify_closed(&loop_, tolerance))
+            .into_iter()
+            .filter(|knots| knots.len() >= 3)
+            .chain(SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)))
+            .chain(FITTED_KNOTS.filter_map(|k| fit_knots(&loop_, to, k)))
+            .chain(fit.knots.clone());
+        let Some(tight) = starts
+            .map(|knots| self.score_spline(knots, true, costs, uncovered))
+            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+        else {
+            return fit;
+        };
+        let tight = self.refine(tight, costs, uncovered);
+        if tight.bits() + FITTED_GAIN * costs.outline_gain < fit.bits() && tight.misfit_bits <= fit.misfit_bits {
+            tight
+        } else {
+            fit
+        }
+    }
+
+    /// `fit` with holes cut in it: each gap the shape covers that is neither the region nor free -- enclosed by the
+    /// shape, `MIN_HOLE` pixels or more -- is fitted as a region of its own (what it must cover is what the region
+    /// doesn't, inside the shape) and drawn as a subpath winding the other way, so the non-zero rule leaves it empty.
+    /// A hole is described by its own shape, after the outer one's, and kept while the whole is shorter. Largest
+    /// first.
+    pub fn with_holes(&self, fit: Fit, costs: &Costs) -> Fit {
+        let (w, h) = (self.width, self.height);
+        let outer = Shape {
+            geometry: fit.geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = coverage(&outer.outline(), w, h);
+        let mut covered = vec![0.0; w * h];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                covered[(mask.y0 + my) * w + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let gap: Vec<bool> = (0..w * h)
+            .map(|i| covered[i] >= 0.5 && !self.inside(i) && !self.free[i])
+            .collect();
+        let mut holes = gaps(&gap, &covered, w, h);
+        holes.sort_by_key(|pixels| std::cmp::Reverse(pixels.len()));
+        let uncovered = self.uncovered();
+        let nothing_free = vec![false; w * h];
+        let outer_bits = fit.model_bits;
+        film::cutting(&fit);
+        let mut best = fit;
+        let mut cut: Vec<Fit> = Vec::new();
+        for pixels in holes {
+            // what the hole must cover: the gap and its blurred rim, as the fraction that isn't the region's
+            let mut near = vec![false; w * h];
+            for &i in &pixels {
+                let (x, y) = ((i % w) as i64, (i / w) as i64);
+                for dy in -HOLE_RIM..=HOLE_RIM {
+                    for dx in -HOLE_RIM..=HOLE_RIM {
+                        if let Some(j) = self.at(x + dx, y + dy) {
+                            near[j] = true;
+                        }
+                    }
+                }
+            }
+            // a part above covers its pixels only as well as its own shape fits them: a hole reaching under it would show
+            // the background through any gap, so a hole is held to the gap itself
+            let visible: Vec<f64> = (0..w * h)
+                .map(|i| {
+                    if near[i] && covered[i] >= 0.5 && !self.free[i] {
+                        1.0 - self.visible[i]
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            let target = Target {
+                width: w,
+                height: h,
+                visible: &visible,
+                free: &nothing_free,
+            };
+            film::pause();
+            let hole = target.fit(costs);
+            film::resume();
+            let Some(hole) = hole else { continue };
+            let mut trial = cut.clone();
+            trial.push(hole);
+            let geometry = punched(&outer.geometry, &trial);
+            let model_bits =
+                outer_bits + costs.type_bits * trial.len() as f64 + trial.iter().map(|f| f.model_bits).sum::<f64>();
+            let candidate = Fit {
+                misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
+                model_bits,
+                geometry,
+                knots: None,
+                tight: false,
+                rounded: None,
+            };
+            if candidate.bits() < best.bits() {
+                cut = trial;
+                best = candidate;
+                film::step(&best);
+            }
+        }
+        best
+    }
+
+    /// Coordinate descent on a shape's numbers -- a primitive's parameters, a polygon's vertices, a path's points, a
+    /// spline's knots -- then, for a polygon or a spline, deleting the point that costs least to lose, kept unless the
+    /// descent from there is longer by `outline_gain` or more.
     fn refine(&self, fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
+        film::attempt(&fit);
         let mut fit = self.descend(fit, costs, uncovered);
-        while let Geometry::Polygon(points) = &fit.geometry {
+        loop {
+            let (points, is_spline) = match (&fit.knots, &fit.geometry) {
+                (Some(knots), _) => (knots, true),
+                (None, Geometry::Polygon(points)) => (points, false),
+                _ => break,
+            };
             if points.len() <= 3 {
                 break;
             }
@@ -255,14 +509,23 @@ impl Target<'_> {
                 .map(|i| {
                     let mut rest = points.clone();
                     rest.remove(i);
-                    self.score(Geometry::Polygon(rest), costs, uncovered)
+                    if is_spline {
+                        self.score_spline(rest, fit.tight, costs, uncovered)
+                    } else {
+                        self.score(Geometry::Polygon(rest), costs, uncovered)
+                    }
                 })
                 .min_by(|a, b| a.bits().total_cmp(&b.bits()))
             else {
                 break;
             };
+            let mark = film::mark();
+            film::step(&fewer);
             let fewer = self.descend(fewer, costs, uncovered);
-            if fewer.bits() >= fit.bits() {
+            // a point stays only if it saves what a move of it must: on a noisy image, one that pays for itself by
+            // less is following the noise
+            if fewer.bits() >= fit.bits() + costs.outline_gain {
+                film::rewind(mark);
                 break;
             }
             fit = fewer;
@@ -273,7 +536,11 @@ impl Target<'_> {
     /// Each number nudged by 0.5, 0.25 and 0.1 px while that shortens the description (by `outline_gain` bits, for a
     /// polygon's or path's points).
     fn descend(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
-        let mut p = params(&fit.geometry);
+        let mut p = match (&fit.knots, &fit.rounded) {
+            (Some(knots), _) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
+            (_, Some(rounded)) => rounded.to_vec(),
+            _ => params(&fit.geometry),
+        };
         let outline = matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_));
         let min_gain = if outline { costs.outline_gain.max(1e-9) } else { 1e-9 };
         for step in [0.5, 0.25, 0.1] {
@@ -283,9 +550,19 @@ impl Target<'_> {
                     for sign in [1.0, -1.0] {
                         let mut q = p.clone();
                         q[k] += sign * step;
-                        let candidate = self.score(with_params(&fit.geometry, &q), costs, uncovered);
+                        let candidate = match (&fit.knots, &fit.rounded) {
+                            (Some(knots), _) => self.score_spline(
+                                (0..knots.len()).map(|i| (q[2 * i], q[2 * i + 1])).collect(),
+                                fit.tight,
+                                costs,
+                                uncovered,
+                            ),
+                            (_, Some(_)) => self.score_rounded([q[0], q[1], q[2], q[3], q[4]], costs, uncovered),
+                            _ => self.score(with_params(&fit.geometry, &q), costs, uncovered),
+                        };
                         if candidate.bits() < fit.bits() - min_gain {
                             fit = candidate;
+                            film::step(&fit);
                             p = q;
                             improved = true;
                         }
@@ -300,8 +577,379 @@ impl Target<'_> {
     }
 }
 
+/// How many knots a spline candidate starts with, spaced evenly along the contour.
+const SPLINE_KNOTS: [usize; 4] = [4, 5, 6, 8];
+
+/// The weights a point of a closed spline's segment at `t` puts on the segment's four knots (the one before, its two
+/// ends, the one after): the Bernstein weights of `spline`'s cubic, its control points written in the knots.
+fn spline_weights(t: f64) -> [f64; 4] {
+    let s = 1.0 - t;
+    let b = [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t];
+    [
+        -b[1] / 6.0,
+        b[0] + b[1] + b[2] / 6.0,
+        b[1] / 6.0 + b[2] + b[3],
+        -b[2] / 6.0,
+    ]
+}
+
+/// The `k` knots whose spline is closest to the points `to` (in any order), by least squares: each point is given the
+/// nearest point of the current spline (a segment and a `t`), which makes it a fixed mix of four knots, and its
+/// distance from there is measured mostly across the curve (tangent-distance minimization), so the knots solve a
+/// linear system; repeated from knots spaced evenly along `loop_`. None if the loop is too short or the system
+/// singular.
+fn fit_knots(loop_: &[Point], to: &[Point], k: usize) -> Option<Vec<Point>> {
+    // where on the curve each point starts its search; a ternary search then places it between samples
+    const SAMPLES: usize = 12;
+    let mut knots = knots_along(loop_, k)?;
+    let step = to.len().div_ceil(240).max(1);
+    let points: Vec<Point> = to.iter().step_by(step).copied().collect();
+    let position = |knots: &[Point], i: usize, t: f64| {
+        let w = spline_weights(t);
+        (0..4).fold((0.0, 0.0), |acc, j| add(acc, scale(knots[(i + k + j - 1) % k], w[j])))
+    };
+    for _ in 0..SPLINE_ROUNDS {
+        let curve: Vec<(usize, f64, Point)> = (0..k)
+            .flat_map(|i| (0..SAMPLES).map(move |s| (i, s as f64 / SAMPLES as f64)))
+            .map(|(i, t)| (i, t, position(&knots, i, t)))
+            .collect();
+        // unknowns: x0, y0, x1, y1, ...
+        let mut ata = vec![vec![0.0; 2 * k]; 2 * k];
+        let mut atb = vec![0.0; 2 * k];
+        for &p in &points {
+            let &(i, t, _) = curve
+                .iter()
+                .min_by(|a, b| length(sub(a.2, p)).total_cmp(&length(sub(b.2, p))))?;
+            // then to a fraction of a sample, by ternary search between its neighbours
+            let (mut lo, mut hi) = ((t - 1.0 / SAMPLES as f64).max(0.0), (t + 1.0 / SAMPLES as f64).min(1.0));
+            for _ in 0..12 {
+                let (a, b) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                if length(sub(position(&knots, i, a), p)) < length(sub(position(&knots, i, b), p)) {
+                    hi = b;
+                } else {
+                    lo = a;
+                }
+            }
+            let t = (lo + hi) / 2.0;
+            let tangent = unit(sub(
+                position(&knots, i, (t + 1e-3).min(1.0)),
+                position(&knots, i, (t - 1e-3).max(0.0)),
+            ));
+            let normal = (-tangent.1, tangent.0);
+            let w = spline_weights(t);
+            for (u, weight) in [(normal, 1.0), (tangent, TANGENT_WEIGHT)] {
+                let row: Vec<(usize, f64)> = (0..4)
+                    .flat_map(|j| {
+                        let kj = (i + k + j - 1) % k;
+                        [(2 * kj, w[j] * u.0), (2 * kj + 1, w[j] * u.1)]
+                    })
+                    .collect();
+                let target = dot(u, p);
+                for &(a, va) in &row {
+                    atb[a] += weight * va * target;
+                    for &(b, vb) in &row {
+                        ata[a][b] += weight * va * vb;
+                    }
+                }
+            }
+        }
+        let x = solve_dense(ata, atb)?;
+        knots = (0..k).map(|j| (x[2 * j], x[2 * j + 1])).collect();
+    }
+    Some(knots)
+}
+
+/// Gaussian elimination with partial pivoting. None if singular.
+fn solve_dense(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
+    let n = b.len();
+    for c in 0..n {
+        let pivot = (c..n).max_by(|&x, &y| a[x][c].abs().total_cmp(&a[y][c].abs()))?;
+        if a[pivot][c].abs() < 1e-9 {
+            return None;
+        }
+        a.swap(c, pivot);
+        b.swap(c, pivot);
+        for r in c + 1..n {
+            let f = a[r][c] / a[c][c];
+            let (above, below) = a.split_at_mut(r);
+            for (x, &y) in below[0][c..].iter_mut().zip(&above[c][c..]) {
+                *x -= f * y;
+            }
+            b[r] -= f * b[c];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for r in (0..n).rev() {
+        let v: f64 = b[r] - (r + 1..n).map(|j| a[r][j] * x[j]).sum::<f64>();
+        x[r] = v / a[r][r];
+    }
+    Some(x)
+}
+
+/// How a point's distance along the spline's tangent counts against its distance across it, in `fit_knots`: a point
+/// sliding along the curve is mostly the assignment's error, not the knots', and counting it fully (plain projection)
+/// is what makes the knots creep there slowly. Some weight keeps the system from going singular.
+const TANGENT_WEIGHT: f64 = 0.05;
+
+/// How many times `fit_knots` re-assigns the points and solves again.
+const SPLINE_ROUNDS: usize = 6;
+/// A least-squares spline must be shorter than every other candidate by this many outline moves' worth of bits
+/// (`Costs::outline_gain`, zero on a clean image).
+const FITTED_GAIN: f64 = 3.0;
+/// The knot counts a least-squares spline candidate is fitted with.
+const FITTED_KNOTS: std::ops::RangeInclusive<usize> = 4..=8;
+
+/// `k` points spaced evenly along a closed loop (by length). None if the loop is too short to hold them.
+fn knots_along(loop_: &[Point], k: usize) -> Option<Vec<Point>> {
+    if loop_.len() < 2 * k {
+        return None;
+    }
+    let n = loop_.len();
+    let mut cumulative = Vec::with_capacity(n + 1);
+    cumulative.push(0.0);
+    for i in 0..n {
+        let last = cumulative[i];
+        cumulative.push(last + length(sub(loop_[(i + 1) % n], loop_[i])));
+    }
+    let total = cumulative[n];
+    let mut out = Vec::with_capacity(k);
+    let mut i = 0;
+    for j in 0..k {
+        let at = total * j as f64 / k as f64;
+        while cumulative[i + 1] < at {
+            i += 1;
+        }
+        let span = cumulative[i + 1] - cumulative[i];
+        let t = if span > 0.0 { (at - cumulative[i]) / span } else { 0.0 };
+        out.push(add(loop_[i], scale(sub(loop_[(i + 1) % n], loop_[i]), t)));
+    }
+    Some(out)
+}
+
+/// `spline`, with each handle a third of its own segment's length, along that same tangent. Evenly spaced knots draw
+/// about the same; unevenly spaced ones, packed where the outline bends, don't overshoot.
+pub fn tight_spline(knots: &[Point]) -> Geometry {
+    let k = knots.len();
+    let unit = |v: Point| {
+        let l = length(v);
+        if l > 0.0 {
+            scale(v, 1.0 / l)
+        } else {
+            (0.0, 0.0)
+        }
+    };
+    let mut segments = vec![Segment::Move(knots[0])];
+    for i in 0..k {
+        let (p0, p1, p2, p3) = (knots[(i + k - 1) % k], knots[i], knots[(i + 1) % k], knots[(i + 2) % k]);
+        let handle = length(sub(p2, p1)) / 3.0;
+        segments.push(Segment::Cubic(
+            add(p1, scale(unit(sub(p2, p0)), handle)),
+            sub(p2, scale(unit(sub(p3, p1)), handle)),
+            p2,
+        ));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
+}
+
+/// Whether a rounded rectangle replaces the best other fit: it must be shorter, and no more than `ROUNDED_TOLERANCE`
+/// pixels further off. Five numbers cover most blobs roughly, so by being short alone it would square them off.
+fn rounded_wins(rounded: &Fit, best: &Fit, costs: &Costs) -> bool {
+    rounded.bits() < best.bits() && rounded.misfit_bits <= best.misfit_bits + ROUNDED_TOLERANCE * costs.pixel_bits
+}
+
+/// The rectangle `[x, y, width, height, r]` with its corners rounded by quarter circles of radius `r` (as cubics),
+/// clamped to half the shorter side; sizes stay at least half a pixel. A radius of half the shorter side is a stadium.
+pub fn rounded_rect(p: [f64; 5]) -> Geometry {
+    let [x, y, w, h, r] = p;
+    let (w, h) = (w.max(0.5), h.max(0.5));
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    // a quarter circle's control points lie this far along its tangents
+    let k = r * (1.0 - 0.552_284_749_8);
+    let (x1, y1) = (x + w, y + h);
+    Geometry::Path(vec![
+        Segment::Move((x + r, y)),
+        Segment::Line((x1 - r, y)),
+        Segment::Cubic((x1 - k, y), (x1, y + k), (x1, y + r)),
+        Segment::Line((x1, y1 - r)),
+        Segment::Cubic((x1, y1 - k), (x1 - k, y1), (x1 - r, y1)),
+        Segment::Line((x + r, y1)),
+        Segment::Cubic((x + k, y1), (x, y1 - k), (x, y1 - r)),
+        Segment::Line((x, y + r)),
+        Segment::Cubic((x, y + k), (x + k, y), (x + r, y)),
+        Segment::Close,
+    ])
+}
+
+/// The closed Catmull-Rom spline through `knots`, as cubics: each knot's tangent is a sixth of the chord between its
+/// neighbours, so the curve is smooth everywhere and says nothing the knots don't.
+pub fn spline(knots: &[Point]) -> Geometry {
+    let k = knots.len();
+    let mut segments = vec![Segment::Move(knots[0])];
+    for i in 0..k {
+        let (p0, p1, p2, p3) = (knots[(i + k - 1) % k], knots[i], knots[(i + 1) % k], knots[(i + 2) % k]);
+        segments.push(Segment::Cubic(
+            add(p1, scale(sub(p2, p0), 1.0 / 6.0)),
+            sub(p2, scale(sub(p3, p1), 1.0 / 6.0)),
+            p2,
+        ));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
+}
+
+/// The fewest pixels a gap must have to be fitted as a hole, and how far (px) around it a hole may reach for its rim.
+const MIN_HOLE: usize = 6;
+const HOLE_RIM: i64 = 2;
+
+/// 4-connected components of `gap` that the shape encloses: every neighbour outside the component is covered (no
+/// pixel of it on the image's edge), with `MIN_HOLE` pixels or more and an inside.
+fn gaps(gap: &[bool], covered: &[f64], w: usize, h: usize) -> Vec<Vec<usize>> {
+    let mut seen = vec![false; w * h];
+    let mut out = Vec::new();
+    for start in 0..w * h {
+        if !gap[start] || seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut queue = std::collections::VecDeque::from([start]);
+        let (mut pixels, mut enclosed) = (Vec::new(), true);
+        while let Some(i) = queue.pop_front() {
+            pixels.push(i);
+            let (x, y) = (i % w, i / w);
+            if x == 0 || y == 0 || x + 1 == w || y + 1 == h {
+                enclosed = false;
+            }
+            let mut next = Vec::with_capacity(4);
+            if x > 0 {
+                next.push(i - 1);
+            }
+            if x + 1 < w {
+                next.push(i + 1);
+            }
+            if y > 0 {
+                next.push(i - w);
+            }
+            if y + 1 < h {
+                next.push(i + w);
+            }
+            for j in next {
+                if gap[j] {
+                    if !seen[j] {
+                        seen[j] = true;
+                        queue.push_back(j);
+                    }
+                } else if covered[j] < 0.5 {
+                    enclosed = false;
+                }
+            }
+        }
+        // an inside: some pixel with all four neighbours in the gap (a blurred band along a part above has none)
+        let thick = pixels.iter().any(|&i| {
+            let (x, y) = (i % w, i / w);
+            x > 0 && y > 0 && x + 1 < w && y + 1 < h && [i - 1, i + 1, i - w, i + w].iter().all(|&j| gap[j])
+        });
+        if enclosed && thick && pixels.len() >= MIN_HOLE {
+            out.push(pixels);
+        }
+    }
+    out
+}
+
+/// One closed outline as path segments: a primitive's (a rect's four lines, a circle's or ellipse's four Béziers), a
+/// polygon's, or the path's own.
+fn segments_of(geometry: &Geometry) -> Vec<Segment> {
+    let lines = |points: &[Point]| {
+        let mut out = vec![Segment::Move(points[0])];
+        out.extend(points[1..].iter().map(|&p| Segment::Line(p)));
+        out.push(Segment::Close);
+        out
+    };
+    match *geometry {
+        Geometry::Rect { x, y, width, height } => {
+            lines(&[(x, y), (x + width, y), (x + width, y + height), (x, y + height)])
+        }
+        Geometry::Circle { cx, cy, r } => ellipse_segments(cx, cy, r, r),
+        Geometry::Ellipse { cx, cy, rx, ry } => ellipse_segments(cx, cy, rx, ry),
+        Geometry::Polygon(ref points) => lines(points),
+        Geometry::Path(ref segments) => segments.clone(),
+    }
+}
+
+/// `raster::ellipse`'s four Béziers, as segments.
+fn ellipse_segments(cx: f64, cy: f64, rx: f64, ry: f64) -> Vec<Segment> {
+    const K: f64 = 0.552_284_749_830_793_4;
+    let (kx, ky) = (K * rx, K * ry);
+    vec![
+        Segment::Move((cx + rx, cy)),
+        Segment::Cubic((cx + rx, cy + ky), (cx + kx, cy + ry), (cx, cy + ry)),
+        Segment::Cubic((cx - kx, cy + ry), (cx - rx, cy + ky), (cx - rx, cy)),
+        Segment::Cubic((cx - rx, cy - ky), (cx - kx, cy - ry), (cx, cy - ry)),
+        Segment::Cubic((cx + kx, cy - ry), (cx + rx, cy - ky), (cx + rx, cy)),
+        Segment::Close,
+    ]
+}
+
+/// One closed subpath traced the other way round: the same points, each segment from its end to its start.
+fn reversed(segments: &[Segment]) -> Vec<Segment> {
+    let Some(&Segment::Move(start)) = segments.first() else {
+        return segments.to_vec();
+    };
+    // each drawn segment with the point it starts from; the close is a line back to the start
+    let mut edges: Vec<(Point, Segment)> = Vec::new();
+    let mut at = start;
+    for segment in &segments[1..] {
+        let end = match *segment {
+            Segment::Line(p) | Segment::Quad(_, p) | Segment::Cubic(_, _, p) => p,
+            Segment::Move(_) | Segment::Close => continue,
+        };
+        edges.push((at, segment.clone()));
+        at = end;
+    }
+    if at != start {
+        edges.push((at, Segment::Line(start)));
+    }
+    let mut out = vec![Segment::Move(start)];
+    for (from, segment) in edges.into_iter().rev() {
+        out.push(match segment {
+            Segment::Line(_) => Segment::Line(from),
+            Segment::Quad(c, _) => Segment::Quad(c, from),
+            Segment::Cubic(c1, c2, _) => Segment::Cubic(c2, c1, from),
+            other => other,
+        });
+    }
+    out.push(Segment::Close);
+    out
+}
+
+/// The outline's signed area, from its flattened polylines.
+fn winding_area(segments: &[Segment]) -> f64 {
+    let shape = Shape {
+        geometry: Geometry::Path(segments.to_vec()),
+        fill: [0, 0, 0],
+        opacity: 1.0,
+        group: None,
+    };
+    shape.outline().iter().map(|polyline| signed_area(polyline)).sum()
+}
+
+/// `outer` with each hole as a subpath winding against it.
+fn punched(outer: &Geometry, holes: &[Fit]) -> Geometry {
+    let mut segments = segments_of(outer);
+    let sign = winding_area(&segments).signum();
+    for hole in holes {
+        let own = segments_of(&hole.geometry);
+        segments.extend(if winding_area(&own).signum() == sign {
+            reversed(&own)
+        } else {
+            own
+        });
+    }
+    Geometry::Path(segments)
+}
+
 /// A shape's numbers, in a fixed order: a primitive's parameters, or every point of a polygon or path.
-fn params(geometry: &Geometry) -> Vec<f64> {
+pub(crate) fn params(geometry: &Geometry) -> Vec<f64> {
     match geometry {
         Geometry::Circle { cx, cy, r } => vec![*cx, *cy, *r],
         Geometry::Ellipse { cx, cy, rx, ry } => vec![*cx, *cy, *rx, *ry],
@@ -323,7 +971,7 @@ fn params(geometry: &Geometry) -> Vec<f64> {
 }
 
 /// `geometry` with its numbers replaced by `p` (same order as `params`); sizes stay at least half a pixel.
-fn with_params(geometry: &Geometry, p: &[f64]) -> Geometry {
+pub(crate) fn with_params(geometry: &Geometry, p: &[f64]) -> Geometry {
     match geometry {
         Geometry::Circle { .. } => Geometry::Circle {
             cx: p[0],
@@ -628,6 +1276,53 @@ pub fn largest_contour(mask: &[f64], width: usize, height: usize) -> Option<Vec<
         }
     }
     best.map(|b| b.1)
+}
+
+/// A closed loop's notches, deepest first: where it is furthest inside its convex hull, one point (the deepest) per run
+/// of points more than `depth` inside. Two overlapping convex shapes' union has a notch at each crossing of their
+/// outlines.
+pub fn notches(loop_: &[Point], depth: f64) -> Vec<usize> {
+    let hull = convex_hull(loop_.to_vec());
+    if hull.len() < 3 {
+        return Vec::new();
+    }
+    let inset: Vec<f64> = loop_
+        .iter()
+        .map(|&p| {
+            (0..hull.len())
+                .map(|k| distance_to_segment(p, hull[k], hull[(k + 1) % hull.len()]))
+                .fold(f64::INFINITY, f64::min)
+        })
+        .collect();
+    // start the walk at a point on the hull, so no run wraps round the end
+    let Some(start) = (0..loop_.len()).min_by(|&a, &b| inset[a].total_cmp(&inset[b])) else {
+        return Vec::new();
+    };
+    let mut out: Vec<usize> = Vec::new();
+    let mut run: Option<usize> = None;
+    for step in 0..=loop_.len() {
+        let i = (start + step) % loop_.len();
+        if inset[i] > depth {
+            run = Some(run.map_or(i, |r| if inset[i] > inset[r] { i } else { r }));
+        } else if let Some(r) = run.take() {
+            out.push(r);
+        }
+    }
+    out.sort_by(|&a, &b| inset[b].total_cmp(&inset[a]));
+    out
+}
+
+/// Whether `p` is inside the closed polygon `points` (even-odd).
+pub fn inside_polygon(p: Point, points: &[Point]) -> bool {
+    let n = points.len();
+    let mut inside = false;
+    for k in 0..n {
+        let (a, b) = (points[k], points[(k + 1) % n]);
+        if (a.1 > p.1) != (b.1 > p.1) && p.0 < a.0 + (p.1 - a.1) / (b.1 - a.1) * (b.0 - a.0) {
+            inside = !inside;
+        }
+    }
+    inside
 }
 
 fn signed_area(points: &[Point]) -> f64 {
@@ -991,6 +1686,54 @@ mod tests {
     }
 
     #[test]
+    fn a_thin_curved_part_is_shorter_as_seen_than_completed() {
+        // a thin arc whose concave side is half free: completing it follows the free pixels' jagged edge
+        let (w, h) = (96usize, 96usize);
+        let at = |i: usize| ((i % w) as f64 + 0.5 - 48.0, (i / h) as f64 + 0.5 - 88.0);
+        let visible: Vec<f64> = (0..w * h)
+            .map(|i| {
+                let (x, y) = at(i);
+                let r = (x * x + y * y).sqrt();
+                if (70.0..78.0).contains(&r) && y < -25.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let free: Vec<bool> = (0..w * h)
+            .map(|i| {
+                let (x, y) = at(i);
+                let r = (x * x + y * y).sqrt();
+                r < 70.0 && y < -25.0 && ((x + 96.0) as usize / 6).is_multiple_of(2)
+            })
+            .collect();
+        let target = Target {
+            width: w,
+            height: h,
+            visible: &visible,
+            free: &free,
+        };
+        let costs = Costs::new(96, 96, 12.0);
+        let (completed, as_seen) = (target.fit(&costs).unwrap(), target.fit_visible(&costs).unwrap());
+        assert!(
+            as_seen.bits() < completed.bits(),
+            "{} {}",
+            as_seen.bits(),
+            completed.bits()
+        );
+        // and with nothing free there is nothing to complete
+        let none = vec![false; w * h];
+        let whole = Target {
+            width: w,
+            height: h,
+            visible: &visible,
+            free: &none,
+        };
+        assert!(whole.fit_visible(&costs).is_none());
+    }
+
+    #[test]
     fn a_hidden_part_completes_itself() {
         // a disk with its lower right covered by a square above it: the free pixels let the whole circle win
         let full = disk(48, 48, 20.0, 20.0, 12.0);
@@ -1066,6 +1809,201 @@ mod tests {
                 .map(|&p| length(sub(p, corner)))
                 .fold(f64::INFINITY, f64::min);
             assert!(nearest < 0.3, "{corner:?} {points:?}");
+        }
+    }
+
+    #[test]
+    fn least_squares_knots_recover_a_spline() {
+        let knots = vec![(30.0, 10.0), (40.0, 28.0), (26.0, 40.0), (10.0, 30.0), (12.0, 14.0)];
+        let Geometry::Path(segments) = spline(&knots) else {
+            unreachable!()
+        };
+        let mut samples = Vec::new();
+        let mut at = knots[0];
+        for segment in &segments {
+            if let Segment::Cubic(c1, c2, end) = *segment {
+                let cubic = [at, c1, c2, end];
+                samples.extend((0..40).map(|s| bezier(&cubic, s as f64 / 40.0)));
+                at = end;
+            }
+        }
+        let fitted = fit_knots(&samples, &samples, 5).unwrap();
+        // every sample within a tenth of a pixel of the fitted spline
+        let Geometry::Path(fitted_segments) = spline(&fitted) else {
+            unreachable!()
+        };
+        let mut curve = Vec::new();
+        let mut at = fitted[0];
+        for segment in &fitted_segments {
+            if let Segment::Cubic(c1, c2, end) = *segment {
+                let cubic = [at, c1, c2, end];
+                curve.extend((0..400).map(|s| bezier(&cubic, s as f64 / 400.0)));
+                at = end;
+            }
+        }
+        let worst = samples
+            .iter()
+            .map(|p| curve.iter().map(|c| length(sub(*c, *p))).fold(f64::INFINITY, f64::min))
+            .fold(0.0, f64::max);
+        assert!(worst < 0.1, "{worst} px: {knots:?} vs {fitted:?}");
+    }
+
+    #[test]
+    fn a_smooth_blob_is_described_as_a_spline() {
+        // the closed spline through five knots, anti-aliased: its knots say it more briefly than cubics or a polygon
+        let knots = vec![(24.0, 6.3), (41.2, 19.0), (35.5, 40.1), (12.4, 38.2), (7.1, 17.6)];
+        let mask = coverage(
+            &Shape {
+                geometry: spline(&knots),
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            48,
+            48,
+        );
+        let mut visible = vec![0.0; 48 * 48];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 48 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 48 * 48];
+        let target = Target {
+            width: 48,
+            height: 48,
+            visible: &visible,
+            free: &free,
+        };
+        let fit = target.fit(&Costs::new(48, 48, 12.0)).unwrap();
+        let fitted = fit.knots.as_ref().unwrap_or_else(|| panic!("{:?}", fit.geometry));
+        assert_eq!(fitted.len(), 5, "{fitted:?}");
+        // knots found elsewhere on the curve can't trace it exactly: ~0.01 of a pixel per edge pixel is left over
+        assert!(target.misfit(&fit.geometry) < 2.0, "{}", target.misfit(&fit.geometry));
+    }
+
+    #[test]
+    fn a_rounded_key_is_described_as_a_rounded_rectangle() {
+        // a keyboard's key, anti-aliased: neither a rect nor a circle, and five numbers say it
+        let truth = [10.3, 12.6, 22.4, 17.2, 4.1];
+        let mask = coverage(
+            &Shape {
+                geometry: rounded_rect(truth),
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            48,
+            48,
+        );
+        let mut visible = vec![0.0; 48 * 48];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 48 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 48 * 48];
+        let target = Target {
+            width: 48,
+            height: 48,
+            visible: &visible,
+            free: &free,
+        };
+        let fit = target.fit(&Costs::new(48, 48, 12.0)).unwrap();
+        let fitted = fit.rounded.unwrap_or_else(|| panic!("{:?}", fit.geometry));
+        for (a, b) in fitted.iter().zip(truth) {
+            assert!((a - b).abs() < 0.3, "{fitted:?} vs {truth:?}");
+        }
+    }
+
+    #[test]
+    fn a_rounded_rectangle_must_fit_not_just_be_short() {
+        let costs = Costs::new(128, 128, 12.0);
+        let fit = |model_bits, misfit| Fit {
+            geometry: Geometry::Circle {
+                cx: 8.0,
+                cy: 8.0,
+                r: 4.0,
+            },
+            model_bits,
+            misfit_bits: misfit * costs.pixel_bits,
+            knots: None,
+            tight: false,
+            rounded: None,
+        };
+        let outline = fit(230.0, 2.0);
+        // far shorter, and five pixels further off: shorter overall, but a lumpy blob squared off
+        assert!(!rounded_wins(&fit(60.0, 7.0), &outline, &costs));
+        // shorter, and as close to within a pixel
+        assert!(rounded_wins(&fit(60.0, 2.5), &outline, &costs));
+        // closer, but not by enough to pay for itself
+        assert!(!rounded_wins(&fit(240.0, 1.9), &outline, &costs));
+    }
+
+    #[test]
+    fn a_mouths_tips_are_kept_by_a_tight_spline() {
+        // a frown from a real icon: long arcs, and tips about a pixel across
+        let start = (83.5, 99.1);
+        let truth = Geometry::Path(vec![
+            Segment::Move(start),
+            Segment::Cubic((83.5, 99.0), (79.4, 83.6), (64.0, 83.6)),
+            Segment::Cubic((48.6, 83.6), (44.5, 99.0), (44.5, 99.1)),
+            Segment::Cubic((44.3, 99.9), (44.7, 100.7), (45.3, 101.1)),
+            Segment::Cubic((46.0, 101.5), (46.9, 101.4), (47.4, 100.9)),
+            Segment::Cubic((47.5, 100.8), (51.0, 97.8), (64.0, 97.8)),
+            Segment::Cubic((76.8, 97.8), (80.4, 100.7), (80.6, 100.9)),
+            Segment::Cubic((80.9, 101.2), (81.3, 101.3), (81.8, 101.3)),
+            Segment::Cubic((82.1, 101.3), (82.4, 101.3), (82.7, 101.1)),
+            Segment::Cubic((83.4, 100.7), (83.7, 99.9), start),
+            Segment::Close,
+        ]);
+        let mask = coverage(
+            &Shape {
+                geometry: truth,
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            128,
+            128,
+        );
+        let mut visible = vec![0.0; 128 * 128];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 128 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+        let free = vec![false; 128 * 128];
+        let target = Target {
+            width: 128,
+            height: 128,
+            visible: &visible,
+            free: &free,
+        };
+        let costs = Costs::new(128, 128, 12.0);
+        let fit = target.fit(&costs).unwrap();
+        assert!(!fit.tight);
+        let tight = target.tightened(fit.clone(), &costs);
+        assert!(tight.tight, "{:?}", tight.geometry);
+        assert!(tight.bits() < fit.bits() && tight.misfit_bits <= fit.misfit_bits);
+    }
+
+    #[test]
+    fn a_tight_spline_on_even_knots_is_about_the_same_curve() {
+        let knots: Vec<Point> = (0..8)
+            .map(|i| {
+                let a = i as f64 * std::f64::consts::TAU / 8.0;
+                (64.0 + 30.0 * a.cos(), 64.0 + 30.0 * a.sin())
+            })
+            .collect();
+        let (even, tight) = (params(&spline(&knots)), params(&tight_spline(&knots)));
+        assert_eq!(even.len(), tight.len());
+        for (a, b) in even.iter().zip(&tight) {
+            // handles of a chord/6 = 7.07 px against a segment/3 = 7.65 px
+            assert!((a - b).abs() < 0.6, "{even:?} vs {tight:?}");
         }
     }
 

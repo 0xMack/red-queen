@@ -21,6 +21,8 @@ export interface RunMeta {
   paradigm: "evolution" | "reinforcement_learning" | "supervised"
   terms: RunTerms
   watchable: boolean
+  report: string | null // config.report: a Copy Cat report, measured rather than trained (docs/design/0023)
+  decision: string | null // config.decision: whether that report's change stays
 }
 
 // What a run's GenerationStats *mean* (docs/design/0010 Decision 3): an RL run records training iterations, episode
@@ -95,6 +97,8 @@ const REPRESENTATION_LABELS: Record<string, string> = {
   evolved_bandit: "Evolved strategy",
   // gradient descent (docs/design/0004)
   tinylm: "TinyLM",
+  // Copy Cat's reports (docs/design/0023)
+  structured_pipeline: "Structured pipeline",
 }
 
 function str(value: unknown): string | null {
@@ -126,8 +130,10 @@ export function describeRun(run: RunInfo): RunMeta {
   const paradigm =
     c.paradigm === "reinforcement_learning" || c.paradigm === "supervised" ? c.paradigm : "evolution"
 
+  const report = str(c.report)
+
   return {
-    title: `${subject} · ${representationLabel}`,
+    title: report ? `Copy Cat · ${report}` : `${subject} · ${representationLabel}`,
     game,
     representation,
     representationLabel,
@@ -146,6 +152,8 @@ export function describeRun(run: RunInfo): RunMeta {
     // Has a champion viewer (WatchChampion / CheckersWatch): every trained champion, played through its model
     // package -- not the RL pipeline's random agent, which has no policy to package.
     watchable: (game === "snake" || game === "checkers") && representation !== "random",
+    report,
+    decision: str(c.decision),
   }
 }
 

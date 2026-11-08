@@ -26,6 +26,8 @@ const PLACES: Record<string, [number, number]> = {
   "self-play": [7, 1],
   transformers: [5, 2],
   "real-time-architecture": [0, 2],
+  "tracing-images": [1, 2],
+  "earning-complexity": [2, 2],
 }
 // Stations whose label sits above rather than below (the top row, clear of the lines under it).
 const LABEL_ABOVE = new Set(["genetic-algorithms", "selection-strategies", "genome-representations", "neuroevolution", "neat", "teaching-a-snake"])

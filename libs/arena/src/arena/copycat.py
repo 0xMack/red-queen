@@ -1,7 +1,8 @@
 """Copy Cat's evaluation protocol (docs/design/0022 Decisions 2-3).
 
-Protocol `copycat.clean.v1`: every image of the checked-in held-out `synthetic` set (`arena.copycat_sets`, corrupted by
-`corrupt.v1`) goes to the entrant, an `image -> SVG` function; its SVG is read in the subset and rendered by the game
+Protocol `copycat.clean.v2`: every image of three held-out sets -- the checked-in `synthetic` set (`arena.copycat_sets`)
+and the `icons` and `broad` artwork sets (`arena.copycat_artwork`, downloaded and built on first use), each corrupted by
+`corrupt.v1` -- goes to the entrant, an `image -> SVG` function; its SVG is read in the subset and rendered by the game
 core, and scored against the *clean* SVG the image was made from -- never against the corrupted input. An output outside
 the subset (or the wrong size) is refused: scored as an empty, transparent SVG, and counted.
 
@@ -17,8 +18,12 @@ The columns, per image:
 - **smoothness**: total absolute turning angle along the flattened outlines, as a ratio to the clean SVG's;
 - **size**: the canonical serialization's bytes (time and memory are the evaluator's to measure).
 
-An entrant's summary is the mean of each column, except the ratios, which are geometric means (a 10x and a 0.1x
-average to 1x, not 5x), each ratio floored at `RATIO_FLOOR`. Changing any of that is a new protocol version.
+An entrant's summary, per set, is the mean of each column, except the ratios, which are geometric means (a 10x and a
+0.1x average to 1x, not 5x), each ratio floored at `RATIO_FLOOR`. Its overall summary is the same over the sets' summaries,
+so each set counts the same, however many images it has (120 `broad` images would otherwise outweigh 24 `synthetic`
+ones). Changing any of that is a new protocol version.
+
+`copycat.clean.v1` was the same on the `synthetic` set alone.
 """
 
 from __future__ import annotations
@@ -37,7 +42,12 @@ from PIL import Image
 from arena.copycat_sets import CORRUPTION, DATA, SEVERITIES, SPLITS
 
 GAME = "copycat"
-PROTOCOL = "copycat.clean.v1"
+# each protocol's held-out sets; the last is the latest, which the page ranks and the targets routes serve
+PROTOCOLS: dict[str, tuple[str, ...]] = {
+    "copycat.clean.v1": ("synthetic",),
+    "copycat.clean.v2": ("synthetic", "icons", "broad"),
+}
+PROTOCOL = "copycat.clean.v2"
 SET = "synthetic"
 SPLIT = "heldout"
 # An entrant reads 8-bit RGB pixels and writes an SVG in the subset (docs/design/0007's interface, observer + output).
@@ -59,16 +69,21 @@ class Target:
     png: bytes
     width: int
     height: int
+    icon: str | None = None  # an artwork set's image: the file its clean SVG came from (`copycat_artwork.family_of`)
+
+    @property
+    def set_name(self) -> str:
+        return self.id.split("/")[0]
 
     def rgba8(self) -> bytes:
         return Image.open(io.BytesIO(self.png)).convert("RGBA").tobytes()
 
 
-def load_set(split: str = SPLIT, root: Path | None = None) -> list[Target]:
-    """A split of the `synthetic` set, in seed order: the checked-in held-out images (`HELD_OUT_SEEDS`) unless `root`
-    says otherwise."""
-    held_out = root is None and split == SPLIT
-    root = root or DATA / SET / split
+def load_set(split: str = SPLIT, root: Path | None = None, set_name: str = SET) -> list[Target]:
+    """A split of a set (`synthetic` unless `set_name` says otherwise), in seed order: the checked-in held-out images
+    unless `root` says otherwise (for `synthetic`, those in `HELD_OUT_SEEDS`)."""
+    held_out = root is None and split == SPLIT and set_name == SET
+    root = root or DATA / set_name / split
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     size = manifest["size"]
     return [
@@ -81,10 +96,22 @@ def load_set(split: str = SPLIT, root: Path | None = None) -> list[Target]:
             png=(root / f"{image['seed']}.png").read_bytes(),
             width=size,
             height=size,
+            icon=image.get("icon"),
         )
         for image in manifest["images"]
         if image["corruption"] == CORRUPTION and (not held_out or image["seed"] in HELD_OUT_SEEDS)
     ]
+
+
+def held_out(protocol: str = PROTOCOL, root: Path | None = None, download: bool = True) -> list[Target]:
+    """Every image `protocol` scores, set by set, each in seed order. An artwork set is built under `root` (and downloaded
+    first if `download` says so; `arena.copycat_sets.group_targets`)."""
+    from arena.copycat_sets import group_targets
+
+    sets = PROTOCOLS[protocol]
+    if root is None and sets != (SET,):
+        raise ValueError(f"{protocol} scores artwork sets, which are built under a root: pass one")
+    return [t for set_name in sets for t in group_targets(f"{set_name}/{SPLIT}", root or DATA, download)]
 
 
 def _psnr(a: np.ndarray, b: np.ndarray) -> float:
@@ -154,9 +181,48 @@ def summarize(images: list[dict[str, Any]]) -> dict[str, float]:
     return out
 
 
+def summarize_sets(images: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+    """The overall summary and each set's (`summarize`): the overall one is each column's mean over the sets' summaries
+    (geometric for the ratios), so every set weighs the same. With one set, it is that set's."""
+    sets: dict[str, list[dict[str, Any]]] = {}
+    for image in images:
+        sets.setdefault(image["id"].split("/")[0], []).append(image)
+    by_set = {name: summarize(group) for name, group in sets.items()}
+    if len(by_set) == 1:
+        return next(iter(by_set.values())), by_set
+    out: dict[str, float] = {}
+    for column in COLUMNS:
+        values = [summary[column] for summary in by_set.values()]
+        if column in RATIOS:
+            out[column] = round(math.exp(sum(math.log(v) for v in values) / len(values)), 4)
+        else:
+            out[column] = round(sum(values) / len(values), 4)
+    out["refused"] = sum(summary["refused"] for summary in by_set.values())
+    return out, by_set
+
+
 def by_severity(images: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     return {
         severity: summarize(group)
         for severity in SEVERITIES
         if (group := [image for image in images if image["severity"] == severity])
     }
+
+
+def compare(before: dict[str, Any], after: dict[str, Any], moved: float = 0.05) -> dict[str, Any]:
+    """Two `copycat.report`s' groups: for each group in both, the means and the images that moved by more than `moved`
+    dB, largest first."""
+    groups = {}
+    for group, now in after.items():
+        if group not in before:
+            continue
+        was = before[group]["per_image"]
+        changes = {seed: round(dB - was[seed], 3) for seed, dB in now["per_image"].items() if seed in was}
+        groups[group] = {
+            "before": before[group]["mean"],
+            "after": now["mean"],
+            "up": sum(change > moved for change in changes.values()),
+            "down": sum(change < -moved for change in changes.values()),
+            "moved": dict(sorted(((s, c) for s, c in changes.items() if abs(c) > moved), key=lambda sc: -abs(sc[1]))),
+        }
+    return groups

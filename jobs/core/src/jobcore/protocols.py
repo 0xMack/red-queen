@@ -4,6 +4,8 @@ versioned in `libs/arena`; nothing here can change what its score means."""
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt
 
 from jobcore.specs import Protocol, PublishTarget, register_protocol, register_publish_target
@@ -33,6 +35,23 @@ class SprtParams(_Params):
 
 class StaticRoundRobinParams(_Params):
     games: PositiveInt = Field(200, description="Games per pairing, seats alternating.")
+
+
+class CopyCatReportParams(_Params):
+    out: str | None = Field(
+        None, description="Write the report as JSON under <data dir>/experiments/, and record it as a run."
+    )
+    baseline: str | None = Field(None, description="An earlier report's `out`, to compare with image by image.")
+    heldout: bool = Field(False, description="Also score the held-out sets: once per change, never for tuning.")
+    note: str | None = Field(None, description="What changed, kept with the report.")
+    decision: Literal["kept", "instructive", "not_kept"] | None = Field(
+        None,
+        description=(
+            "Whether the change stays, if that's known yet (its run page can mark it later). `instructive`: done "
+            "correctly, not effective, and worth showing; `not_kept` stays local."
+        ),
+    )
+    workers: PositiveInt = Field(8, description="Images traced at once.")
 
 
 class ExperimentReportParams(_Params):
@@ -77,11 +96,25 @@ for name, game, summary in (
         "copycat",
         "image -> SVG on 24 held-out synthetic images, scored against the clean SVGs, ranked by clean fidelity",
     ),
+    (
+        "copycat.clean.v2",
+        "copycat",
+        "image -> SVG on 168 held-out synthetic, icons and broad images, ranked by the mean of each set's clean fidelity",
+    ),
 ):
     register_protocol(Protocol(name, game, NoParams, "leaderboard", summary))
 register_protocol(
     Protocol(
         "checkers.sprt", "checkers", SprtParams, "report", "is A stronger than B: game pairs until the SPRT decides"
+    )
+)
+register_protocol(
+    Protocol(
+        "copycat.report",
+        "copycat",
+        CopyCatReportParams,
+        "report",
+        "the structured pipeline on train (and optionally held-out), per image, against an earlier report",
     )
 )
 register_protocol(

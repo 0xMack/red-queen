@@ -72,8 +72,10 @@ def test_records_are_put_and_pruned_through_the_api(client):
     assert len(client.get("/games/snake/leaderboard", params={"protocol": "snake.score.v0"}).json()) == 1  # untouched
 
 
-def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path):
+def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path, monkeypatch):
     from arena import copycat
+
+    monkeypatch.setenv("REDQUEEN_DATA_DIR", str(tmp_path))  # no artwork sets built: the targets are synthetic's
 
     target = copycat.load_set()[0]
     store = SqliteEvaluationStore(tmp_path / "evaluations.db")
@@ -84,7 +86,7 @@ def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path):
             protocol=copycat.PROTOCOL,
             entrant_id="baseline:structured",
             entrant_kind="baseline",
-            label="Structured pipeline",
+            label="MDL tracer 23",
             interface=copycat.INTERFACE,
             created_at=1.0,
             metrics={"quality": {"mean": 60.0}, "copycat": {"images": [image]}},
@@ -96,14 +98,17 @@ def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path):
         board = client.get("/games/copycat/leaderboard").json()
         assert board[0]["metrics"]["copycat"]["images"] == [{k: v for k, v in image.items() if k != "svg"}]
         targets = client.get("/games/copycat/targets").json()
-        assert [t["seed"] for t in targets] == list(copycat.HELD_OUT_SEEDS)
+        assert [(t["set"], t["seed"]) for t in targets] == [("synthetic", s) for s in copycat.HELD_OUT_SEEDS]
         assert targets[0]["png"].startswith("data:image/png;base64,")
-        one = client.get(f"/games/copycat/targets/{target.seed}").json()
+        assert targets[0]["source"] is None
+        one = client.get(f"/games/copycat/targets/synthetic/{target.seed}").json()
+        assert one["protocol"] == copycat.PROTOCOL
         assert one["clean"] == target.clean
         assert one["outputs"]["baseline:structured"] == {
             "svg": target.clean,
             "scores": board[0]["metrics"]["copycat"]["images"][0],
         }
-        assert client.get("/games/copycat/targets/1").status_code == 404
+        assert client.get("/games/copycat/targets/synthetic/1").status_code == 404
+        assert client.get(f"/games/copycat/targets/broad/{target.seed}").status_code == 404  # not built here
     finally:
         app.dependency_overrides.clear()

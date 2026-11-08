@@ -5,6 +5,7 @@ import hashlib
 import json
 
 import pytest
+from jobcore import experiments_dir
 from telemetry import open_stores
 from trainer import train
 
@@ -33,9 +34,56 @@ def site(tmp_path, monkeypatch):
     )
     live = open_stores().registry.create_run({"game": "snake"})
     open_stores().registry.update_status(live, "running")
+    reports = {name: _report(name, decision) for name, decision in REPORTS.items()}
     out = tmp_path / "site"
     summary = publish({"target": "site", "params": {"out": str(out), "models_base_url": MODELS}})
-    return out, summary, {"snake": snake, "checkers": checkers, "live": live}
+    return out, summary, {"snake": snake, "checkers": checkers, "live": live, **reports}
+
+
+REPORTS = {
+    "report-kept": "kept",
+    "report-instructive": "instructive",
+    "report-rejected": "not_kept",
+    "report-open": None,
+}
+
+
+def _report(name, decision):
+    """A Copy Cat report as `copycat.report` leaves it: its file, and its run."""
+    root = experiments_dir()
+    root.mkdir(exist_ok=True)
+    groups = {"icons/train": {"mean": 1.0, "worst": 1.0, "columns": {}, "by_severity": {}, "per_image": {"1": 1.0}}}
+    (root / f"{name}.json").write_text(json.dumps({"protocol": "copycat.report", "groups": groups}))
+    registry = open_stores().registry
+    run_id = registry.create_run({"game": "copycat", "report": name, **({"decision": decision} if decision else {})})
+    registry.update_status(run_id, "completed")
+    return run_id
+
+
+def test_a_report_is_published_only_once_marked_kept_or_instructive(site):
+    out, _, runs = site
+    published = {r["run_id"] for r in json.loads((out / "api/runs.json").read_text(encoding="utf-8"))}
+    assert {runs["report-kept"], runs["report-instructive"]} <= published
+    assert not {runs["report-rejected"], runs["report-open"]} & published
+    reports = {p.stem for p in (out / "api/games/copycat/reports").glob("*.json")}
+    assert reports == {"report-kept", "report-instructive"}
+    assert not (out / f"api/runs/{runs['report-rejected']}.json").exists()
+
+
+def test_a_published_report_has_the_images_its_page_offers():
+    from backend.static_site import LOWEST_IMAGES, _report_images
+
+    scores = {str(seed): float(seed) for seed in range(LOWEST_IMAGES + 5)}
+    report = {
+        "has_svgs": True,
+        "per_image": {"icons/train": scores, "icons/heldout": {"99": 0.0}},
+        "compared": {"icons/train": {"moved": {str(LOWEST_IMAGES + 3): 1.0}}},
+    }
+    images = _report_images(report)
+    assert len(images) == LOWEST_IMAGES + 1
+    assert all(group == "icons/train" for group, _ in images)
+    assert ("icons/train", str(LOWEST_IMAGES + 3)) in images
+    assert _report_images({**report, "has_svgs": False}) == []
 
 
 def test_every_file_is_what_the_api_answers(site, monkeypatch):
@@ -66,7 +114,13 @@ def test_every_file_is_what_the_api_answers(site, monkeypatch):
             response = http.get(path)
             assert response.status_code == 200, file
             if path == "/runs":
-                assert redact([r for r in response.json() if r["status"] != "running"]) == json.loads(data)
+                public = [
+                    r
+                    for r in response.json()
+                    if r["status"] != "running"
+                    and ("report" not in r["config"] or r["config"].get("decision") in ("kept", "instructive"))
+                ]
+                assert redact(public) == json.loads(data)
             else:
                 assert redact_json(response.content) == data, file
 
@@ -75,7 +129,8 @@ def test_only_what_pages_ask_for_is_copied(site):
     out, _, runs = site
     index = json.loads((out / "index.json").read_text(encoding="utf-8"))
     published = {r["run_id"] for r in json.loads((out / "api/runs.json").read_bytes())}
-    assert published == {runs["snake"], runs["checkers"]}  # not the run still training
+    # not the run still training
+    assert published == {runs["snake"], runs["checkers"], runs["report-kept"], runs["report-instructive"]}
     assert not any(runs["live"] in f for f in index)
 
     snake_history = json.loads((out / f"api/runs/{runs['snake']}/metrics/history.json").read_bytes())

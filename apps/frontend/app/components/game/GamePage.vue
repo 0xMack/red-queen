@@ -28,7 +28,9 @@ const runsHere = device.runsHere as Ref<Record<string, DeviceFit>>
 const listed = computed(() => (onlyRunnable.value ? entries.value.filter((r) => runsHere.value[r.entrant_id]?.ok !== false) : entries.value))
 
 // --- What's on the stage -------------------------------------------------------------------------------
-const mode = computed<"watch" | "play">(() => (route.query.mode === "play" || entries.value.length === 0 ? "play" : "watch"))
+const mode = computed<"watch" | "play">(() =>
+  props.module.Play && (route.query.mode === "play" || entries.value.length === 0) ? "play" : "watch",
+)
 // Snake defaults to the best *trained* entrant this device can run -- the point is watching something that
 // learned -- falling back to the best trained one, then the top entrant; a versus game shows its strongest
 // player. The list shows plainly when a baseline ranks above the one on stage.
@@ -78,7 +80,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
     <!-- Header -->
     <UiSectionHeader :level="1" :eyebrow="game.tagline" :title="game.title" :back="{ to: '/games', label: 'Games' }">
       {{ mode === "watch" ? module.copy.watch : module.copy.play }}
-      <template #actions>
+      <template v-if="module.Play" #actions>
         <UiSegmented
           size="md"
           :model-value="mode"
@@ -95,7 +97,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
 
     <UiPanel v-if="error" class="mt-6 border-queen-500/40 text-sm text-queen-200">
       Couldn't load the leaderboard ({{ error.message }}), so there's nothing to rank or watch -- you can still play. It's
-      produced by an evaluation job (<code class="chip">jobs/evaluate*.py</code>) and served by apis/backend.
+      produced by an evaluation job (<code class="chip">redqueen evaluate {{ game.slug }}</code>) and served by apis/backend.
     </UiPanel>
 
     <!-- Stage + side leaderboard -->
@@ -157,7 +159,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
           <UiEmpty v-else compact>No evaluations yet.</UiEmpty>
         </div>
         <template #footer>
-          {{ module.copy.scoreNote({ episodes: protocolInfo?.episodes, protocol }) }}
+          <template v-if="protocol">{{ module.copy.scoreNote({ episodes: protocolInfo?.episodes, protocol }) }}</template>
           Click an entrant to {{ mode === "play" && module.selectInPlay === "stay" ? "play against" : "watch" }} it.
           <template v-if="human">Your row is this browser only.</template>
         </template>

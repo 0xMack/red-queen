@@ -1,6 +1,8 @@
-# 0023 — Copy Cat as Bayesian image parsing: a posterior over layered scenes, sampled by reversible-jump MCMC
+# 0024 — Copy Cat as Bayesian image parsing: a posterior over layered scenes, sampled by reversible-jump MCMC
 
-Status: **proposed** (2026-11-08).
+Status: **proposed** (2026-11-08). Written against 0022 as of phase 4's first rung (30.8 dB on `copycat.clean.v1`);
+its context, Decision 6 (much of that benchmark, `copycat.clean.v2` included, now exists) and Decision 7 (beside
+[0023](0023-process-traces-and-research-log.md)'s report runs) still need updating to v23 before it is built.
 Relates to: [0022](0022-copy-cat.md) (the task, the benchmark, protocol `copycat.clean.v1`, the structured pipeline this
 starts from), [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, versioned sets, an entry
 as a vector of measurements), [0010](0010-reinforcement-learning.md) (determinism across native and WASM),

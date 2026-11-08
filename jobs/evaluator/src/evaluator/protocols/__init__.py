@@ -5,6 +5,7 @@ from evaluator.protocols import (  # noqa: F401
     checkers_sprt,
     checkers_versus,
     copycat_clean,
+    copycat_report,
     experiments,
     snake_score,
     static_round_robin,

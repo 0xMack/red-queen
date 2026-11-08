@@ -106,6 +106,12 @@ def build_wasm(
         _python(f"libs/{name}/scripts/build_wasm.py")
 
 
+@dev.command("fetch-sets")
+def fetch_sets() -> None:
+    """Downloads and builds Copy Cat's artwork sets (they aren't in the repo; a report does this itself on first use)."""
+    _python("jobs/evaluator/scripts/fetch_copycat_sets.py")
+
+
 @dev.command()
 def openapi() -> None:
     """Regenerates the API's OpenAPI snapshot and the frontend's types from it (after any API change)."""

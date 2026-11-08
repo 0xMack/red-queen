@@ -73,10 +73,14 @@ for the full contract and incremental plan this implements (steps 3-6).
   "a strategy plays" view (also `lab/BanditLab` in the chapter). The strategy x scenario `BanditScenarioMatrix` hangs
   under the leaderboard via `GameModule.Insights`, the one optional section a game can add.
 - **Copy Cat** (docs/design/0022) is image to SVG, not a game you step. Its entrants' per-image SVGs come from
-  `GET /games/copycat/targets/{seed}` (the leaderboard route strips them), and the structured pipeline runs on the main
-  thread through the games WASM's `CopyCatTrace` (`utils/copycat.ts`). `CopyCatWatch` (`?image=<seed>`: input, entrant,
-  clean SVG, scores; for the pipeline, its stages re-run live) and `CopyCatPlay` (drop in an image, trace it, download
-  the SVG) share `CopyCatImage` and `CopyCatStages` (the palette, the regions, the layers exploded).
+  `GET /games/copycat/targets/{set}/{seed}` (the leaderboard route strips them), and the MDL tracer runs in the browser
+  through the games WASM (`utils/copycat.ts`). `CopyCatWatch` (`?image=<set>/<seed>`, or `yours`) is the whole stage:
+  `CopyCatPicker` under it (a sample row, your own image, a "more" pop-up; your image lives in `useCopyCatOwnImage`, so
+  it survives switching entrants) and `CopyCatFilm`, the timelapse with the input, the clean SVG and `CopyCatLayers`
+  (the layers pulled apart) beside it (docs/design/0023). `workers/copycatFilm.worker.ts` records the entrant on the
+  image with the WASM `CopyCatFilm` (`pipeline_live` posts progress while it runs: the SVG so far and the time left),
+  using the recipe in `utils/copycatFilm.ts` that must match its leaderboard entrant (so its last frame
+  is the scored SVG, which the badge checks); an entrant with no recipe says it has no process to show.
 - **Shared across games:** `PlaybackControls` (pause / speed / new game -- speed is a *multiplier*, `utils/
   playback.ts`, over each game's base timing: Snake's tick, a versus game's pause between moves) sits under every
   game's board, in Snake's watch panel and in `VersusStage`; `BoardResult` is the one game-over overlay (Checkers'

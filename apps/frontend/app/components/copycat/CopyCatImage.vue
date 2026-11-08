@@ -31,9 +31,9 @@ const url = computed(() => (props.svg ? svgDataUrl(props.svg) : (props.src ?? nu
         <slot name="empty">Nothing yet</slot>
       </UiEmpty>
     </div>
-    <figcaption class="mt-1.5 flex items-baseline justify-between gap-2 text-xs">
-      <span class="truncate font-medium text-fg">{{ label }}</span>
-      <span v-if="note" class="shrink-0 font-mono text-[11px] text-fg-subtle">{{ note }}</span>
+    <figcaption class="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
+      <span class="font-medium text-fg">{{ label }}</span>
+      <span v-if="note" class="min-w-0 truncate font-mono text-[11px] text-fg-subtle">{{ note }}</span>
     </figcaption>
   </figure>
 </template>

@@ -64,6 +64,80 @@ export class CheckersStrategy {
 }
 
 /**
+ * An entrant at work, as a film of its document (docs/design/0023).
+ */
+export class CopyCatFilm {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Per pixel, its label after merging.
+     */
+    clustered(): Uint16Array;
+    /**
+     * The element frame `i` sets. Undefined if it sets none: with an index, that frame removes.
+     */
+    element(i: number): string | undefined;
+    /**
+     * Clean fidelity of frame `i`, after `set_clean`.
+     */
+    fidelity_at(i: number): number;
+    /**
+     * The hill climb on an opaque RGBA image. Throws if the bytes aren't `width x height` pixels.
+     */
+    static hill_climb(rgba: Uint8Array, width: number, height: number, shapes: number, candidates: number, patience: number, seed: bigint, drop_bottom: boolean): CopyCatFilm;
+    /**
+     * "stage", "try", "step" or "lock".
+     */
+    kind(i: number): string;
+    /**
+     * Per pixel, its label after cleaning.
+     */
+    labels(): Uint16Array;
+    /**
+     * Whether the last frame is that SVG's shapes.
+     */
+    matches_output(): boolean;
+    note(i: number): string;
+    objective(i: number): number;
+    /**
+     * Per label, its fill as RGB bytes.
+     */
+    palette(): Uint8Array;
+    /**
+     * The index frame `i` changes, or -1 if none.
+     */
+    patch_index(i: number): number;
+    /**
+     * The structured pipeline on an opaque RGBA image, with its default settings.
+     */
+    static pipeline(rgba: Uint8Array, width: number, height: number): CopyCatFilm;
+    /**
+     * `pipeline`, telling `progress` how far it is as it goes: `(done, stage, note, elements)`, `done` from 0 to 1 and
+     * `elements` the SVG so far, without its `<svg>`.
+     */
+    static pipeline_live(rgba: Uint8Array, width: number, height: number, progress: any): CopyCatFilm;
+    /**
+     * What frames are scored against. Throws for anything outside the subset.
+     */
+    set_clean(svg: string): void;
+    stage(i: number): string;
+    /**
+     * The SVG the entrant returned.
+     */
+    svg(): string;
+    /**
+     * "input", "clustered", "labels" or "vector".
+     */
+    view(i: number): string;
+    readonly frames: number;
+    /**
+     * What `objective` measures.
+     */
+    readonly objective_label: string;
+}
+
+/**
  * Copy Cat (docs/design/0022), phase 1: an SVG read in the protocol's subset, rendered by the same rasterizer the
  * protocol scores with. The game page and its search moves come later.
  */
@@ -207,6 +281,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_checkersgame_free: (a: number, b: number) => void;
     readonly __wbg_checkersstrategy_free: (a: number, b: number) => void;
+    readonly __wbg_copycatfilm_free: (a: number, b: number) => void;
     readonly __wbg_copycatgame_free: (a: number, b: number) => void;
     readonly __wbg_copycattrace_free: (a: number, b: number) => void;
     readonly __wbg_randompolicy_free: (a: number, b: number) => void;
@@ -227,6 +302,25 @@ export interface InitOutput {
     readonly checkersstrategy_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
     readonly checkersstrategy_pick: (a: number, b: number) => [number, number, number];
     readonly checkersstrategy_scores: (a: number, b: number) => [number, number];
+    readonly copycatfilm_clustered: (a: number) => [number, number];
+    readonly copycatfilm_element: (a: number, b: number) => [number, number];
+    readonly copycatfilm_fidelity_at: (a: number, b: number) => [number, number, number];
+    readonly copycatfilm_frames: (a: number) => number;
+    readonly copycatfilm_hill_climb: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number) => [number, number, number];
+    readonly copycatfilm_kind: (a: number, b: number) => [number, number];
+    readonly copycatfilm_labels: (a: number) => [number, number];
+    readonly copycatfilm_matches_output: (a: number) => number;
+    readonly copycatfilm_note: (a: number, b: number) => [number, number];
+    readonly copycatfilm_objective: (a: number, b: number) => number;
+    readonly copycatfilm_objective_label: (a: number) => [number, number];
+    readonly copycatfilm_palette: (a: number) => [number, number];
+    readonly copycatfilm_patch_index: (a: number, b: number) => number;
+    readonly copycatfilm_pipeline: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly copycatfilm_pipeline_live: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
+    readonly copycatfilm_set_clean: (a: number, b: number, c: number) => [number, number];
+    readonly copycatfilm_stage: (a: number, b: number) => [number, number];
+    readonly copycatfilm_svg: (a: number) => [number, number];
+    readonly copycatfilm_view: (a: number, b: number) => [number, number];
     readonly copycatgame_canonical: (a: number) => [number, number];
     readonly copycatgame_height: (a: number) => number;
     readonly copycatgame_kind: (a: number, b: number) => [number, number];
