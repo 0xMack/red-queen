@@ -26,7 +26,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
-Phases 3-6 are proposed.
+Phases 3-6 are proposed. [0024](0024-copycat-bayesian-parsing.md) proposes replacing the ladder's steps 3-4 (search
+and gradient refinement over the greedy pipeline) with sampling a posterior over whole scenes, and settles how a
+searching entrant is recorded as a run.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last

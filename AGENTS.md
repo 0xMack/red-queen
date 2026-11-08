@@ -19,7 +19,8 @@ server -- a static copy of the API's public reads on Cloudflare; the runbook is 
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
 score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
 behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
-one trace format and one viewer for watching very different algorithms refine) — read the relevant one before an
+one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat as Bayesian image parsing (proposed) --
+a posterior over layered scenes, the corruption in the model, sampled by reversible-jump MCMC) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
