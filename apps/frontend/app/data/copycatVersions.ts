@@ -108,6 +108,7 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     version: 23,
     change: "A point where the outline needs one",
     pr: 104,
+    merge: "8dc670c",
     report: "copycat-grow-turn",
     heldout: { synthetic: 34.719, icons: 25.537, broad: 28.366 },
     v2: 29.54,
