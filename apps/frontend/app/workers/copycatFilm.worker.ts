@@ -7,13 +7,24 @@ import type { FilmFrame, FilmMessage, FilmRequest } from "~/utils/copycatFilm"
 import { samplesOf } from "~/utils/copycatFilm"
 
 const SCORES_PER_POST = 6
+/** The pipeline's progress, posted at most this often (ms): a part can take a few milliseconds. */
+const PROGRESS_EVERY = 100
 
 let ready: Promise<unknown> | null = null
 let latest = 0
 
-function record(request: FilmRequest): CopyCatFilm {
+function record(request: FilmRequest, started: number): CopyCatFilm {
   const { rgba, width, height, recipe } = request
-  if (recipe.kind === "pipeline") return CopyCatFilm.pipeline(rgba, width, height)
+  if (recipe.kind === "pipeline") {
+    // the run is one synchronous call, so it tells us how far it is as it goes; we pass that on, with the SVG so far
+    let last = -Infinity
+    return CopyCatFilm.pipeline_live(rgba, width, height, (done: number, stage: string, note: string, elements: string) => {
+      const now = performance.now()
+      if (done < 1 && now - last < PROGRESS_EVERY) return
+      last = now
+      self.postMessage({ type: "progress", id: request.id, done, stage, note, elements, elapsed: now - started } satisfies FilmMessage)
+    })
+  }
   return CopyCatFilm.hill_climb(rgba, width, height, recipe.shapes, recipe.candidates, recipe.patience, BigInt(request.seed), recipe.dropBottom)
 }
 
@@ -26,7 +37,7 @@ self.onmessage = async (event: MessageEvent<FilmRequest>) => {
     await ready
     if (request.id !== latest) return
     const started = performance.now()
-    const film = record(request)
+    const film = record(request, started)
     const ms = performance.now() - started
     try {
       const frames: FilmFrame[] = Array.from({ length: film.frames }, (_, i) => ({
@@ -54,6 +65,8 @@ self.onmessage = async (event: MessageEvent<FilmRequest>) => {
         ms,
       })
 
+      // your own image has no clean SVG, so nothing to score against
+      if (!request.clean) return
       film.set_clean(request.clean)
       const samples = samplesOf(frames)
       let batch: [number, number][] = []

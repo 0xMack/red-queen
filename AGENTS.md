@@ -67,7 +67,7 @@ architectural change that might conflict with a decision already made.
       `BanditPlayer` is the "a strategy plays" view both the Watch stage and `lab/BanditLab` use; the strategy x scenario
       `BanditScenarioMatrix` hangs off the game page through `GameModule.Insights`. `/games/copycat` (docs/design/0022)
       shows each entrant's SVG per held-out image (`GET /games/copycat/targets/{set}/{seed}`: seeds repeat across sets) and traces a dropped-in image
-      in the browser (WASM `CopyCatTrace`, the structured pipeline with its stages), `CopyCatFilm` is a timelapse of the entrant on stage (docs/design/0023: `copycat_film.rs`, run live in `workers/copycatFilm.worker.ts`, with the leaderboard's own score on each frame), and `CopyCatProgress` is its `Insights`: progress over the kept
+      in the browser (the MDL tracer, `baseline:structured`, versioned by kept change), `CopyCatFilm` is a timelapse of the entrant on stage (docs/design/0023: `copycat_film.rs`, run live in `workers/copycatFilm.worker.ts`, with the leaderboard's own score on each frame), and `CopyCatProgress` is its `Insights`: progress over the kept
       changes. `/learn/tracing-images` explains the pipeline (`TraceLab`) and `/learn/earning-complexity` is the case study of its changes, hard-coded from 0022. **New results fit the existing pages**: an approach on the game page, how it works in Learn, an experiment under `/runs`. Don't add a page
       for them (docs/design/0023 did, and it was undone).
     - **Explainers** (`components/explain/`, content in `data/explainers/`): an ⓘ (`InfoTip`) beside any entrant,
@@ -382,7 +382,8 @@ Each directory has its own README with specifics — this file is the map, not t
   ignore `apps/frontend/wrangler.jsonc`; `build-static.mjs` pins `NITRO_PRESET=static` for that reason.
 - Writing LaTeX or other backslash-heavy source through a Bash heredoc on this Windows setup can collapse `\\` to `\`
   (so a TS `"\\beta"` lands as `"\beta"` -- a backspace plus `eta`). Use the Write/Edit tools for such files, or a
-  script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas.
+  script file that builds backslashes with `chr(92)`; `/dev/math` (KaTeX throws in development) catches it in formulas, and
+  `jobs/tests/test_source_text.py` anywhere (a `\b` that became a backspace once silently broke a regex).
 - Long jobs: redirected stdout is block-buffered (an empty log ≠ a dead job — use `python -u`), and git-bash
   `ps` can't see Windows processes (`Get-CimInstance Win32_Process` can). Check a run's metrics file before
   concluding it died or launching a second copy.

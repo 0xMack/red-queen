@@ -441,7 +441,7 @@ export const learnChapters: LearnChapter[] = [
     title: "Earning Each Piece of Complexity",
     short: "Earning complexity",
     summary:
-      "A case study: how the tracing pipeline grew from 29 to 32.5 dB, one measured change at a time. Find the error before adding anything, score each change once on images it never saw, and report what didn't work.",
+      "A case study: how the MDL tracer grew from 29 to 34.7 dB over 23 versions, one measured change each. Find the error before adding anything, score each change once on images it never saw, and report what didn't work.",
     path: "/learn/earning-complexity",
     status: "available",
     home: "image-to-svg",

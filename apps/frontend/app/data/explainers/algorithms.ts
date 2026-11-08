@@ -13,7 +13,7 @@ export const ALGORITHMS: ExplainConcept[] = [
   {
     kind: "algorithm",
     id: "copycat-structured",
-    title: "Structured pipeline",
+    title: "MDL tracer",
     family: "Copy Cat · minimum description length",
     paradigm: "hand-written, tuned on training images",
     summary:
@@ -27,9 +27,11 @@ export const ALGORITHMS: ExplainConcept[] = [
       "A smooth spline is a closed curve through a few knots, its tangents set by the neighbouring knots: a blob costs its knots, not the cubics that draw it. The knots are found by least squares: each edge point is matched to the nearest point of the curve, which is a fixed mix of four knots, so the best knots solve a linear system.",
       "Refinement: every number of the leading candidates -- a circle's centre, a polygon's vertices, a spline's knots -- is nudged while that shortens the description, and a polygon or spline drops a point when it can. On a noisy image a move must save more bits, and so must a point to stay, so outlines don't chase the noise.",
       "Cuts: two overlapping shapes of one colour are one region, its outline notched where theirs cross. The region is cut between two notches when the two halves, each free to complete under the other, are shorter to describe than the whole.",
+      "Polish: last, every shape's numbers are nudged again against the whole image, its neighbours drawn, and a spline or polygon gains a point midway along an edge it misses, kept only if the error it saves pays for it.",
+      "Versions: it is numbered, one more for every change that was kept; the leaderboard shows the current version, and its record notes the commit it was scored at.",
     ],
     code: "bits(shape) = model bits (type + coordinates at 0.1 px) + pixel_bits * misfit\nbest = argmin over circle, ellipse, rect, polygon, path",
-    good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: Play traces your own image."],
+    good: ["Transparent output, a small palette, whole parts in layers.", "Runs in the browser: add your own image under the stage and watch it traced."],
     bad: [
       "Flat fills only: a part's shading or colour drift comes back as its average.",
       "No symmetry.",

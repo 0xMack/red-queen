@@ -28,7 +28,9 @@ const runsHere = device.runsHere as Ref<Record<string, DeviceFit>>
 const listed = computed(() => (onlyRunnable.value ? entries.value.filter((r) => runsHere.value[r.entrant_id]?.ok !== false) : entries.value))
 
 // --- What's on the stage -------------------------------------------------------------------------------
-const mode = computed<"watch" | "play">(() => (route.query.mode === "play" || entries.value.length === 0 ? "play" : "watch"))
+const mode = computed<"watch" | "play">(() =>
+  props.module.Play && (route.query.mode === "play" || entries.value.length === 0) ? "play" : "watch",
+)
 // Snake defaults to the best *trained* entrant this device can run -- the point is watching something that
 // learned -- falling back to the best trained one, then the top entrant; a versus game shows its strongest
 // player. The list shows plainly when a baseline ranks above the one on stage.
@@ -78,7 +80,7 @@ function onHumanScore(score: number, live: boolean, label?: string) {
     <!-- Header -->
     <UiSectionHeader :level="1" :eyebrow="game.tagline" :title="game.title" :back="{ to: '/games', label: 'Games' }">
       {{ mode === "watch" ? module.copy.watch : module.copy.play }}
-      <template #actions>
+      <template v-if="module.Play" #actions>
         <UiSegmented
           size="md"
           :model-value="mode"

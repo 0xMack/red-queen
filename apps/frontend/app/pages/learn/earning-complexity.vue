@@ -1,41 +1,18 @@
 <script setup lang="ts">
 // Chapter body only -- the header, cover, nav, and prev/next come from pages/learn.vue (driven by
 // data/learnChapters.ts). Keep a single root element: page transitions require one.
-// The numbers are docs/design/0022's, each held-out score taken once per change.
+// The numbers are data/copycatVersions.ts's: the MDL tracer's versions, each held-out score taken once per change.
+import { COPYCAT_VERSIONS, versionsThatMoved } from "~/data/copycatVersions"
 
-const SYNTHETIC = [
-  { change: "The structured pipeline", score: 29.0 },
-  { change: "Refine every shape", score: 30.8 },
-  { change: "Smooth splines", score: 31.38 },
-  { change: "Cut a part in two", score: 31.43 },
-  { change: "Knots by least squares", score: 31.99 },
-  { change: "A point must earn its keep", score: 32.0 },
-  { change: "Paint order by fraction", score: 32.23 },
-  { change: "Rounded rects, tight splines", score: 32.47 },
-  { change: "Polish", score: 34.67 },
-]
-const ICONS = [
-  { change: "The pipeline, unchanged", score: 18.52 },
-  { change: "Join only what an occluder cut", score: 18.77 },
-  { change: "A background that reaches the corners", score: 19.41 },
-  { change: "Paint order by fraction", score: 20.88 },
-  { change: "A corner fit noise can't break", score: 21.37 },
-  { change: "Light parts given back", score: 22.63 },
-  { change: "Holes", score: 23.32 },
-  { change: "Rounded rects, tight splines", score: 23.51 },
-  { change: "Lost pieces", score: 23.6 },
-  { change: "Two flat colours", score: 23.6 },
-  { change: "An outline as seen", score: 23.68 },
-  { change: "Pale parts", score: 23.95 },
-  { change: "Restored colours", score: 24.49 },
-  { change: "Polish", score: 25.09 },
-]
+const SYNTHETIC = versionsThatMoved("synthetic")
+const ICONS = versionsThatMoved("icons")
 const seriesOf = (key: string, label: string, color: string, points: { score: number }[]) => [
   { key, label, color, values: points.map((p) => p.score), width: 2.5 },
 ]
 const syntheticSeries = seriesOf("synthetic", "held-out synthetic", palette.queen400, SYNTHETIC)
 const iconSeries = seriesOf("icons", "held-out icons", palette.signal400, ICONS)
-const steps = (points: unknown[]) => points.map((_, i) => i + 1)
+const versions = (points: { version: number }[]) => points.map((p) => p.version)
+const score = (v: number | undefined) => (v === undefined ? "--" : v.toFixed(2))
 </script>
 
 <template>
@@ -50,17 +27,16 @@ const steps = (points: unknown[]) => points.map((_, i) => i + 1)
       <div class="grid gap-6 md:grid-cols-2">
         <div>
           <UiLegend :series="syntheticSeries" />
-          <LineChart class="mt-2" x-label="change" :x="steps(SYNTHETIC)" :series="syntheticSeries" :height="200" :format="(v: number) => v.toFixed(1)" />
+          <LineChart class="mt-2" x-label="version" :x="versions(SYNTHETIC)" :series="syntheticSeries" :height="200" :format="(v: number) => v.toFixed(1)" />
         </div>
         <div>
           <UiLegend :series="iconSeries" />
-          <LineChart class="mt-2" x-label="change" :x="steps(ICONS)" :series="iconSeries" :height="200" :format="(v: number) => v.toFixed(1)" />
+          <LineChart class="mt-2" x-label="version" :x="versions(ICONS)" :series="iconSeries" :height="200" :format="(v: number) => v.toFixed(1)" />
         </div>
       </div>
       <template #caption>
-        Each point is a kept change, scored on held-out images once it was done. The first table below names the left chart's
-        first six points, the next two came from the icon work, and the last is the polish. The second names the right chart's
-        points up to "an outline as seen"; the pale-part work and the polish follow.
+        Each point is a version that moved that set's held-out score, scored once when its change was done; the tracer's
+        number goes up by one with every change kept, and every version is listed at the end of this chapter.
         For comparison, VTracer scores 20.18 dB on held-out <code>synthetic</code>.
       </template>
     </UiFigure>
@@ -239,19 +215,86 @@ const steps = (points: unknown[]) => points.map((_, i) => i + 1)
       0.13 dB: fitting a colour to the image fits the corruption's colour drift, which the clean SVG doesn't have.
     </Callout>
 
+    <h2>A point where the outline needs one</h2>
+    <p>
+      After polish, most of the error lay along outlines a few points couldn't follow: polish could move a point, never add one.
+      So the polish now adds a point where an outline misses most, and keeps it if the error it saves pays for its coordinates.
+      Fidelity rose on every set, but the outlines came out wiggly: they turned 1.5× as much as the clean SVG's. The new points
+      had followed the corruption's noise, which a coordinate's price alone couldn't tell from a real bend.
+    </p>
+    <p>
+      The fix was to charge for turning as well. A convex outline turns one full circle however many points it has, so the
+      charge falls only on dents and zigzags. At 32 bits a radian, outlines turned within 5% of what they did before growth, and
+      most of the gain stayed.
+    </p>
+    <div class="card not-prose my-6 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left label">
+            <th class="px-4 py-2 font-medium">Held-out, scored once</th>
+            <th class="px-4 py-2 text-right font-medium">Before</th>
+            <th class="px-4 py-2 text-right font-medium">Growth, turning free</th>
+            <th class="px-4 py-2 text-right font-medium">Turning priced</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-line/60"><td class="px-4 py-2"><code>synthetic</code></td><td class="num px-4 py-2 text-right">34.67</td><td class="num px-4 py-2 text-right">34.71</td><td class="num px-4 py-2 text-right">34.72</td></tr>
+          <tr class="border-b border-line/60"><td class="px-4 py-2"><code>icons</code></td><td class="num px-4 py-2 text-right">25.09</td><td class="num px-4 py-2 text-right">25.64</td><td class="num px-4 py-2 text-right">25.54</td></tr>
+          <tr class="border-b border-line/60"><td class="px-4 py-2"><code>broad</code></td><td class="num px-4 py-2 text-right">27.95</td><td class="num px-4 py-2 text-right">28.44</td><td class="num px-4 py-2 text-right">28.37</td></tr>
+          <tr><td class="px-4 py-2">turning, × the clean SVG's (<code>broad</code>)</td><td class="num px-4 py-2 text-right">0.96</td><td class="num px-4 py-2 text-right">1.48</td><td class="num px-4 py-2 text-right">1.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <Callout variant="note" title="A score can't see everything">
+      Fidelity alone would have kept the wiggly outlines: they scored higher. Smoothness had been measured in every report
+      all along; it took looking at it to see what the extra points had bought.
+    </Callout>
+
     <h2>Where it stands</h2>
     <p>
-      Stage one of the plan aimed for 35.5 dB on training icons with no corruption. Shape and colour rules stopped at 34.84, and
-      the polish took it to 36.60. The corrupted images are limited too: a warped copy of the clean SVG, scored against itself,
+      Stage one of the plan aimed for 35.5 dB on training icons with no corruption. Shape and colour rules stopped at 34.84, the
+      polish took it to 36.60, and growth to 37.95. The corrupted images are limited too: a warped copy of the clean SVG, scored against itself,
       reaches only 25.52 dB on <code>medium</code> and 21.06 on <code>heavy</code>.
     </p>
     <p>
       Layer recovery on icons is 0.63, against 0.89 on <code>synthetic</code>. A picture can match while its layers don't, and the
-      layers are what someone editing the SVG wants, so that has a stage of its own. After polish, most of the error lies along
-      outlines a few knots can't follow, so the next gains are in what shapes can say. Learned parts are still ahead, and each
+      layers are what someone editing the SVG wants, so that has a stage of its own. Learned parts are still ahead, and each
       will have to show the same thing the pieces here did. You can
       follow it on the <NuxtLink to="/games/copycat">game page</NuxtLink>, and each report is under
       <NuxtLink to="/runs">Runs</NuxtLink>.
     </p>
+
+    <h2>Every version</h2>
+    <p>
+      The tracer is numbered: one version per kept change, so a score always names the algorithm that made it. The game
+      page's leaderboard shows the latest. Held-out scores are clean fidelity in dB, taken once per change; a dash is a set
+      that didn't exist yet. From version 14 on, each change has a recorded report under <NuxtLink to="/runs">Runs</NuxtLink>.
+    </p>
+    <div class="card not-prose my-6 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left label">
+            <th class="px-3 py-2 font-medium">Version</th>
+            <th class="px-3 py-2 font-medium">Change</th>
+            <th class="px-3 py-2 text-right font-medium">synthetic</th>
+            <th class="px-3 py-2 text-right font-medium">icons</th>
+            <th class="px-3 py-2 text-right font-medium">broad</th>
+            <th class="px-3 py-2 text-right font-medium">PR</th>
+          </tr>
+        </thead>
+        <tbody class="num">
+          <tr v-for="v in [...COPYCAT_VERSIONS].reverse()" :key="v.version" class="border-b border-line/60 last:border-0">
+            <td class="px-3 py-1.5">{{ v.version }}</td>
+            <td class="px-3 py-1.5 font-sans">{{ v.change }}</td>
+            <td class="px-3 py-1.5 text-right">{{ score(v.heldout.synthetic) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ score(v.heldout.icons) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ score(v.heldout.broad) }}</td>
+            <td class="px-3 py-1.5 text-right">
+              <a :href="`https://github.com/0xMack/red-queen/pull/${v.pr}`" class="underline hover:text-fg" target="_blank" rel="noopener">#{{ v.pr }}</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </article>
 </template>

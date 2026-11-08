@@ -66,6 +66,9 @@ pub struct Frame {
     pub objective: f64,
 }
 
+/// What `Film::progress` holds.
+pub type Listener = Box<dyn FnMut(&Film, f64)>;
+
 pub struct Film {
     pub width: u32,
     pub height: u32,
@@ -78,6 +81,8 @@ pub struct Film {
     pub clustered: Vec<usize>,
     pub labels: Vec<usize>,
     pub palette: Vec<[u8; 3]>,
+    /// Told how far the run is (0 to 1) as it goes, with the film so far: for a page showing it at work.
+    pub progress: Option<Listener>,
 }
 
 impl Film {
@@ -96,7 +101,27 @@ impl Film {
             clustered: Vec::new(),
             labels: Vec::new(),
             palette: Vec::new(),
+            progress: None,
         }
+    }
+
+    /// Tells `progress`, if anyone is listening, that the run is `done` of the way through.
+    pub fn report(&mut self, done: f64) {
+        if let Some(mut tell) = self.progress.take() {
+            tell(self, done);
+            self.progress = Some(tell);
+        }
+    }
+
+    /// The elements in place after the last frame, in paint order.
+    pub fn elements_now(&self) -> String {
+        let mut out = String::new();
+        if let Some(last) = self.frames.len().checked_sub(1) {
+            for shape in self.shapes_at(last) {
+                write_shape(&mut out, &shape);
+            }
+        }
+        out
     }
 
     /// The shapes in place at frame `i`.

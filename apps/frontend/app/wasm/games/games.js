@@ -410,6 +410,24 @@ export class CopyCatFilm {
         return CopyCatFilm.__wrap(ret[0]);
     }
     /**
+     * `pipeline`, telling `progress` how far it is as it goes: `(done, stage, note, elements)`, `done` from 0 to 1 and
+     * `elements` the SVG so far, without its `<svg>`.
+     * @param {Uint8Array} rgba
+     * @param {number} width
+     * @param {number} height
+     * @param {any} progress
+     * @returns {CopyCatFilm}
+     */
+    static pipeline_live(rgba, width, height, progress) {
+        const ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.copycatfilm_pipeline_live(ptr0, len0, width, height, progress);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return CopyCatFilm.__wrap(ret[0]);
+    }
+    /**
      * What frames are scored against. Throws for anything outside the subset.
      * @param {string} svg
      */
@@ -938,6 +956,9 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_throw_be289d5034ed271b: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_call_108f8f98a65ca55f: function(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+            arg0.call(arg1, arg2, getStringFromWasm0(arg3, arg4), getStringFromWasm0(arg5, arg6), getStringFromWasm0(arg7, arg8));
         },
         __wbindgen_init_externref_table: function() {
             const table = wasm.__wbindgen_externrefs;

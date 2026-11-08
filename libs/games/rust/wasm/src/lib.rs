@@ -8,7 +8,9 @@ use redqueen_games::baselines::{snake_greedy, SnakeRandom};
 use redqueen_games::copycat::Document;
 use redqueen_games::copycat_climb::{hill_climb_film, ClimbConfig};
 use redqueen_games::copycat_film::{Film, Kind, Patch, View};
-use redqueen_games::copycat_trace::{film as pipeline_film, stages, trace, Stages, TraceConfig};
+use redqueen_games::copycat_trace::{
+    film as pipeline_film, film_with as pipeline_film_with, stages, trace, Stages, TraceConfig,
+};
 use redqueen_games::raster::Canvas;
 use redqueen_games::snake::{decode_relative3, Observer, Snake};
 use wasm_bindgen::prelude::*;
@@ -471,6 +473,14 @@ impl CopyCatTrace {
     }
 }
 
+#[wasm_bindgen]
+extern "C" {
+    /// A JavaScript function told a run's progress (`CopyCatFilm::pipeline_live`).
+    pub type Progress;
+    #[wasm_bindgen(method)]
+    fn call(this: &Progress, context: &JsValue, done: f64, stage: &str, note: &str, elements: &str);
+}
+
 /// An entrant at work, as a film of its document (docs/design/0023).
 #[wasm_bindgen]
 pub struct CopyCatFilm {
@@ -485,6 +495,30 @@ impl CopyCatFilm {
         pipeline_film(rgba, width as usize, height as usize, &TraceConfig::default())
             .map(|inner| CopyCatFilm { inner, clean: None })
             .map_err(|e| JsError::new(&e))
+    }
+
+    /// `pipeline`, telling `progress` how far it is as it goes: `(done, stage, note, elements)`, `done` from 0 to 1 and
+    /// `elements` the SVG so far, without its `<svg>`.
+    pub fn pipeline_live(rgba: &[u8], width: u32, height: u32, progress: Progress) -> Result<CopyCatFilm, JsError> {
+        let tell = move |film: &Film, done: f64| {
+            let last = film.frames.last();
+            progress.call(
+                &JsValue::NULL,
+                done,
+                last.map_or("", |f| f.stage.as_str()),
+                last.map_or("", |f| f.note.as_str()),
+                &film.elements_now(),
+            );
+        };
+        pipeline_film_with(
+            rgba,
+            width as usize,
+            height as usize,
+            &TraceConfig::default(),
+            Some(Box::new(tell)),
+        )
+        .map(|inner| CopyCatFilm { inner, clean: None })
+        .map_err(|e| JsError::new(&e))
     }
 
     /// The hill climb on an opaque RGBA image. Throws if the bytes aren't `width x height` pixels.

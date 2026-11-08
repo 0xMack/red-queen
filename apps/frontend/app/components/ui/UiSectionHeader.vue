@@ -25,8 +25,8 @@ const tag = computed(() => (props.level === 1 ? "h1" : "h2"))
     <div class="max-w-3xl min-w-0">
       <p v-if="eyebrow || index !== undefined || back" class="eyebrow flex items-center gap-2">
         <template v-if="back">
-          <NuxtLink :to="back.to" class="text-fg-subtle transition hover:text-fg">← {{ back.label }}</NuxtLink>
-          <span class="text-fg-subtle/60">/</span>
+          <NuxtLink :to="back.to" class="shrink-0 whitespace-nowrap text-fg-subtle transition hover:text-fg">← {{ back.label }}</NuxtLink>
+          <span class="shrink-0 text-fg-subtle/60">/</span>
         </template>
         <span v-if="live" class="size-1.5 animate-live-pulse rounded-full bg-queen-400" />
         <span v-if="index !== undefined" class="text-fg-subtle">{{ String(index).padStart(2, "0") }} /</span>

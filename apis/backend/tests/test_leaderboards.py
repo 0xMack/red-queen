@@ -86,7 +86,7 @@ def test_copycat_outputs_are_served_per_image_not_on_the_leaderboard(tmp_path, m
             protocol=copycat.PROTOCOL,
             entrant_id="baseline:structured",
             entrant_kind="baseline",
-            label="Structured pipeline",
+            label="MDL tracer 23",
             interface=copycat.INTERFACE,
             created_at=1.0,
             metrics={"quality": {"mean": 60.0}, "copycat": {"images": [image]}},

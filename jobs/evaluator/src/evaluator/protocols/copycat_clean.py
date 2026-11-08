@@ -15,7 +15,7 @@ Phase 1's entrants are the baselines of the ladder's first rung, all of them tra
 
 Phase 2's entrant, the ladder's second rung, recovers the clean SVG instead:
 
-- **The structured pipeline** (the game core's `copycat_trace.rs`): noise and background estimated, an OKLab palette
+- **The MDL tracer** (the game core's `copycat_trace.rs`, entrant `baseline:structured`, versioned): noise and background estimated, an OKLab palette
   merged by description length, cleaned labels, parts ordered and each fitted with its shortest shape -- a transparent,
   layered SVG. Untrained (its settings were tuned on the `train` split only), so it is a baseline in the leaderboard's
   sense, like every entrant so far.
@@ -49,7 +49,13 @@ from arena.costs import hardware_fingerprint, peak_rss_bytes
 from jobcore import Sink, experiments_dir
 from telemetry import EvaluationRecord
 
+from evaluator.protocols.copycat_report import commit
 from evaluator.registry import protocol
+
+# The MDL tracer's version: one more for every change kept, each listed in apps/frontend/app/data/copycatVersions.ts
+# (which the Learn case study draws). Its entrant id stays `baseline:structured`, so the leaderboard holds only the
+# current version; the record notes the version and the commit it was scored at.
+MDL_TRACER_VERSION = 23
 
 # key -> (label, description, how it runs: the tracer and its settings)
 VTRACER_DEFAULTS: dict[str, Any] = {"colormode": "color", "hierarchical": "stacked", "mode": "spline"}
@@ -96,12 +102,13 @@ ENTRANTS: dict[str, tuple[str, str, dict[str, Any]]] = {
         {"tracer": "hillclimb", "shapes": 64, "candidates": 100, "patience": 100, "drop_bottom": True},
     ),
     "structured": (
-        "Structured pipeline",
+        f"MDL tracer {MDL_TRACER_VERSION}",
         (
-            "Copy Cat's MDL pipeline: noise and background estimated, an OKLab palette merged by description length, "
-            "cleaned labels, parts ordered by code length and each fitted with its shortest shape (circle, ellipse, "
-            "rect, polygon, smooth spline or Bezier path) and refined point by point, hidden parts completed, a part of one colour cut "
-            "in two where two shapes overlap; transparent, one group per shape."
+            "Copy Cat's minimum-description-length tracer: noise and background estimated, an OKLab palette merged by "
+            "description length, cleaned labels, parts ordered by how much of each other they cover, holes cut, and "
+            "each part fitted with its shortest shape (circle, ellipse, rect, rounded rect, polygon, smooth spline or "
+            "Bezier path), hidden parts completed; then every shape polished against the whole image, adding a point "
+            "only where the error it saves pays for it. Transparent, one group per shape."
         ),
         {"tracer": "structured"},
     ),
@@ -235,6 +242,8 @@ def record_for(protocol_name: str, key: str, targets: list[Target], hardware: di
             },
             "copycat": {
                 "settings": settings,
+                "commit": commit(),
+                **({"version": MDL_TRACER_VERSION} if key == "structured" else {}),
                 "columns": summary,
                 **({"by_set": by_set} if len(sets) > 1 else {}),
                 "by_severity": by_severity(images),

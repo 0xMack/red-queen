@@ -78,7 +78,8 @@ export interface GameModule {
   selectInPlay: "watch" | "stay"
   copy: {
     watch: string
-    play: string
+    /** Play's intro; none for a game with no Play. */
+    play?: string
     /** The Play stage's label, when "Your game" doesn't fit (Copy Cat: "Your image"). */
     playLabel?: string
     /** What a score means, for the footer under the side leaderboard. */
@@ -86,9 +87,10 @@ export interface GameModule {
     /** The full leaderboard's intro. */
     leaderboardIntro(info: { episodes?: number; seeds?: [number, number] }): string
   }
-  /** The stage for Watch mode and for Play mode (they may be the same component, told apart by `mode`). */
+  /** The stage for Watch mode and for Play mode (they may be the same component, told apart by `mode`). A game with no
+   *  Play (Copy Cat: your own image is one more choice on its Watch stage) shows no Watch/Play toggle. */
   Watch: Component
-  Play: Component
+  Play?: Component
   /** Optional device probing (see GameDevice). */
   device?(slug: string, entries: Ref<EvaluationRecord[]>): GameDevice
   /** The visitor's stored personal result, for the "You" row before they play. */

@@ -12,6 +12,10 @@ use crate::raster::{Mask, Point};
 const STEPS: [f64; 6] = [1.0, 0.5, 0.25, 0.1, 0.05, 0.02];
 /// Passes over every number at one step size, at most.
 const ROUNDS: usize = 6;
+/// The steps a new knot is settled in (px).
+const GROW_STEPS: [f64; 3] = [0.5, 0.25, 0.1];
+/// Points a spline or a polygon may grow to.
+const MAX_POINTS: usize = 32;
 
 /// OKLab to straight sRGB in 0..1 (the inverse of `copycat_trace::oklab`, unrounded).
 pub fn srgb(lab: [f64; 3]) -> [f64; 3] {
@@ -160,6 +164,12 @@ pub struct Judge<'a> {
     pub height: usize,
     pub image: &'a [[f64; 3]],
     pub background: &'a [[f64; 3]],
+    /// What a knot costs to say, in wrongly covered pixels; 0 never adds one.
+    pub knot_price: f64,
+    /// What a radian of turning a new point adds to its outline costs, in wrongly covered pixels. A convex outline
+    /// turns 2 pi however many points it has, so this charges only for dents and zigzags: a point that follows a real
+    /// bend pays for its coordinates, one that chases pixel stair-steps pays for every turn too.
+    pub turn_price: f64,
 }
 
 impl Judge<'_> {
@@ -195,14 +205,102 @@ impl Judge<'_> {
         sum
     }
 
+    /// How much the error changes over the region either mask covers when shape `k`'s mask becomes `mask`.
+    fn delta(&self, masks: &[Mask], fills: &[[f64; 3]], k: usize, mask: &Mask) -> f64 {
+        let (a, b) = (bounds(&masks[k]), bounds(mask));
+        let region = Box_ {
+            x0: a.x0.min(b.x0),
+            y0: a.y0.min(b.y0),
+            x1: a.x1.max(b.x1).min(self.width),
+            y1: a.y1.max(b.y1).min(self.height),
+        };
+        let all: Vec<&Mask> = masks.iter().collect();
+        let before = self.error(&all, fills, &region);
+        let moved: Vec<&Mask> = masks
+            .iter()
+            .enumerate()
+            .map(|(j, m)| if j == k { mask } else { m })
+            .collect();
+        self.error(&moved, fills, &region) - before
+    }
+
+    /// The squared error one wrongly covered pixel of shape `k` costs, on average along its outline: its fill against
+    /// what is drawn under it, where nothing above hides the difference.
+    fn contrast(&self, masks: &[Mask], fills: &[[f64; 3]], k: usize) -> f64 {
+        let b = bounds(&masks[k]);
+        let (mut sum, mut n) = (0.0, 0.0);
+        for y in b.y0..b.y1.min(self.height) {
+            for x in b.x0..b.x1.min(self.width) {
+                let cover = at(&masks[k], x, y);
+                if cover <= 0.0 || cover >= 1.0 {
+                    continue;
+                }
+                let mut under = self.background[y * self.width + x];
+                for j in 0..k {
+                    let c = at(&masks[j], x, y);
+                    for (v, f) in under.iter_mut().zip(fills[j]) {
+                        *v = f * c + *v * (1.0 - c);
+                    }
+                }
+                let seen: f64 = masks[k + 1..].iter().map(|m| 1.0 - at(m, x, y)).product();
+                sum += seen * (0..3).map(|c| (fills[k][c] - under[c]).powi(2)).sum::<f64>();
+                n += 1.0;
+            }
+        }
+        if n > 0.0 {
+            sum / n
+        } else {
+            0.0
+        }
+    }
+
     /// Every shape's numbers (in its `Form`) nudged while that lowers the error; opaque shapes only (all the pipeline
-    /// writes).
+    /// writes). With a `knot_price`, a spline then gains knots where its outline can't follow the image, each kept
+    /// only if it saves more than it costs to say, and the shapes are settled again.
     pub fn polish(&self, shapes: &mut [Shape], forms: &mut [Form]) {
+        self.polish_with(shapes, forms, &mut |_| {});
+    }
+
+    /// `polish`, telling `progress` how far through it is (0 to 1) after each pass over the shapes.
+    pub fn polish_with(&self, shapes: &mut [Shape], forms: &mut [Form], progress: &mut dyn FnMut(f64)) {
         let (w, h) = (self.width as u32, self.height as u32);
         let fills: Vec<[f64; 3]> = shapes.iter().map(|s| s.fill.map(|c| c as f64 / 255.0)).collect();
         let mut masks: Vec<Mask> = shapes.iter().map(|s| s.mask(w, h)).collect();
-        for step in STEPS {
-            for _round in 0..ROUNDS {
+        if self.knot_price <= 0.0 {
+            self.descend(shapes, forms, &mut masks, &fills, &STEPS, progress);
+            progress(1.0);
+            return;
+        }
+        // measured in WebAssembly on `icons` and `broad`: growing takes about as long as the first descent, the final
+        // settle two thirds of that
+        let (descended, grown) = (0.38, 0.76);
+        self.descend(shapes, forms, &mut masks, &fills, &STEPS, &mut |done| {
+            progress(descended * done)
+        });
+        let grew = self.grow(shapes, forms, &mut masks, &fills, &mut |done| {
+            progress(descended + (grown - descended) * done)
+        });
+        if grew {
+            self.descend(shapes, forms, &mut masks, &fills, &STEPS[2..], &mut |done| {
+                progress(grown + (1.0 - grown) * done)
+            });
+        }
+        progress(1.0);
+    }
+
+    fn descend(
+        &self,
+        shapes: &mut [Shape],
+        forms: &mut [Form],
+        masks: &mut [Mask],
+        fills: &[[f64; 3]],
+        steps: &[f64],
+        progress: &mut dyn FnMut(f64),
+    ) {
+        let (w, h) = (self.width as u32, self.height as u32);
+        for (s, &step) in steps.iter().enumerate() {
+            for round in 0..ROUNDS {
+                progress((s as f64 + round as f64 / ROUNDS as f64) / steps.len() as f64);
                 let mut improved = false;
                 for k in 0..shapes.len() {
                     for group in forms[k].moves(&shapes[k].geometry) {
@@ -217,26 +315,7 @@ impl Judge<'_> {
                                 ..shapes[k].clone()
                             };
                             let mask = moved.mask(w, h);
-                            let (a, b) = (bounds(&masks[k]), bounds(&mask));
-                            let region = Box_ {
-                                x0: a.x0.min(b.x0),
-                                y0: a.y0.min(b.y0),
-                                x1: a.x1.max(b.x1).min(self.width),
-                                y1: a.y1.max(b.y1).min(self.height),
-                            };
-                            let before = {
-                                let all: Vec<&Mask> = masks.iter().collect();
-                                self.error(&all, &fills, &region)
-                            };
-                            let after = {
-                                let all: Vec<&Mask> = masks
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(j, m)| if j == k { &mask } else { m })
-                                    .collect();
-                                self.error(&all, &fills, &region)
-                            };
-                            if after < before - 1e-9 {
+                            if self.delta(masks, fills, k, &mask) < -1e-9 {
                                 shapes[k] = moved;
                                 forms[k] = form;
                                 masks[k] = mask;
@@ -251,6 +330,118 @@ impl Judge<'_> {
                 }
             }
         }
+    }
+
+    /// Points added to splines' knots and polygons' corners, one at a time, at whichever gap saves the most: a new one
+    /// starts on the outline, midway along its segment, and is settled there. It is kept if the error it saves is worth
+    /// more than it costs: `knot_price` wrongly covered pixels, and `turn_price` more for every radian of turning it
+    /// adds; it is settled on that same total, so it finds where it bends least. Whether any shape grew.
+    fn grow(
+        &self,
+        shapes: &mut [Shape],
+        forms: &mut [Form],
+        masks: &mut [Mask],
+        fills: &[[f64; 3]],
+        progress: &mut dyn FnMut(f64),
+    ) -> bool {
+        let (w, h) = (self.width as u32, self.height as u32);
+        let mut grown = false;
+        for k in 0..shapes.len() {
+            progress(k as f64 / shapes.len() as f64);
+            // the points, how they're drawn (a spline's tightness, or None for a polygon), and each gap's midpoint
+            while let Some((points, tight)) = match (&forms[k], &shapes[k].geometry) {
+                (Form::Knots { knots, tight }, _) => Some((knots.clone(), Some(*tight))),
+                (Form::Plain, Geometry::Polygon(corners)) => Some((corners.clone(), None)),
+                _ => None,
+            } {
+                if points.len() >= MAX_POINTS {
+                    break;
+                }
+                let n = points.len();
+                let mids: Vec<Point> = match &shapes[k].geometry {
+                    Geometry::Path(segments) if tight.is_some() => (0..n)
+                        .map(|i| match segments.get(i + 1) {
+                            Some(&Segment::Cubic(c1, c2, p3)) => {
+                                let p0 = points[i];
+                                (
+                                    (p0.0 + 3.0 * c1.0 + 3.0 * c2.0 + p3.0) / 8.0,
+                                    (p0.1 + 3.0 * c1.1 + 3.0 * c2.1 + p3.1) / 8.0,
+                                )
+                            }
+                            _ => points[i],
+                        })
+                        .collect(),
+                    _ => (0..n)
+                        .map(|i| {
+                            let (a, b) = (points[i], points[(i + 1) % n]);
+                            ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0)
+                        })
+                        .collect(),
+                };
+                let contrast = self.contrast(masks, fills, k);
+                let price = self.knot_price * contrast;
+                let turned = shapes[k].turning();
+                // the error a candidate saves (negative), with what its added turning costs
+                let total = |delta: f64, shape: &Shape| delta + self.turn_price * contrast * (shape.turning() - turned);
+                let draw = |points: &[Point]| {
+                    let geometry = match tight {
+                        Some(true) => tight_spline(points),
+                        Some(false) => spline(points),
+                        None => Geometry::Polygon(points.to_vec()),
+                    };
+                    let shape = Shape {
+                        geometry,
+                        ..shapes[k].clone()
+                    };
+                    let mask = shape.mask(w, h);
+                    (shape, mask)
+                };
+                let mut best: Option<(f64, Vec<Point>, Shape, Mask)> = None;
+                for (i, &mid) in mids.iter().enumerate() {
+                    let mut more = points.clone();
+                    more.insert(i + 1, mid);
+                    let (mut shape, mut mask) = draw(&more);
+                    let mut saved = total(self.delta(masks, fills, k, &mask), &shape);
+                    for step in GROW_STEPS {
+                        for _round in 0..ROUNDS {
+                            let mut improved = false;
+                            for axis in 0..2 {
+                                for sign in [1.0, -1.0] {
+                                    let mut tried = more.clone();
+                                    if axis == 0 {
+                                        tried[i + 1].0 += sign * step;
+                                    } else {
+                                        tried[i + 1].1 += sign * step;
+                                    }
+                                    let (s, m) = draw(&tried);
+                                    let d = total(self.delta(masks, fills, k, &m), &s);
+                                    if d < saved - 1e-9 {
+                                        (more, shape, mask, saved) = (tried, s, m, d);
+                                        improved = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !improved {
+                                break;
+                            }
+                        }
+                    }
+                    if saved < -price && best.as_ref().is_none_or(|b| saved < b.0) {
+                        best = Some((saved, more, shape, mask));
+                    }
+                }
+                let Some((_, points, shape, mask)) = best else { break };
+                forms[k] = match tight {
+                    Some(tight) => Form::Knots { knots: points, tight },
+                    None => Form::Plain,
+                };
+                shapes[k] = shape;
+                masks[k] = mask;
+                grown = true;
+            }
+        }
+        grown
     }
 }
 
@@ -280,6 +471,14 @@ mod tests {
     }
 
     fn polished(truth: &[Shape], start: &mut [Shape], forms: &mut [Form]) {
+        polished_at(0.0, truth, start, forms);
+    }
+
+    fn polished_at(knot_price: f64, truth: &[Shape], start: &mut [Shape], forms: &mut [Form]) {
+        polished_priced(knot_price, 0.0, truth, start, forms);
+    }
+
+    fn polished_priced(knot_price: f64, turn_price: f64, truth: &[Shape], start: &mut [Shape], forms: &mut [Form]) {
         let image = drawn(truth);
         let white = vec![[1.0; 3]; 64 * 64];
         Judge {
@@ -287,8 +486,18 @@ mod tests {
             height: 64,
             image: &image,
             background: &white,
+            knot_price,
+            turn_price,
         }
         .polish(start, forms);
+    }
+
+    fn error(truth: &[Shape], shapes: &[Shape]) -> f64 {
+        drawn(shapes)
+            .iter()
+            .zip(&drawn(truth))
+            .map(|(a, b)| (0..3).map(|c| (a[c] - b[c]).powi(2)).sum::<f64>())
+            .sum()
     }
 
     fn shape(geometry: Geometry) -> Shape {
@@ -332,15 +541,7 @@ mod tests {
             knots: off,
             tight: false,
         }];
-        let image = drawn(&truth);
-        let error = |shapes: &[Shape]| -> f64 {
-            drawn(shapes)
-                .iter()
-                .zip(&image)
-                .map(|(a, b)| (0..3).map(|c| (a[c] - b[c]).powi(2)).sum::<f64>())
-                .sum()
-        };
-        let before = error(&start);
+        let before = error(&truth, &start);
         polished(&truth, &mut start, &mut forms);
         let Form::Knots { knots: found, .. } = &forms[0] else {
             panic!()
@@ -348,7 +549,90 @@ mod tests {
         assert_eq!(found.len(), knots.len());
         assert_eq!(start[0].geometry, spline(found));
         // a knot can slide along the curve for almost nothing, so it is the drawing that is compared, not the knots
-        let after = error(&start);
+        let after = error(&truth, &start);
         assert!(after < before / 50.0, "error {before} -> {after}");
+    }
+
+    #[test]
+    fn a_spline_with_too_few_knots_grows_the_ones_its_outline_needs() {
+        // a five-pointed star's soft outline, fitted with only five knots (one per point)
+        let star: Vec<Point> = (0..10)
+            .map(|i| {
+                let a = std::f64::consts::PI * i as f64 / 5.0;
+                let r = if i % 2 == 0 { 24.0 } else { 12.0 };
+                (32.0 + r * a.sin(), 32.0 - r * a.cos())
+            })
+            .collect();
+        let truth = [shape(spline(&star))];
+        let few: Vec<Point> = star.iter().step_by(2).copied().collect();
+        let start = shape(spline(&few));
+        let form = Form::Knots {
+            knots: few,
+            tight: false,
+        };
+        let mut fixed = ([start.clone()], [form.clone()]);
+        polished(&truth, &mut fixed.0, &mut fixed.1);
+        let mut grown = ([start], [form]);
+        polished_at(2.0, &truth, &mut grown.0, &mut grown.1);
+        let Form::Knots { knots, .. } = &grown.1[0] else {
+            panic!()
+        };
+        assert!(knots.len() >= 10, "{} knots", knots.len());
+        let (fixed, grown) = (error(&truth, &fixed.0), error(&truth, &grown.0));
+        assert!(grown < fixed / 5.0, "error {fixed} with five knots, {grown} grown");
+    }
+
+    #[test]
+    fn a_point_that_only_follows_a_notch_pays_for_its_turning() {
+        // a square with a notch one pixel deep in its top edge: points can follow the notch, but only by turning
+        let notched = Geometry::Polygon(vec![
+            (16.0, 16.0),
+            (30.0, 16.0),
+            (30.0, 17.0),
+            (34.0, 17.0),
+            (34.0, 16.0),
+            (48.0, 16.0),
+            (48.0, 48.0),
+            (16.0, 48.0),
+        ]);
+        let truth = [shape(notched)];
+        let square = shape(Geometry::Polygon(vec![
+            (16.0, 16.0),
+            (48.0, 16.0),
+            (48.0, 48.0),
+            (16.0, 48.0),
+        ]));
+        let corners = |shapes: &[Shape]| match &shapes[0].geometry {
+            Geometry::Polygon(points) => points.len(),
+            _ => panic!(),
+        };
+        let mut free = ([square.clone()], [Form::Plain]);
+        polished_priced(0.1, 0.0, &truth, &mut free.0, &mut free.1);
+        assert!(corners(&free.0) > 4, "with turning free, the notch is followed");
+        let mut priced = ([square.clone()], [Form::Plain]);
+        polished_priced(0.1, 20.0, &truth, &mut priced.0, &mut priced.1);
+        assert_eq!(corners(&priced.0), 4, "a turn that saves under a pixel isn't worth it");
+        assert!(priced.0[0].turning() < free.0[0].turning());
+        // a real bend still pays: the star of the test above grows its knots with turning priced (at 2 px a radian)
+        let star: Vec<Point> = (0..10)
+            .map(|i| {
+                let a = std::f64::consts::PI * i as f64 / 5.0;
+                let r = if i % 2 == 0 { 24.0 } else { 12.0 };
+                (32.0 + r * a.sin(), 32.0 - r * a.cos())
+            })
+            .collect();
+        let few: Vec<Point> = star.iter().step_by(2).copied().collect();
+        let mut grown = (
+            [shape(spline(&few))],
+            [Form::Knots {
+                knots: few,
+                tight: false,
+            }],
+        );
+        polished_priced(2.0, 2.0, &[shape(spline(&star))], &mut grown.0, &mut grown.1);
+        let Form::Knots { knots, .. } = &grown.1[0] else {
+            panic!()
+        };
+        assert!(knots.len() >= 10, "{} knots", knots.len());
     }
 }

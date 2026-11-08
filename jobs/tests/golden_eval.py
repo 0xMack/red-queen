@@ -80,6 +80,7 @@ CLOCKS = {
     "baseline_rss_bytes",
     "peak_above_baseline_bytes",
     "seconds",
+    "commit",  # provenance, not a result: the tree it was scored at
 }
 
 

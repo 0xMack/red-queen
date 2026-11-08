@@ -11,6 +11,17 @@ export interface CopyCatFilmData {
   ms: number
 }
 
+/** A run in progress: how far it is, where, the SVG so far (its elements), and about how long it has left. */
+export interface CopyCatLive {
+  done: number
+  stage: string
+  note: string
+  elements: string
+  elapsed: number
+  /** ms, null until there is enough of the run to go on */
+  left: number | null
+}
+
 /** One image to film. */
 export interface FilmSubject {
   png: string
@@ -25,6 +36,7 @@ export function useCopyCatFilm(subject: Ref<FilmSubject | null>) {
   /** Frame -> clean fidelity, as they're scored. */
   const scores = shallowRef<Map<number, number>>(new Map())
   const failed = ref<string | null>(null)
+  const live = shallowRef<CopyCatLive | null>(null)
 
   let worker: Worker | null = null
   let requested = 0
@@ -32,7 +44,12 @@ export function useCopyCatFilm(subject: Ref<FilmSubject | null>) {
   function onMessage(event: MessageEvent<FilmMessage>) {
     const message = event.data
     if (message.id !== requested) return
-    if (message.type === "film") {
+    if (message.type === "progress") {
+      const { done, stage, note, elements, elapsed } = message
+      // time per unit of progress so far, for the rest: it is measured in pixels fitted, which the fits' time follows
+      const left = done >= 0.05 && elapsed > 250 ? (elapsed * (1 - done)) / done : null
+      live.value = { done, stage, note, elements, elapsed, left }
+    } else if (message.type === "film") {
       const { type: _type, id: _id, ...data } = message
       film.value = data
     } else if (message.type === "scores") {
@@ -49,6 +66,7 @@ export function useCopyCatFilm(subject: Ref<FilmSubject | null>) {
     async (next) => {
       const id = ++requested
       film.value = null
+      live.value = null
       scores.value = new Map()
       failed.value = null
       if (!next || !import.meta.client) return
@@ -79,5 +97,5 @@ export function useCopyCatFilm(subject: Ref<FilmSubject | null>) {
     worker = null
   })
 
-  return { film, scores, failed }
+  return { film, scores, failed, live }
 }

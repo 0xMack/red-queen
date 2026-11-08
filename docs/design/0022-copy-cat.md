@@ -1581,23 +1581,138 @@ After polish, edges are still worth +2.0 to 4.4 dB. An error map of the control 
 almost every outline, where a few knots can't follow a Twemoji curve. A few small details are still missing (a boot's
 streak, a mosquito's eyes). The next gains are in the shapes' vocabulary, not their placement.
 
+### Growth: a point where the outline needs one
+
+After polish, the error lay along outlines a few knots couldn't follow. Polish could move a point but never add one: a
+part's point count was settled when it was fitted alone, to its own soft mask. Split by the kind of shape that drew
+them, a shape's outline pixels (`icons` and `broad`, `train`) are 42-47% polygons and 31-38% splines; primitives 13%,
+plain paths 3-6%, rounded rectangles 2-3%. So growth works on the two that carry the outline.
+
+After polish's descent, `copycat_polish.rs` looks along each spline and polygon for the stretch it misses most, puts a
+point at its midpoint (the cubic's midpoint for a spline, the edge's for a polygon), settles it in steps of 0.5 to 0.1 px and
+keeps it if the error it saves pays for it, up to 32 points a shape; then every shape is descended once more, in
+steps of 0.25 to 0.02 px. A point's price is its two coordinates' bits in pixel-error bits, scaled by the shape's contrast (the mean
+squared difference between its fill and what is drawn under its edge), so a pale shape's edge buys fewer points, and
+by `POINT_PRICE`. Tuned on `train` (dB, against `copycat-polish`):
+
+| `POINT_PRICE` | `synthetic` | `icons` | control | `synthetic/validate` | `broad` | s / icon | s / `broad` |
+|---|---|---|---|---|---|---|---|
+| none (`copycat-polish`) | 33.90 | 26.72 | 36.60 | 33.31 | 28.35 | 7.0 | 4.4 |
+| 1 (the description length) | 33.90 | 26.77 | 36.65 | 33.31 | 28.37 | | |
+| 0.25 | 33.90 | 26.85 | 36.77 | 33.31 | 28.41 | | |
+| 0.1 | 33.90 | 27.00 | 37.19 | 33.33 | 28.51 | | |
+| 0.05 | 33.93 | 27.17 | 37.68 | 33.35 | 28.67 | 8.4 | 5.8 |
+| **0.02** | **33.99** | **27.41** | **38.33** | **33.37** | **28.83** | **8.4** | **6.9** |
+| 0.005 | 33.99 | 27.48 | 38.65 | 33.39 | 28.98 | 8.7 | 7.2 |
+
+The gain rose as the price fell, and `synthetic/validate` (debug images never tuned on) never fell, so the points were
+outline the image asked for, not noise: the control, with nothing to over-fit, gained most. At the description length
+itself almost no point paid, since an outline's error lies on thin edge pixels and is cheap next to two coordinates.
+Times are back to back on every sixth `train` image (between batches they varied by a quarter). 0.02 takes `icons`
+half as far again as 0.05 for the same time and costs `broad` one second more for +0.16 dB; 0.005 adds little.
+Knots alone (no polygons) reached only `icons` 26.79 at 0.05: most of the outline was polygons.
+
+**The outlines came out wiggly.** Every report records `smoothness_ratio`, an outline's total turning over the clean
+SVG's, and growth at 0.02 had pushed it from 1.07 / 0.98 / 0.95 / 1.12 / 1.02 (the five `train` groups above, in order)
+to 1.46 / 1.56 / 1.23 / 1.46 / 1.63. A point that follows a pixel of the corruption's noise saves error like one that
+follows a real bend, and a coordinate's price can't tell them apart. So turning costs bits too: a grown point (and its
+settling) must also pay `TURN_BITS` for every radian of extra turning it adds to its shape, at the same contrast scale. A
+convex outline turns a full circle however many points it has, so only dents and zigzags pay. Tuned on `train` with
+`POINT_PRICE` 0.02 (dB, then smoothness):
+
+| `TURN_BITS` | `synthetic` | `icons` | control | `synthetic/validate` | `broad` |
+|---|---|---|---|---|---|
+| none (`copycat-polish`) | 33.90 / 1.07 | 26.72 / 0.98 | 36.60 / 0.95 | 33.31 / 1.12 | 28.35 / 1.02 |
+| 0 | 33.99 / 1.46 | 27.41 / 1.56 | 38.33 / 1.23 | 33.37 / 1.46 | 28.83 / 1.63 |
+| 2 | 33.98 / 1.23 | 27.39 / 1.19 | 38.21 / 1.01 | 33.36 / 1.24 | 28.81 / 1.25 |
+| 8 | 33.97 / 1.14 | 27.36 / 1.09 | 38.09 / 0.98 | 33.35 / 1.17 | 28.78 / 1.13 |
+| **32** | **33.94 / 1.10** | **27.30 / 1.02** | **37.95 / 0.97** | **33.35 / 1.13** | **28.75 / 1.07** |
+
+At 32 bits outlines turn within 5% of what they did before growth, for about 0.1 dB on `icons` and almost nothing
+elsewhere. Greedy growth isn't monotone in the price: a test's star kept its ten knots at a turning price of 2 but not
+at 5, since an early point that would have unlocked the later ones no longer paid on its own.
+
+Held-out, once each (`copycat-grow` without the turning cost, marked instructive; `copycat-grow-turn`, kept):
+
+| | `synthetic` | `icons` | `broad` | smoothness |
+|---|---|---|---|---|
+| v22 (`copycat-polish`) | 34.666 | 25.093 | 27.952 | 1.03 / 0.71 / 0.96 |
+| growth, turning free | 34.711 | 25.635 | 28.444 | 1.33 / 1.08 / 1.48 |
+| **v23: growth, turning at 32 bits** | **34.719** | **25.537** | **28.366** | **1.05 / 0.75 / 1.00** |
+
+Fidelity alone would have kept the wiggly version. The live film's progress weights were re-measured for it too (polish
+is now 30-47% of a slow image's time, not a fifth).
+
+### Versions: the MDL tracer, numbered
+
+"The structured pipeline" named a family, not an algorithm: each kept change replaced the entrant under the same name,
+so a 29.0 dB result and a 34.7 dB one both said "structured pipeline". The pipeline is now the **MDL tracer**, numbered
+one version per kept change. The leaderboard entrant keeps its id (`baseline:structured`, so links, goldens and the
+static site hold), takes the label "MDL tracer N" from the evaluator's `MDL_TRACER_VERSION`, and records `version` and
+`commit` in `metrics.copycat`. Only the current version is on the leaderboard: each evaluation replaces the last.
+
+The versions are listed in `apps/frontend/app/data/copycatVersions.ts`, reconstructed from the merged PRs, the
+`copycat.report` records and the held-out results in this doc; a test holds the last one equal to `MDL_TRACER_VERSION`.
+Each row is the change, its PR and merge commit, its report (from version 14, when reports began; a report's own commit
+may be `+dirty`, the change measured before it was committed) and its held-out scores, taken once. Learn's case study
+draws from it, and the game page's progress panel names each kept report's version. Two kept changes the case study had
+left out are in it: a flat background judged by its own spread (v19, held-out unchanged) and a subject across both
+bottom corners (v20, `broad` 26.845 -> 26.928).
+
+| v | change | PR | synthetic | icons | broad |
+|---|---|---|---|---|---|
+| 1 | The MDL tracer | #70 | 29.0 | | |
+| 2 | Refine every shape | #72 | 30.8 | | |
+| 3 | Smooth splines | #73 | 31.38 | | |
+| 4 | Cut a part in two | #75 | 31.43 | | |
+| 5 | Knots by least squares | #76 | 31.99 | | |
+| 6 | A point must earn its keep | #77 | 32.00 | 18.52 | |
+| 7 | Join only what an occluder cut | #80 | 31.999 | 18.77 | |
+| 8 | A background that reaches the corners | #81 | 32.003 | 19.41 | |
+| 9 | Paint order by fraction | #82 | 32.23 | 20.88 | |
+| 10 | A corner fit noise can't break | #83 | 32.23 | 21.37 | |
+| 11 | Light parts given back | #84 | 32.23 | 22.63 | |
+| 12 | Holes | #85 | 32.23 | 23.32 | |
+| 13 | Rounded rects, tight splines | #86 | 32.469 | 23.51 | |
+| 14 | A pale subject restored, two colours not a gradient | #87 | 32.469 | 23.512 | |
+| 15 | Lost pieces | #89 | 32.469 | 23.604 | |
+| 16 | Two flat colours | #90 | 32.469 | 23.601 | |
+| 17 | An outline as seen | #91 | 32.469 | 23.677 | |
+| 18 | Pale parts | #97 | 32.469 | 23.949 | 26.845 |
+| 19 | A flat background judged by its own spread | #98 | 32.469 | 23.949 | 26.845 |
+| 20 | A subject across both bottom corners | #99 | 32.469 | 23.949 | 26.928 |
+| 21 | Restored colours | #100 | 32.469 | 24.494 | 26.92 |
+| 22 | Polish | #102 | 34.666 | 25.093 | 27.952 |
+| 23 | A point where the outline needs one | #104 | 34.719 | 25.537 | 28.366 |
+
+`icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24 and v23 at 29.54. Experiments not kept are labelled against the version they
+started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
+re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
 
 - **The leaderboard** ranks by clean fidelity. Its columns are alpha IoU, layer recovery, and the shape, colour and
   turning ratios.
-- **Watch** shows one held-out image at a time, from any of the protocol's sets: the entrant's SVG beside the input and
-  the clean SVG, with that image's scores, in one panel with its timelapse (0023), which plays on the same stage and
-  ends on the scored SVG. An artwork image credits where its clean SVG came from.
+- **Watch** shows one held-out image at a time, from any of the protocol's sets: the entrant's SVG beside the input, the
+  clean SVG and its shapes as layers pulled apart, with that image's scores, in one panel with its timelapse (0023),
+  which plays on the same stage and ends on the scored SVG. The layers follow the frame on stage. An artwork image
+  credits where its clean SVG came from.
   - Each entrant's SVG per image is stored in its evaluation record, so what you see is exactly what was scored.
   - `GET /leaderboard` strips the SVGs. `GET /games/copycat/targets/{set}/{seed}` serves one image with every entrant's
     output, and the static site copies both routes.
-  - For the structured pipeline, the page also re-runs it in the browser (WASM `CopyCatTrace`) and shows its stages:
-    the k-means palette, the cleaned regions, and the layers pulled apart. A badge says whether the result is the same
-    SVG that was scored.
-- **Play** traces your own image the same way, at up to 192 px a side, and offers the result as a download. Nothing is
-  uploaded.
+  - The timelapse is the entrant run again in the browser, so its own stages play on the stage (for the pipeline: the
+    k-means palette, the cleaned regions, each part, the polish), and a badge says whether it ends on the SVG that was
+    scored. While the pipeline runs, the stage shows its SVG so far with a progress bar and the time left: the core
+    reports how far it is (`Film::report`) after each stage, each part (weighted by its pixels) and each polish pass,
+    at fractions measured in WebAssembly, and the time left is the time so far scaled by what remains.
+- **Which image** is one row under the stage: a sample of held-out images across every set and corruption level, the
+  image on stage always among them, and a "more" pop-up with every held-out image by set and level. The row also adds
+  your own image, which then stays in it whoever is on stage: traced on this device by the entrant on stage (the MDL
+  tracer or a hill climb), at up to 192 px a side, offered as a download, never uploaded. It has no clean SVG, so no
+  score. There is no separate Play view.
 
 Two items from "The game, as a player sees it" are not built yet:
 

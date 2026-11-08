@@ -52,6 +52,7 @@ export type FilmMessage =
       labels: Uint16Array
       ms: number
     }
+  | { type: "progress"; id: number; done: number; stage: string; note: string; elements: string; elapsed: number }
   | { type: "scores"; id: number; scores: [number, number][] }
   | { type: "error"; id: number; message: string }
 

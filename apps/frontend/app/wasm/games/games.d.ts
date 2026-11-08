@@ -113,6 +113,11 @@ export class CopyCatFilm {
      */
     static pipeline(rgba: Uint8Array, width: number, height: number): CopyCatFilm;
     /**
+     * `pipeline`, telling `progress` how far it is as it goes: `(done, stage, note, elements)`, `done` from 0 to 1 and
+     * `elements` the SVG so far, without its `<svg>`.
+     */
+    static pipeline_live(rgba: Uint8Array, width: number, height: number, progress: any): CopyCatFilm;
+    /**
      * What frames are scored against. Throws for anything outside the subset.
      */
     set_clean(svg: string): void;
@@ -311,6 +316,7 @@ export interface InitOutput {
     readonly copycatfilm_palette: (a: number) => [number, number];
     readonly copycatfilm_patch_index: (a: number, b: number) => number;
     readonly copycatfilm_pipeline: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly copycatfilm_pipeline_live: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
     readonly copycatfilm_set_clean: (a: number, b: number, c: number) => [number, number];
     readonly copycatfilm_stage: (a: number, b: number) => [number, number];
     readonly copycatfilm_svg: (a: number) => [number, number];
