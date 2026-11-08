@@ -1690,6 +1690,90 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
+### After v23: where the error is, and three leads that didn't pay
+
+Nothing here was kept, so there is no report or run: these are measurements on `train` (held-out never looked at),
+made with throwaway scripts against `copycat-grow-turn`'s SVGs, to decide what to build next. They rule out more than
+they find.
+
+**The error split, re-measured on v23** (each class of pixel set right, dB gained; as in "Search over the structure"):
+
+| | coverage wrong | edges | colour inside the silhouette |
+|---|---|---|---|
+| `synthetic` | +2.04 | **+3.75** | +1.28 |
+| `icons` | **+2.90** | +2.16 | **+3.66** |
+| `icons` control | +0.83 | **+4.58** | +3.84 |
+| `broad` | **+2.97** | +2.42 | +2.79 |
+
+Polish and growth took edges down, so colour and coverage now lead on `icons` and `broad`. But the colour column is not
+one lever, and most of it isn't reachable:
+
+- **Fill colours are worth little.** A palette oracle (every fill in our SVG replaced, by text substitution, with the
+  clean render's mean colour under it, so the structure is untouched) gains +0.59 `synthetic`, +0.56 `icons`, +0.53
+  `broad`, +0.01 the control. (An earlier per-shape oracle, recolouring by topmost cover, was broken: it *lost* 0.69 on
+  the control.)
+- **Most of that is drift, which one image can't reveal.** `icons/train`'s light-to-heavy images re-corrupted with a
+  step switched off (every other random draw kept), traced, and given the oracle:
+
+  | `icons/train`, not clean | fidelity | the oracle adds |
+  |---|---|---|
+  | as corrupted | 23.69 | +0.75 |
+  | no drift | 24.30 | +0.26 |
+  | no shading | 24.01 | +0.68 |
+  | neither | 24.46 | +0.13 |
+
+  Drift moves each part's colour at random, so about 0.5 of the 0.75 is gone from the image. What is honestly left
+  (shading under 0.1, estimation under blur, noise and JPEG about 0.1) is worth +0.1 to 0.15 dB on the leaderboard.
+- **A palette prior would win more, for the wrong reason.** 88% (`icons`) and 87% (`broad`) of the clean colours in one
+  half of `train` occur exactly in the other half's palettes: the icon families share colours. Snapping to a palette
+  learned from `train` would undo much of the drift on those two sets and nothing on `synthetic` (random colours), and
+  wouldn't help a logo from anywhere else. If ever built, it is a separately labelled entrant, not the MDL tracer.
+- **Missing details are a small pot too.** Taking each region of the clean render (a 4-connected run of one colour) that
+  our render colours wrongly over most of its area, setting it right gains, per image:
+
+  | | every such region | thin ones (1-2 px) | ones our colour gave to a neighbour |
+  |---|---|---|---|
+  | `icons` | +1.55 | +0.21 | +0.37 |
+  | `broad` | +1.10 | +0.13 | +0.29 |
+  | `synthetic` | +0.60 | +0.05 | +0.19 |
+
+  Most of the "every" column is large parts (thicker than 9 px) at `heavy`, coloured wrong by drift. So most of the colour
+  column is error spread over whole parts, not details never drawn.
+
+**Shading splits a flat part along a jagged seam.** The largest single losses (`icons` 79, 133, 151; `broad` 497, 295,
+36) are one flat part traced as two colours, the seam between them ragged with noise: corrupt.v1's shading (up to ±25%
+at a `heavy` corner) puts the halves further apart than `merge_delta`. Dividing the shading out before a second trace
+(the subject's share of each pixel only, never darkening a channel clipped at white) should merge them. It barely does:
+
+| `icons/train` | v23 | shading fitted to the first trace's parts | fitted to pairs of flat pixels 24 px apart | the true shading |
+|---|---|---|---|---|
+| all | 27.297 | 27.424 | 27.333 | 27.376 |
+| `medium` | 22.642 | 22.556 | 22.352 | 22.377 |
+
+(The two fitted columns ran before the white guard was added.) Even the true gradient (replayed from the corruption's
+seed, and checked against it) gains +0.08, where switching shading
+off in the corruption gains +0.32. The difference is the tracer's fragility: a small change to the input flips
+decisions. On seed 21 a white cup, no longer brightened, falls within `background_delta` of a near-white background and
+is lost (-2.8 dB). Fitting to the first trace's parts is also biased: the two halves it already split soak up the
+gradient (its estimate is about half the true one at `heavy`).
+
+**Picking the shortest of several traces.** The same fragility is variance, and variance is something to search over:
+each image traced with k-means seeds 0-3 and two deshaded versions (seeds 0-1), one kept by a description length computed
+without the clean answer (residual bits against the image, composited over a plane fitted to the border, plus 24 bits a
+colour and 2 x 10 bits a node):
+
+| `train` | v23 | mean of 4 seeds | best of 6 by the clean score | shortest of the 4 seeds | shortest of the 6 |
+|---|---|---|---|---|---|
+| `icons` | 27.297 | 27.339 | 27.782 | **27.480** | 27.450 |
+| `synthetic` | 33.942 | 33.937 | 34.488 | 33.868 | 33.800 |
+| `broad` | 28.751 | 28.743 | 29.192 | 28.749 | 28.805 |
+
+A perfect pick would gain about +0.45 dB everywhere; this one wins `icons` (+0.53 at `light`) and loses `synthetic` (-0.34
+at `medium`). Its description is a stand-in, not the tracer's: its background, its σ, its coordinate costs. **The one
+lead left**: compute the description natively, from the pipeline's own background, noise estimate and `Costs`, and pick by
+it. The judge's `error` already composites the whole render over the background. It costs a trace per candidate, 4-6 times
+the time, in the browser too, so it must win on every set to be worth that.
+
 ## The page
 
 `/games/copycat` is the shared game page (docs/design/0007) with a `GameModule` (`app/games/copycat.ts`):
