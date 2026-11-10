@@ -20,7 +20,9 @@ from games.copycat import Svg, background, polish
 if TYPE_CHECKING:
     from svgformer.model import SvgFormer
 
-PICK_MARGIN = 2.0  # tuned on synthetic/validate: 1.96-2.11 on either half, either seed
+# tuned on the train-side groups (synthetic/validate, icons/train, broad/train), weighted as the leaderboard weights its
+# sets: 2 on synthetic alone, where the model reads every image; 1.5 once images it can't read count (0024 E2)
+PICK_MARGIN = 1.5
 
 
 def _pixels(rgba: bytes, width: int, height: int) -> np.ndarray:

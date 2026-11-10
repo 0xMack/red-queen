@@ -497,6 +497,82 @@ The pairing against the tracer, image by image:
 - **Cost:** the pairing costs the tracer's time (5.3 s an image on CPU) plus 0.5 s. The model alone is 0.27 s an image
   on the GPU, 20 times the tracer's speed.
 
+### E2: artwork in the training mix (`copycat-learned-v4`, 2026-11-10)
+
+**The setup:**
+- **Artwork pool:** 35,676 Iconify icons from `svgformer.build`. Each is drawn at 128 px, has nothing clamped, and fits
+  1,024 tokens. Twemoji and Flat Color Icons, the `icons` and `broad` sets, are never trained on.
+- **Corruption:** each icon is corrupted afresh by `corrupt.v1` every time it is drawn (`svgformer.data.artwork_sample`).
+- **Training settings:** `artwork_share` sets the fraction of the stream that is artwork. Validation runs on
+  `synthetic/validate`, `icons/train` and `broad/train`, and held is their mean (`validate_groups`).
+- **Arms:** no-artwork, artwork-30 and artwork-60, each M with E1's leading settings for 20k steps. Seed 2 of the
+  artwork arms was cancelled once seed 1 had failed.
+
+**Results** (greedy, no polish; dB):
+
+| Arm | Held | Synthetic | Icons | Broad |
+|---|---|---|---|---|
+| no-artwork, seeds 1 and 2 | 17.26 / 17.23 | 26.32 / 26.41 | 11.92 / 11.72 | 13.54 / 13.57 |
+| artwork-30 | 9.35 | 10.78 | 8.48 | 8.80 |
+| artwork-60 | 9.05 | 11.25 | 7.67 | 8.24 |
+
+**What went wrong: the decoder stopped looking at the image.**
+- Teacher-forced cross-entropy with each sample's own image and with another sample's:
+  - artwork-60 on artwork: 2.26 / 2.44;
+  - no-artwork on synthetic: 1.72 / 5.74.
+- The artwork-60 model starts every icon with the same large circle. The artwork-30 model collapsed outright and writes
+  one coordinate until the length cap.
+- Artwork sequences average 413 tokens against synthetic's 106, and icon sets have strong regularities. The decoder learns
+  them as a language model and ignores the encoder.
+- The data itself is sound. Tokens decode back to the same image (46.7 dB synthetic, 78.2 dB artwork, worst 34.7), and
+  the corrupted artwork matches its clean SVG at 21.8 dB.
+
+**Fixes tried off the books** (M, 8k steps, artwork share 0.3; greedy on 48 images per group):
+- **None helped from scratch.** These scored 8-11 dB on icons and broad and stayed below no-artwork on every group:
+  - a lower learning rate (3e-4);
+  - artwork capped at 400 tokens;
+  - a per-sequence loss mean;
+  - 20% of input coordinates randomised.
+- **Fine-tuning the no-artwork model at lr 3e-4 keeps it reading the image.**
+  - Swapping the image raises its artwork cross-entropy from 2.84 to 3.93.
+  - It keeps 25.7 dB on synthetic, and its icons cross-entropy falls from 17.3 to 3.4.
+- **But greedy decoding then loops on long paths.** It finishes under 10% of icons, and a path cut off at the cap is
+  dropped whole.
+- **Two decode-time guards (`generate(no_repeat=True)`) don't fix the loops.**
+  - The first bans a segment that goes nowhere or exactly repeats one of the last four. The loops drift instead.
+  - The second ends a path whose last six segments end within 1.6 px. The model then repeats a small shape.
+- **Best-of-8 sampling** (temperature 0.7, the candidate that best fits the input, then polish) helps the model alone:
+
+  | Model | Synthetic | Icons | Broad |
+  |---|---|---|---|
+  | no-artwork | 33.1 → 33.5 | 14.9 → 16.3 | 18.4 → 19.4 |
+  | fine-tuned | 32.6 → 33.2 | 11.8 → 15.5 | 13.6 → 17.8 |
+
+  The best of the nine candidates is still only about 13 dB raw on icons, against the tracer's 27. Paired with the
+  tracer, nothing moves by more than 0.1 dB.
+
+**Conclusions:**
+- **At M scale (12M parameters, 20k steps) the model does not transfer to real artwork,** with or without artwork in the
+  mix. The gap on `icons` and `broad` is 12-15 dB, and the pairing takes the tracer there.
+- **E2's bar (within 3 dB of the tracer on `icons/train` and `broad/train`) is not met.**
+- **Closing the gap needs scale, not a decoding trick.** That means the L configuration (256 px, 4,096 tokens) trained
+  far longer, fine-tuned from a model that already reads images, never artwork from scratch. It is the next decision,
+  not a default.
+- **The pick margin, retuned on the train-side groups weighted as the leaderboard weights its sets, is 1.5, not 2.**
+  - At 2×: 30.28, mean of synthetic/validate, icons/train and broad/train. At 1.5×: 30.34.
+  - Synthetic gives up 0.1; icons and broad each gain about 0.15, since at 2× the model won images it couldn't read.
+  - No held-out image was used. `PICK_MARGIN` is now 1.5.
+  - **On the leaderboard** (`copycat.clean.v2`, run `32b4430e`), the pairing goes from 29.65 to **29.75** ± 2.1. The
+    MDL tracer alone is 29.54. The tracer's SVG is used for 140 of 168 images.
+
+    | Set | Pairing | Against the tracer, image by image | Better / worse |
+    |---|---|---|---|
+    | synthetic | 35.11 | +0.40 ± 0.36 | 12 / 5 |
+    | icons | 25.76 | +0.22 ± 0.44 | 2 / 0 |
+    | broad | 28.36 | −0.00 ± 0.08 (was −0.16 ± 0.17) | 2 / 7 |
+
+    The loss on `broad` is gone. The synthetic gain still holds image by image; icons' gain doesn't, with 24 images.
+
 **Statistics:** 2-3 seeds per arm (training is expensive), compared image by image, mean ± 95% CI.
 
 **Compute, to be replaced by the throughput measurement:**

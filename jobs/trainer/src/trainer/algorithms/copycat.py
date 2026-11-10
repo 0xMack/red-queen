@@ -2,9 +2,12 @@
 recorded as an ordinary run (`paradigm: supervised`, as `tinylm` is).
 
 A generation is `log_every` optimizer steps: fitness is minus the mean training loss, and every `held_out_every`
-generations the held-out score is the mean fidelity (dB) of greedy, grammar-constrained SVGs on `synthetic/validate`,
-scored exactly as `copycat.clean.v2` scores an entrant. Validate is a train-side group (0024 "Experiments"): decisions are
-made on it, never on held-out images. The champion is the checkpoint best on validate, saved as the `<run_id>-weights`
+generations the held-out score is the mean fidelity (dB) of greedy, grammar-constrained SVGs on the `validate_groups`
+(`synthetic/validate` by default; with several, the mean of their means), scored exactly as `copycat.clean.v2` scores an
+entrant. They are train-side groups (0024 "Experiments"): decisions are made on them, never on held-out images.
+
+With `artwork_share` > 0 the stream mixes in the converted Iconify artwork (0024 E2), which `svgformer.build` writes under
+`<data dir>/experiments/svgformer-artwork/build/`. The champion is the checkpoint best on validate, saved as the `<run_id>-weights`
 artifact (a `torch.save` of `{"config", "state_dict"}`).
 
 PyTorch is the `svgformer[torch]` extra, imported only when this runs, so the trainer works without it.
@@ -29,6 +32,7 @@ from telemetry import GenerationStats, data_dir
 from trainer.registry import adapter, held_out_every
 
 SETS_ROOT = ("experiments", "copycat-sets")  # under the data dir: where copycat.report builds its groups
+ARTWORK = ("experiments", "svgformer-artwork", "build", "icons.jsonl")  # under the data dir: svgformer.build's icons
 
 
 class _Counters:
@@ -52,10 +56,33 @@ def hardware(device: str) -> dict[str, Any]:
 
 @adapter("copycat.svgformer", "copycat")
 def train_svgformer(spec: TrainSpec, params: SvgFormerParams, sink: Sink) -> str:
+    import hashlib
+    import statistics
+
     import torch
     from arena.copycat_sets import group_targets
+    from svgformer.data import ArtworkPool
+    from svgformer.model import SIZES
     from svgformer.train import TrainConfig, build, evaluate, model_config, train
 
+    for group in params.validate_groups:
+        if group.endswith("/heldout"):
+            raise ValueError(f"{group}: training is validated on train-side groups only, never on held-out images")
+    artwork_path, artwork = None, None
+    if params.artwork_share > 0:
+        artwork_path = data_dir().joinpath(*ARTWORK)
+        if not artwork_path.exists():
+            raise FileNotFoundError(
+                f"{artwork_path} isn't built: `uv run python -I -m svgformer.artwork fetch|build "
+                f"{artwork_path.parents[1]}` (docs/design/0024 Phase B)"
+            )
+        pool = ArtworkPool.load(artwork_path, SIZES[params.model].max_tokens)
+        artwork = {
+            "source": "/".join(ARTWORK),
+            "share": params.artwork_share,
+            "icons": len(pool),
+            "sha256": hashlib.sha256(artwork_path.read_bytes()).hexdigest(),
+        }
     device = ("cuda" if torch.cuda.is_available() else "cpu") if params.device == "auto" else params.device
     if device == "cpu":
         torch.use_deterministic_algorithms(True)  # a CPU run is bit-reproducible on one machine (0024 Decision 4)
@@ -76,10 +103,14 @@ def train_svgformer(spec: TrainSpec, params: SvgFormerParams, sink: Sink) -> str
         number_features=params.number_features,
         patch_features=params.patch_features,
         fp32_head=params.fp32_head,
+        artwork=None if artwork_path is None else str(artwork_path),
+        artwork_share=params.artwork_share,
     )
     every = held_out_every(spec, 4)
     generations = -(-cfg.steps // cfg.log_every)
-    targets = group_targets("synthetic/validate", data_dir().joinpath(*SETS_ROOT))[: params.validate_images]
+    groups = {
+        g: group_targets(g, data_dir().joinpath(*SETS_ROOT))[: params.validate_images] for g in params.validate_groups
+    }
     torch.manual_seed(spec.seed)
     model = build(cfg, device)
     architecture = model_config(cfg).to_dict()
@@ -89,11 +120,21 @@ def train_svgformer(spec: TrainSpec, params: SvgFormerParams, sink: Sink) -> str
         "game": "copycat",
         "paradigm": "supervised",
         "interface": INTERFACE,
-        "data": {"stream": "synthetic", "corruption": "corrupt.v1", "severities": list(cfg.severities)},
+        "data": {
+            "stream": "synthetic" if artwork is None else "synthetic+artwork",
+            "corruption": "corrupt.v1",
+            "severities": list(cfg.severities),
+            **({"artwork": artwork} if artwork else {}),
+        },
         "model": {"size": params.model, **architecture},
         "parameters": model.parameters_count(),
-        "training": cfg.to_dict(),
-        "validate": {"group": "synthetic/validate", "images": len(targets), "decoding": "greedy"},
+        # the pool's place under the data dir, not this machine's path (run configs are published)
+        "training": {**cfg.to_dict(), "artwork": None if artwork is None else artwork["source"]},
+        "validate": (
+            {"group": params.validate_groups[0], "images": len(groups[params.validate_groups[0]]), "decoding": "greedy"}
+            if len(groups) == 1
+            else {"groups": {g: len(t) for g, t in groups.items()}, "decoding": "greedy", "score": "mean of the groups"}
+        ),
         "generations": generations,
         "held_out_every": every,
         "hardware": hardware(device),
@@ -121,8 +162,11 @@ def train_svgformer(spec: TrainSpec, params: SvgFormerParams, sink: Sink) -> str
                 "images_per_second": g.samples / g.seconds if g.seconds else 0.0,
             }
             if g.generation % every == 0 or last:
-                result = evaluate(model, targets, device, precision=cfg.precision)
-                held = result["fidelity"]
+                results = {g: evaluate(model, t, device, precision=cfg.precision) for g, t in groups.items()}
+                result = results[params.validate_groups[0]]  # the first group's breakdown, as with one group
+                held = statistics.fmean(r["fidelity"] for r in results.values())
+                if len(results) > 1:
+                    extras |= {f"validate_{g.split('/')[0]}": r["fidelity"] for g, r in results.items()}
                 extras |= {f"validate_{s}": v for s, v in result["by_severity"].items()}
                 extras |= {
                     "validate_layer_recovery": result["layer_recovery"],

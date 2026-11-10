@@ -1,0 +1,40 @@
+# copycat-learned-v4: docs/design/0024 E2 -- does it transfer? The leading configuration (copycat-learned-v3's
+# `m-warm4k-fp32head`) with the converted Iconify artwork mixed into the stream at two shares, against a control without
+# it. Every arm is validated on synthetic/validate and on icons/train and broad/train (Twemoji and Flat Color Icons,
+# which the artwork never includes, so never trained on); the held-out score is the mean of the three, as the
+# leaderboard's is of its sets. Before E2 the model scored 15.1 / 16.8 dB greedy on icons/train / broad/train against the
+# MDL tracer's 27.3 / 29.4; E2's bar is to come within 3 dB of the tracer there.
+kind: experiment
+name: copycat-learned-v4
+seeds: [1, 2]
+defaults:
+  game: copycat
+  algorithm: copycat.svgformer
+  budget:
+    steps: 20000
+  held_out_every: 4
+  params:
+    model: M
+    batch: 64
+    lr: 0.001
+    warmup: 4000
+    precision: bf16
+    fp32_head: true
+    workers: 24
+    log_every: 500
+    validate_groups: [synthetic/validate, icons/train, broad/train]
+arms:
+  no-artwork:
+    train:
+      params:
+        artwork_share: 0.0
+  artwork-30:
+    baseline: copycat-learned-v4/no-artwork
+    train:
+      params:
+        artwork_share: 0.3
+  artwork-60:
+    baseline: copycat-learned-v4/no-artwork
+    train:
+      params:
+        artwork_share: 0.6

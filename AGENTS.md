@@ -227,7 +227,8 @@ architectural change that might conflict with a decision already made.
     trained weights.
   - `svgformer/` — Copy Cat, learned (docs/design/0024): SVG as tokens (`tokens.py`, a 1,280-step coordinate grid, 6-bit
     colours, geometry then paint) and the grammar constrained decoding follows (`grammar.py`), both plain Python, as is the
-    training stream (`data.py`: a pure function of `(seed, i)`); the model (`model.py`, Fourier features for coordinates and
+    training stream (`data.py`: a pure function of `(seed, i)`, generated scenes or, with `artwork_share`, the icon sets'
+    train split -- which from scratch teaches a decoder to ignore the image, 0024 E2); the model (`model.py`, Fourier features for coordinates and
     patch places), decoding (`decode.py`) and training (`train.py`, recorded by the trainer's `copycat.svgformer`) need PyTorch, the package's `torch` extra (`uv sync --all-packages --extra torch`: CUDA wheels on Windows from
     the cu132 index, CPU wheels on Linux) -- the one package not built from scratch, and nothing else depends on it.
   - `modelpack/` — portable model packages for client-side inference (docs/design/0009): exporters

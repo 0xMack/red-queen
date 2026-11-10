@@ -5,17 +5,23 @@
 stream is a pure function of its seed: sample `i` is always the same image and tokens, so a run is reproducible however
 many workers read it.
 
+With `artwork_share` > 0 the stream also draws the training artwork (docs/design/0024 E2): Iconify's openly licensed
+icons, converted by `svgformer.build`, which never includes Twemoji or Flat Color Icons (the `icons` and `broad` sets).
+
 The stream itself is plain Python and numpy; `svgformer.train.SyntheticBatches` wraps it for a `DataLoader`.
 """
 
 from __future__ import annotations
 
 import io
+import json
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from arena.copycat_sets import SEVERITIES, SIZE, corrupt_pixels, synthetic
+from games.copycat import Svg
 from PIL import Image
 
 from svgformer import tokens as T
@@ -44,6 +50,70 @@ def synthetic_sample(stream_seed: int, i: int, severities: tuple[str, ...] = SEV
     pixels, _ = corrupt_pixels(svg, seed, severity)
     image = np.asarray(pixels.convert("RGB")).transpose(2, 0, 1).copy()
     return Sample(image, T.encode(svg, SIZE).tokens, seed, severity)
+
+
+ARTWORK_BASE = 3_000_000_000  # corruption seeds of artwork samples: past every generated seed a stream can reach
+
+
+@dataclass(frozen=True)
+class ArtworkPool:
+    """The training artwork (`svgformer.build`'s `icons.jsonl`) that fits: drawn at `SIZE`, nothing clamped, at most
+    `max_tokens` tokens. Only the qualifying lines' byte offsets are held, so a DataLoader worker reads an SVG when it
+    needs one rather than keeping the whole file (200+ MB) in each worker's memory."""
+
+    path: str
+    offsets: tuple[int, ...]
+
+    @classmethod
+    def load(cls, path: str | Path, max_tokens: int) -> ArtworkPool:
+        offsets, at = [], 0
+        with open(path, "rb") as f:
+            for line in f:
+                r = json.loads(line)
+                if r["size"] == SIZE and r["clamped"] == 0 and r["tokens"] <= max_tokens:
+                    offsets.append(at)
+                at += len(line)
+        if not offsets:
+            raise ValueError(f"no artwork in {path} fits {max_tokens} tokens")
+        return cls(str(path), tuple(offsets))
+
+    def __len__(self) -> int:
+        return len(self.offsets)
+
+    def svg(self, k: int) -> str:
+        with open(self.path, "rb") as f:
+            f.seek(self.offsets[k])
+            return json.loads(f.readline())["svg"]
+
+
+def artwork_sample(pool: ArtworkPool, stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> Sample:
+    """Sample `i` of a stream's artwork: a pool icon drawn at random (with replacement) and corrupted afresh, as `icons`
+    and `broad` are, so the same icon is a different image each time it is drawn."""
+    seed = ARTWORK_BASE + stream_seed * STREAM_STRIDE + i
+    rng = random.Random(f"svgformer-artwork:{seed}")
+    svg = Svg(pool.svg(rng.randrange(len(pool)))).canonical()  # canonical: one shape a line, as corrupt.v1 drifts them
+    severity = rng.choice(severities)
+    pixels, _ = corrupt_pixels(svg, seed, severity)
+    image = np.asarray(pixels.convert("RGB")).transpose(2, 0, 1).copy()
+    return Sample(image, T.encode(svg, SIZE).tokens, seed, severity)
+
+
+def mixed_sample(
+    stream_seed: int,
+    i: int,
+    severities: tuple[str, ...] = SEVERITIES,
+    pool: ArtworkPool | None = None,
+    artwork_share: float = 0.0,
+) -> Sample:
+    """Sample `i` of the training stream: artwork with probability `artwork_share`, else `synthetic`. With no artwork it
+    is exactly `synthetic_sample`, so runs from before artwork was mixed in are reproduced."""
+    if (
+        pool is not None
+        and artwork_share > 0
+        and random.Random(f"svgformer-mix:{stream_seed}:{i}").random() < artwork_share
+    ):
+        return artwork_sample(pool, stream_seed, i, severities)
+    return synthetic_sample(stream_seed, i, severities)
 
 
 def collate(samples: list[Sample]) -> tuple[np.ndarray, np.ndarray]:
