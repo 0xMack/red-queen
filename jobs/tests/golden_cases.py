@@ -38,6 +38,10 @@ TOLERANT = {"tinylm", "svgformer"}  # cases compared with `close()`, not ==
 # Looser than close()'s 1e-9: torch's CPU kernels (oneDNN/MKL) pick code paths by instruction set, so a few optimizer
 # steps of rounding can differ in the fifth digit from CPU to CPU (TinyLM's numpy products stay near 1e-12).
 SLACK = {"svgformer": 1e-4}
+# The absolute floor beside SLACK, for sums that nearly cancel: a weight tensor's sum of small signed numbers (an attention
+# key bias's, ~0.003) moved by 5e-6 between two CI machines, 2e-3 of itself, while every loss and sum of squares agreed
+# to 1e-6. Training anything differently moves these sums far more than 1e-4.
+ABS_SLACK = {"svgformer": 1e-4}
 JOBS = Path(__file__).resolve().parents[1]
 
 

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from golden_cases import CASES, FIXTURE, SLACK, TOLERANT, close, load_fixture, run_case
+from golden_cases import ABS_SLACK, CASES, FIXTURE, SLACK, TOLERANT, close, load_fixture, run_case
 
 EXPECTED = load_fixture() if FIXTURE.exists() else None
 # CI sets this and uploads the directory when the test fails: how a platform's fixture is recorded (golden_cases.py).
@@ -27,7 +27,9 @@ def test_golden_run_is_reproduced_exactly(name):
     assert EXPECTED is not None, f"no golden fixture for {sys.platform}: this run's digests are in {OUT}"
     assert name in EXPECTED, f"no golden digest for {name}: record it with golden_cases.py --record {name}"
     if name in TOLERANT:
-        rel = SLACK.get(name, 1e-9)
-        assert close(actual, EXPECTED[name], rel), f"{name} differs beyond {rel}: {actual} != {EXPECTED[name]}"
+        rel, floor = SLACK.get(name, 1e-9), ABS_SLACK.get(name, 1e-9)
+        assert close(actual, EXPECTED[name], rel, floor), (
+            f"{name} differs beyond {rel} (or {floor} near zero): {actual} != {EXPECTED[name]}"
+        )
     else:
         assert actual == EXPECTED[name]
