@@ -1,0 +1,48 @@
+# copycat-learned-v1: docs/design/0024 E1 -- can it learn? Supervised training of svgformer on the `synthetic` stream
+# alone (corrupt.v1, every severity), judged on `synthetic/validate` (400 images, greedy decoding). Gate: clearly above
+# VTracer (about 20 dB); the MDL tracer (about 34 dB) is the stretch.
+#
+# Off the books (0024 "P2 results"): an empty SVG scores 11.78 dB on validate; 6,000 steps of S at lr 1e-3 reached
+# 18.5. Throughput is data-bound at about 25 steps/s (24 workers making images), so S and M cost about the same here.
+# Arms differ from `s` in one thing each: size, precision, or steps (the data-budget curve).
+kind: experiment
+name: copycat-learned-v1
+seeds: [1, 2]
+defaults:
+  game: copycat
+  algorithm: copycat.svgformer
+  budget:
+    steps: 20000
+  held_out_every: 4
+  params:
+    model: S
+    batch: 64
+    lr: 0.001
+    warmup: 1000
+    precision: bf16
+    workers: 24
+    log_every: 500
+arms:
+  s: {}
+  m:
+    baseline: s
+    train:
+      params:
+        model: M
+  s-fp32:
+    baseline: s
+    train:
+      params:
+        precision: fp32
+  s-5k:
+    baseline: s
+    train:
+      budget:
+        steps: 5000
+      params:
+        warmup: 250
+  s-60k:
+    baseline: s
+    train:
+      budget:
+        steps: 60000

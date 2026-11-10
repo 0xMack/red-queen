@@ -26,9 +26,9 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 
   A regular-polygon candidate was measured and not kept. See "Phase 4 results".
 
-Phases 3-6 are proposed. [0024](0024-copycat-bayesian-parsing.md) proposes replacing the ladder's steps 3-4 (search
-and gradient refinement over the greedy pipeline) with sampling a posterior over whole scenes, and settles how a
-searching entrant is recorded as a run.
+Phases 3-6 are proposed. [0024](0024-copycat-learned-inverse.md) proposes a learned entrant beside the MDL tracer: a
+small transformer, trained from scratch, that reads the image and writes the SVG, then fine-tuned by RL against the
+rendered result (it narrows "Explicitly out of scope" below to size and provenance).
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last
@@ -1823,7 +1823,8 @@ Two items from "The game, as a player sees it" are not built yet:
 ## Explicitly out of scope
 
 - Photographs and painterly illustrations.
-- Large learned models that write SVG code.
+- Large learned models that write SVG code: pretrained, or trained elsewhere. A small model trained from scratch here
+  (at most about 30M parameters) is [0024](0024-copycat-learned-inverse.md)'s.
 - LPIPS-style learned metrics as a reward.
 - Animation, beyond keeping the output easy to animate.
 

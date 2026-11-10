@@ -1,0 +1,38 @@
+# copycat-learned-v2: docs/design/0024 E1, continued -- tuning M. In copycat-learned-v1, M (d 256, 6 + 6 layers) at S's
+# settings (lr 1e-3, 1,000 warmup steps) scored 18.0 dB against S's 23.7: it sat at the empty SVG's score for 6,000-8,000
+# steps, then climbed at S's rate. Its training loss fell smoothly all along (no spike), so it is slow to use the image,
+# not unstable. A lower learning rate (S at 3e-4 was worse) may not help, so the learning rate is bracketed both ways,
+# plus a longer warmup at the same rate. Each arm differs from v1's `m` in one thing.
+kind: experiment
+name: copycat-learned-v2
+seeds: [1, 2]
+defaults:
+  game: copycat
+  algorithm: copycat.svgformer
+  budget:
+    steps: 20000
+  held_out_every: 4
+  params:
+    model: M
+    batch: 64
+    lr: 0.001
+    warmup: 1000
+    precision: bf16
+    workers: 24
+    log_every: 500
+arms:
+  m-lr5e-4:
+    baseline: copycat-learned-v1/m
+    train:
+      params:
+        lr: 0.0005
+  m-lr2e-3:
+    baseline: copycat-learned-v1/m
+    train:
+      params:
+        lr: 0.002
+  m-warm4k:
+    baseline: copycat-learned-v1/m
+    train:
+      params:
+        warmup: 4000

@@ -1,0 +1,7 @@
+# Copy Cat, learned (docs/design/0024): svgformer's S transformer trained on the `synthetic` stream (corrupt.v1, every
+# severity), held out on `synthetic/validate` every 4 generations of 500 steps. Needs the `torch` extra and, at these
+# defaults, a GPU and 24 data workers: about 15 minutes on an RTX 5080.
+game: copycat
+algorithm: copycat.svgformer
+budget: {steps: 20000}
+held_out_every: 4

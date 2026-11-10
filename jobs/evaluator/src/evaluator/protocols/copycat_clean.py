@@ -20,6 +20,16 @@ Phase 2's entrant, the ladder's second rung, recovers the clean SVG instead:
   layered SVG. Untrained (its settings were tuned on the `train` split only), so it is a baseline in the leaderboard's
   sense, like every entrant so far.
 
+Phase P3 of docs/design/0024 adds the first trained entrants, from every completed `copycat.svgformer` run outside an
+experiment:
+
+- **`run:<id>`**: the run's transformer, greedy and grammar-constrained, then the MDL tracer's polish against the input
+  (`svgformer.entrant.transcribe`).
+- **`run:<id>+structured`**: the same, or the MDL tracer's SVG, per image (`svgformer.entrant.pick`): the tracer's only
+  when it fits the input twice as well.
+
+They need PyTorch (`svgformer[torch]`) and run on the GPU when there is one; without PyTorch they are skipped, loudly.
+
 Each entrant runs in a fresh process, so its time per image and its peak memory (above that process's own at start)
 are its alone; scoring happens here, after.
 """
@@ -27,6 +37,7 @@ are its alone; scoring happens here, after.
 from __future__ import annotations
 
 import concurrent.futures
+import importlib.util
 import multiprocessing
 import re
 import statistics
@@ -47,7 +58,7 @@ from arena.copycat import (
 from arena.copycat_sets import CORRUPTION
 from arena.costs import hardware_fingerprint, peak_rss_bytes
 from jobcore import Sink, experiments_dir
-from telemetry import EvaluationRecord
+from telemetry import EvaluationRecord, RunInfo
 
 from evaluator.protocols.copycat_report import commit
 from evaluator.registry import protocol
@@ -164,8 +175,10 @@ def trace(settings: dict[str, Any], target: Target) -> str:
     return drop_bottom(svg) if bottom_dropped else svg
 
 
-def run_entrant(settings: dict[str, Any], targets: list[Target]) -> dict[str, Any]:
+def run_entrant(settings: dict[str, Any], targets: list[Target], weights: bytes | None = None) -> dict[str, Any]:
     """In the entrant's own process: every image's SVG and time, and the process's memory before and at peak."""
+    if settings["tracer"] == "svgformer":
+        return run_svgformer(settings, targets, weights)
     baseline = peak_rss_bytes()
     svgs, image_us = [], []
     for target in targets:
@@ -173,6 +186,45 @@ def run_entrant(settings: dict[str, Any], targets: list[Target]) -> dict[str, An
         svgs.append(trace(settings, target))
         image_us.append((time.perf_counter() - start) * 1e6)
     return {"svgs": svgs, "image_us": image_us, "baseline_rss_bytes": baseline, "peak_rss_bytes": peak_rss_bytes()}
+
+
+def run_svgformer(settings: dict[str, Any], targets: list[Target], weights: bytes | None) -> dict[str, Any]:
+    """`run_entrant` for a trained svgformer: batched on the GPU if there is one, so an image's time is its share of its
+    batch's decoding plus its own polish (and, paired, the tracer and the pick)."""
+    import torch
+    from games.copycat import trace as structured
+    from svgformer.entrant import pick, transcribe
+    from svgformer.model import SvgFormer
+
+    if weights is None:
+        raise ValueError("an svgformer entrant needs its weights")
+    baseline = peak_rss_bytes()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = SvgFormer.load(weights, device)
+    images = [(t.rgba8(), t.width, t.height) for t in targets]
+    out = transcribe(model, images, device, settings["precision"])
+    svgs, image_us = [svg for svg, _ in out], [seconds * 1e6 for _, seconds in out]
+    chosen = None
+    if settings.get("paired_with"):
+        chosen = []
+        for i, (rgba, width, height) in enumerate(images):
+            start = time.perf_counter()
+            traced = structured(rgba, width, height).canonical()
+            which = pick(svgs[i], traced, rgba, width, height, settings["margin"])
+            image_us[i] += (time.perf_counter() - start) * 1e6
+            if which == "tracer":
+                svgs[i] = traced
+            chosen.append(which)
+    return {
+        "svgs": svgs,
+        "image_us": image_us,
+        "baseline_rss_bytes": baseline,
+        "peak_rss_bytes": peak_rss_bytes(),
+        "device": device,
+        "gpu": torch.cuda.get_device_name(0) if device == "cuda" else None,
+        "peak_gpu_bytes": torch.cuda.max_memory_allocated() if device == "cuda" else None,
+        "chosen": chosen,
+    }
 
 
 def ci95(images: list[dict[str, Any]]) -> float:
@@ -188,10 +240,76 @@ def ci95(images: list[dict[str, Any]]) -> float:
     return round(1.96 * variance**0.5, 4)
 
 
-def record_for(protocol_name: str, key: str, targets: list[Target], hardware: dict[str, Any]) -> EvaluationRecord:
+def svgformer_entrants(sink: Sink) -> list[dict[str, Any]]:
+    """Two entrants per completed `copycat.svgformer` run outside an experiment (an experiment's runs are compared there,
+    not ranked: docs/design/0018)."""
+    if importlib.util.find_spec("torch") is None:
+        print("skipping svgformer entrants: PyTorch isn't installed (uv sync --all-packages --extra torch)")
+        return []
+    from svgformer.entrant import PICK_MARGIN
+
+    entrants = []
+    for run in sink.registry.list_runs():
+        config = run.config or {}
+        if config.get("game") != GAME or config.get("representation") != "svgformer" or run.status != "completed":
+            continue
+        if config.get("experiment"):
+            continue
+        ref = f"{run.run_id}-weights"
+        weights = sink.artifacts.get_program(ref)
+        size, steps = config["training"]["model"], config["training"]["steps"]  # model.size is the image side
+        name = f"SvgFormer {size} ({steps // 1000}k steps)"
+        model = (
+            f"a {config['parameters'] / 1e6:.1f}M-parameter encoder-decoder transformer trained on the synthetic "
+            f"stream for {steps:,} steps; greedy, grammar-constrained decoding, then the MDL tracer's polish"
+        )
+        settings = {
+            "tracer": "svgformer",
+            "run": run.run_id,
+            "precision": config["training"].get("precision", "bf16"),
+            "decoding": "greedy",
+            "polish": True,
+        }
+        common = {"run": run, "champion_ref": ref, "weights": weights, "parameters": config["parameters"]}
+        entrants.append(
+            {
+                **common,
+                "entrant_id": f"run:{run.run_id}",
+                "label": name,
+                "algorithm": f"SvgFormer {size}",
+                "description": model[0].upper() + model[1:] + ".",
+                "settings": settings,
+            }
+        )
+        entrants.append(
+            {
+                **common,
+                "entrant_id": f"run:{run.run_id}+structured",
+                "label": f"{name} or MDL tracer {MDL_TRACER_VERSION}",
+                "algorithm": f"SvgFormer {size} or MDL tracer {MDL_TRACER_VERSION}",
+                "description": (
+                    f"Per image, {model}; or the MDL tracer {MDL_TRACER_VERSION}'s SVG when, drawn over the background "
+                    f"it fits, it matches the input {PICK_MARGIN:g} times as closely (squared error)."
+                ),
+                "settings": {**settings, "paired_with": "structured", "margin": PICK_MARGIN},
+            }
+        )
+    return entrants
+
+
+def baseline_entrant(key: str) -> dict[str, Any]:
     label, description, settings = ENTRANTS[key]
+    return {"entrant_id": f"baseline:{key}", "label": label, "description": description, "settings": settings}
+
+
+def record_for(
+    protocol_name: str, entrant: dict[str, Any], targets: list[Target], hardware: dict[str, Any]
+) -> EvaluationRecord:
+    label, description, settings = entrant["label"], entrant["description"], entrant["settings"]
+    run: RunInfo | None = entrant.get("run")
+    key = entrant["entrant_id"].removeprefix("baseline:")
     with concurrent.futures.ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn")) as pool:
-        ran = pool.submit(run_entrant, settings, targets).result()
+        ran = pool.submit(run_entrant, settings, targets, entrant.get("weights")).result()
     images = [
         {**score(target, svg), "image_us": us, "svg": svg}
         for target, svg, us in zip(targets, ran["svgs"], ran["image_us"], strict=True)
@@ -200,13 +318,18 @@ def record_for(protocol_name: str, key: str, targets: list[Target], hardware: di
     fidelity = [image["fidelity"] for image in images]
     sets = PROTOCOLS[protocol_name]
     peak, baseline = ran["peak_rss_bytes"], ran["baseline_rss_bytes"]
+    training = {"measured": True, "none": True}
+    if run:
+        training = dict((run.summary or {}).get("cost") or {"measured": False})
     return EvaluationRecord(
         game=GAME,
         protocol=protocol_name,
-        entrant_id=f"baseline:{key}",
-        entrant_kind="baseline",
+        entrant_id=entrant["entrant_id"],
+        entrant_kind="champion" if run else "baseline",
         label=label,
         interface=INTERFACE,
+        run_id=run.run_id if run else None,
+        champion_ref=entrant.get("champion_ref"),
         created_at=time.time(),
         metrics={
             "quality": {
@@ -220,11 +343,17 @@ def record_for(protocol_name: str, key: str, targets: list[Target], hardware: di
             },
             "inference": {
                 "total_us": statistics.fmean(ran["image_us"]),
-                "parameters": 0,
+                "parameters": entrant.get("parameters", 0),
                 "artifact_bytes": round(summary["bytes"]),
+                **({"model_bytes": len(entrant["weights"]), "device": ran["device"]} if run else {}),
             },
-            "training": {"measured": True, "none": True},
-            "model": {"description": description, "observer_level": 1, "note": None, "shape": {"algorithm": label}},
+            "training": training,
+            "model": {
+                "description": description,
+                "observer_level": 1,
+                "note": (run.config or {}).get("note") if run else None,
+                "shape": {"algorithm": entrant.get("algorithm", label)},
+            },
             "protocol": {
                 "set": "+".join(sets),
                 "split": SPLIT,
@@ -243,7 +372,8 @@ def record_for(protocol_name: str, key: str, targets: list[Target], hardware: di
             "copycat": {
                 "settings": settings,
                 "commit": commit(),
-                **({"version": MDL_TRACER_VERSION} if key == "structured" else {}),
+                **({"version": MDL_TRACER_VERSION} if key == "structured" or settings.get("paired_with") else {}),
+                **({"picked_tracer": ran["chosen"].count("tracer")} if ran.get("chosen") else {}),
                 "columns": summary,
                 **({"by_set": by_set} if len(sets) > 1 else {}),
                 "by_severity": by_severity(images),
@@ -252,10 +382,11 @@ def record_for(protocol_name: str, key: str, targets: list[Target], hardware: di
                     "peak_rss_bytes": peak,
                     "baseline_rss_bytes": baseline,
                     "peak_above_baseline_bytes": peak - baseline if peak and baseline else None,
+                    **({"peak_gpu_bytes": ran["peak_gpu_bytes"]} if ran.get("peak_gpu_bytes") else {}),
                 },
             },
         },
-        hardware={**hardware, "engine": "rust"},
+        hardware={**hardware, "engine": "torch" if run else "rust", **({"gpu": ran["gpu"]} if ran.get("gpu") else {})},
     )
 
 
@@ -277,7 +408,8 @@ def run(protocol_name: str, sink: Sink) -> dict[str, Any]:
     store = sink.evaluations
     hardware = hardware_fingerprint()
     targets = held_out(protocol_name, experiments_dir() / "copycat-sets")
-    records = [record_for(protocol_name, key, targets, hardware) for key in ENTRANTS]
+    entrants = [*(baseline_entrant(key) for key in ENTRANTS), *svgformer_entrants(sink)]
+    records = [record_for(protocol_name, entrant, targets, hardware) for entrant in entrants]
     for record in records:
         store.put(record)
     removed = store.prune(GAME, protocol_name, {r.entrant_id for r in records})

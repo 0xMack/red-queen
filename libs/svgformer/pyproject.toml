@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "svgformer"
+version = "0.1.0"
+description = "Copy Cat, learned: a small encoder-decoder transformer that reads an image and writes its SVG as tokens (docs/design/0024)."
+authors = [ { name = "Mack Preston", email = "mack.preston42@gmail.com"} ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "arena",
+    "games",
+    "numpy>=2",
+]
+
+[project.optional-dependencies]
+# The model, training and decoding need PyTorch; the tokenizer and the grammar don't (docs/design/0024 Decision 4).
+# Resolved from PyTorch's CUDA index on Windows and its CPU index on Linux (the root pyproject's [tool.uv.sources]).
+torch = ["torch>=2.15"]
+
+[tool.uv.sources]
+arena = { workspace = true }
+games = { workspace = true }
+torch = [
+    { index = "pytorch-cu132", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/svgformer"]
+
+[tool.ruff]
+# One config for the whole repo -- ruff uses the nearest pyproject.toml and does not inherit.
+extend = "../../pyproject.toml"

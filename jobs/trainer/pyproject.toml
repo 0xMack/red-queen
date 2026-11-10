@@ -17,6 +17,7 @@ dependencies = [
     "jobcore",
     "pyyaml>=6",
     "rl",
+    "svgformer",  # its torch extra is optional: copycat.svgformer imports torch only when it runs
     "telemetry",
 ]
 
@@ -26,6 +27,7 @@ evolve = { workspace = true }
 games = { workspace = true }
 jobcore = { workspace = true }
 rl = { workspace = true }
+svgformer = { workspace = true }
 telemetry = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

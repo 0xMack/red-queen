@@ -11,7 +11,7 @@ use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
 use redqueen_games::copycat::{layer_recovery, Document, Geometry};
 use redqueen_games::copycat_climb::{hill_climb, ClimbConfig};
-use redqueen_games::copycat_trace::{trace, TraceConfig};
+use redqueen_games::copycat_trace::{fitted_background, polish_document, trace, TraceConfig};
 use redqueen_games::nets::{GraphNet, Net, Network};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
@@ -743,6 +743,34 @@ fn copycat_trace(
     Ok(CopyCatDocument { inner })
 }
 
+#[pyfunction]
+fn copycat_polish(
+    py: Python<'_>,
+    rgba: Vec<u8>,
+    width: usize,
+    height: usize,
+    document: &CopyCatDocument,
+) -> PyResult<CopyCatDocument> {
+    let document = document.inner.clone();
+    let inner = py
+        .detach(|| polish_document(&rgba, width, height, &document))
+        .map_err(PyValueError::new_err)?;
+    Ok(CopyCatDocument { inner })
+}
+
+#[pyfunction]
+fn copycat_background<'py>(
+    py: Python<'py>,
+    rgba: Vec<u8>,
+    width: usize,
+    height: usize,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let out = py
+        .detach(|| fitted_background(&rgba, width, height))
+        .map_err(PyValueError::new_err)?;
+    Ok(PyBytes::new(py, &out))
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SnakeCore>()?;
@@ -759,5 +787,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(copycat_layer_recovery, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_hill_climb, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_trace, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_polish, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_background, m)?)?;
     Ok(())
 }

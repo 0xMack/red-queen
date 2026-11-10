@@ -298,6 +298,10 @@ relevant section instead of leaving it here.
 - `apps/frontend`: spawn workers with `new URL("~/workers/x.worker.ts", import.meta.url)`, never a relative
   `../workers/...` -- components move between domain folders, and a relative worker URL survives `pnpm dev`
   (the break only shows when the worker starts) but fails `pnpm build` (`UNRESOLVED_ENTRY`).
+- Copy Cat's rasterizer (`raster.rs`) accumulates signed area, so overlapping same-sign pieces count twice in an
+  anti-aliased edge pixel: a union of overlapping pieces renders a few % fat. Never use one, rendered at 1x, as ground
+  truth. Supersample it (`svgformer.stroke`'s reference), or compare against a single non-overlapping outline. Also,
+  straight-alpha RGBA has arbitrary colour where alpha is ~0, so composite over white before comparing images.
 - **A server-rendered `apps/frontend` page must not write unrounded `Math.tanh` (or other libm) results
   into an attribute or style.** Node and the browser can disagree in the last digit
   (`width:10.368710750128162%` on the server vs `...157%` on the client) and Vue reports a hydration

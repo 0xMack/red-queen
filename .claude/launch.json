@@ -4,28 +4,79 @@
     {
       "name": "backend",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "backend.main:app", "--app-dir", "apis/backend/src", "--port", "8000", "--reload", "--reload-dir", "apis/backend/src", "--reload-dir", "libs", "--timeout-graceful-shutdown", "3"],
+      "runtimeArgs": [
+        "run",
+        "uvicorn",
+        "backend.main:app",
+        "--app-dir",
+        "apis/backend/src",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "apis/backend/src",
+        "--reload-dir",
+        "libs",
+        "--timeout-graceful-shutdown",
+        "3"
+      ],
       "port": 8000
     },
     {
       "name": "frontend",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "apps/frontend", "dev"],
+      "runtimeArgs": [
+        "--dir",
+        "apps/frontend",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "backend-alt",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "backend.main:app", "--app-dir", "apis/backend/src", "--port", "8100"],
+      "runtimeArgs": [
+        "run",
+        "uvicorn",
+        "backend.main:app",
+        "--app-dir",
+        "apis/backend/src",
+        "--port",
+        "8100"
+      ],
       "port": 8100,
       "autoPort": false
     },
     {
       "name": "frontend-alt",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "apps/frontend", "dev", "--port", "3100"],
-      "env": { "NUXT_PUBLIC_API_BASE": "http://127.0.0.1:8100" },
+      "runtimeArgs": [
+        "--dir",
+        "apps/frontend",
+        "dev",
+        "--port",
+        "3100"
+      ],
+      "env": {
+        "NUXT_PUBLIC_API_BASE": "http://127.0.0.1:8100"
+      },
       "port": 3100,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-8200",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "apps/frontend",
+        "dev",
+        "--port",
+        "3200"
+      ],
+      "env": {
+        "NUXT_PUBLIC_API_BASE": "http://127.0.0.1:8200"
+      },
+      "port": 3200,
       "autoPort": false
     }
   ]

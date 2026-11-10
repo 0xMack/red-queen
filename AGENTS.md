@@ -19,8 +19,9 @@ server -- a static copy of the API's public reads on Cloudflare; the runbook is 
 continued -- train it, make MCTS a leaderboard player, cheaper search, then scale; 0021: quiescence search -- never
 score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (phases 1-3 built: the measurement, the structured MDL pipeline, the page; phase 4, search, under way) -- recover the clean, layered SVG
 behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
-one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat as Bayesian image parsing (proposed) --
-a posterior over layered scenes, the corruption in the model, sampled by reversible-jump MCMC) — read the relevant one before an
+one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat, learned (proposed) -- a small
+encoder-decoder transformer (PyTorch, `libs/svgformer`) trained on generated images and openly licensed icon sets and
+illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phase 2, supervised training, built) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -224,6 +225,11 @@ architectural change that might conflict with a decision already made.
     not wired into `evolve`; the trainer's `tinylm` (docs/design/0018) records it as an ordinary run
     (`paradigm: supervised`, the frontend's third run vocabulary) beside its checkpoint. `checkpoint.py` saves/loads
     trained weights.
+  - `svgformer/` — Copy Cat, learned (docs/design/0024): SVG as tokens (`tokens.py`, a 1,280-step coordinate grid, 6-bit
+    colours, geometry then paint) and the grammar constrained decoding follows (`grammar.py`), both plain Python, as is the
+    training stream (`data.py`: a pure function of `(seed, i)`); the model (`model.py`, Fourier features for coordinates and
+    patch places), decoding (`decode.py`) and training (`train.py`, recorded by the trainer's `copycat.svgformer`) need PyTorch, the package's `torch` extra (`uv sync --all-packages --extra torch`: CUDA wheels on Windows from
+    the cu132 index, CPU wheels on Linux) -- the one package not built from scratch, and nothing else depends on it.
   - `modelpack/` — portable model packages for client-side inference (docs/design/0009): exporters
     (WeightVector, NEAT compiled to dense depth layers, TinyLM with a KV cache in `lm.py`) to ONNX,
     content-addressed blobs (graph per variant, weight shards, parity fixture, assets), a sealed
@@ -281,7 +287,8 @@ architectural change that might conflict with a decision already made.
   `trainer.train(spec)` and the like from Python.
   **`jobs/trainer` runs one `TrainSpec`** (`redqueen train ALGORITHM --game G --budget unit=N -p key=value`). The
   algorithms are `gp`, `neuroevolution` and `neat` (Snake and Checkers), `distill`, `bandit_evolve`, `rl.<algorithm>`
-  (Snake, Reach1D), `td_lambda`, `alphazero` and `pbt` (Checkers), and `tinylm` (text). Their params models are
+  (Snake, Reach1D), `td_lambda`, `alphazero` and `pbt` (Checkers), `tinylm` (text) and `copycat.svgformer` (Copy Cat,
+  docs/design/0024; needs the `torch` extra). Their params models are
   `jobcore.algorithms` (defaults = the original scripts'), the adapters are `trainer.algorithms`, and one name can be
   registered per game. An adapter writes exactly the run config the original script did (the frontend reads it), and
   `jobs/tests/test_golden.py` holds it to that. Snake training takes an interface and a training-seed strategy
@@ -302,7 +309,7 @@ architectural change that might conflict with a decision already made.
   `copycat.report` is Copy Cat's record of a change: per image on train and held-out, against an earlier report, under
   `<data dir>/experiments/`, and a run (`config.report`) on `/runs` -- measure with it, not with a throwaway script. Its
   decision is on the run: `kept` and `instructive` (correct, not effective, worth showing; rare) go on the public site.
-  `copycat.clean.v2` runs each entrant (VTracer presets, the core's hill climb and structured pipeline) in a *spawned* process,
+  `copycat.clean.v2` runs each entrant (VTracer presets, the core's hill climb and structured pipeline, and two per completed `copycat.svgformer` run outside an experiment: the model + polish, and the model-or-tracer pick, `svgformer.entrant`) in a *spawned* process,
   so its time and memory are its own: a script that calls it needs an `if __name__ == "__main__":` guard on Windows.
   **`jobs/publisher` runs one `PublishSpec`** (`redqueen publish TARGET`):
   - `snake` exports champions (fp64 + fp32) to the local model store and catalog, measuring agreement on the
@@ -372,7 +379,7 @@ Each directory has its own README with specifics — this file is the map, not t
   `_native.pyd` loaded — stop it first, or (if it's not yours to stop) `mv` the loaded `.pyd` aside: Windows
   allows renaming a mapped DLL, and the build then writes a fresh one (delete the moved copy once nothing holds it;
   it's gitignored meanwhile). Note `uv sync --all-packages`
-  *uninstalls* whatever isn't named — pass `--group notebooks --extra mcp` if they were installed.
+  *uninstalls* whatever isn't named — pass `--group notebooks --extra mcp --extra torch` if they were installed (dropping `torch` deletes a 3 GB CUDA install).
   After changing `rust/core` or `rust/wasm`, run
   `uv run redqueen dev build-wasm` (both cores; `libs/{games,rl}/scripts/build_wasm.py`; needs the `wasm32-unknown-unknown` target and
   `wasm-bindgen-cli` matching `rust/wasm`'s pinned version); `tests/test_wasm_build.py` fails until you do. Rust embeds
