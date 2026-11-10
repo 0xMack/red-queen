@@ -266,6 +266,15 @@ def _background(kind: str, rng: random.Random) -> tuple[np.ndarray, dict[str, An
 
 def corrupt(clean_svg: str, seed: int, severity: str) -> tuple[bytes, dict[str, Any]]:
     """`corrupt.v1` of a clean SVG: the image as 8-bit RGB PNG bytes, and every level drawn."""
+    pixels, levels = corrupt_pixels(clean_svg, seed, severity)
+    out = io.BytesIO()
+    pixels.save(out, "PNG", optimize=True)
+    return out.getvalue(), levels
+
+
+def corrupt_pixels(clean_svg: str, seed: int, severity: str) -> tuple[Image.Image, dict[str, Any]]:
+    """`corrupt.v1` as an 8-bit RGB image, before it is written as a PNG (which is lossless): the same pixels `corrupt`
+    returns, without encoding them (training streams decode them straight back)."""
     rng = random.Random(f"{CORRUPTION}:{seed}:{severity}")
     noise_rng = np.random.default_rng(rng.getrandbits(64))
     ranges = LEVELS[severity]
@@ -311,10 +320,8 @@ def corrupt(clean_svg: str, seed: int, severity: str) -> tuple[bytes, dict[str, 
         buffer = io.BytesIO()
         pixels.save(buffer, "JPEG", quality=levels["jpeg"])
         pixels = Image.open(io.BytesIO(buffer.getvalue())).convert("RGB")
-    out = io.BytesIO()
-    pixels.save(out, "PNG", optimize=True)
     rounded = {k: round(v, 3) if isinstance(v, float) else v for k, v in levels.items()}
-    return out.getvalue(), {"severity": severity, **rounded}
+    return pixels, {"severity": severity, **rounded}
 
 
 def icon_split(split: str, artwork: dict[str, Any]) -> list[tuple[int, str, str]]:

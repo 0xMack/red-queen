@@ -1740,6 +1740,55 @@ pub fn trace(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> 
     stages(rgba, width, height, config).map(|s| s.document)
 }
 
+/// Any document's numbers polished against `rgba` (docs/design/0024 E3: a learned model's SVG, finished by the tracer's
+/// own polish): the image's background is fitted as `trace` fits it, then every shape is nudged against the whole
+/// render, structure and colours held fixed. Only opaque shapes, as the polish composites; the shapes keep their order
+/// and groups.
+pub fn polish_document(rgba: &[u8], width: usize, height: usize, document: &Document) -> Result<Document, String> {
+    if (document.width as usize, document.height as usize) != (width, height) {
+        return Err(format!(
+            "the SVG is {}x{}, the image {width}x{height}",
+            document.width, document.height
+        ));
+    }
+    if document.shapes.iter().any(|s| s.opacity < 1.0) {
+        return Err("polish composites opaque shapes only".into());
+    }
+    let image = Image::from_rgba8(rgba, width, height)?;
+    let sigma = noise_sigma(&image);
+    let background = Background::fit(&image, sigma);
+    let under: Vec<[f64; 3]> = (0..width * height)
+        .map(|i| crate::copycat_polish::srgb(background.at_pixel(&image, i)))
+        .collect();
+    let pixels: Vec<[f64; 3]> = image.rgb.iter().map(|c| c.map(|v| v as f64 / 255.0)).collect();
+    let mut out = document.clone();
+    let mut forms = vec![crate::copycat_polish::Form::Plain; out.shapes.len()];
+    crate::copycat_polish::Judge {
+        width,
+        height,
+        image: &pixels,
+        background: &under,
+        knot_price: 0.0,
+        turn_price: 0.0,
+    }
+    .polish(&mut out.shapes, &mut forms);
+    Ok(out)
+}
+
+/// The background `trace` and `polish_document` fit under an image (straight RGBA8), as opaque RGBA8: what a
+/// transparent-backed SVG is composited over to judge it against that image.
+pub fn fitted_background(rgba: &[u8], width: usize, height: usize) -> Result<Vec<u8>, String> {
+    let image = Image::from_rgba8(rgba, width, height)?;
+    let background = Background::fit(&image, noise_sigma(&image));
+    let mut out = Vec::with_capacity(width * height * 4);
+    for i in 0..width * height {
+        let c = crate::copycat_polish::srgb(background.at_pixel(&image, i));
+        out.extend(c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8));
+        out.push(255);
+    }
+    Ok(out)
+}
+
 /// The whole pipeline, keeping what each stage made.
 pub fn stages(rgba: &[u8], width: usize, height: usize, config: &TraceConfig) -> Result<Stages, String> {
     run(rgba, width, height, config, None)

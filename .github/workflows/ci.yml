@@ -29,7 +29,7 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Install the workspace
-        run: uv sync --all-packages --locked --extra mcp  # the CLI's MCP server is tested too
+        run: uv sync --all-packages --locked --extra mcp --extra torch  # the MCP server and svgformer (CPU torch on Linux) are tested too
       - name: Lint
         run: uv run ruff check .
       - name: Format

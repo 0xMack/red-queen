@@ -2,6 +2,7 @@
 
 from trainer.algorithms import (  # noqa: F401
     bandit_evolve,
+    copycat,
     distill,
     gp,
     neat,

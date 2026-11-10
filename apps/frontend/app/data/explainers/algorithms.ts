@@ -76,6 +76,30 @@ export const ALGORITHMS: ExplainConcept[] = [
     bad: ["It approximates the input, noise included, and has no idea of a part: shapes overlap wherever error falls."],
     related: ["algorithm:copycat-structured"],
   },
+  {
+    kind: "algorithm",
+    id: "svgformer",
+    title: "SvgFormer",
+    family: "Copy Cat · learned (encoder-decoder transformer)",
+    paradigm: "trained by gradients on generated images",
+    summary:
+      "A small transformer that reads the image and writes its SVG one token at a time, bottom shape first. It was trained on over a million generated logos, each corrupted the way the leaderboard's images are, with the clean SVG as the answer, so it learned to leave the corruption out.",
+    how: [
+      "Reading: the 128 px image is cut into 8 px patches, and a vision transformer turns them into 256 vectors, each knowing where on the canvas it sits.",
+      "Writing: a decoder writes the SVG as tokens. A shape is its type, then its numbers on a 1/8 px grid, then its colour, so the colour is read off the region just described.",
+      "Every number token knows its own value, through the same sine and cosine features the patches' positions use. That lets the model line a coordinate up with where it saw the edge.",
+      "A grammar masks every step to the tokens that can come next, so whatever it writes is an SVG in Copy Cat's subset.",
+      "Polish: the model's coordinates are good to about a pixel. The MDL tracer's polish then nudges every number against the input, which is worth about 6 dB.",
+      "Paired with the MDL tracer, both SVGs are drawn over the background the tracer fits, and the tracer's is taken only when it matches the input twice as closely. On a corrupted image the tracer matches the input better because it also draws the corruption, so the plain better fit would usually pick wrong.",
+    ],
+    code: "shape = TYPE numbers... COLOUR_r COLOUR_g COLOUR_b [OPACITY]\nnext token = argmax over what the grammar allows",
+    good: ["Ahead of the MDL tracer on medium and heavy corruption: it was trained on exactly that."],
+    bad: [
+      "Trained only on generated logos so far: on real icons it is out of its depth, and the pairing falls back on the tracer.",
+      "Needs PyTorch and, to be quick, a GPU; it doesn't run in the browser yet.",
+    ],
+    related: ["algorithm:copycat-structured", "metric:clean-fidelity"],
+  },
   // --- Bandit strategies (docs/design/0011) ------------------------------------------------------------------------
   {
     kind: "algorithm",

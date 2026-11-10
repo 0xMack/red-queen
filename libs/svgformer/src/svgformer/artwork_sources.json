@@ -1,0 +1,603 @@
+{
+ "iconify": {
+  "repository": "https://github.com/iconify/icon-sets",
+  "commit": "3eb33380c7dbc256d098ada3f5a5863ec4b145dc",
+  "sets": {
+   "catppuccin": {
+    "name": "Catppuccin Icons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/catppuccin/vscode-icons/blob/main/LICENSE",
+    "author": "Catppuccin",
+    "author_url": "https://github.com/catppuccin/vscode-icons",
+    "category": "Programming"
+   },
+   "cif": {
+    "name": "CoreUI Flags",
+    "licence": "CC0-1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "author": "creativeLabs Łukasz Holeczek",
+    "author_url": "https://github.com/coreui/coreui-icons",
+    "category": "Flags"
+   },
+   "circle-flags": {
+    "name": "Circle Flags",
+    "licence": "MIT",
+    "licence_url": "https://github.com/HatScripts/circle-flags/blob/gh-pages/LICENSE",
+    "author": "HatScripts",
+    "author_url": "https://github.com/HatScripts/circle-flags",
+    "category": "Flags"
+   },
+   "cryptocurrency-color": {
+    "name": "Cryptocurrency Color Icons",
+    "licence": "CC0-1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "author": "Christopher Downer",
+    "author_url": "https://github.com/atomiclabs/cryptocurrency-icons",
+    "category": "Logos"
+   },
+   "devicon": {
+    "name": "Devicon",
+    "licence": "MIT",
+    "licence_url": "https://github.com/devicons/devicon/blob/master/LICENSE",
+    "author": "konpa",
+    "author_url": "https://github.com/devicons/devicon/tree/master",
+    "category": "Programming"
+   },
+   "emojione": {
+    "name": "Emoji One (Colored)",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Emoji One",
+    "author_url": "https://github.com/EmojiTwo/emojitwo",
+    "category": "Emoji"
+   },
+   "flag": {
+    "name": "Flag Icons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/lipis/flag-icons/blob/main/LICENSE",
+    "author": "Panayiotis Lipiridis",
+    "author_url": "https://github.com/lipis/flag-icons",
+    "category": "Flags"
+   },
+   "flagpack": {
+    "name": "Flagpack",
+    "licence": "MIT",
+    "licence_url": "https://github.com/Yummygum/flagpack-core/blob/main/LICENSE",
+    "author": "Yummygum",
+    "author_url": "https://github.com/Yummygum/flagpack-core",
+    "category": "Flags"
+   },
+   "fluent-color": {
+    "name": "Fluent UI System Color Icons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE",
+    "author": "Microsoft Corporation",
+    "author_url": "https://github.com/microsoft/fluentui-system-icons",
+    "category": "UI Multicolor"
+   },
+   "fluent-emoji-flat": {
+    "name": "Fluent Emoji Flat",
+    "licence": "MIT",
+    "licence_url": "https://github.com/microsoft/fluentui-emoji/blob/main/LICENSE",
+    "author": "Microsoft Corporation",
+    "author_url": "https://github.com/microsoft/fluentui-emoji",
+    "category": "Emoji"
+   },
+   "fxemoji": {
+    "name": "Firefox OS Emoji",
+    "licence": "Apache-2.0",
+    "licence_url": "https://mozilla.github.io/fxemoji/LICENSE.md",
+    "author": "Mozilla",
+    "author_url": "https://github.com/mozilla/fxemoji",
+    "category": "Emoji"
+   },
+   "gcp": {
+    "name": "Google Cloud Icons",
+    "licence": "Apache-2.0",
+    "licence_url": "https://www.apache.org/licenses/LICENSE-2.0",
+    "author": "Google Cloud",
+    "author_url": "",
+    "category": "Programming"
+   },
+   "glyphs-poly": {
+    "name": "Glyphs Poly",
+    "licence": "MIT",
+    "licence_url": "https://github.com/gorango/glyphs/blob/main/license",
+    "author": "Goran Spasojevic",
+    "author_url": "https://github.com/gorango/glyphs",
+    "category": "UI Other / Mixed Grid"
+   },
+   "icon-park": {
+    "name": "IconPark",
+    "licence": "Apache-2.0",
+    "licence_url": "https://github.com/bytedance/IconPark/blob/master/LICENSE",
+    "author": "ByteDance",
+    "author_url": "https://github.com/bytedance/IconPark",
+    "category": "UI Multicolor"
+   },
+   "iconito": {
+    "name": "Iconito Food",
+    "licence": "MIT",
+    "licence_url": "https://github.com/iconi-to/free-food/blob/main/LICENSE",
+    "author": "Iconito",
+    "author_url": "https://github.com/iconi-to/free-food",
+    "category": "High Detail Multicolor"
+   },
+   "k8s": {
+    "name": "Kubernetes Icons",
+    "licence": "Apache-2.0",
+    "licence_url": "https://www.apache.org/licenses/LICENSE-2.0",
+    "author": "The Kubernetes Authors",
+    "author_url": "https://kubernetes.io",
+    "category": "Programming"
+   },
+   "logos": {
+    "name": "SVG Logos",
+    "licence": "CC0-1.0",
+    "licence_url": "https://raw.githubusercontent.com/gilbarbara/logos/master/LICENSE.txt",
+    "author": "Gil Barbara",
+    "author_url": "https://github.com/gilbarbara/logos",
+    "category": "Logos"
+   },
+   "marketeq": {
+    "name": "Marketeq",
+    "licence": "MIT",
+    "licence_url": "",
+    "author": "Marketeq",
+    "author_url": "",
+    "category": "UI Multicolor"
+   },
+   "material-icon-theme": {
+    "name": "Material Icon Theme",
+    "licence": "MIT",
+    "licence_url": "https://github.com/material-extensions/vscode-material-icon-theme/blob/main/LICENSE",
+    "author": "Material Extensions",
+    "author_url": "https://github.com/material-extensions/vscode-material-icon-theme",
+    "category": "Programming"
+   },
+   "meteocons": {
+    "name": "Meteocons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/basmilius/weather-icons/blob/dev/LICENSE",
+    "author": "Bas Milius",
+    "author_url": "https://github.com/basmilius/weather-icons",
+    "category": "High Detail Multicolor"
+   },
+   "noto": {
+    "name": "Noto Emoji",
+    "licence": "Apache-2.0",
+    "licence_url": "https://github.com/googlefonts/noto-emoji/blob/main/svg/LICENSE",
+    "author": "Google Inc",
+    "author_url": "https://github.com/googlefonts/noto-emoji",
+    "category": "Emoji"
+   },
+   "noto-v1": {
+    "name": "Noto Emoji (v1)",
+    "licence": "Apache-2.0",
+    "licence_url": "https://github.com/googlefonts/noto-emoji/blob/main/svg/LICENSE",
+    "author": "Google Inc",
+    "author_url": "https://github.com/googlefonts/noto-emoji",
+    "category": "Emoji"
+   },
+   "selfhst": {
+    "name": "selfh.st/icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://github.com/selfhst/icons/blob/main/LICENSE",
+    "author": "selfh.st",
+    "author_url": "https://github.com/selfhst/icons",
+    "category": "Logos"
+   },
+   "skill-icons": {
+    "name": "Skill Icons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/tandpfun/skill-icons/blob/main/LICENSE",
+    "author": "tandpfun",
+    "author_url": "https://github.com/tandpfun/skill-icons",
+    "category": "Programming"
+   },
+   "streamline-color": {
+    "name": "Streamline color",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-cyber-color": {
+    "name": "Cyber color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-emojis": {
+    "name": "Streamline Emojis",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "Emoji"
+   },
+   "streamline-flex-color": {
+    "name": "Flex color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-freehand-color": {
+    "name": "Freehand color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-kameleon-color": {
+    "name": "Kameleon color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-plump-color": {
+    "name": "Plump color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-sharp-color": {
+    "name": "Sharp color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-stickies-color": {
+    "name": "Stickies color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "streamline-ultimate-color": {
+    "name": "Ultimate color icons",
+    "licence": "CC-BY-4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "author": "Streamline",
+    "author_url": "https://github.com/webalys-hq/streamline-vectors",
+    "category": "UI Multicolor"
+   },
+   "tabler-flags": {
+    "name": "Tabler Flags",
+    "licence": "MIT",
+    "licence_url": "https://github.com/tabler/tabler-flags/blob/main/LICENSE",
+    "author": "Paweł Kuna",
+    "author_url": "https://github.com/tabler/tabler-flags",
+    "category": "Flags"
+   },
+   "thesvg-color": {
+    "name": "theSVG Color",
+    "licence": "MIT",
+    "licence_url": "https://github.com/glincker/thesvg/blob/main/LICENSE",
+    "author": "thesvg.org",
+    "author_url": "https://github.com/glincker/thesvg",
+    "category": "Logos"
+   },
+   "token-branded": {
+    "name": "Web3 Icons Branded",
+    "licence": "MIT",
+    "licence_url": "https://github.com/0xa3k5/web3icons/blob/main/LICENCE",
+    "author": "0xa3k5",
+    "author_url": "https://github.com/0xa3k5/web3icons",
+    "category": "Logos"
+   },
+   "unjs": {
+    "name": "UnJS Logos",
+    "licence": "Apache-2.0",
+    "licence_url": "",
+    "author": "UnJS",
+    "author_url": "https://github.com/unjs",
+    "category": "Programming"
+   },
+   "vscode-icons": {
+    "name": "VSCode Icons",
+    "licence": "MIT",
+    "licence_url": "https://github.com/vscode-icons/vscode-icons/blob/master/LICENSE",
+    "author": "Roberto Huertas",
+    "author_url": "https://github.com/vscode-icons/vscode-icons",
+    "category": "Programming"
+   },
+   "withicons-anime": {
+    "name": "with icons Anime",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-bauhaus": {
+    "name": "with icons Bauhaus",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-bento": {
+    "name": "with icons Bento",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-brutal": {
+    "name": "with icons Brutal",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-christmas": {
+    "name": "with icons Christmas",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   },
+   "withicons-chrome": {
+    "name": "with icons Chrome",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-clay": {
+    "name": "with icons Clay",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-coquette": {
+    "name": "with icons Coquette",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-dock": {
+    "name": "with icons Dock",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Apps"
+   },
+   "withicons-glass": {
+    "name": "with icons Glass",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-gothic": {
+    "name": "with icons Gothic",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-halloween": {
+    "name": "with icons Halloween",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   },
+   "withicons-kawaii": {
+    "name": "with icons Kawaii",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-liquid": {
+    "name": "with icons Liquid",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-lunar": {
+    "name": "with icons Cunar",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   },
+   "withicons-luxe": {
+    "name": "with icons Luxe",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-pastel": {
+    "name": "with icons Pastel",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-plush": {
+    "name": "with icons Plush",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-rangoli": {
+    "name": "with icons Rangoli",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   },
+   "withicons-retro": {
+    "name": "with icons Retro",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-skeuo": {
+    "name": "with icons Skeuo",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-soft3d": {
+    "name": "with icons Soft 3D",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "High Detail Multicolor"
+   },
+   "withicons-sticker": {
+    "name": "with icons Sticker",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-suite": {
+    "name": "with icons Suite",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "UI Multicolor"
+   },
+   "withicons-utsav": {
+    "name": "with icons Utsav",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   },
+   "withicons-valentine": {
+    "name": "with icons Valentine",
+    "licence": "MIT",
+    "licence_url": "https://github.com/withevergrow/withicons/blob/main/LICENSE",
+    "author": "Evergrow",
+    "author_url": "https://github.com/withevergrow/withicons",
+    "category": "Holiday / Seasonal"
+   }
+  }
+ },
+ "openclipart": {
+  "url": "http://deb.debian.org/debian/pool/main/o/openclipart/openclipart_0.18+dfsg.orig.tar.gz",
+  "file": "openclipart_0.18+dfsg.orig.tar.gz",
+  "licence": "CC0-1.0",
+  "licence_note": "public domain (Creative Commons Public Domain Dedication), per Debian's copyright file for the openclipart package",
+  "author": "Openclipart contributors (each image's .txt names its author)"
+ },
+ "sha256": {
+  "iconify/catppuccin": "42e3ba40b64664e284e99ddf147f52785aa801df30145760ca635922419032ae",
+  "iconify/cif": "0b7ccd4f7f600a3ef5cfdd3c0425a9ccc9cde0cb3ce3bb958323be453ea50934",
+  "iconify/circle-flags": "e952662aed64a5eda2ea7045231f4e8e7fb42a1279ca28a5c4d80f1f3c30c87f",
+  "iconify/cryptocurrency-color": "c0db36354e9a33f6e8f3f4a368964377ef8640875cf896edd0fd99c1b92f4960",
+  "iconify/devicon": "80a811e1f87bdf18f53233938b2b8c4776eac8db036ca03fc877c95f0c945a1a",
+  "iconify/emojione": "1d82e800aec3664aa46e596ebb06e9fc866fc44605d5eaa8eae6e00941c90875",
+  "iconify/flag": "7c5f5e7aa7f8260d0b5372a597aa435fec6045a9975ab10f7fe81a6ba18fb29f",
+  "iconify/flagpack": "c27e586c845b25c301b1ce4e7d2a4e5a7547454ab580a301a5b7e5628a1b2fa9",
+  "iconify/fluent-color": "a7974de65773c6fc34dd68b851b12e803d289aea920190c93a773c012a8f1589",
+  "iconify/fluent-emoji-flat": "239729bdc88834a70b2fa978c9e39f05015a3f8e7d2d446f7bcfe4ac30047cb9",
+  "iconify/fxemoji": "79146ddeca3477a70c0d8b94166cab2bc968e8d300b71d316740ac3fdc0244ed",
+  "iconify/gcp": "d6883b10be5a9f675aa4c5508432d6232c722f3e946174e429a4ac65fdd253ab",
+  "iconify/glyphs-poly": "786c560916e1dda9dd7ed9c9c61279d70e9f0f479c2a001597eb7f25ca35b02e",
+  "iconify/icon-park": "5e07048abccd5442e4b34b573c3f2818d1a0912981dd9b38410b03f22da0d32d",
+  "iconify/iconito": "a6ff4e2f4fb64bb1c0a2e850625f3e96c4f9fc691a5c31bbc4a53d109e5cfc7a",
+  "iconify/k8s": "4716fde3c7be1975f2f9353ae7c83d0cf9cafc9117d8dc7822c70cf35a56a67d",
+  "iconify/logos": "9d17469b4679df0f9e7745145648548de73abc8a8ffc5784f42bcbf8c06cb8ae",
+  "iconify/marketeq": "6f5dd6e1baa3fbee730ac716d8c1393be85ea0666a2bc3a34441437b819bdfe0",
+  "iconify/material-icon-theme": "1725bafd101023e8e718a4b3e9c065bc5f9e36e9d1ef7f9e3f062498bc43363d",
+  "iconify/meteocons": "f6a84081871015b1505687f15255c4677542a2c6345fc9f9cd763086b7d7ad17",
+  "iconify/noto": "63be972f232f474f978d779abf94fd8eef6cb70816206f891aa0f4e69f0f917a",
+  "iconify/noto-v1": "71d528d911d82b4ffeadc401cac5280d300d4df814a2d406757a2579aeeb81c9",
+  "iconify/selfhst": "cd2f4dc25ff37d6acae4f532b0502d87a7de9b0eecfea33d30d074a684e22b19",
+  "iconify/skill-icons": "7bace9222b45f4619efee8d9188b2d7167e51453429570bc59299fcc1f2a0854",
+  "iconify/streamline-color": "d3bec0ac30d712591957f02943cb2a7d46d8793de30d0d7bf54e93c9b80afe17",
+  "iconify/streamline-cyber-color": "c8ef600cb4c611c7219851d25a9f6c08e971ee6e89ef2193a692e66324d46e28",
+  "iconify/streamline-emojis": "1fe4c2ee2bc73f031179472b7dfbcb8e75b6ca95d51184e1670f5a8769c763cf",
+  "iconify/streamline-flex-color": "50eaf64fcf1b466ac1b0a1b796c5cd2bde980f51e48c3d3a7fb52488db2f11c8",
+  "iconify/streamline-freehand-color": "a4b2b89d62f732d07a49955ae07992b3632b0c0c8e0a7fabb38e19002efa40e4",
+  "iconify/streamline-kameleon-color": "6ef3aa634ef78841cf09556dadce1f96fbcc5ff317d8d7f466beb4b33a7ad30b",
+  "iconify/streamline-plump-color": "a4211c7729ed9cad5acc2194016b262416ff650133beaa7a797b16ee8bebc567",
+  "iconify/streamline-sharp-color": "474e7b63e41198b9e2d91171161f75f6e01a310c674975f4699adae8e2d24c7e",
+  "iconify/streamline-stickies-color": "4374b810496a319707c980a92f21c6817c287521dd4e62b5425813fbb0f802e7",
+  "iconify/streamline-ultimate-color": "3c87f0885f7aec1eb97ae4f0cacb7cb3693f56306422c81b419a82bea08b7651",
+  "iconify/tabler-flags": "f9d250f414ddab512f9ddd408f1d653667c5d0f72262c0d4065b7cf15afe822a",
+  "iconify/thesvg-color": "28ce6df3364858961667c995bdea0ba57428468188a18e13444d00fab14f0bc6",
+  "iconify/token-branded": "7625b14ac535d1c820c4ea65b6d7fb97d57b26cad55b7fffa1f6a8dc19595ddc",
+  "iconify/unjs": "f45f7dba40811a90f2165fc040b4c7d5160cd95ab0673adb4ae92e1e3a6984e0",
+  "iconify/vscode-icons": "6d1db5bc6ea0e3642789c0145735742f73173d691e7c8ccc94f18ea8ff3076fc",
+  "iconify/withicons-anime": "2a1cb4a38121a57a427dd7369c0775be73b80465b5895e650727c9180e1a33cb",
+  "iconify/withicons-bauhaus": "b62fe7cdb74aef399c56e182bce36ce10e38f006d866b39cee18ab67f1a32d8b",
+  "iconify/withicons-bento": "5d1616863ea2effb0f557c3c777d1ae7e205e4e2cd612603b31a2e1bc4941eed",
+  "iconify/withicons-brutal": "3b3d1fbd0eed661a6ae4648b8d3caafe5a91936de33573208a6f96c36e94eca4",
+  "iconify/withicons-christmas": "dd15da9b52e5d316492de95083f0fb6f5d277def7a1bbcfefebcf690c7c0e133",
+  "iconify/withicons-chrome": "61164df63d0cc092436222a2517e7a27d1c0fdf83ce577f5d7cfa4aa218f1c01",
+  "iconify/withicons-clay": "c7a08b1f4bd585d9901b780cd909641410a934796a4c3db09f32c447fd5730e9",
+  "iconify/withicons-coquette": "fecc7dbf442aa5743886b10ad5b290d058f7e890773bb79ad7059304efa54bcd",
+  "iconify/withicons-dock": "69d4eec49c78504c1745cde8b9287ee40c2918deaeeab3d095ef043bc6c8b3f2",
+  "iconify/withicons-glass": "16055c446a080c269f8ea740b6bf1c52a262d1cdea2877868d7e358f111aa0f5",
+  "iconify/withicons-gothic": "6bb9a5cb96235068a1017e129c983fd24562fee18fc80a6d9dd5551b5e92f74f",
+  "iconify/withicons-halloween": "b2f5fc5e69aebc04342a8cb56fb76b66759743a6445f8c571fe7799f26d2bfab",
+  "iconify/withicons-kawaii": "55f5e31ea47f03c7b274e74f0a654720ee5e591547a1105516bf67c09a6abf7d",
+  "iconify/withicons-liquid": "9bf5df137efd45d8c88d960f7641b3d10842255def67550f13c630de5dd82eca",
+  "iconify/withicons-lunar": "3e70c0a718079705aa701ce45122d7ad866da6e370c2904193a84669f061393b",
+  "iconify/withicons-luxe": "f65a3f41ffe76b7ff57956c5d18b7271b0f38f8659dedd6be867245e4645ce7c",
+  "iconify/withicons-pastel": "9edde320522a22701186498c1eebc7f1a779246073ed240f488aa4e1c1c586ac",
+  "iconify/withicons-plush": "2cbaeccd0b153bc9c76a5cbedda84b9f83516f2f80cb109a90792468b3241c6f",
+  "iconify/withicons-rangoli": "d9671dd76208ed4f72d8e8785bb6aef0b7e813c65dfd60a536d59bdf37dd5ff0",
+  "iconify/withicons-retro": "45ea7fe1911961afb4dbfca112dc4f89b68e99fe9a1c3124919e3716eaa1df21",
+  "iconify/withicons-skeuo": "ef0b9e8d56d1cc89e69b2ec2e9fa7cf39167f2d4b20ebfb813277f8aba6b836c",
+  "iconify/withicons-soft3d": "bf1b82b741846f544fc4cc7d24afbf0ea4fb4d4575c93f50beebd45ce9238f91",
+  "iconify/withicons-sticker": "0e7fc990d2078578897581f1209731613efd1080437b5fb9d89ca23aff1ce721",
+  "iconify/withicons-suite": "0f43ca6fb8ca72b692a173ba13d8cffef710918d536f96b95cb3920b626e6859",
+  "iconify/withicons-utsav": "0c2ebf474cd76a36cf1241f06dcc0199acf2516f1dacce971f15aba369dfb98f",
+  "iconify/withicons-valentine": "222d34b6f3e8c756e482f37ac7666079a95d89e75a16cff437221e94777cf505",
+  "openclipart": "99cc8e75625a5355f72a455d15663ef899e61a7c2eadf6fda3372d86bbc83b91"
+ }
+}

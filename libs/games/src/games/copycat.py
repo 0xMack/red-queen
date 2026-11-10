@@ -92,6 +92,19 @@ def hill_climb(
     return Svg._wrap(_native.copycat_hill_climb(rgba, width, height, shapes, candidates, patience, seed))
 
 
+def polish(svg: Svg, rgba: bytes, width: int, height: int) -> Svg:
+    """`svg`'s numbers nudged against the image (straight RGBA8), structure and colours held fixed: the tracer's own
+    polish (rust/core/src/copycat_polish.rs) over the background `trace` would fit. Raises ValueError for a translucent
+    shape or a size mismatch."""
+    return Svg._wrap(_native.copycat_polish(rgba, width, height, svg._core))
+
+
+def background(rgba: bytes, width: int, height: int) -> bytes:
+    """The background `trace` and `polish` fit under an image (straight RGBA8), as opaque RGBA8: what a transparent-backed
+    SVG is composited over to judge it against that image."""
+    return _native.copycat_background(rgba, width, height)
+
+
 def trace(
     rgba: bytes,
     width: int,

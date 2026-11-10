@@ -1379,6 +1379,779 @@
    }
   ]
  },
+ "svgformer": {
+  "runs": [
+   {
+    "config": {
+     "data": {
+      "corruption": "corrupt.v1",
+      "severities": [
+       "clean",
+       "light",
+       "medium",
+       "heavy"
+      ],
+      "stream": "synthetic"
+     },
+     "game": "copycat",
+     "generations": 3,
+     "held_out_every": 1,
+     "interface": "copycat/rgb8.v1+svg-subset.v1",
+     "model": {
+      "d": 64,
+      "decoder_layers": 2,
+      "encoder_layers": 2,
+      "fp32_head": false,
+      "frequencies": 10,
+      "heads": 2,
+      "max_tokens": 1024,
+      "mlp": 4,
+      "number_features": true,
+      "patch": 8,
+      "patch_features": true,
+      "size": 128
+     },
+     "paradigm": "supervised",
+     "parameters": 509120,
+     "representation": "svgformer",
+     "rng_seed": 0,
+     "training": {
+      "batch": 4,
+      "clip": 1.0,
+      "fp32_head": false,
+      "log_every": 2,
+      "lr": 0.001,
+      "model": "XS",
+      "number_features": true,
+      "number_sigma": 0.0,
+      "patch_features": true,
+      "precision": "bf16",
+      "seed": 0,
+      "severities": [
+       "clean",
+       "light",
+       "medium",
+       "heavy"
+      ],
+      "steps": 6,
+      "warmup": 2,
+      "weight_decay": 0.01,
+      "workers": 0
+     },
+     "validate": {
+      "decoding": "greedy",
+      "group": "synthetic/validate",
+      "images": 4
+     }
+    },
+    "curve": [
+     {
+      "best_fitness": -7.303380489349365,
+      "champion_ref": "<run0>-gen0",
+      "diversity": 0.0,
+      "extras": {
+       "step": 2.0,
+       "token_accuracy": 0.0,
+       "train_loss": 7.30338,
+       "validate_clean": 8.9409,
+       "validate_finished": 0.5,
+       "validate_heavy": 10.05,
+       "validate_layer_recovery": 0.04185,
+       "validate_light": 8.9426,
+       "validate_medium": 9.5453,
+       "validate_shape_ratio": 22.15625,
+       "validate_tokens": 864.75
+      },
+      "generation": 0,
+      "held_out_score": 9.3697,
+      "island_id": null,
+      "mean_fitness": -7.303380489349365,
+      "worst_fitness": -7.303380489349365
+     },
+     {
+      "best_fitness": -7.064872980117798,
+      "champion_ref": "<run0>-gen1",
+      "diversity": 0.0,
+      "extras": {
+       "step": 4.0,
+       "token_accuracy": 0.001575,
+       "train_loss": 7.064873,
+       "validate_clean": 10.7377,
+       "validate_finished": 0.75,
+       "validate_heavy": 10.4465,
+       "validate_layer_recovery": 0.100525,
+       "validate_light": 9.2017,
+       "validate_medium": 9.01,
+       "validate_shape_ratio": 16.65625,
+       "validate_tokens": 512.75
+      },
+      "generation": 1,
+      "held_out_score": 9.849,
+      "island_id": null,
+      "mean_fitness": -7.064872980117798,
+      "worst_fitness": -7.064872980117798
+     },
+     {
+      "best_fitness": -6.984340190887451,
+      "champion_ref": "<run0>-gen2",
+      "diversity": 0.0,
+      "extras": {
+       "step": 6.0,
+       "token_accuracy": 0.0,
+       "train_loss": 6.98434,
+       "validate_clean": 9.7669,
+       "validate_finished": 0.5,
+       "validate_heavy": 10.1401,
+       "validate_layer_recovery": 0.275775,
+       "validate_light": 10.1914,
+       "validate_medium": 9.152,
+       "validate_shape_ratio": 24.15625,
+       "validate_tokens": 677.0
+      },
+      "generation": 2,
+      "held_out_score": 9.8126,
+      "island_id": null,
+      "mean_fitness": -6.984340190887451,
+      "worst_fitness": -6.984340190887451
+     }
+    ],
+    "status": "completed",
+    "weights": {
+     "decoder.0.cross_attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": -0.015028272409026044,
+      "sumsq": 0.0003128676611922338
+     },
+     "decoder.0.cross_attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": 2.0524755781261774,
+      "sumsq": 3.2763532112177556
+     },
+     "decoder.0.cross_attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.013155401378753595,
+      "sumsq": 0.00033283671158814906
+     },
+     "decoder.0.cross_attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 1.3523959721787833,
+      "sumsq": 1.629204092990871
+     },
+     "decoder.0.cross_attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.0019464411307126284,
+      "sumsq": 0.00026460243176675653
+     },
+     "decoder.0.cross_attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 1.017651240726991,
+      "sumsq": 1.664123171414805
+     },
+     "decoder.0.mlp.0.bias": {
+      "shape": [
+       256
+      ],
+      "sum": 0.07732305680838181,
+      "sumsq": 0.0012328269895003521
+     },
+     "decoder.0.mlp.0.weight": {
+      "shape": [
+       256,
+       64
+      ],
+      "sum": -5.4266002916901925,
+      "sumsq": 6.633804030601038
+     },
+     "decoder.0.mlp.2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.006818364179707714,
+      "sumsq": 0.0003118585266127584
+     },
+     "decoder.0.mlp.2.weight": {
+      "shape": [
+       64,
+       256
+      ],
+      "sum": 1.617670740106405,
+      "sumsq": 6.638738638502051
+     },
+     "decoder.0.norm1.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.03594268408778589,
+      "sumsq": 0.00031986942935850017
+     },
+     "decoder.0.norm1.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 63.98734748363495,
+      "sumsq": 63.97500097236834
+     },
+     "decoder.0.norm2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.011339619057253003,
+      "sumsq": 0.0003469285492296966
+     },
+     "decoder.0.norm2.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.02911704778671,
+      "sumsq": 64.05844886276797
+     },
+     "decoder.0.norm3.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.01496145612327382,
+      "sumsq": 0.00035194446955500987
+     },
+     "decoder.0.norm3.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.02442049980164,
+      "sumsq": 64.04910370949355
+     },
+     "decoder.0.self_attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": 0.002925051754955277,
+      "sumsq": 0.00025366238054615913
+     },
+     "decoder.0.self_attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": -0.9967880523036001,
+      "sumsq": 3.316393149474503
+     },
+     "decoder.0.self_attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.013030736343353055,
+      "sumsq": 0.00033314701571165756
+     },
+     "decoder.0.self_attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 1.6788504394717165,
+      "sumsq": 1.670515183500597
+     },
+     "decoder.0.self_attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.00031539303017780185,
+      "sumsq": 0.0002464762824761702
+     },
+     "decoder.0.self_attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 0.8971655886562075,
+      "sumsq": 1.6526498359316162
+     },
+     "decoder.1.cross_attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": 0.03586345924395573,
+      "sumsq": 0.0003453773124419996
+     },
+     "decoder.1.cross_attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": 3.1636971682455624,
+      "sumsq": 3.274814324777218
+     },
+     "decoder.1.cross_attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.0007741727749817073,
+      "sumsq": 0.00030140275112711476
+     },
+     "decoder.1.cross_attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": -0.7927188160319929,
+      "sumsq": 1.743005029045411
+     },
+     "decoder.1.cross_attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.05593752706772648,
+      "sumsq": 0.00032422165646755005
+     },
+     "decoder.1.cross_attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 1.6133824346616166,
+      "sumsq": 1.6436335900880836
+     },
+     "decoder.1.mlp.0.bias": {
+      "shape": [
+       256
+      ],
+      "sum": 0.0018892126317950897,
+      "sumsq": 0.0012868300997574812
+     },
+     "decoder.1.mlp.0.weight": {
+      "shape": [
+       256,
+       64
+      ],
+      "sum": -0.07297314801326138,
+      "sumsq": 6.682787211817995
+     },
+     "decoder.1.mlp.2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.007172913057729602,
+      "sumsq": 0.0003010185677994715
+     },
+     "decoder.1.mlp.2.weight": {
+      "shape": [
+       64,
+       256
+      ],
+      "sum": 0.1058438368345378,
+      "sumsq": 6.568683664521522
+     },
+     "decoder.1.norm1.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.00333645855425857,
+      "sumsq": 0.00026025341882522657
+     },
+     "decoder.1.norm1.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.01184678077698,
+      "sumsq": 64.02391373076922
+     },
+     "decoder.1.norm2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.0079007035237737,
+      "sumsq": 0.00036275052031138497
+     },
+     "decoder.1.norm2.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.0003005862236,
+      "sumsq": 64.00085517660303
+     },
+     "decoder.1.norm3.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.05322409453219734,
+      "sumsq": 0.000359369758197365
+     },
+     "decoder.1.norm3.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.02522230148315,
+      "sumsq": 64.05071942852491
+     },
+     "decoder.1.self_attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": 0.00815278131099717,
+      "sumsq": 0.00030002011032701436
+     },
+     "decoder.1.self_attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": -0.19125490730948513,
+      "sumsq": 3.2669934363326907
+     },
+     "decoder.1.self_attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.0007037118048174307,
+      "sumsq": 0.00030109377821992914
+     },
+     "decoder.1.self_attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": -2.622338470129762,
+      "sumsq": 1.6036526899831975
+     },
+     "decoder.1.self_attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.007616234783199616,
+      "sumsq": 0.00036612479658176486
+     },
+     "decoder.1.self_attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": -0.9926074523682473,
+      "sumsq": 1.6102675909254167
+     },
+     "decoder_norm.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.0027994847914669663,
+      "sumsq": 0.0002870846845788085
+     },
+     "decoder_norm.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 63.89882755279541,
+      "sumsq": 63.79794377231998
+     },
+     "encoder.0.attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": 0.009919770305044151,
+      "sumsq": 0.00032821706583755644
+     },
+     "encoder.0.attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": 0.39637797461182345,
+      "sumsq": 3.3535356314374454
+     },
+     "encoder.0.attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.013232000626885565,
+      "sumsq": 0.00029039901474649287
+     },
+     "encoder.0.attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": -0.5833985065328307,
+      "sumsq": 1.6851915550084127
+     },
+     "encoder.0.attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.01824859349289909,
+      "sumsq": 0.0002906359340042315
+     },
+     "encoder.0.attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 0.2770942821261997,
+      "sumsq": 1.6232359821339992
+     },
+     "encoder.0.mlp.0.bias": {
+      "shape": [
+       256
+      ],
+      "sum": -0.024742916764807887,
+      "sumsq": 0.0012459676701946556
+     },
+     "encoder.0.mlp.0.weight": {
+      "shape": [
+       256,
+       64
+      ],
+      "sum": -3.8347669726936147,
+      "sumsq": 6.589264922376691
+     },
+     "encoder.0.mlp.2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.010203091282164678,
+      "sumsq": 0.0002815919078168027
+     },
+     "encoder.0.mlp.2.weight": {
+      "shape": [
+       64,
+       256
+      ],
+      "sum": 2.7640646250456484,
+      "sumsq": 6.631834352463575
+     },
+     "encoder.0.norm1.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.007790565206960309,
+      "sumsq": 0.00024393291754013483
+     },
+     "encoder.0.norm1.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.02063578367233,
+      "sumsq": 64.04148711523277
+     },
+     "encoder.0.norm2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.009587952357833274,
+      "sumsq": 0.00033393716855027885
+     },
+     "encoder.0.norm2.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.01713049411774,
+      "sumsq": 64.03450195821716
+     },
+     "encoder.1.attn.kv.bias": {
+      "shape": [
+       128
+      ],
+      "sum": 0.0011487899158102999,
+      "sumsq": 0.0002722175142650245
+     },
+     "encoder.1.attn.kv.weight": {
+      "shape": [
+       128,
+       64
+      ],
+      "sum": -0.8784471112157917,
+      "sumsq": 3.3552660038464794
+     },
+     "encoder.1.attn.out.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.01167776677175425,
+      "sumsq": 0.0002846535261023507
+     },
+     "encoder.1.attn.out.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 0.9476768437307328,
+      "sumsq": 1.6023299767734722
+     },
+     "encoder.1.attn.q.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.0030793934129178524,
+      "sumsq": 0.0002975453571062623
+     },
+     "encoder.1.attn.q.weight": {
+      "shape": [
+       64,
+       64
+      ],
+      "sum": 0.964415047703369,
+      "sumsq": 1.6963729291095495
+     },
+     "encoder.1.mlp.0.bias": {
+      "shape": [
+       256
+      ],
+      "sum": 0.021822979324497283,
+      "sumsq": 0.001165803224056095
+     },
+     "encoder.1.mlp.0.weight": {
+      "shape": [
+       256,
+       64
+      ],
+      "sum": 1.1525698747955175,
+      "sumsq": 6.486275416212008
+     },
+     "encoder.1.mlp.2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.01550164281798061,
+      "sumsq": 0.0002725191558738643
+     },
+     "encoder.1.mlp.2.weight": {
+      "shape": [
+       64,
+       256
+      ],
+      "sum": 0.2879888160096016,
+      "sumsq": 6.633798845200616
+     },
+     "encoder.1.norm1.bias": {
+      "shape": [
+       64
+      ],
+      "sum": 0.0034015736309811473,
+      "sumsq": 0.0002968191762469778
+     },
+     "encoder.1.norm1.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 63.987249076366425,
+      "sumsq": 63.97476521896136
+     },
+     "encoder.1.norm2.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.029104666697094217,
+      "sumsq": 0.00028649928787808656
+     },
+     "encoder.1.norm2.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 63.978132009506226,
+      "sumsq": 63.956530829822654
+     },
+     "encoder_norm.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.02539255858573597,
+      "sumsq": 0.00029572380671341424
+     },
+     "encoder_norm.weight": {
+      "shape": [
+       64
+      ],
+      "sum": 64.03492957353592,
+      "sumsq": 64.07016929362048
+     },
+     "head.weight": {
+      "shape": [
+       1375,
+       64
+      ],
+      "sum": -5.685894826992353,
+      "sumsq": 35.46450928483816
+     },
+     "number_in.weight": {
+      "shape": [
+       64,
+       20
+      ],
+      "sum": 0.4139209126951755,
+      "sumsq": 0.5337572180036109
+     },
+     "number_out.weight": {
+      "shape": [
+       64,
+       20
+      ],
+      "sum": -0.20141011749365134,
+      "sumsq": 0.4863782726195178
+     },
+     "patch_embed.bias": {
+      "shape": [
+       64
+      ],
+      "sum": -0.01579963811309426,
+      "sumsq": 0.00028106414398321064
+     },
+     "patch_embed.weight": {
+      "shape": [
+       64,
+       192
+      ],
+      "sum": -2.10311483960686,
+      "sumsq": 5.047780836856619
+     },
+     "patch_in.weight": {
+      "shape": [
+       64,
+       40
+      ],
+      "sum": -1.5558123927694396,
+      "sumsq": 0.9732932106949077
+     },
+     "patch_pos": {
+      "shape": [
+       1,
+       256,
+       64
+      ],
+      "sum": -3.0708097093811375,
+      "sumsq": 6.611764108334583
+     },
+     "token_embed.weight": {
+      "shape": [
+       1375,
+       64
+      ],
+      "sum": 0.9531920840709631,
+      "sumsq": 35.07536226856617
+     },
+     "token_pos": {
+      "shape": [
+       1,
+       1024,
+       64
+      ],
+      "sum": -7.786525704893961,
+      "sumsq": 26.33303386519222
+     }
+    }
+   }
+  ]
+ },
  "tinylm": {
   "meta": {
    "config": {

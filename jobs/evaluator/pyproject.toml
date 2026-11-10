@@ -18,6 +18,7 @@ dependencies = [
     "modelpack",
     "pyyaml>=6",
     "rl",
+    "svgformer",
     "telemetry",
     "vtracer>=0.6.15",
 ]
@@ -29,6 +30,7 @@ games = { workspace = true }
 jobcore = { workspace = true }
 modelpack = { workspace = true }
 rl = { workspace = true }
+svgformer = { workspace = true }
 telemetry = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

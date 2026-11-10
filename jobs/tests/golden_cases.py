@@ -9,7 +9,8 @@ Exact *per operating system*, not across them: `math.tanh`/`exp` (Python) and Ru
 platform's libm, and MSVC's and glibc's can differ in the last bit -- which a few generations of selection turn into
 different champions. So there is one fixture per platform (`golden/champions.<sys.platform>.json`). TinyLM is the one
 tolerance: its matrix products go through numpy's BLAS, whose kernels (so whose rounding) depend on the CPU, so its
-weights are compared as per-array sums to 1e-9 (relative, or absolute near zero).
+weights are compared as per-array sums to 1e-9 (relative, or absolute near zero). `svgformer` (PyTorch) is the same
+idea at 1e-4 (`SLACK`), and skips where the `torch` extra isn't installed.
 
 Re-record (only for a deliberate behaviour change, which then needs saying in the commit):
     uv run python jobs/tests/golden_cases.py --record [case ...]
@@ -33,7 +34,10 @@ from pathlib import Path
 from typing import Any
 
 FIXTURE = Path(__file__).parent / "golden" / f"champions.{sys.platform}.json"
-TOLERANT = {"tinylm"}  # cases compared with `close()`, not ==
+TOLERANT = {"tinylm", "svgformer"}  # cases compared with `close()`, not ==
+# Looser than close()'s 1e-9: torch's CPU kernels (oneDNN/MKL) pick code paths by instruction set, so a few optimizer
+# steps of rounding can differ in the fifth digit from CPU to CPU (TinyLM's numpy products stay near 1e-12).
+SLACK = {"svgformer": 1e-4}
 JOBS = Path(__file__).resolve().parents[1]
 
 
@@ -258,6 +262,23 @@ CASES: dict[str, Case] = {
     ),
     # Recorded as a run since 0018 stage 3c; the digest is still the checkpoint, so it must match the script's exactly.
     "tinylm": train("text", "tinylm", 0, budget={"steps": 3}, params={"checkpoint": "golden"}),
+    # docs/design/0024 P2: the XS transformer for 6 steps on the CPU, in process, validated on 4 images every generation.
+    "svgformer": train(
+        "copycat",
+        "copycat.svgformer",
+        0,
+        budget={"steps": 6},
+        held_out_every=1,
+        params={
+            "model": "XS",
+            "batch": 4,
+            "workers": 0,
+            "log_every": 2,
+            "warmup": 2,
+            "validate_images": 4,
+            "device": "cpu",
+        },
+    ),
 }
 
 
@@ -335,6 +356,35 @@ def digest_tinylm(name: str) -> dict[str, Any]:
     return {"weights": weights, "meta": meta}
 
 
+CLOCKS = {"images_per_second"}  # svgformer's curve extras that measure time, not results
+
+
+def digest_svgformer(run_id: str, names: dict[str, str]) -> dict[str, Any]:
+    """`digest_run` without what differs by machine -- the config's `hardware` block and the curve's throughput -- and
+    the champion as the weights artifact's tensors (shape, sum, sum of squares), not `torch.save`'s zip bytes."""
+    import io
+
+    import torch
+    from telemetry import open_stores
+
+    stores = open_stores()
+    run = stores.registry.get_run(run_id)
+    config = {k: v for k, v in run.config.items() if k != "hardware"}
+    curve = []
+    for g in stores.metrics.history(run_id):
+        row = _anonymize(g.model_dump(exclude={"timestamp", "run_id"}), names)
+        row["extras"] = {k: v for k, v in row["extras"].items() if k not in CLOCKS}
+        curve.append(row)
+    saved = torch.load(
+        io.BytesIO(stores.artifacts.get_program(f"{run_id}-weights")), weights_only=True, map_location="cpu"
+    )
+    weights = {
+        k: {"shape": list(t.shape), "sum": float(t.double().sum()), "sumsq": float((t.double() ** 2).sum())}
+        for k, t in sorted(saved["state_dict"].items())
+    }
+    return {"status": run.status, "config": _anonymize(config, names), "curve": curve, "weights": weights}
+
+
 def close(actual: Any, expected: Any, rel: float = 1e-9, abs_tol: float = 1e-9) -> bool:
     """Equal, except that floats need only agree to `rel` -- or to `abs_tol` near zero, where a relative tolerance means
     nothing: an attention key bias's gradient is exactly zero in theory (softmax ignores a constant shift), so its sum
@@ -364,6 +414,8 @@ def run_case(name: str, runner: Callable[[Case], Any] | None = None) -> dict[str
             return digest_tinylm(case.spec["params"]["checkpoint"])
         run_ids = result if isinstance(result, tuple) else (result,)
         names = {run_id: f"<run{i}>" for i, run_id in enumerate(run_ids)}
+        if case.spec is not None and case.spec["algorithm"] == "copycat.svgformer":
+            return {"runs": [digest_svgformer(run_id, names) for run_id in run_ids]}
         return {"runs": [digest_run(run_id, names) for run_id in run_ids]}
 
 

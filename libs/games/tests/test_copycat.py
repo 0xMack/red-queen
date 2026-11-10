@@ -4,7 +4,7 @@ import struct
 
 import pytest
 
-from games.copycat import Svg, hill_climb, layer_recovery, trace
+from games.copycat import Svg, background, hill_climb, layer_recovery, polish, trace
 
 TWO_PARTS = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 8">'
@@ -74,3 +74,52 @@ def test_the_structured_pipeline_recovers_the_parts():
     assert traced.render_rgba8()[3] == 0  # the background is transparent
     with pytest.raises(ValueError):
         trace(b"\0" * 12, 64, 32)
+
+
+def _over_white(svg: Svg) -> bytes:
+    """`svg` composited over white as an opaque RGBA8 image (the input an entrant gets)."""
+    rgba = svg.render_rgba8()
+    out = bytearray(rgba)
+    for i in range(0, len(rgba), 4):
+        a = rgba[i + 3] / 255
+        for k in range(3):
+            out[i + k] = round(rgba[i + k] * a + 255 * (1 - a))
+        out[i + 3] = 255
+    return bytes(out)
+
+
+def _rect(x: float) -> Svg:
+    return Svg(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="{x}" y="8" width="12" height="14" '
+        'fill="#c03020"/></svg>'
+    )
+
+
+def test_polish_moves_a_misplaced_shape_onto_the_image():
+    image = _over_white(_rect(10))
+    moved = polish(_rect(11.5), image, 32, 32)
+    assert moved.describe()[0][1] == (0xC0, 0x30, 0x20)  # colour held fixed
+    x = float(moved.canonical().split('<rect x="')[1].split('"')[0])
+    assert abs(x - 10) < 0.3
+
+
+def test_polish_refuses_what_it_cannot_composite():
+    image = _over_white(_rect(10))
+    translucent = Svg(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="10" y="8" width="12" '
+        'height="14" fill="#c03020" fill-opacity="0.5"/></svg>'
+    )
+    with pytest.raises(ValueError, match="opaque"):
+        polish(translucent, image, 32, 32)
+    with pytest.raises(ValueError, match="32x32"):
+        polish(_rect(10), image[: 16 * 32 * 4], 16, 32)
+
+
+def test_background_is_what_the_shapes_sit_on():
+    image = _over_white(_rect(10))
+    under = background(image, 32, 32)
+    assert len(under) == 32 * 32 * 4
+    assert set(under[0::4]) == set(under[1::4]) == set(under[2::4]) == {255}  # white, under the rect too
+    assert set(under[3::4]) == {255}
+    with pytest.raises(ValueError):
+        background(image[:12], 32, 32)
