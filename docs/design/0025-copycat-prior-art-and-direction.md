@@ -1,0 +1,272 @@
+# 0025 — Copy Cat: what the prior art says, and learning around the tracer
+
+Status: **proposed** (2026-11-10); D0 run: a perfect denoiser would lift the tracer by 10-15 dB on every train-side group
+(see "D0 results"), so Decision 1 is worth building. A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
+sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
+Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
+[0024](0024-copycat-learned-inverse.md) (svgformer, E0-E2), [0023](0023-process-traces-and-research-log.md) (reports as
+runs), [0010](0010-reinforcement-learning.md) (policy gradients).
+
+## Context
+
+0024 trained svgformer, a 12M-parameter encoder-decoder that reads the corrupted image and writes the SVG token by token.
+
+- **On `synthetic`, it works.** It learns the generator's images (26 dB greedy, 32.7 with the tracer's polish). Paired
+  with the tracer per image, it is the first trained entrant ahead of the tracer on any set: +0.40 dB on `synthetic`.
+- **On real artwork it doesn't** (E2). Its scores on `icons` and `broad` are 12-15 dB behind the tracer.
+  - **Trained from scratch with artwork in the mix,** the decoder learns the icon sets as a language model and ignores the
+    image. Its loss barely moves when given another sample's image (2.26 → 2.44).
+  - **Fine-tuned from a model that reads images,** it keeps reading, but greedy decoding loops on long paths.
+  - **Neither decoding guards nor best-of-8 sampling** close the gap.
+- **The tracer's loss is mostly corruption.** On `synthetic/validate` it scores 47.3 dB on clean images, 35.8 light, 27.4
+  medium and 22.9 heavy.
+
+0024 named scale (the L model, 30M parameters, trained far longer) as the next lever. Before spending GPU-days on it, we
+read the prior art (2026-11-10). Primary sources, main text; appendices not always. Most numbers are self-reported, the
+papers disagree on metrics, and the 2026 preprints aren't reviewed.
+
+## The survey
+
+### Large learned image-to-SVG models
+
+| Model | Size | Training data | What it does |
+|---|---|---|---|
+| [StarVector](https://arxiv.org/abs/2312.11556) (CVPR 2025) | 1B / 8B, pretrained CLIP or SigLIP + StarCoder | 2.1M SVGs from The Stack | SVG code left to right. 8B: 10 days on 64 H100s. Best of 5 by DINO at test time |
+| [OmniSVG](https://arxiv.org/abs/2504.06263) | 3B / 7B, Qwen2.5-VL | 2M (icons, illustrations, characters) | One token per (x, y) point and per colour: illustrations 29.5k → 9.7k tokens |
+| [VectorArk](https://arxiv.org/abs/2605.24398) (2026) | 1B, InternVL2 | 5M SVGs, 250k steps at batch 256 | Built for degraded inputs, around a classical tracer (below) |
+
+- **On pixel metrics, optimisation still wins.** [LIVE](https://arxiv.org/abs/2206.04655) beats StarVector on SVG-Stack
+  (MSE 0.003 against 0.026) and OmniSVG on icons (0.004 against 0.008); both papers say so. Learned models win on DINO,
+  compactness (3-5k tokens against LIVE's 18k) and time (15-60 s against 170 s).
+- **At that scale, supervised training alone still loops.** RLRF reports that SFT-only models "often hallucinate or loop" on
+  long SVGs, and Render-in-the-Loop sees "degenerate repetition loops" without its verification step. So 0024's E2 loops
+  are a known failure of supervised training, not a bug of ours.
+- **Our scale is far smaller:** about 1.3M training images and 12M parameters, against 50-100 times the data and 100 times
+  the parameters, on pretrained vision.
+
+### Hybrids around a classical tracer
+
+**VectorArk** is the closest to Copy Cat: real-world inputs, not clean renders.
+- **Input:** a classical tracer (Illustrator's Image Trace, or VTracer) first turns the image into outlines, without
+  colour; the model reads that.
+- **Model:** it predicts geometry only, as rounded polygons (28-47% fewer tokens than OmniSVG).
+- **Colour and paint order** are set afterwards by render-and-compare: each path's median colour over the pixels only it
+  covers, then orderings of overlapping paths scored by MSE against the input (200-300 ms per image on one CPU core).
+- **Training inputs** come from a round trip: clean SVG → render (random size, blur) → classical tracer → render. So the
+  model learns to correct a tracer's mistakes.
+- **Why:** the authors found that a vectoriser trained on clean renders "faithfully reproduces" a degraded input's flaws.
+- **Results:** on hard icons, SSIM 0.857 against StarVector's 0.626 and OmniSVG's 0.518.
+
+[SuperSVG](https://arxiv.org/abs/2406.09794) is a coarse learned stage (paths per superpixel) refined by optimisation, the
+shape of 0024's model + polish.
+
+### RL from render feedback
+
+- **[RLRF](https://arxiv.org/abs/2505.20793)** (0024's source for GRPO).
+  - **Rewards:** pixel L2, L2 on edges, DreamSim, and a length penalty.
+  - **Gain:** on a 7B model, icon MSE from 8.60 to 1.03, ahead of LIVE's 2.22, with the loops corrected.
+  - **SFT first is necessary:** RL alone reaches 14.2.
+  - **Rollouts per image:** going from 8 to 64 kept helping.
+  - **Cost:** about 3 days on 32 H100s.
+- **[IR4RL](https://arxiv.org/abs/2609.34587)** (2026) renders after every drawing command, and rewards each command by how
+  much it moved the render towards the target.
+  - **Result:** much better than a reward on the final SVG alone (DINO 97.5 against 92.9), with SVGs 2-4 times shorter.
+  - **Granularity:** finer is better; rendering after every command was best.
+  - **Data:** 700 training images; 10k gave no further gain.
+  - **Model:** OmniSVG-4B, LoRA, 2 days on one B200.
+
+So RL does fix looping and length. But every source starts it from a large model that is already good.
+
+### Seeing what has been drawn
+
+Every small, from-scratch method found that works shows the model the canvas it has drawn so far:
+
+- **[Ellis et al. 2018](https://arxiv.org/abs/1707.09627)** (graphics programs from hand drawings).
+  - **Inputs:** a CNN reads the target and the render so far as two stacked channels, and proposes the next primitive.
+  - **Search:** Sequential Monte Carlo, weighted by the render's distance to the target.
+  - **Results:** neither the network nor the search alone was enough. It handled scenes twice the size of its training
+    scenes, and matched 63% of 100 real hand drawings exactly.
+  - **Cost:** about a day on one GPU, on 10^5 synthetic scenes.
+- **[Tree diffusion](https://arxiv.org/abs/2405.20519)** (Kapur, Jenner and Russell, ICLR 2025).
+  - **Inputs:** the target, the current render and their difference.
+  - **Output:** a grammar-constrained *edit* to the program, not a program written left to right.
+  - **Training:** on random mutations of random programs.
+  - **Search:** beam search with a value network that predicts edit distance.
+  - **Ablation:** removing the current render "drastically hindered performance".
+- **[Paint Transformer](https://arxiv.org/abs/2108.03798)** (ICCV 2021).
+  - **Output:** from (canvas, target) patches it predicts a *set* of strokes, DETR-style, coarse to fine. No sequence.
+  - **Training:** only on its own synthetic strokes, in under 4 hours on one RTX 2080 Ti.
+  - **Speed:** 0.3 s per 512 px image.
+- **[Render-in-the-Loop](https://arxiv.org/abs/2604.20730)** (2026).
+  - **Feedback:** after each `<path>`, the canvas is rendered and fed back in.
+  - **Inference:** a step that doesn't change the canvas, or repeats the code before it, is rejected and resampled.
+  - **Result:** icon MSE 0.094 → 0.027 against the same model trained without feedback.
+- **[Write, Execute, Assess](https://arxiv.org/abs/1906.04604)** (NeurIPS 2019): a policy and a value function over partial
+  programs, run in a REPL and searched by SMC.
+
+### Shorter sequences
+
+- **Fewer tokens per point:** OmniSVG gives each (x, y) one token (3.6 times shorter); VectorArk uses rounded polygons;
+  [StrokeNUWA](https://arxiv.org/abs/2401.17093) compresses strokes into VQ tokens.
+- **Simpler targets:** VectorArk and OmniSVG both normalise SVGs before training: a few path commands, no transforms.
+
+### Optimisation
+
+- **Recent renderers:** [Bézier Splatting](https://arxiv.org/abs/2503.16424) (NeurIPS 2025: 30-150 times DiffVG's speed)
+  and [Vector Scaffolding](https://arxiv.org/abs/2605.11913) (2026: +0.5-1.4 dB PSNR over it) target natural photos with
+  hundreds to thousands of curves, which isn't our regime.
+- **The pattern they share is the polish's:** add shapes where the error is largest, then optimise. LIVE starts each new
+  path at the largest connected region of error.
+- **[Image Vectorization with Depth](https://arxiv.org/abs/2409.06648):** paint order from an occlusion energy, with
+  occluded parts completed by inpainting. Relevant to layered targets.
+
+## What it means for Copy Cat
+
+1. **Left-to-right decoding at our scale has no record of working on real artwork.** The models that do work are 100
+   times larger and still loop.
+2. **The small methods that work see their canvas.** Seeing the residual (what is still undrawn) addresses both E2
+   failures:
+   - **ignoring the image:** the next shape is decided by the residual, so there is no shortcut through a language model of
+     icon code;
+   - **looping:** each step is checked against the render, and one that does nothing is rejected.
+
+   It also turns a 400-token icon into about 20 short shape decisions.
+3. **Where pixels are scored, an optimiser or a tracer is the incumbent,** and the best learned systems work with one:
+   VectorArk around a classical tracer, SuperSVG and 0024's polish as refinement after a learned stage.
+4. **The tracer's loss is mostly corruption** (47.3 dB clean against 22.9 heavy). That is a dense, per-pixel learning
+   problem: no sequence, no looping, and no way to ignore the input. Every artwork icon is usable through its clean
+   render, with no token limit. VectorArk's lesson, read the other way round, is to clean the input rather than teach the
+   vectoriser its flaws. We found no paper that does exactly this for clip art, so it is our hypothesis.
+5. **RL fixes looping and length, but from a good supervised model.** A per-shape reward (IR4RL) fits a render-in-the-loop
+   model naturally: the reward is how much the shape reduced the residual.
+
+## Decision 1: denoise, then trace
+
+**The idea.** A learned image-to-image model maps the corrupted input to an estimate of the clean render, and the MDL
+tracer traces that. Training pairs are free: any clean SVG, rendered, and corrupted by `corrupt.v1`.
+
+- **Data:** `synthetic`'s generator and the 36k-icon artwork pool (`svgformer.data`), never `icons` or `broad`.
+- **Target:**
+  - the clean pipeline's image (`corrupt.v1` at severity `clean`: the subject on a flat off-white background; D0 showed a
+    pure white background costs the tracer the subject's white parts), with an L1 loss and an edge-weighted term, since 60% of svgformer's error was on edge pixels
+    (0024);
+  - an arm instead predicts a flat-colour image, each pixel snapped to its region's colour, which is closer to what the
+    tracer looks for.
+- **Model:** a small convolutional U-Net, or svgformer's ViT encoder with a pixel head. A few million parameters, in
+  PyTorch, in `libs/svgformer`, which already owns the stream.
+- **What the tracer and the polish see** (arms):
+  - the tracer traces the denoised image;
+  - the polish then fits against either the denoised image or the original input.
+- **The entrant:** `denoise+structured`, and denoise + the model-or-tracer pick. The model runs on the GPU in the entrant's
+  spawned process, as svgformer's does.
+- **The risk:** the denoiser may learn `corrupt.v1` itself, not the designs. So `corrupt.v2` (0024 Decision 3, not yet
+  built) is built before anything is promoted, and the entrant must hold there.
+
+## Decision 2: svgformer sees its canvas
+
+**The idea.** Decode shape by shape, as in Ellis et al. and Render-in-the-Loop:
+- **Inputs:** before each shape, the encoder reads the target, the canvas rendered so far and their difference (stacked
+  channels).
+- **Output:** the decoder writes one shape's tokens.
+- **Rendering:** each shape is rendered by the games core (`games.copycat`) before the next is decided.
+
+- **Training:** teacher-forced on shape prefixes.
+  - **Example:** a random prefix of a clean SVG's shapes, rendered, with the next shape as the target. When the prefix
+    already draws everything, the target is `END`.
+  - **Cost:** rendering a prefix is cheap in Rust, and the stream stays a pure function of `(seed, i)`.
+- **Decoding, render-and-verify:** a shape that doesn't reduce the residual is rejected and resampled. Decoding stops at
+  `END`, or when no sample improves the canvas. That replaces `no_repeat`'s token rules with the render.
+- **Encoding cost:** the target's patches are encoded once. Only the canvas changes, so each shape re-encodes the canvas
+  (or the residual) alone, cross-attended with the target's patches.
+- **Starting canvas:** the canvas needn't start empty. Starting from the tracer's render, the model adds what the tracer
+  missed; this is the hybrid. Edits to existing shapes (tree diffusion) are a later step.
+- **Shorter tokens are arms inside this experiment, not experiments of their own:**
+  - one token per point on a coarser grid (the polish restores precision);
+  - targets normalised to the tracer's trace of the clean render.
+- **RL comes after this,** as 0024's E4 reshaped. The reward for a shape is its reduction of the residual (IR4RL), plus
+  the final render's score, by GRPO.
+
+## Decision 3: deferred
+
+- **The L model (30M parameters) and the illustrations track** (0024's E6). The literature's answer to E2's failures is
+  feedback and structure, not 2.5 times the parameters. Revisit once a model is within 3 dB of the tracer on `icons/train`.
+- **RL on left-to-right svgformer** (0024's E4 as written). Done instead after Decision 2, on the canvas-conditioned model.
+
+## Experiments
+
+Same rules as 0024:
+- decisions are made on the train-side groups (`synthetic/validate`, `icons/train` and `broad/train`), weighted as the
+  leaderboard weights its sets;
+- small checks run off the books first; big comparisons are registered runs;
+- held-out images are scored only when an entrant is promoted.
+
+| Exp | Question | Arms | Gate |
+|---|---|---|---|
+| **D0** headroom (off the books) | How much would a perfect denoiser give the tracer? | the tracer on the clean render vs on the corrupted input, per group and severity | the clean-input tracer is at least 2 dB ahead on `icons/train` and `broad/train`. Otherwise Decision 1 isn't worth building |
+| **D1** denoiser | Does a learned denoiser lift the tracer? | target clean RGB vs flat colour; data synthetic only vs + artwork; the polish against the denoised image vs the input | ahead of tracer v23 on each train-side group, by at least the seed spread; holds on `corrupt.v2` |
+| **R1** canvas-conditioned svgformer | Does seeing the canvas fix E2? | canvas + residual vs left-to-right (0024's M), both with artwork; render-and-verify on/off | within 3 dB of the tracer on `icons/train` and `broad/train`: E2's gate |
+| **R2** starting from the tracer | Does the model add what the tracer missed? | empty canvas vs the tracer's render (or D1's) as the start | the pairing ahead of D1's entrant |
+| **R3** RL, per shape | Does optimising the render pay? | per-shape residual reward + the final score vs the final score alone; group size | +0.5 dB over its own SFT start, with 0024's structure ratios within 10% |
+
+### D0 results (off the books, 2026-11-10)
+
+**The check:** the MDL tracer (v23) on 96 images per train-side group (24 per severity), twice:
+- on the corrupted input;
+- on what a perfect denoiser would give: the same clean SVG through `corrupt.v1` at severity `clean`, with the image's
+  own seed. That is the subject on a flat off-white background, as clean-severity inputs are drawn.
+
+Both are scored by `copycat.clean.v2`'s fidelity against the clean SVG.
+
+| Group | All | Clean | Light | Medium | Heavy |
+|---|---|---|---|---|---|
+| `synthetic/validate` | 32.90 → **47.00** (+14.1) | 44.83 → 44.83 | 37.43 → 47.24 | 27.21 → 48.37 | 22.12 → 47.55 |
+| `icons/train` | 27.26 → **37.37** (+10.1) | 38.16 → 38.16 | 31.02 → 38.47 | 22.33 → 36.83 | 17.53 → 36.02 |
+| `broad/train` | 31.16 → **46.39** (+15.2) | 49.14 → 49.14 | 32.68 → 46.73 | 23.59 → 45.28 | 19.22 → 44.40 |
+
+- **The gate passes by far:** +10 to +15 dB per group, +13.1 dB in the leaderboard's weighting (30.44 → 43.59). The gate
+  asked for 2.
+- **Corruption is most of the tracer's loss, and even light corruption costs 7-14 dB.**
+  - **`synthetic` and `broad`:** with a clean input the tracer reaches 47.0 and 46.4, at or above 0024 E0's token round
+    trip (47.3, 44.7; a different measure, so only a guide).
+  - **`icons`:** it stops at 37.4, about 8 dB short of its 45.2. So on `icons` the tracer's own structure costs a lot
+    beyond corruption. That is where Decision 2 (a model that adds what the tracer missed) has room after D1.
+- **The clean rows are +0.00 by construction,** which checks that the oracle input is drawn exactly as the set's own clean
+  images are.
+- **This is a ceiling, not a forecast.** A perfect denoiser also undoes each part's colour drift, which 0022 measured as
+  partly unrecoverable from one image (about 0.5 dB). A real denoiser will also blur edges and invent detail. But D1 has
+  over ten times the room it needs to pay.
+- **A first attempt composited the clean render over pure white,** and lost 3-5 dB on clean images: an icon's white parts
+  merged with the background, and the tracer dropped them. A denoiser's output must keep a background the tracer can tell
+  apart from the subject. So D1's target is the clean pipeline's own image, background included.
+
+## Phases
+
+| Phase | What | Checked by |
+|---|---|---|
+| Q0 | this doc; D0 | review; D0 recorded here |
+| Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard |
+| Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding | off the books first; then R1 and R2 |
+| Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`) | R3 |
+
+0024's P6 (a model package and the page) applies to whichever entrant is promoted.
+
+## Sources
+
+- StarVector: <https://arxiv.org/abs/2312.11556>
+- OmniSVG: <https://arxiv.org/abs/2504.06263>
+- VectorArk: <https://arxiv.org/abs/2605.24398>
+- SuperSVG: <https://arxiv.org/abs/2406.09794>
+- RLRF: <https://arxiv.org/abs/2505.20793>
+- IR4RL, RL from intermediate renders: <https://arxiv.org/abs/2609.34587>
+- Render-in-the-Loop: <https://arxiv.org/abs/2604.20730>
+- RefineSVG: <https://arxiv.org/abs/2607.27699>
+- Ellis et al., graphics programs from hand-drawn images: <https://arxiv.org/abs/1707.09627>
+- Write, Execute, Assess: <https://arxiv.org/abs/1906.04604>
+- Tree diffusion: <https://arxiv.org/abs/2405.20519>
+- Paint Transformer: <https://arxiv.org/abs/2108.03798>
+- LIVE: <https://arxiv.org/abs/2206.04655>
+- Bézier Splatting: <https://arxiv.org/abs/2503.16424>
+- Vector Scaffolding: <https://arxiv.org/abs/2605.11913>
+- Image Vectorization with Depth: <https://arxiv.org/abs/2409.06648>
+- StrokeNUWA: <https://arxiv.org/abs/2401.17093>

@@ -3,7 +3,11 @@
 Status: **proposed** (2026-11-08); P1 built: PyTorch on the RTX 5080, the tokenizer and grammar, and E0 (see "E0
 results"). Phase B in part: the artwork is downloaded, pinned, converted and measured (see "Phase B results");
 `synthetic.v2` and `corrupt.v2` are not built yet. P2 built: the model, the stream, `copycat.svgformer` with a CPU golden
-case (see "P2 results"); E1 run (see "E1 results": S passes the gate, 23.7 dB at 20k steps, 25.7 at 60k).
+case (see "P2 results"); E1 run (see "E1 results": S passes the gate, 23.7 dB at 20k steps, 25.7 at 60k). P3 built: the
+model or the tracer per image is on the leaderboard (29.75 dB, ahead of the tracer's 29.54). E2 run and failed its gate:
+the model doesn't transfer to real artwork (see "E2"). **The next steps are [0025](0025-copycat-prior-art-and-direction.md)'s**,
+after a survey of the prior art: a learned denoiser in front of the tracer, then a svgformer that sees its own canvas. E3-E6
+and phases P4-P5 below are superseded or deferred there.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer this must beat),
 [0023](0023-process-traces-and-research-log.md) (reports and experiments as runs), [0004](0004-small-transformer-from-scratch.md)
 (the transformer built from scratch), [0009](0009-client-side-inference-at-scale.md) (model packages, ONNX Runtime Web),
@@ -239,6 +243,15 @@ is promoted. Each experiment has a gate: what it must show for the next one to b
 | **E4** RL | Does optimizing the render pay? | reward −L, clean fidelity, the mix; G 4 vs 8; KL weight | +0.5 dB or more over its own SFT start on validate, with structure ratios within 10% |
 | **E5** in-family fine-tune | What do `icons/train` and `broad/train` add? | none vs a short fine-tune | reported separately and labelled: it learns those families' palettes, which (0022 notes) wouldn't help a logo from elsewhere |
 | **E6** illustrations | Does it scale to proper images? | L at 256 px, 4,096 tokens, on the illustrations track | on `illustrations`: ahead of the MDL tracer there |
+
+**Where these stand (2026-11-10):**
+- **E0 and E1** passed.
+- **E2** failed its gate (see "E2").
+- **E3** in part: greedy + polish and the per-image pick are on the leaderboard; best-of-8 was measured in E2 and doesn't
+  pay.
+- **E4** becomes [0025](0025-copycat-prior-art-and-direction.md)'s R3: RL with a per-shape reward, on a canvas-conditioned
+  model.
+- **E5 and E6** are deferred there.
 
 ### E0 results (2026-11-08)
 
@@ -555,9 +568,10 @@ The pairing against the tracer, image by image:
 - **At M scale (12M parameters, 20k steps) the model does not transfer to real artwork,** with or without artwork in the
   mix. The gap on `icons` and `broad` is 12-15 dB, and the pairing takes the tracer there.
 - **E2's bar (within 3 dB of the tracer on `icons/train` and `broad/train`) is not met.**
-- **Closing the gap needs scale, not a decoding trick.** That means the L configuration (256 px, 4,096 tokens) trained
-  far longer, fine-tuned from a model that already reads images, never artwork from scratch. It is the next decision,
-  not a default.
+- **Decoding tricks don't close the gap.** Scale (the L configuration, trained far longer) was the obvious next lever.
+  A survey of the prior art ([0025](0025-copycat-prior-art-and-direction.md)) argues against it. Left-to-right decoders
+  100 times this size still loop. The small methods that work see the canvas they have drawn. And the tracer's loss is
+  mostly corruption, which a denoiser can learn per pixel. 0025 sets the next experiments; L is deferred.
 - **The pick margin, retuned on the train-side groups weighted as the leaderboard weights its sets, is 1.5, not 2.**
   - At 2×: 30.28, mean of synthetic/validate, icons/train and broad/train. At 1.5×: 30.34.
   - Synthetic gives up 0.1; icons and broad each gain about 0.15, since at 2× the model won images it couldn't read.
@@ -601,6 +615,13 @@ The scheduler runs one GPU job at a time.
 | P4 | native L in the games core, `copycat.grpo`; E4, E5 | off-the-books 4; then registered runs |
 | P5 | the illustrations track; E6 | registered runs |
 | P6 | the model package and the page: the learned entrant beside the tracer, in the browser | parity; the in-app browser |
+
+**Phase status:**
+- **P0-P2** are built, and so is P3's leaderboard entrant.
+- **Phase B** still lacks `synthetic.v2` and `corrupt.v2`. `corrupt.v2` is now needed first, by
+  [0025](0025-copycat-prior-art-and-direction.md)'s denoiser.
+- **P4 and P5** are replaced by 0025's Q1-Q3, or deferred there.
+- **P6** applies to whichever entrant is promoted.
 
 ## Risks
 

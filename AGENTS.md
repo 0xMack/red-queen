@@ -21,7 +21,9 @@ score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (ph
 behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
 one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat, learned (proposed) -- a small
 encoder-decoder transformer (PyTorch, `libs/svgformer`) trained on generated images and openly licensed icon sets and
-illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phase 2, supervised training, built) — read the relevant one before an
+illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phases 2-3 built: on the leaderboard paired with the tracer, but it doesn't
+transfer to real artwork); 0025: Copy Cat, prior art and direction (proposed) -- a survey of image-to-SVG work and the
+next steps it sets: a learned denoiser in front of the MDL tracer, then a svgformer that sees its own canvas — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout

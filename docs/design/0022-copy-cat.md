@@ -29,6 +29,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 Phases 3-6 are proposed. [0024](0024-copycat-learned-inverse.md) proposes a learned entrant beside the MDL tracer: a
 small transformer, trained from scratch, that reads the image and writes the SVG, then fine-tuned by RL against the
 rendered result (it narrows "Explicitly out of scope" below to size and provenance).
+[0025](0025-copycat-prior-art-and-direction.md) surveys the prior art and sets the learned work's next steps: a denoiser in
+front of the MDL tracer, then a model that sees its own canvas.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last
