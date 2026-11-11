@@ -1692,9 +1692,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 25 | Thin features kept | #109 | 34.719 | 25.797 | 28.382 |
 | 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
 | 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
+| 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, and v26 and v27 at 29.73. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, and v28 at 29.74. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1919,6 +1920,28 @@ Measured off the books first, every train-side image against `copycat-small-encl
 Measured with `copycat-joined-or-apart` (clean fidelity, dB): no image down anywhere. The camera gains 11.3 dB, a lit
 `icons/train` image 5.3, four more 0.2-0.95; one held-out icon 0.28 (`icons/heldout` 25.938 to 25.950). `copycat.clean.v2`
 stays at 29.73 (29.725 to 29.729).
+
+### v28: thin features kept on near-noiseless images
+
+After v27 the worst `light` images were far below the ~30 dB a `light` image usually gets. Three causes, one fixed:
+
+- **A mosquito lost every leg (15.6 dB).** v25 keeps thin features only where σ is at its floor (0.002); this image's
+  estimate was 0.00205. Most `light` images are at the floor, but about 15% are not. **The rule:** v25's test on a
+  near-noiseless image, σ under `FLAT_SIGMA` (0.0025), the line other near-noiseless rules already use. `blended` still
+  drops the edges' rims. Test: `a_thin_line_stays_on_a_lightly_noisy_image_too` (the shoe's seam, a level of noise on
+  every pixel). v26's small-enclosed rule widened the same way changed nothing, so it stays at the floor.
+- **An envelope lost its whole pale body (13.9 dB), not fixed.** Its σ, 0.00252, is just over `FLAT_SIGMA`, so the
+  judged cut kept the border's wide spread about a gradient, and the body stood 2.6 deviations out where `restore` asks
+  3. Moving the judged cut's gate to 0.003 got the envelope back (+17 dB), but medium images under 0.003 then restored
+  their clutter as parts (`synthetic/validate` medium -0.55, one image -15.7); dropping the gate, worse. `light` and
+  `medium` overlap in σ, and nothing else seen yet tells clutter from a pale part.
+- **A printer's paper (16.7 dB) and a toilet roll's paper (21.1, clean), not fixed.** The paper is 1.8 deviations off a
+  light background. The roll's covers a corner and much of the border, so the background is fitted as a gradient bending
+  toward the paper (2 of 256 clean images get a gradient; `clean` backgrounds are always flat).
+
+Measured with `copycat-thin-near-noiseless` against `copycat-joined-or-apart`: no image down. The mosquito gains 7.9 dB,
+three `broad/train` images 0.4-1.3, a held-out `broad` image 3.6 (`broad/heldout` 28.519 to 28.549).
+`copycat.clean.v2`: 29.73 to 29.74.
 
 ## The page
 

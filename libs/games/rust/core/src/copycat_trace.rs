@@ -938,12 +938,13 @@ fn blended(image: &Image, labels: &[usize], id: &[usize], pixels: &[usize]) -> b
 
 /// Dissolves components that are too small or too thin to be parts: each of their pixels takes the label of the
 /// nearest pixel that stays (a breadth-first flood from what stays). The background where it reaches the image's edge
-/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background. On a noiseless
-/// image (σ at its floor) a thin component stays unless it is the anti-aliased blend along an edge (`blended`): a
-/// shoe's inner seam or a cat's whiskers are features, not noise.
+/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background. On a near-noiseless
+/// image (σ under `FLAT_SIGMA`) a thin component stays unless it is the anti-aliased blend along an edge (`blended`): a
+/// shoe's inner seam or a cat's whiskers are features, not noise. Not only σ at its floor: a lightly corrupted mosquito
+/// whose noise estimate was a hair over it lost every leg.
 pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Vec<usize> {
-    // on a noiseless image a thin component is a feature unless it is an edge's blend (`blended`)
-    let noiseless = noise_sigma(image) <= SIGMA_FLOOR;
+    // on a near-noiseless image a thin component is a feature unless it is an edge's blend (`blended`)
+    let noiseless = noise_sigma(image) < FLAT_SIGMA;
     let mut labels = majority(labels, image.width, image.height);
     labels = majority(&labels, image.width, image.height);
     let (id, members) = components(image, &labels);
@@ -2404,6 +2405,32 @@ mod tests {
             let near = |c: [u8; 3]| (0..3).all(|k| (shape.fill[k] as i32 - c[k] as i32).abs() <= 3);
             assert!(near([0x3e, 0x72, 0x1d]) || near([0xdd, 0x9c, 0x7c]), "{:?}", shape.fill);
         }
+    }
+
+    #[test]
+    fn a_thin_line_stays_on_a_lightly_noisy_image_too() {
+        // the shoe's seam again, a level of noise on every pixel: the estimate is just over the floor, and the seam
+        // must still stay (a lightly corrupted mosquito lost every leg)
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#f5f0e3"/><ellipse cx="32.3" cy="40.2" rx="26.4" ry="12.3" fill="#3e721d"/><rect x="10.5" y="30" width="43.2" height="2" fill="#dd9c7c"/></svg>"##;
+        let mut rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let mut rng = crate::pcg::Pcg32::new(7);
+        for (i, v) in rgba.iter_mut().enumerate() {
+            if i % 4 != 3 {
+                *v = if rng.next_u32().is_multiple_of(2) {
+                    v.saturating_add(1)
+                } else {
+                    v.saturating_sub(1)
+                };
+            }
+        }
+        let sigma = noise_sigma(&Image::from_rgba8(&rgba, 64, 64).unwrap());
+        assert!(sigma > SIGMA_FLOOR && sigma < FLAT_SIGMA, "{sigma}");
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(
+            has_fill(&traced, [0xdd, 0x9c, 0x7c]),
+            "{:?}",
+            traced.shapes.iter().map(|s| s.fill).collect::<Vec<_>>()
+        );
     }
 
     #[test]

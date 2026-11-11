@@ -144,6 +144,14 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 34.719, icons: 25.95, broad: 28.519 },
     v2: 29.73,
   },
+  {
+    version: 28,
+    change: "Thin features kept on near-noiseless images",
+    pr: 109,
+    report: "copycat-thin-near-noiseless",
+    heldout: { synthetic: 34.719, icons: 25.95, broad: 28.549 },
+    v2: 29.74,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!

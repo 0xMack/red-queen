@@ -4939,7 +4939,7 @@
    "entrant_kind": "baseline",
    "game": "copycat",
    "interface": "copycat/rgb8.v1+svg-subset.v1",
-   "label": "MDL tracer 27",
+   "label": "MDL tracer 28",
    "metrics": {
     "copycat": {
      "by_severity": {
@@ -5091,7 +5091,7 @@
      "settings": {
       "tracer": "structured"
      },
-     "version": 27
+     "version": 28
     },
     "inference": {
      "artifact_bytes": 550,
@@ -5102,7 +5102,7 @@
      "note": null,
      "observer_level": 1,
      "shape": {
-      "algorithm": "MDL tracer 27"
+      "algorithm": "MDL tracer 28"
      }
     },
     "protocol": {
