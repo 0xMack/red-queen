@@ -113,6 +113,45 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 34.719, icons: 25.537, broad: 28.366 },
     v2: 29.54,
   },
+  {
+    version: 24,
+    change: "Pale fills kept apart",
+    pr: 109,
+    report: "copycat-pale-fills-2",
+    heldout: { synthetic: 34.719, icons: 25.538, broad: 28.366 },
+  },
+  {
+    version: 25,
+    change: "Thin features kept",
+    pr: 109,
+    report: "copycat-thin-features-3",
+    heldout: { synthetic: 34.719, icons: 25.797, broad: 28.382 },
+    v2: 29.63,
+  },
+  {
+    version: 26,
+    change: "Small enclosed parts kept",
+    pr: 109,
+    report: "copycat-small-enclosed-2",
+    heldout: { synthetic: 34.719, icons: 25.938, broad: 28.519 },
+    v2: 29.73,
+  },
+  {
+    version: 27,
+    change: "Joins undone when the pieces say it far more briefly",
+    pr: 109,
+    report: "copycat-joined-or-apart",
+    heldout: { synthetic: 34.719, icons: 25.95, broad: 28.519 },
+    v2: 29.73,
+  },
+  {
+    version: 28,
+    change: "Thin features kept on near-noiseless images",
+    pr: 109,
+    report: "copycat-thin-near-noiseless",
+    heldout: { synthetic: 34.719, icons: 25.95, broad: 28.549 },
+    v2: 29.74,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!

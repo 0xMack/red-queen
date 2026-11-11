@@ -23,21 +23,31 @@ from arena.copycat import Target, score
 from arena.copycat_sets import SEVERITIES
 
 from svgformer import tokens as T
-from svgformer.data import collate, png_to_array, synthetic_sample
+from svgformer.data import ArtworkPool, collate, mixed_sample, png_to_array
 from svgformer.decode import generate, to_images
 from svgformer.model import SIZES, Config, SvgFormer
 
 
 class SyntheticBatches(torch.utils.data.IterableDataset):
-    """Whole batches of the `synthetic` stream (`svgformer.data`). Worker w of W makes batches w, w + W, ..., batch k from
+    """Whole batches of the training stream (`svgformer.data.mixed_sample`: `synthetic`, and artwork if a pool is given). Worker w of W makes batches w, w + W, ..., batch k from
     samples k * batch .. k * batch + batch - 1; a DataLoader takes from workers in turn, so for a given W the batches
     arrive in order and every run on one stream seed sees the same data. (At module level: Windows spawns workers, and
     they unpickle it.)"""
 
-    def __init__(self, stream_seed: int, batch: int, max_tokens: int, severities: tuple[str, ...], start: int = 0):
+    def __init__(
+        self,
+        stream_seed: int,
+        batch: int,
+        max_tokens: int,
+        severities: tuple[str, ...],
+        start: int = 0,
+        pool: ArtworkPool | None = None,
+        artwork_share: float = 0.0,
+    ):
         self.stream_seed, self.batch, self.max_tokens, self.severities, self.start = (
             stream_seed, batch, max_tokens, severities, start,
         )  # fmt: skip
+        self.pool, self.artwork_share = pool, artwork_share
 
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
@@ -45,7 +55,8 @@ class SyntheticBatches(torch.utils.data.IterableDataset):
         k = self.start + worker
         while True:
             samples = [
-                synthetic_sample(self.stream_seed, k * self.batch + j, self.severities) for j in range(self.batch)
+                mixed_sample(self.stream_seed, k * self.batch + j, self.severities, self.pool, self.artwork_share)
+                for j in range(self.batch)
             ]
             rgb8, tokens = collate([s for s in samples if len(s.tokens) <= self.max_tokens])
             yield torch.from_numpy(rgb8), torch.from_numpy(tokens)
@@ -70,6 +81,8 @@ class TrainConfig:
     number_features: bool = True
     patch_features: bool = True
     fp32_head: bool = False
+    artwork: str | None = None  # svgformer.build's icons.jsonl (docs/design/0024 E2)
+    artwork_share: float = 0.0  # the fraction of training samples drawn from it
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -153,8 +166,15 @@ def train(
     # spawned workers import numpy afresh: one thread each, or 16 workers' BLAS pools fight over the cores
     for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ.setdefault(name, "1")
+    pool = None
+    if cfg.artwork_share > 0:
+        if not cfg.artwork:
+            raise ValueError("artwork_share > 0 needs the artwork pool (svgformer.build's icons.jsonl)")
+        pool = ArtworkPool.load(cfg.artwork, model.config.max_tokens)
     loader = torch.utils.data.DataLoader(
-        SyntheticBatches(cfg.seed, cfg.batch, model.config.max_tokens, cfg.severities),
+        SyntheticBatches(
+            cfg.seed, cfg.batch, model.config.max_tokens, cfg.severities, pool=pool, artwork_share=cfg.artwork_share
+        ),
         batch_size=None,
         num_workers=cfg.workers,
         persistent_workers=cfg.workers > 0,

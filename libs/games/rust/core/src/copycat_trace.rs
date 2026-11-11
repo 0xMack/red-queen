@@ -621,6 +621,28 @@ fn two_flat_colours(image: &Image, labels: &[usize], a: usize, b: usize, centres
         && core_share(image, labels, b) >= FLAT_CORE
 }
 
+/// Whether a cluster is one flat fill on a near-noiseless image, and so a colour of its own however close it is to the
+/// background (a steak's pale rim on an off-white background, nearer the darker cream than the background): it has a
+/// core (`FLAT_CORE`), and nearly all of that core (`FLAT_FILL`) is within `EDGE_SIGMAS` σ of its centre. A band of a
+/// ramp or of a blurred edge spreads wider than that.
+fn flat_fill(image: &Image, labels: &[usize], k: usize, centre: &Lab, sigma: f64) -> bool {
+    let limit = (EDGE_SIGMAS * sigma).powi(2);
+    let (mut total, mut core, mut flat) = (0usize, 0usize, 0usize);
+    for (i, &l) in labels.iter().enumerate() {
+        if l == k {
+            total += 1;
+            if image.neighbours(i).all(|j| labels[j] == k) {
+                core += 1;
+                flat += usize::from(distance2(&image.lab[i], centre) <= limit);
+            }
+        }
+    }
+    core as f64 >= FLAT_CORE * total.max(1) as f64 && flat as f64 >= FLAT_FILL * core.max(1) as f64
+}
+
+/// The share of a cluster's core that must be within `EDGE_SIGMAS` σ of its centre for it to be a flat fill.
+const FLAT_FILL: f64 = 0.9;
+
 pub fn segment(image: &Image, background: &Background, sigma: f64, config: &TraceConfig) -> Segmentation {
     let n = image.lab.len();
     let bg: Vec<Lab> = (0..n).map(|i| background.at_pixel(image, i)).collect();
@@ -713,8 +735,19 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                     config.merge_delta
                 };
                 let shorter = added * bits_per_sse < saved;
-                let colours =
-                    a != 0 && sigma < FLAT_SIGMA && two_flat_colours(image, &labels, a, b, &clustering.centres);
+                let colours = sigma < FLAT_SIGMA
+                    && if a == 0 {
+                        // only when another colour is nearer than the background: its pixels would go there, not to
+                        // `restore`, which gives a pale part back only from the background
+                        let nearer = (1..k).any(|c| {
+                            c != b
+                                && n_of[c] > 0
+                                && clustering.centres[c].is_some_and(|cc| distance2(&cc, &cb).sqrt() < delta)
+                        });
+                        nearer && delta > EDGE_SIGMAS * sigma && flat_fill(image, &labels, b, &cb, sigma)
+                    } else {
+                        two_flat_colours(image, &labels, a, b, &clustering.centres)
+                    };
                 let forced = delta < close && !colours;
                 if (forced || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
                     best = Some((delta, a, b, a == 0 && !shorter));
@@ -839,10 +872,79 @@ fn eroded(image: &Image, id: &[usize], pixels: &[usize], steps: usize) -> usize 
         .count()
 }
 
+/// How far (sRGB, 0..255) a pixel may be from a mix of two colours and still be that mix: `BLEND_TOLERANCE`, or this
+/// share of the two colours' distance if more (blur and JPEG move a wide edge's mix off the line more).
+const BLEND_TOLERANCE: f64 = 6.0;
+const BLEND_SHARE_OF_SPAN: f64 = 0.2;
+/// The share of a thin component's pixels that must be mixes of the colours around them for it to be an edge's blend.
+const BLEND_SHARE: f64 = 0.5;
+/// How far (px) around a pixel the colours it might be a mix of are looked for.
+const BLEND_REACH: i64 = 3;
+
+/// Whether a thin component is the anti-aliased blend along an edge rather than a feature of its own: most of its
+/// pixels are a mix `t A + (1 - t) B` of two colours beside them -- the mean colour of each label's solid pixels (all
+/// of whose neighbours share their label) within `BLEND_REACH`, so a part shaded across its width is judged by its
+/// colour where the edge is. A whisker or a seam has a colour of its own.
+fn blended(image: &Image, labels: &[usize], id: &[usize], pixels: &[usize]) -> bool {
+    let (w, h) = (image.width as i64, image.height as i64);
+    let own = id[pixels[0]];
+    let solid = |j: usize| id[j] != own && image.neighbours(j).all(|k| labels[k] == labels[j]);
+    let mixes = pixels
+        .iter()
+        .filter(|&&i| {
+            let (x, y) = ((i as i64) % w, (i as i64) / w);
+            let mut local: Vec<(usize, [f64; 3], usize)> = Vec::new();
+            for dy in -BLEND_REACH..=BLEND_REACH {
+                for dx in -BLEND_REACH..=BLEND_REACH {
+                    let (xx, yy) = (x + dx, y + dy);
+                    if xx < 0 || yy < 0 || xx >= w || yy >= h {
+                        continue;
+                    }
+                    let j = (yy * w + xx) as usize;
+                    if !solid(j) {
+                        continue;
+                    }
+                    let k = match local.iter().position(|(l, _, _)| *l == labels[j]) {
+                        Some(k) => k,
+                        None => {
+                            local.push((labels[j], [0.0; 3], 0));
+                            local.len() - 1
+                        }
+                    };
+                    for (s, &v) in local[k].1.iter_mut().zip(&image.rgb[j]) {
+                        *s += v as f64;
+                    }
+                    local[k].2 += 1;
+                }
+            }
+            let colours: Vec<[f64; 3]> = local.iter().map(|(_, sum, n)| sum.map(|v| v / *n as f64)).collect();
+            let p = image.rgb[i].map(|v| v as f64);
+            colours.iter().enumerate().any(|(a, ca)| {
+                colours[a + 1..].iter().any(|cb| {
+                    let d = [0, 1, 2].map(|c| ca[c] - cb[c]);
+                    let len2 = d.iter().map(|v| v * v).sum::<f64>();
+                    if len2 <= 0.0 {
+                        return false;
+                    }
+                    let t = ([0, 1, 2].map(|c| (p[c] - cb[c]) * d[c]).iter().sum::<f64>() / len2).clamp(0.0, 1.0);
+                    let off2: f64 = (0..3).map(|c| (p[c] - (cb[c] + t * d[c])).powi(2)).sum();
+                    off2 <= BLEND_TOLERANCE.powi(2).max(BLEND_SHARE_OF_SPAN.powi(2) * len2)
+                })
+            })
+        })
+        .count();
+    mixes as f64 >= BLEND_SHARE * pixels.len() as f64
+}
+
 /// Dissolves components that are too small or too thin to be parts: each of their pixels takes the label of the
 /// nearest pixel that stays (a breadth-first flood from what stays). The background where it reaches the image's edge
-/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background.
+/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background. On a near-noiseless
+/// image (σ under `FLAT_SIGMA`) a thin component stays unless it is the anti-aliased blend along an edge (`blended`): a
+/// shoe's inner seam or a cat's whiskers are features, not noise. Not only σ at its floor: a lightly corrupted mosquito
+/// whose noise estimate was a hair over it lost every leg.
 pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Vec<usize> {
+    // on a near-noiseless image a thin component is a feature unless it is an edge's blend (`blended`)
+    let noiseless = noise_sigma(image) < FLAT_SIGMA;
     let mut labels = majority(labels, image.width, image.height);
     labels = majority(&labels, image.width, image.height);
     let (id, members) = components(image, &labels);
@@ -855,7 +957,10 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
                     let (x, y) = (i % w, i / w);
                     x == 0 || y == 0 || x + 1 == w || y + 1 == h
                 });
-            !edge && (pixels.len() < config.min_area || eroded(image, &id, pixels, 1) * 4 < pixels.len())
+            !edge
+                && (pixels.len() < config.min_area
+                    || (eroded(image, &id, pixels, 1) * 4 < pixels.len()
+                        && (!noiseless || blended(image, &labels, &id, pixels))))
         })
         .collect();
     if dissolve.iter().all(|d| *d) {
@@ -879,12 +984,26 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
 /// The background reaches the image's edge: a background-labelled component enclosed by parts whose interior's mean
 /// colour is further from the background's than one robust deviation of a border pixel (`Background::cut` / 6) -- the
 /// white of a letter on a tile against an off-white background, within `background_delta` of it -- is a colour of its
-/// own, a new label whose centre is its mean. One that is the background's colour stays a hole, and so does one with
-/// too little interior to tell (a gap between parts, blurred by them). The interior's mean has no blurred edge, and
-/// the noise averages away in it, so one deviation is a safe margin.
-pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize], centres: &mut Vec<Lab>) {
+/// own, a new label whose centre is its mean. One that is the background's colour stays a hole. The interior's mean has
+/// no blurred edge, and the noise averages away in it, so one deviation is a safe margin. One with too little interior
+/// to tell -- a small sun, a thin mountain -- is judged by its pixels off the crisp edges (`core_stands_out`) where there
+/// are crisp edges, and otherwise stays a hole (a gap between parts, blurred by them).
+///
+/// On a near-noiseless image a component is first divided by its crisp `edges` into its colours (`colours_of`), as
+/// `restore` divides what it takes: a CD's pale and paler wedges, both close enough to the background to join it, are
+/// two colours, not their average. A colour that is the background's (within one deviation) stays a hole.
+pub fn enclose(
+    image: &Image,
+    background: &[Lab],
+    cut: f64,
+    edges: &[bool],
+    min_area: usize,
+    labels: &mut [usize],
+    centres: &mut Vec<Lab>,
+) {
     let (w, h) = (image.width, image.height);
     let (_, members) = components(image, labels);
+    let noiseless = noise_sigma(image) <= SIGMA_FLOOR;
     let enclosed: Vec<&Vec<usize>> = members
         .iter()
         .filter(|pixels| labels[pixels[0]] == 0)
@@ -894,21 +1013,58 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
                 x > 0 && y > 0 && x + 1 < w && y + 1 < h
             })
         })
-        .filter(|pixels| stands_out(image, background, cut, 1.0, pixels))
+        .filter(|pixels| match deviations_out(image, background, cut, pixels) {
+            Some(d) => d > 1.0,
+            None => noiseless && core_stands_out(image, background, cut, edges, pixels),
+        })
         .collect();
-    let n: usize = enclosed.iter().map(|p| p.len()).sum();
-    if n == 0 {
-        return;
-    }
-    let label = centres.len();
-    let mut mean = [0.0; 3];
-    for &i in enclosed.iter().flat_map(|p| p.iter()) {
-        for (k, m) in mean.iter_mut().enumerate() {
-            *m += image.lab[i][k] / n as f64;
+    // the components that are one colour share a label, as they always have; a divided one's colours each get their own
+    let mut whole: Vec<usize> = Vec::new();
+    let mut divided: Vec<Vec<usize>> = Vec::new();
+    for pixels in enclosed {
+        let colours = colours_of(image, pixels, edges, cut, min_area);
+        if colours.len() == 1 {
+            whole.extend(pixels);
+            continue;
         }
-        labels[i] = label;
+        for colour in colours {
+            let off = distance2(
+                &core_mean(&colour, edges, |i| image.lab[i]),
+                &core_mean(&colour, edges, |i| background[i]),
+            )
+            .sqrt()
+                / (cut / 6.0);
+            if off > 1.0 {
+                divided.push(colour);
+            }
+        }
     }
-    centres.push(mean);
+    for group in std::iter::once(whole).chain(divided).filter(|g| !g.is_empty()) {
+        let label = centres.len();
+        let mut mean = [0.0; 3];
+        for &i in &group {
+            for (k, m) in mean.iter_mut().enumerate() {
+                *m += image.lab[i][k] / group.len() as f64;
+            }
+            labels[i] = label;
+        }
+        centres.push(mean);
+    }
+}
+
+/// Whether a region too small or thin to have an interior still stands out from the background, judged by its core: on
+/// a near-noiseless image the pixels off its crisp `edges` are its own colour, unblended. It needs `MIN_CORE` of them
+/// (a gap between parts, blurred by them, is all edge) and `RESTORE_DEVIATIONS` deviations, the margin `restore` asks
+/// of a colour that isn't its region's first. Without crisp edges (a noisy image) there's nothing to judge by.
+fn core_stands_out(image: &Image, background: &[Lab], cut: f64, edges: &[bool], pixels: &[usize]) -> bool {
+    pixels.iter().filter(|&&i| !edges[i]).count() >= MIN_CORE
+        && distance2(
+            &core_mean(pixels, edges, |i| image.lab[i]),
+            &core_mean(pixels, edges, |i| background[i]),
+        )
+        .sqrt()
+            / (cut / 6.0)
+            > RESTORE_DEVIATIONS
 }
 
 /// Whether a region's interior -- its pixels `INTERIOR` clear of its edge, clear of the blur it shares with what is
@@ -1192,6 +1348,8 @@ const RESTORE_FAR: f64 = 5.0;
 /// How far (px) inside an enclosed region its interior starts, and the fewest interior pixels it must have.
 const INTERIOR: usize = 2;
 const MIN_INTERIOR: usize = 16;
+/// The fewest pixels off crisp edges a region without an interior needs to be judged by them (`core_stands_out`).
+const MIN_CORE: usize = 8;
 
 /// A part: a connected component of one (non-background) label.
 pub struct Part {
@@ -1496,6 +1654,86 @@ fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<
     }
     out
 }
+
+/// A part `join` made of pieces is drawn as one only if its final shapes say it more briefly than each piece's own,
+/// fitted with the other pieces free. `join` judged it by one shape against one shape each, but a piece may need several
+/// (`shapes_of` cuts it), and a joined part is cut only along its largest piece's outline: a camera's body and handle,
+/// joined to its lens cone under the connector between them, came out as shapes that filled the handle's hole.
+fn joined_or_apart(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<Fit> {
+    let joined = shapes_of(scene, part, above, costs);
+    let mut mask = vec![0usize; scene.labels.len()];
+    for &i in &part.pixels {
+        mask[i] = 1;
+    }
+    let (_, members) = components(scene.image, &mask);
+    let pieces: Vec<Part> = members
+        .into_iter()
+        .filter(|p| !p.is_empty() && mask[p[0]] == 1)
+        .map(|pixels| Part {
+            pixels,
+            fill: part.fill,
+            label: part.label,
+        })
+        .collect();
+    if pieces.len() < 2 {
+        return joined;
+    }
+    let mut apart = Vec::new();
+    for (k, piece) in pieces.iter().enumerate() {
+        let mut free = above.to_vec();
+        free.extend(pieces.iter().enumerate().filter(|&(j, _)| j != k).map(|(_, p)| p));
+        apart.extend(shapes_of(scene, piece, &free, costs));
+    }
+    // each fit's bits count only its own pixels: both are judged whole, with what `leftovers` would add to them
+    let [joined, apart] = [joined, apart].map(|mut fits| {
+        let more = leftovers(scene, part, above, &fits, costs);
+        fits.extend(more);
+        fits
+    });
+    let (j, a) = (
+        described(scene, part, above, &joined, costs),
+        described(scene, part, above, &apart, costs),
+    );
+    if a < UNDO_JOIN * j {
+        apart
+    } else {
+        joined
+    }
+}
+
+/// How many bits a part's shapes describe it in: their outlines, and every pixel they get wrong -- a pixel of the part
+/// they leave uncovered, or one they cover that is neither the part's nor free (under a part above it).
+fn described(scene: &Scene, part: &Part, above: &[&Part], fits: &[Fit], costs: &Costs) -> f64 {
+    let (w, h) = (scene.image.width, scene.image.height);
+    let mut covered = vec![0.0f64; w * h];
+    for fit in fits {
+        let shape = Shape {
+            geometry: fit.geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = shape.mask(w as u32, h as u32);
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                let i = (mask.y0 + my) * w + mask.x0 + mx;
+                covered[i] = covered[i].max(mask.data[my * mask.width + mx]);
+            }
+        }
+    }
+    let visible = scene.soft(&[part]);
+    let free = mask_of(scene.labels.len(), above);
+    let wrong: f64 = (0..w * h)
+        .filter(|&i| !free[i])
+        .map(|i| (covered[i] - visible[i]).abs())
+        .sum();
+    fits.iter().map(|f| costs.model_bits(&f.geometry)).sum::<f64>() + costs.pixel_bits * wrong
+}
+
+/// The share of a joined part's description its pieces' own shapes must come under for it to be drawn apart. Each piece is
+/// fitted with the others free, so its shapes can be loose and cheap (an ATM's lower band as one big circle, its rounded
+/// corners near enough), while `join` found one shape a shorter reading: undoing that needs a clear margin.
+const UNDO_JOIN: f64 = 0.5;
 
 /// The fewest pixels a half of a cut part may have.
 const MIN_HALF: usize = 12;
@@ -1845,7 +2083,16 @@ fn run(
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
     let judged = background.judged_cut(&image, sigma);
-    enclose(&image, &per_pixel, judged, &mut labels, &mut centres);
+    let edges = crisp_edges(&image, sigma);
+    enclose(
+        &image,
+        &per_pixel,
+        judged,
+        &edges,
+        config.min_area,
+        &mut labels,
+        &mut centres,
+    );
     restore(
         &image,
         &per_pixel,
@@ -1902,7 +2149,7 @@ fn run(
     let mut fitted_pixels = 0.0;
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
-        let mut fits = shapes_of(&scene, &parts[k], &above, &costs);
+        let mut fits = joined_or_apart(&scene, &parts[k], &above, &costs);
         let more = leftovers(&scene, &parts[k], &above, &fits, &costs);
         fits.extend(more);
         if let Some(film) = &mut film {
@@ -2084,6 +2331,179 @@ mod tests {
     fn close_flat_colours_stay_apart_only_without_noise() {
         assert_eq!(colours_of_two_close_blocks(0), 2);
         assert_eq!(colours_of_two_close_blocks(6), 1);
+    }
+
+    /// A noiseless 64 x 64 image on an off-white background, painted by `colour(x, y)` (None: the background).
+    fn painted(colour: impl Fn(usize, usize) -> Option<[u8; 3]>) -> Vec<u8> {
+        let mut rgba = Vec::new();
+        for y in 0..64 {
+            for x in 0..64 {
+                rgba.extend(colour(x, y).unwrap_or([245, 240, 227]));
+                rgba.push(255);
+            }
+        }
+        rgba
+    }
+
+    fn has_fill(document: &Document, fill: [u8; 3]) -> bool {
+        document
+            .shapes
+            .iter()
+            .any(|s| (0..3).all(|c| (s.fill[c] as i32 - fill[c] as i32).abs() <= 3))
+    }
+
+    #[test]
+    fn enclosed_pale_colours_are_divided_not_averaged() {
+        // a grey frame around a pale and a paler half, both given to the background (a CD's wedges, close enough to an
+        // off-white background to join it): `enclose` takes them back as two colours, not their average
+        let rgba = painted(|x, y| match (x, y) {
+            (12..=51, 12..=51) if !(16..=47).contains(&x) || !(16..=47).contains(&y) => Some([136, 153, 166]),
+            (16..=31, 16..=47) => Some([204, 214, 221]),
+            (32..=47, 16..=47) => Some([245, 248, 250]),
+            _ => None,
+        });
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let per_pixel: Vec<Lab> = (0..64 * 64).map(|i| background.at_pixel(&image, i)).collect();
+        let frame = |i: usize| {
+            let (x, y) = (i % 64, i / 64);
+            (12..=51).contains(&x) && (12..=51).contains(&y) && !((16..=47).contains(&x) && (16..=47).contains(&y))
+        };
+        let mut labels: Vec<usize> = (0..64 * 64).map(|i| usize::from(frame(i))).collect();
+        let mut centres = vec![[0.0; 3], image.lab[12 * 64 + 12]];
+        let edges = crisp_edges(&image, sigma);
+        enclose(
+            &image,
+            &per_pixel,
+            background.judged_cut(&image, sigma),
+            &edges,
+            30,
+            &mut labels,
+            &mut centres,
+        );
+        let (pale, paler) = (labels[30 * 64 + 20], labels[30 * 64 + 40]);
+        assert!(pale >= 2 && paler >= 2 && pale != paler, "{pale} {paler}");
+        assert!(distance2(&centres[pale], &image.lab[30 * 64 + 20]).sqrt() < 0.01);
+        assert!(distance2(&centres[paler], &image.lab[30 * 64 + 40]).sqrt() < 0.01);
+    }
+
+    #[test]
+    fn a_thin_line_of_its_own_colour_stays_but_an_edges_blend_does_not() {
+        // a shoe: a green body with a 2 px pink seam across it, anti-aliased at its ends; the seam is a feature, the blended rim
+        // around the green is not
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#f5f0e3"/><ellipse cx="32.3" cy="40.2" rx="26.4" ry="12.3" fill="#3e721d"/><rect x="10.5" y="30" width="43.2" height="2" fill="#dd9c7c"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(
+            has_fill(&traced, [0xdd, 0x9c, 0x7c]),
+            "{:?}",
+            traced.shapes.iter().map(|s| s.fill).collect::<Vec<_>>()
+        );
+        // every fill is the green or the seam's (the seam may cut the green in two): no blend of either is a part
+        for shape in &traced.shapes {
+            let near = |c: [u8; 3]| (0..3).all(|k| (shape.fill[k] as i32 - c[k] as i32).abs() <= 3);
+            assert!(near([0x3e, 0x72, 0x1d]) || near([0xdd, 0x9c, 0x7c]), "{:?}", shape.fill);
+        }
+    }
+
+    #[test]
+    fn a_thin_line_stays_on_a_lightly_noisy_image_too() {
+        // the shoe's seam again, a level of noise on every pixel: the estimate is just over the floor, and the seam
+        // must still stay (a lightly corrupted mosquito lost every leg)
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#f5f0e3"/><ellipse cx="32.3" cy="40.2" rx="26.4" ry="12.3" fill="#3e721d"/><rect x="10.5" y="30" width="43.2" height="2" fill="#dd9c7c"/></svg>"##;
+        let mut rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let mut rng = crate::pcg::Pcg32::new(7);
+        for (i, v) in rgba.iter_mut().enumerate() {
+            if i % 4 != 3 {
+                *v = if rng.next_u32().is_multiple_of(2) {
+                    v.saturating_add(1)
+                } else {
+                    v.saturating_sub(1)
+                };
+            }
+        }
+        let sigma = noise_sigma(&Image::from_rgba8(&rgba, 64, 64).unwrap());
+        assert!(sigma > SIGMA_FLOOR && sigma < FLAT_SIGMA, "{sigma}");
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(
+            has_fill(&traced, [0xdd, 0x9c, 0x7c]),
+            "{:?}",
+            traced.shapes.iter().map(|s| s.fill).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_small_pale_part_enclosed_is_a_fill_not_a_hole() {
+        // a camera's screen: a blue panel with a small pale sun and a thin pale mountain on it, both given to the white
+        // background (within background_delta of it) and too small or thin for an interior; their pixels off the crisp edges
+        // say they are colours of their own, not holes showing the background
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#ffffff"/><rect x="8" y="10" width="48" height="40" fill="#03a9f4"/><circle cx="44" cy="20" r="4" fill="#b3e5fc"/><polygon points="26,30.6 16.6,42.3 35.3,42.3" fill="#b3e5fc"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let per_pixel: Vec<Lab> = (0..64 * 64).map(|i| background.at_pixel(&image, i)).collect();
+        let pale = image.lab[20 * 64 + 44];
+        // the panel is a part; the pale shapes and their blended rims went to the background
+        let mut labels: Vec<usize> = (0..64 * 64)
+            .map(|i| {
+                let (x, y) = (i % 64, i / 64);
+                usize::from(
+                    (8..56).contains(&x) && (10..50).contains(&y) && distance2(&image.lab[i], &pale).sqrt() > 0.08,
+                )
+            })
+            .collect();
+        let mut centres = vec![[0.0; 3], image.lab[12 * 64 + 12]];
+        let edges = crisp_edges(&image, sigma);
+        enclose(
+            &image,
+            &per_pixel,
+            background.judged_cut(&image, sigma),
+            &edges,
+            30,
+            &mut labels,
+            &mut centres,
+        );
+        for (x, y) in [(44, 20), (26, 39)] {
+            let label = labels[y * 64 + x];
+            assert!(label >= 2, "({x}, {y}) is {label}");
+            assert!(distance2(&centres[label], &pale).sqrt() < 0.02);
+        }
+    }
+
+    #[test]
+    fn a_join_whose_pieces_say_it_far_more_briefly_is_drawn_apart() {
+        // a camera, its edges on thirds of a pixel: a grey body with a handle arching over it, a dark connector, and a grey
+        // lens cone beyond it. `join` reads body and lens as one grey shape under the connector; drawn as one, it came out
+        // as a long curve from the handle to the lens. Apart, each piece is its own shapes.
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="#ffffff"/><rect x="70.33" y="25.33" width="27" height="11" fill="#37474f"/><path d="M70.33 25.33L44.33 25.33C40.33 25.33 37.33 27.33 35.33 31.33L26.33 47.33L35.33 52.33L44.33 36.33L70.33 36.33L70.33 55.33L81.33 55.33L81.33 36.33C81.33 30.33 76.33 25.33 70.33 25.33Z" fill="#607d8b"/><path d="M78.33 111.33L14.33 111.33C8.33 111.33 3.33 106.33 3.33 100.33L3.33 57.33C3.33 51.33 8.33 47.33 14.33 47.33L78.33 47.33C84.33 47.33 89.33 51.33 89.33 57.33L89.33 100.33C89.33 106.33 84.33 111.33 78.33 111.33Z" fill="#607d8b"/><path d="M99.33 97.33L113.33 111.33L121.33 111.33L121.33 52.33L113.33 52.33L99.33 65.33Z" fill="#607d8b"/><rect x="14.33" y="60.33" width="48" height="37" fill="#546e7a"/><rect x="89.33" y="65.33" width="10" height="32" fill="#455a64"/><rect x="94.33" y="23.33" width="21" height="16" fill="#263238"/><rect x="19.33" y="65.33" width="37" height="27" fill="#03a9f4"/><polygon points="34.33,72.33 22.33,89.33 46.33,89.33" fill="#4fc3f7"/><circle cx="50.33" cy="72.33" r="4.00" fill="#b3e5fc"/><polygon points="45.33,78.33 35.33,89.33 54.33,89.33" fill="#b3e5fc"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 128, 128, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        // composited on the white background, the trace is the image to within half a level on average (joined: 1.3)
+        let error: f64 = (0..128 * 128)
+            .map(|i| {
+                let alpha = rendered[i * 4 + 3] as f64 / 255.0;
+                (0..3)
+                    .map(|c| {
+                        (rendered[i * 4 + c] as f64 * alpha + 255.0 * (1.0 - alpha) - rgba[i * 4 + c] as f64).abs()
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>()
+            / (128.0 * 128.0 * 3.0);
+        assert!(error < 0.5, "error {error}: {}", traced.canonical());
+    }
+
+    #[test]
+    fn a_flat_fill_near_the_background_keeps_its_colour() {
+        // a steak: a pale rim (within background_delta of the pale pink background, and nearer the darker cream), a darker cream and a red, drawn
+        // anti-aliased; on a noiseless image the rim is a flat fill of its own, not the background's
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#fce7f4"/><ellipse cx="32.3" cy="35.7" rx="24.2" ry="16.4" fill="#ffe8b6"/><ellipse cx="32.3" cy="31.4" rx="24.2" ry="15.3" fill="#ffd983"/><ellipse cx="30.6" cy="29.8" rx="17.1" ry="10.2" fill="#a0041e"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(has_fill(&traced, [255, 217, 131]) && has_fill(&traced, [255, 232, 182]));
     }
 
     /// A white image with these `(x0, y0, x1, y1)` boxes in red, its scene, and each box as a part.
@@ -2302,7 +2722,7 @@ mod tests {
             <rect x=\"42\" y=\"12\" width=\"10\" height=\"40\" fill=\"#2050c0\"/></svg>";
         let (_, rgba) = photograph(svg, [245, 240, 230]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(32 * 64 + 32) * 4 + 3], 0, "{}", traced.canonical());
     }
 
@@ -2314,7 +2734,7 @@ mod tests {
             <rect x=\"14\" y=\"16\" width=\"36\" height=\"32\" fill=\"#8a4b38\"/></svg>";
         let (clean, rgba) = photograph(svg, [246, 244, 240]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         // the plate rim, left of the pudding, is drawn
         assert_eq!(rendered[(44 * 64 + 10) * 4 + 3], 255, "{}", traced.canonical());
         assert!(
@@ -2355,7 +2775,7 @@ mod tests {
             }
         }
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(25 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
         assert_eq!(rendered[(4 * 64 + 4) * 4 + 3], 0, "{}", traced.canonical());
     }
@@ -2445,7 +2865,7 @@ mod tests {
             <circle cx=\"32\" cy=\"12\" r=\"5\" fill=\"#8a4b38\"/></svg>";
         let (_, rgba) = photograph(svg, [246, 244, 240]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(40 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
     }
 
@@ -2546,7 +2966,7 @@ mod tests {
             fill=\"#f0a020\"/></svg>";
         let (_, rgba) = photograph(svg, [244, 240, 236]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
         assert_eq!(
             (alpha(32, 32), alpha(32, 14), alpha(2, 2)),
@@ -2562,7 +2982,7 @@ mod tests {
             <path d=\"M12 0L52 0Q64 0 64 12L64 52Q64 64 52 64L12 64Q0 64 0 52L0 12Q0 0 12 0Z\" fill=\"#2060a0\"/></svg>";
         let (_, rgba) = photograph(svg, [244, 240, 236]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
         assert_eq!(
             (alpha(32, 32), alpha(1, 1), alpha(62, 62)),

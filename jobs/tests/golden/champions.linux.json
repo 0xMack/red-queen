@@ -1416,6 +1416,8 @@
      "representation": "svgformer",
      "rng_seed": 0,
      "training": {
+      "artwork": null,
+      "artwork_share": 0.0,
       "batch": 4,
       "clip": 1.0,
       "fp32_head": false,

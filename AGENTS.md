@@ -21,7 +21,9 @@ score a position mid-exchange, in the players and in TD-Leaf; 0022: Copy Cat (ph
 behind a generated logo or icon, scored against known clean answers; 0023: the research log (built) and process traces (proposed) -- experiment reports as runs,
 one trace format and one viewer for watching very different algorithms refine; 0024: Copy Cat, learned (proposed) -- a small
 encoder-decoder transformer (PyTorch, `libs/svgformer`) trained on generated images and openly licensed icon sets and
-illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phase 2, supervised training, built) — read the relevant one before an
+illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phases 2-3 built: on the leaderboard paired with the tracer, but it doesn't
+transfer to real artwork); 0025: Copy Cat, prior art and direction (proposed) -- a survey of image-to-SVG work and the
+next steps it sets: a learned denoiser in front of the MDL tracer, then a svgformer that sees its own canvas — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
@@ -227,7 +229,8 @@ architectural change that might conflict with a decision already made.
     trained weights.
   - `svgformer/` — Copy Cat, learned (docs/design/0024): SVG as tokens (`tokens.py`, a 1,280-step coordinate grid, 6-bit
     colours, geometry then paint) and the grammar constrained decoding follows (`grammar.py`), both plain Python, as is the
-    training stream (`data.py`: a pure function of `(seed, i)`); the model (`model.py`, Fourier features for coordinates and
+    training stream (`data.py`: a pure function of `(seed, i)`, generated scenes or, with `artwork_share`, the icon sets'
+    train split -- which from scratch teaches a decoder to ignore the image, 0024 E2); the model (`model.py`, Fourier features for coordinates and
     patch places), decoding (`decode.py`) and training (`train.py`, recorded by the trainer's `copycat.svgformer`) need PyTorch, the package's `torch` extra (`uv sync --all-packages --extra torch`: CUDA wheels on Windows from
     the cu132 index, CPU wheels on Linux) -- the one package not built from scratch, and nothing else depends on it.
   - `modelpack/` — portable model packages for client-side inference (docs/design/0009): exporters

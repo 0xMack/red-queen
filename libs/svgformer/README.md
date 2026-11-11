@@ -25,15 +25,24 @@ baseline and partner.
 
 - `data.py` -- the training stream (plain Python): sample `i` of stream `seed` is a `synthetic` image, corrupted by
   `corrupt.v1` at a severity drawn from its seed, and its tokens -- a pure function of `(seed, i)`, made in data workers.
+  With `artwork_share` > 0 that fraction of samples are icons from `build.py`'s `icons.jsonl`, corrupted afresh each draw.
+  Trained from scratch on that mix, the decoder learns the icon sets as a language model and stops reading the image
+  (0024 E2); fine-tuning a model that already reads images keeps it reading them.
 - `model.py` -- the transformer: a ViT encoder over 8 px patches and a causal decoder with cross-attention, sizes XS (tests),
   S (~5M), M (~12M) and L (256 px, 4,096 tokens). A number token's value enters and leaves as Fourier features in the token
   grid's frame, as do the patches' places, so a coordinate and the pixels it names line up (without them, the model
   ignored the image: 0024 "P2 results").
-- `decode.py` -- grammar-constrained generation with a KV cache (greedy or sampled); every sequence parses.
+- `decode.py` -- grammar-constrained generation with a KV cache (greedy or sampled); every sequence parses. `no_repeat`
+  bans path segments going nowhere or repeating the last few and ends a path that stalls (it doesn't fix 0024 E2's loops).
 - `train.py` -- the training loop (AdamW, warmup then cosine, bf16 autocast) and `evaluate()`, which scores greedy SVGs
   exactly as `copycat.clean.v2` does. The trainer's `copycat.svgformer` records it as a run:
 
       uv run redqueen train copycat.svgformer --game copycat --budget steps=20000 -p model=S
+
+  `-p validate_groups=...` scores more groups than `synthetic/validate` (held is their mean; never a `heldout` split), and
+  `-p artwork_share=0.3` mixes in the artwork.
+- `entrant.py` -- a run as a `copycat.clean.v2` entrant: greedy + polish, and per image that or the MDL tracer's SVG
+  (`PICK_MARGIN`, 1.5: the tracer only if it fits the input 1.5 times as closely).
 
 These four need PyTorch: `uv sync --all-packages --extra torch` (CUDA 13.2 wheels on Windows, CPU wheels on Linux). Nothing
 else in the workspace depends on it.

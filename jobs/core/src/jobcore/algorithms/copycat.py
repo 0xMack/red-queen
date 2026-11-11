@@ -29,12 +29,29 @@ class SvgFormerParams(BaseModel):
     )
     workers: NonNegativeInt = Field(24, description="Data workers generating and corrupting images (0: in process).")
     log_every: PositiveInt = Field(500, description="Optimizer steps per recorded generation.")
-    validate_images: PositiveInt = Field(400, le=400, description="synthetic/validate images in the held-out curve.")
+    validate_images: PositiveInt = Field(400, le=400, description="Images per validate group in the held-out curve.")
+    validate_groups: list[str] = Field(
+        default_factory=lambda: ["synthetic/validate"],
+        min_length=1,
+        description=(
+            "copycat.report groups (set/split, train-side only) the held-out curve scores: its score is the mean of "
+            "theirs, as the leaderboard's is of its sets. icons/train and broad/train are never trained on (E2)."
+        ),
+    )
     device: Literal["auto", "cuda", "cpu"] = "auto"
     number_sigma: float = Field(0.0, ge=0, description="Soft coordinate labels, grid steps wide (0: exact bins).")
     number_features: bool = Field(True, description="Fourier features of a number token's value in and out.")
     patch_features: bool = Field(True, description="Fourier features of each patch's place in the token grid's frame.")
     fp32_head: bool = Field(False, description="The output logits in fp32 under bf16 autocast.")
+    artwork_share: float = Field(
+        0.0,
+        ge=0,
+        le=1,
+        description=(
+            "Fraction of training samples drawn from the converted Iconify artwork (svgformer.build's icons.jsonl under "
+            "<data dir>/experiments/svgformer-artwork), corrupted like the rest (docs/design/0024 E2)."
+        ),
+    )
 
 
 register_algorithm(

@@ -29,6 +29,8 @@ Status: **Phases 1-2 built, phase 3's page, and phase 4's first rung** (2026-10-
 Phases 3-6 are proposed. [0024](0024-copycat-learned-inverse.md) proposes a learned entrant beside the MDL tracer: a
 small transformer, trained from scratch, that reads the image and writes the SVG, then fine-tuned by RL against the
 rendered result (it narrows "Explicitly out of scope" below to size and provenance).
+[0025](0025-copycat-prior-art-and-direction.md) surveys the prior art and sets the learned work's next steps: a denoiser in
+front of the MDL tracer, then a model that sees its own canvas.
 Relates to: [0007](0007-representations-leaderboards-and-tradeoffs.md) (held-out protocols, an entry as a vector of
 measurements), [0009](0009-client-side-inference-at-scale.md) (a Rust core shared by PyO3 and WASM; ONNX Runtime Web),
 [0010](0010-reinforcement-learning.md) (determinism; the `libs/rl` core), [0011](0011-multi-armed-bandits.md) (the last
@@ -1686,9 +1688,14 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 21 | Restored colours | #100 | 32.469 | 24.494 | 26.92 |
 | 22 | Polish | #102 | 34.666 | 25.093 | 27.952 |
 | 23 | A point where the outline needs one | #104 | 34.719 | 25.537 | 28.366 |
+| 24 | Pale fills kept apart | #109 | 34.719 | 25.538 | 28.366 |
+| 25 | Thin features kept | #109 | 34.719 | 25.797 | 28.382 |
+| 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
+| 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
+| 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24 and v23 at 29.54. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, and v28 at 29.74. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1775,6 +1782,166 @@ at `medium`). Its description is a stand-in, not the tracer's: its background, i
 lead left**: compute the description natively, from the pipeline's own background, noise estimate and `Costs`, and pick by
 it. The judge's `error` already composites the whole render over the background. It costs a trace per candidate, 4-6 times
 the time, in the browser too, so it must win on every set to be worth that.
+
+### v24: pale fills kept apart
+
+Found by [0025](0025-copycat-prior-art-and-direction.md)'s look at where the tracer loses on clean images (the worst
+`icons/train` images at the `clean` severity). Two bugs, both pale flat colours lost near an off-white background.
+- **`enclose` averaged what it took back.** A CD's pale and paler wedges both joined the background (within
+  `background_delta` of it). `enclose` then gave every enclosed background component back as *one* label with one mean
+  colour: two wedge colours became their average (#ccd6dd and #f5f8fa drawn as #e1e7eb). Now, on a near-noiseless image,
+  each component is first divided by its crisp edges into its colours (`colours_of`, as `restore` divides what it takes),
+  and a colour within one deviation of the background stays a hole. Test: `enclosed_pale_colours_are_divided_not_averaged`.
+- **A pale fill nearer another colour than the background was lost.** A steak's pale rim (#ffe8b6) is 0.081 from its
+  background and 0.058 from the darker cream beside it. `segment` forced it into the background; the next k-means pass
+  then gave its pixels to the nearer cream, so `restore` (which takes pale parts back from the background only) never saw
+  them. Now, on a near-noiseless image, a cluster that is one flat fill (`flat_fill`: a core nearly all within 4σ of its
+  centre), more than 4σ from the background, *and* nearer another colour than the background, is not absorbed, as
+  `two_flat_colours` already kept two close colours apart. Test: `a_flat_fill_near_the_background_keeps_its_colour`.
+- **A first version kept every such flat fill apart** (`copycat-pale-fills`, not kept). That lost what `restore` had
+  been giving back: a shuttlecock's white feathers, 0.02 from the background, became an ordinary cluster and weren't
+  drawn (−6.5 dB on that image, −5.9 on a `broad` one). The "nearer another colour" condition confines the change to the
+  case `restore` can't reach.
+
+Measured with `copycat.report`, `copycat-pale-fills-2` against `copycat-grow-turn` (clean fidelity, dB):
+
+| | before | after | up | down |
+|---|---|---|---|---|
+| `icons/train` | 27.297 | **27.499** | 2 | 0 |
+| `icons/train-control` | 37.947 | **38.251** | 4 | 0 |
+| `broad/train` | 28.751 | **28.798** | 3 | 1 (−0.15) |
+| `synthetic` (train, validate, held-out) | | unchanged | 0 | 0 |
+| `icons/heldout` | 25.537 | 25.538 | 0 | 0 |
+| `broad/heldout` | 28.366 | 28.366 | 0 | 0 |
+
+Single images move a lot (the CD +16.6, the steak +9.3, a `broad` image +5.2); the means little, because only flat
+images at the `clean` severity can change, and pale colours this close to the background are rare. Held-out is flat.
+
+### v25: thin features kept
+
+The worst clean `icons` after v24 lost mostly **thin features**: a shoe's inner seam, a cat's whiskers, an extinguisher's
+valve ring, a motorcycle's struts. `clean_labels` dissolves a component when under a quarter of its pixels survive a
+1 px erosion. On a noisy image that removes speckle; on a noiseless one it also removes every 2 px line. It must still
+remove the anti-aliased rim along every edge, which is just as thin.
+
+**The rule:** on a noiseless image (σ at its floor), a thin component stays unless it is an edge's blend (`blended`):
+at least half its pixels are a mix `t A + (1 - t) B` of two colours beside them, within 6 levels of sRGB or a fifth of
+A-B's distance. A and B are each label's solid pixels (all of whose neighbours share their label) within 3 px. A seam has
+a colour of its own, far off any such line; a rim is on it. Test: `a_thin_line_of_its_own_colour_stays_but_an_edges_blend_does_not`.
+
+Three versions were measured, each a `copycat.report` against `copycat-pale-fills-2`:
+
+| Report | The blend judged against | Share | `icons/train-control` | `synthetic/validate` | `icons/heldout` | Kept |
+|---|---|---|---|---|---|---|
+| `copycat-thin-features` | each label's mean colour | 80% | +0.10 | +0.01 (7 down; `synthetic/train` -0.05) | +0.27 | no |
+| `copycat-thin-features-2` | the colours within 3 px | 80% | +0.17 | -0.01 (8 down) | +0.26 | no |
+| `copycat-thin-features-3` | the colours within 3 px | 50% | **+0.17** | **+0.02** (1 down) | **+0.26** | yes |
+
+- **Against a label's mean colour, shaded parts kept rims.** On `light` images a part's colour drifts across it (the
+  shading), so its edge is a mix of its colour *there*, not of its mean. The extra shapes were faint rims on one side.
+- **At 80%, blurred and compressed edges kept rims.** Blur and JPEG move many of a rim's pixels off the line; at half,
+  none of the train-side rims stayed. A feature's pixels are almost none of them on the line (the shoe's seam is ~60
+  levels off the green-white mix), so half leaves a wide margin.
+- An earlier probe, keeping every thin component and skipping the majority filter on a near-noiseless image (σ under
+  `FLAT_SIGMA`, so `light` too), lost 2.3 dB on `broad`'s clean images: rims everywhere.
+
+Measured with `copycat-thin-features-3` (clean fidelity, dB):
+
+| | before | after | up | down |
+|---|---|---|---|---|
+| `icons/train` | 27.499 | **27.571** | 1 | 0 |
+| `icons/train-control` | 38.251 | **38.422** | 3 | 1 (-0.58) |
+| `synthetic/validate` | 33.345 | **33.363** | 2 | 1 (-0.17) |
+| `broad/train` | 28.798 | **28.818** | 7 | 1 (-0.15) |
+| `synthetic/train`, `synthetic/heldout` | | unchanged | 0 | 0 |
+| `icons/heldout` | 25.538 | **25.797** | 2 | 0 |
+| `broad/heldout` | 28.366 | **28.382** | 2 | 0 |
+
+The shoe gains 16.8 dB clean and 9.2 at `light`; a held-out icon 5.7. `copycat.clean.v2`: 29.54 to 29.63.
+
+### v26: small enclosed parts kept
+
+The worst clean `broad` image after v25 is a camera whose screen has a small pale sun (r 4) and a thin pale mountain.
+Both are within `background_delta` of the white background, so `segment` gave them to it, and `enclose` left them holes:
+it judges an enclosed region by its interior (pixels 2 px clear of its edge), and needs 16 of them. The sun has ~13, and
+the mountain almost none.
+
+**The rule:** on a noiseless image, a region with too little interior is judged by its *core* instead: its pixels off
+the crisp edges (`core_stands_out`), which are its own colour, unblended. It needs 8 of them, and must be 3 robust
+deviations from the background (`restore`'s margin for a colour that isn't its region's first). A gap between parts,
+blurred by them, is all edge. Test: `a_small_pale_part_enclosed_is_a_fill_not_a_hole`.
+
+Two versions were measured, each a `copycat.report` against `copycat-thin-features-3`:
+
+| Report | Judged by the core on | `broad/train` | `synthetic/validate` | `icons/heldout` | `broad/heldout` | Kept |
+|---|---|---|---|---|---|---|
+| `copycat-small-enclosed` | any image with crisp edges | +0.06 (18 up, 5 down) | -0.02 (2 down: -5.0, -2.5) | +0.14 | +0.14 (1 down: -2.3) | no |
+| `copycat-small-enclosed-2` | noiseless images only | **+0.03** (4 up, 0 down) | **0** | **+0.14** | **+0.14** (2 up, 0 down) | yes |
+
+- **On `light` and `medium` images, gaps became fills.** There the crisp-edge map is coarser, so a gap between parts where
+  the background shows through (between a synthetic image's shapes, between a DNA ladder's rungs) has a core, and blur and
+  shading put it more than 3 deviations off the fitted background: a pale fill where the answer is nothing.
+  Gated on σ at its floor, as v25 is, no image went down.
+
+`icons/train`, `icons/train-control`, `synthetic/*` were unchanged. The camera gains 3.7 dB; others in `broad/train`
+gain 5.9 and 3.9; one held-out `broad` image gains 14.6. `copycat.clean.v2`: 29.63 to 29.73.
+
+The camera's other fault is still there: its handle and its lens cone share a grey, and `join` makes them one part
+behind the dark connector, whose fitted shapes then fill the handle's hole. v27 is for that.
+
+### v27: joins undone when the pieces say it far more briefly
+
+`join` merges components of one colour when one shape describes them more briefly than one shape each: a part an
+occluder cut in two. The camera's body-and-handle and its lens cone pass that test under the connector between them. But
+the body and handle need two shapes, and `shapes_of` cuts a part only along its largest piece's outline, so the joined
+part came out as a long curve from the handle round to the lens, filling the hole under the handle: 27.8 dB. With no
+`join` at all the camera scores 39.0.
+
+**The rule** (`joined_or_apart`): a part `join` made of pieces is fitted both ways, as one (`shapes_of` on the whole) and
+apart (`shapes_of` on each piece, the other pieces free), each with what `leftovers` would add to it. Both are judged by
+one description length over the whole part (`described`: outline bits, plus every part pixel left uncovered and every
+covered pixel that is neither the part's nor free). It is drawn apart only if that costs under half the joined
+description (`UNDO_JOIN`). Test: `a_join_whose_pieces_say_it_far_more_briefly_is_drawn_apart`.
+
+Measured off the books first, every train-side image against `copycat-small-enclosed-2`:
+
+| Variant | `icons/train` | `icons/train-control` | `broad/train` | Down |
+|---|---|---|---|---|
+| no `join` at all | -0.03 | -0.02 | -0.01 | 56 (36 up), to -11.5 dB |
+| apart if each fit's own bits are fewer | +0.01 | -0.01 | +0.01 | 19, to -4.2 dB |
+| **apart if under half the whole description** | **+0.05** | **+0.01** | **+0.02** | **0** |
+
+- **`join` is right more often than not, but not by much.** With no join, 56 images went down and 36 up, both by up to 11 dB.
+- **Without a margin, cheap loose fits won.** Fitted with the other pieces free, a piece can take a loose, cheap shape:
+  the ATM's lower band became one large circle whose edge passes close to its rounded corners (1,011 bits apart, 1,092
+  joined), -2.9 dB. The bad joins were far apart from the good ones: apart cost 0.27-0.43 of joined where it helped,
+  0.60 and 0.93 where it hurt.
+
+Measured with `copycat-joined-or-apart` (clean fidelity, dB): no image down anywhere. The camera gains 11.3 dB, a lit
+`icons/train` image 5.3, four more 0.2-0.95; one held-out icon 0.28 (`icons/heldout` 25.938 to 25.950). `copycat.clean.v2`
+stays at 29.73 (29.725 to 29.729).
+
+### v28: thin features kept on near-noiseless images
+
+After v27 the worst `light` images were far below the ~30 dB a `light` image usually gets. Three causes, one fixed:
+
+- **A mosquito lost every leg (15.6 dB).** v25 keeps thin features only where σ is at its floor (0.002); this image's
+  estimate was 0.00205. Most `light` images are at the floor, but about 15% are not. **The rule:** v25's test on a
+  near-noiseless image, σ under `FLAT_SIGMA` (0.0025), the line other near-noiseless rules already use. `blended` still
+  drops the edges' rims. Test: `a_thin_line_stays_on_a_lightly_noisy_image_too` (the shoe's seam, a level of noise on
+  every pixel). v26's small-enclosed rule widened the same way changed nothing, so it stays at the floor.
+- **An envelope lost its whole pale body (13.9 dB), not fixed.** Its σ, 0.00252, is just over `FLAT_SIGMA`, so the
+  judged cut kept the border's wide spread about a gradient, and the body stood 2.6 deviations out where `restore` asks
+  3. Moving the judged cut's gate to 0.003 got the envelope back (+17 dB), but medium images under 0.003 then restored
+  their clutter as parts (`synthetic/validate` medium -0.55, one image -15.7); dropping the gate, worse. `light` and
+  `medium` overlap in σ, and nothing else seen yet tells clutter from a pale part.
+- **A printer's paper (16.7 dB) and a toilet roll's paper (21.1, clean), not fixed.** The paper is 1.8 deviations off a
+  light background. The roll's covers a corner and much of the border, so the background is fitted as a gradient bending
+  toward the paper (2 of 256 clean images get a gradient; `clean` backgrounds are always flat).
+
+Measured with `copycat-thin-near-noiseless` against `copycat-joined-or-apart`: no image down. The mosquito gains 7.9 dB,
+three `broad/train` images 0.4-1.3, a held-out `broad` image 3.6 (`broad/heldout` 28.519 to 28.549).
+`copycat.clean.v2`: 29.73 to 29.74.
 
 ## The page
 
