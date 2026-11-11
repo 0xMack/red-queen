@@ -1654,6 +1654,86 @@ fn shapes_of(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<
     out
 }
 
+/// A part `join` made of pieces is drawn as one only if its final shapes say it more briefly than each piece's own,
+/// fitted with the other pieces free. `join` judged it by one shape against one shape each, but a piece may need several
+/// (`shapes_of` cuts it), and a joined part is cut only along its largest piece's outline: a camera's body and handle,
+/// joined to its lens cone under the connector between them, came out as shapes that filled the handle's hole.
+fn joined_or_apart(scene: &Scene, part: &Part, above: &[&Part], costs: &Costs) -> Vec<Fit> {
+    let joined = shapes_of(scene, part, above, costs);
+    let mut mask = vec![0usize; scene.labels.len()];
+    for &i in &part.pixels {
+        mask[i] = 1;
+    }
+    let (_, members) = components(scene.image, &mask);
+    let pieces: Vec<Part> = members
+        .into_iter()
+        .filter(|p| !p.is_empty() && mask[p[0]] == 1)
+        .map(|pixels| Part {
+            pixels,
+            fill: part.fill,
+            label: part.label,
+        })
+        .collect();
+    if pieces.len() < 2 {
+        return joined;
+    }
+    let mut apart = Vec::new();
+    for (k, piece) in pieces.iter().enumerate() {
+        let mut free = above.to_vec();
+        free.extend(pieces.iter().enumerate().filter(|&(j, _)| j != k).map(|(_, p)| p));
+        apart.extend(shapes_of(scene, piece, &free, costs));
+    }
+    // each fit's bits count only its own pixels: both are judged whole, with what `leftovers` would add to them
+    let [joined, apart] = [joined, apart].map(|mut fits| {
+        let more = leftovers(scene, part, above, &fits, costs);
+        fits.extend(more);
+        fits
+    });
+    let (j, a) = (
+        described(scene, part, above, &joined, costs),
+        described(scene, part, above, &apart, costs),
+    );
+    if a < UNDO_JOIN * j {
+        apart
+    } else {
+        joined
+    }
+}
+
+/// How many bits a part's shapes describe it in: their outlines, and every pixel they get wrong -- a pixel of the part
+/// they leave uncovered, or one they cover that is neither the part's nor free (under a part above it).
+fn described(scene: &Scene, part: &Part, above: &[&Part], fits: &[Fit], costs: &Costs) -> f64 {
+    let (w, h) = (scene.image.width, scene.image.height);
+    let mut covered = vec![0.0f64; w * h];
+    for fit in fits {
+        let shape = Shape {
+            geometry: fit.geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = shape.mask(w as u32, h as u32);
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                let i = (mask.y0 + my) * w + mask.x0 + mx;
+                covered[i] = covered[i].max(mask.data[my * mask.width + mx]);
+            }
+        }
+    }
+    let visible = scene.soft(&[part]);
+    let free = mask_of(scene.labels.len(), above);
+    let wrong: f64 = (0..w * h)
+        .filter(|&i| !free[i])
+        .map(|i| (covered[i] - visible[i]).abs())
+        .sum();
+    fits.iter().map(|f| costs.model_bits(&f.geometry)).sum::<f64>() + costs.pixel_bits * wrong
+}
+
+/// The share of a joined part's description its pieces' own shapes must come under for it to be drawn apart. Each piece is
+/// fitted with the others free, so its shapes can be loose and cheap (an ATM's lower band as one big circle, its rounded
+/// corners near enough), while `join` found one shape a shorter reading: undoing that needs a clear margin.
+const UNDO_JOIN: f64 = 0.5;
+
 /// The fewest pixels a half of a cut part may have.
 const MIN_HALF: usize = 12;
 
@@ -2068,7 +2148,7 @@ fn run(
     let mut fitted_pixels = 0.0;
     for (place, &k) in order.iter().enumerate() {
         let above: Vec<&Part> = order[place + 1..].iter().map(|&j| &parts[j]).collect();
-        let mut fits = shapes_of(&scene, &parts[k], &above, &costs);
+        let mut fits = joined_or_apart(&scene, &parts[k], &above, &costs);
         let more = leftovers(&scene, &parts[k], &above, &fits, &costs);
         fits.extend(more);
         if let Some(film) = &mut film {
@@ -2366,6 +2446,30 @@ mod tests {
     }
 
     #[test]
+    fn a_join_whose_pieces_say_it_far_more_briefly_is_drawn_apart() {
+        // a camera, its edges on thirds of a pixel: a grey body with a handle arching over it, a dark connector, and a grey
+        // lens cone beyond it. `join` reads body and lens as one grey shape under the connector; drawn as one, it came out
+        // as a long curve from the handle to the lens. Apart, each piece is its own shapes.
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="#ffffff"/><rect x="70.33" y="25.33" width="27" height="11" fill="#37474f"/><path d="M70.33 25.33L44.33 25.33C40.33 25.33 37.33 27.33 35.33 31.33L26.33 47.33L35.33 52.33L44.33 36.33L70.33 36.33L70.33 55.33L81.33 55.33L81.33 36.33C81.33 30.33 76.33 25.33 70.33 25.33Z" fill="#607d8b"/><path d="M78.33 111.33L14.33 111.33C8.33 111.33 3.33 106.33 3.33 100.33L3.33 57.33C3.33 51.33 8.33 47.33 14.33 47.33L78.33 47.33C84.33 47.33 89.33 51.33 89.33 57.33L89.33 100.33C89.33 106.33 84.33 111.33 78.33 111.33Z" fill="#607d8b"/><path d="M99.33 97.33L113.33 111.33L121.33 111.33L121.33 52.33L113.33 52.33L99.33 65.33Z" fill="#607d8b"/><rect x="14.33" y="60.33" width="48" height="37" fill="#546e7a"/><rect x="89.33" y="65.33" width="10" height="32" fill="#455a64"/><rect x="94.33" y="23.33" width="21" height="16" fill="#263238"/><rect x="19.33" y="65.33" width="37" height="27" fill="#03a9f4"/><polygon points="34.33,72.33 22.33,89.33 46.33,89.33" fill="#4fc3f7"/><circle cx="50.33" cy="72.33" r="4.00" fill="#b3e5fc"/><polygon points="45.33,78.33 35.33,89.33 54.33,89.33" fill="#b3e5fc"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 128, 128, &TraceConfig::default()).unwrap();
+        let rendered = traced.render().to_rgba8();
+        // composited on the white background, the trace is the image to within half a level on average (joined: 1.3)
+        let error: f64 = (0..128 * 128)
+            .map(|i| {
+                let alpha = rendered[i * 4 + 3] as f64 / 255.0;
+                (0..3)
+                    .map(|c| {
+                        (rendered[i * 4 + c] as f64 * alpha + 255.0 * (1.0 - alpha) - rgba[i * 4 + c] as f64).abs()
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>()
+            / (128.0 * 128.0 * 3.0);
+        assert!(error < 0.5, "error {error}: {}", traced.canonical());
+    }
+
+    #[test]
     fn a_flat_fill_near_the_background_keeps_its_colour() {
         // a steak: a pale rim (within background_delta of the pale pink background, and nearer the darker cream), a darker cream and a red, drawn
         // anti-aliased; on a noiseless image the rim is a flat fill of its own, not the background's
@@ -2591,7 +2695,7 @@ mod tests {
             <rect x=\"42\" y=\"12\" width=\"10\" height=\"40\" fill=\"#2050c0\"/></svg>";
         let (_, rgba) = photograph(svg, [245, 240, 230]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(32 * 64 + 32) * 4 + 3], 0, "{}", traced.canonical());
     }
 
@@ -2603,7 +2707,7 @@ mod tests {
             <rect x=\"14\" y=\"16\" width=\"36\" height=\"32\" fill=\"#8a4b38\"/></svg>";
         let (clean, rgba) = photograph(svg, [246, 244, 240]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         // the plate rim, left of the pudding, is drawn
         assert_eq!(rendered[(44 * 64 + 10) * 4 + 3], 255, "{}", traced.canonical());
         assert!(
@@ -2644,7 +2748,7 @@ mod tests {
             }
         }
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(25 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
         assert_eq!(rendered[(4 * 64 + 4) * 4 + 3], 0, "{}", traced.canonical());
     }
@@ -2734,7 +2838,7 @@ mod tests {
             <circle cx=\"32\" cy=\"12\" r=\"5\" fill=\"#8a4b38\"/></svg>";
         let (_, rgba) = photograph(svg, [246, 244, 240]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         assert_eq!(rendered[(40 * 64 + 32) * 4 + 3], 255, "{}", traced.canonical());
     }
 
@@ -2835,7 +2939,7 @@ mod tests {
             fill=\"#f0a020\"/></svg>";
         let (_, rgba) = photograph(svg, [244, 240, 236]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
         assert_eq!(
             (alpha(32, 32), alpha(32, 14), alpha(2, 2)),
@@ -2851,7 +2955,7 @@ mod tests {
             <path d=\"M12 0L52 0Q64 0 64 12L64 52Q64 64 52 64L12 64Q0 64 0 52L0 12Q0 0 12 0Z\" fill=\"#2060a0\"/></svg>";
         let (_, rgba) = photograph(svg, [244, 240, 236]);
         let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
-        let rendered = traced.render().to_rgba8();
+        let rendered = Document::parse(&traced.canonical()).unwrap().render().to_rgba8();
         let alpha = |x: usize, y: usize| rendered[(y * 64 + x) * 4 + 3];
         assert_eq!(
             (alpha(32, 32), alpha(1, 1), alpha(62, 62)),

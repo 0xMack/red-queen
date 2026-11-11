@@ -1691,9 +1691,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 24 | Pale fills kept apart | #109 | 34.719 | 25.538 | 28.366 |
 | 25 | Thin features kept | #109 | 34.719 | 25.797 | 28.382 |
 | 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
+| 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, and v26 at 29.73. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, and v26 and v27 at 29.73. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1885,7 +1886,39 @@ Two versions were measured, each a `copycat.report` against `copycat-thin-featur
 gain 5.9 and 3.9; one held-out `broad` image gains 14.6. `copycat.clean.v2`: 29.63 to 29.73.
 
 The camera's other fault is still there: its handle and its lens cone share a grey, and `join` makes them one part
-behind the dark connector, whose fitted shapes then fill the handle's hole.
+behind the dark connector, whose fitted shapes then fill the handle's hole. v27 is for that.
+
+### v27: joins undone when the pieces say it far more briefly
+
+`join` merges components of one colour when one shape describes them more briefly than one shape each: a part an
+occluder cut in two. The camera's body-and-handle and its lens cone pass that test under the connector between them. But
+the body and handle need two shapes, and `shapes_of` cuts a part only along its largest piece's outline, so the joined
+part came out as a long curve from the handle round to the lens, filling the hole under the handle: 27.8 dB. With no
+`join` at all the camera scores 39.0.
+
+**The rule** (`joined_or_apart`): a part `join` made of pieces is fitted both ways, as one (`shapes_of` on the whole) and
+apart (`shapes_of` on each piece, the other pieces free), each with what `leftovers` would add to it. Both are judged by
+one description length over the whole part (`described`: outline bits, plus every part pixel left uncovered and every
+covered pixel that is neither the part's nor free). It is drawn apart only if that costs under half the joined
+description (`UNDO_JOIN`). Test: `a_join_whose_pieces_say_it_far_more_briefly_is_drawn_apart`.
+
+Measured off the books first, every train-side image against `copycat-small-enclosed-2`:
+
+| Variant | `icons/train` | `icons/train-control` | `broad/train` | Down |
+|---|---|---|---|---|
+| no `join` at all | -0.03 | -0.02 | -0.01 | 56 (36 up), to -11.5 dB |
+| apart if each fit's own bits are fewer | +0.01 | -0.01 | +0.01 | 19, to -4.2 dB |
+| **apart if under half the whole description** | **+0.05** | **+0.01** | **+0.02** | **0** |
+
+- **`join` is right more often than not, but not by much.** With no join, 56 images went down and 36 up, both by up to 11 dB.
+- **Without a margin, cheap loose fits won.** Fitted with the other pieces free, a piece can take a loose, cheap shape:
+  the ATM's lower band became one large circle whose edge passes close to its rounded corners (1,011 bits apart, 1,092
+  joined), -2.9 dB. The bad joins were far apart from the good ones: apart cost 0.27-0.43 of joined where it helped,
+  0.60 and 0.93 where it hurt.
+
+Measured with `copycat-joined-or-apart` (clean fidelity, dB): no image down anywhere. The camera gains 11.3 dB, a lit
+`icons/train` image 5.3, four more 0.2-0.95; one held-out icon 0.28 (`icons/heldout` 25.938 to 25.950). `copycat.clean.v2`
+stays at 29.73 (29.725 to 29.729).
 
 ## The page
 

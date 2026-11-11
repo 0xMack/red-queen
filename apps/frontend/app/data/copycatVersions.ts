@@ -136,6 +136,14 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 34.719, icons: 25.938, broad: 28.519 },
     v2: 29.73,
   },
+  {
+    version: 27,
+    change: "Joins undone when the pieces say it far more briefly",
+    pr: 109,
+    report: "copycat-joined-or-apart",
+    heldout: { synthetic: 34.719, icons: 25.95, broad: 28.519 },
+    v2: 29.73,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!
