@@ -983,9 +983,10 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
 /// The background reaches the image's edge: a background-labelled component enclosed by parts whose interior's mean
 /// colour is further from the background's than one robust deviation of a border pixel (`Background::cut` / 6) -- the
 /// white of a letter on a tile against an off-white background, within `background_delta` of it -- is a colour of its
-/// own, a new label whose centre is its mean. One that is the background's colour stays a hole, and so does one with
-/// too little interior to tell (a gap between parts, blurred by them). The interior's mean has no blurred edge, and
-/// the noise averages away in it, so one deviation is a safe margin.
+/// own, a new label whose centre is its mean. One that is the background's colour stays a hole. The interior's mean has
+/// no blurred edge, and the noise averages away in it, so one deviation is a safe margin. One with too little interior
+/// to tell -- a small sun, a thin mountain -- is judged by its pixels off the crisp edges (`core_stands_out`) where there
+/// are crisp edges, and otherwise stays a hole (a gap between parts, blurred by them).
 ///
 /// On a near-noiseless image a component is first divided by its crisp `edges` into its colours (`colours_of`), as
 /// `restore` divides what it takes: a CD's pale and paler wedges, both close enough to the background to join it, are
@@ -1001,6 +1002,7 @@ pub fn enclose(
 ) {
     let (w, h) = (image.width, image.height);
     let (_, members) = components(image, labels);
+    let noiseless = noise_sigma(image) <= SIGMA_FLOOR;
     let enclosed: Vec<&Vec<usize>> = members
         .iter()
         .filter(|pixels| labels[pixels[0]] == 0)
@@ -1010,7 +1012,10 @@ pub fn enclose(
                 x > 0 && y > 0 && x + 1 < w && y + 1 < h
             })
         })
-        .filter(|pixels| stands_out(image, background, cut, 1.0, pixels))
+        .filter(|pixels| match deviations_out(image, background, cut, pixels) {
+            Some(d) => d > 1.0,
+            None => noiseless && core_stands_out(image, background, cut, edges, pixels),
+        })
         .collect();
     // the components that are one colour share a label, as they always have; a divided one's colours each get their own
     let mut whole: Vec<usize> = Vec::new();
@@ -1044,6 +1049,21 @@ pub fn enclose(
         }
         centres.push(mean);
     }
+}
+
+/// Whether a region too small or thin to have an interior still stands out from the background, judged by its core: on
+/// a near-noiseless image the pixels off its crisp `edges` are its own colour, unblended. It needs `MIN_CORE` of them
+/// (a gap between parts, blurred by them, is all edge) and `RESTORE_DEVIATIONS` deviations, the margin `restore` asks
+/// of a colour that isn't its region's first. Without crisp edges (a noisy image) there's nothing to judge by.
+fn core_stands_out(image: &Image, background: &[Lab], cut: f64, edges: &[bool], pixels: &[usize]) -> bool {
+    pixels.iter().filter(|&&i| !edges[i]).count() >= MIN_CORE
+        && distance2(
+            &core_mean(pixels, edges, |i| image.lab[i]),
+            &core_mean(pixels, edges, |i| background[i]),
+        )
+        .sqrt()
+            / (cut / 6.0)
+            > RESTORE_DEVIATIONS
 }
 
 /// Whether a region's interior -- its pixels `INTERIOR` clear of its edge, clear of the blur it shares with what is
@@ -1327,6 +1347,8 @@ const RESTORE_FAR: f64 = 5.0;
 /// How far (px) inside an enclosed region its interior starts, and the fewest interior pixels it must have.
 const INTERIOR: usize = 2;
 const MIN_INTERIOR: usize = 16;
+/// The fewest pixels off crisp edges a region without an interior needs to be judged by them (`core_stands_out`).
+const MIN_CORE: usize = 8;
 
 /// A part: a connected component of one (non-background) label.
 pub struct Part {
@@ -2301,6 +2323,45 @@ mod tests {
         for shape in &traced.shapes {
             let near = |c: [u8; 3]| (0..3).all(|k| (shape.fill[k] as i32 - c[k] as i32).abs() <= 3);
             assert!(near([0x3e, 0x72, 0x1d]) || near([0xdd, 0x9c, 0x7c]), "{:?}", shape.fill);
+        }
+    }
+
+    #[test]
+    fn a_small_pale_part_enclosed_is_a_fill_not_a_hole() {
+        // a camera's screen: a blue panel with a small pale sun and a thin pale mountain on it, both given to the white
+        // background (within background_delta of it) and too small or thin for an interior; their pixels off the crisp edges
+        // say they are colours of their own, not holes showing the background
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#ffffff"/><rect x="8" y="10" width="48" height="40" fill="#03a9f4"/><circle cx="44" cy="20" r="4" fill="#b3e5fc"/><polygon points="26,30.6 16.6,42.3 35.3,42.3" fill="#b3e5fc"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let per_pixel: Vec<Lab> = (0..64 * 64).map(|i| background.at_pixel(&image, i)).collect();
+        let pale = image.lab[20 * 64 + 44];
+        // the panel is a part; the pale shapes and their blended rims went to the background
+        let mut labels: Vec<usize> = (0..64 * 64)
+            .map(|i| {
+                let (x, y) = (i % 64, i / 64);
+                usize::from(
+                    (8..56).contains(&x) && (10..50).contains(&y) && distance2(&image.lab[i], &pale).sqrt() > 0.08,
+                )
+            })
+            .collect();
+        let mut centres = vec![[0.0; 3], image.lab[12 * 64 + 12]];
+        let edges = crisp_edges(&image, sigma);
+        enclose(
+            &image,
+            &per_pixel,
+            background.judged_cut(&image, sigma),
+            &edges,
+            30,
+            &mut labels,
+            &mut centres,
+        );
+        for (x, y) in [(44, 20), (26, 39)] {
+            let label = labels[y * 64 + x];
+            assert!(label >= 2, "({x}, {y}) is {label}");
+            assert!(distance2(&centres[label], &pale).sqrt() < 0.02);
         }
     }
 

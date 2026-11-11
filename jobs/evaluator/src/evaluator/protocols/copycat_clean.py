@@ -66,7 +66,7 @@ from evaluator.registry import protocol
 # The MDL tracer's version: one more for every change kept, each listed in apps/frontend/app/data/copycatVersions.ts
 # (which the Learn case study draws). Its entrant id stays `baseline:structured`, so the leaderboard holds only the
 # current version; the record notes the version and the commit it was scored at.
-MDL_TRACER_VERSION = 25
+MDL_TRACER_VERSION = 26
 
 # key -> (label, description, how it runs: the tracer and its settings)
 VTRACER_DEFAULTS: dict[str, Any] = {"colormode": "color", "hierarchical": "stacked", "mode": "spline"}

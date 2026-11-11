@@ -1690,9 +1690,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 23 | A point where the outline needs one | #104 | 34.719 | 25.537 | 28.366 |
 | 24 | Pale fills kept apart | #109 | 34.719 | 25.538 | 28.366 |
 | 25 | Thin features kept | #109 | 34.719 | 25.797 | 28.382 |
+| 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, and v25 at 29.63. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, and v26 at 29.73. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1855,6 +1856,36 @@ Measured with `copycat-thin-features-3` (clean fidelity, dB):
 | `broad/heldout` | 28.366 | **28.382** | 2 | 0 |
 
 The shoe gains 16.8 dB clean and 9.2 at `light`; a held-out icon 5.7. `copycat.clean.v2`: 29.54 to 29.63.
+
+### v26: small enclosed parts kept
+
+The worst clean `broad` image after v25 is a camera whose screen has a small pale sun (r 4) and a thin pale mountain.
+Both are within `background_delta` of the white background, so `segment` gave them to it, and `enclose` left them holes:
+it judges an enclosed region by its interior (pixels 2 px clear of its edge), and needs 16 of them. The sun has ~13, and
+the mountain almost none.
+
+**The rule:** on a noiseless image, a region with too little interior is judged by its *core* instead: its pixels off
+the crisp edges (`core_stands_out`), which are its own colour, unblended. It needs 8 of them, and must be 3 robust
+deviations from the background (`restore`'s margin for a colour that isn't its region's first). A gap between parts,
+blurred by them, is all edge. Test: `a_small_pale_part_enclosed_is_a_fill_not_a_hole`.
+
+Two versions were measured, each a `copycat.report` against `copycat-thin-features-3`:
+
+| Report | Judged by the core on | `broad/train` | `synthetic/validate` | `icons/heldout` | `broad/heldout` | Kept |
+|---|---|---|---|---|---|---|
+| `copycat-small-enclosed` | any image with crisp edges | +0.06 (18 up, 5 down) | -0.02 (2 down: -5.0, -2.5) | +0.14 | +0.14 (1 down: -2.3) | no |
+| `copycat-small-enclosed-2` | noiseless images only | **+0.03** (4 up, 0 down) | **0** | **+0.14** | **+0.14** (2 up, 0 down) | yes |
+
+- **On `light` and `medium` images, gaps became fills.** There the crisp-edge map is coarser, so a gap between parts where
+  the background shows through (between a synthetic image's shapes, between a DNA ladder's rungs) has a core, and blur and
+  shading put it more than 3 deviations off the fitted background: a pale fill where the answer is nothing.
+  Gated on σ at its floor, as v25 is, no image went down.
+
+`icons/train`, `icons/train-control`, `synthetic/*` were unchanged. The camera gains 3.7 dB; others in `broad/train`
+gain 5.9 and 3.9; one held-out `broad` image gains 14.6. `copycat.clean.v2`: 29.63 to 29.73.
+
+The camera's other fault is still there: its handle and its lens cone share a grey, and `join` makes them one part
+behind the dark connector, whose fitted shapes then fill the handle's hole.
 
 ## The page
 

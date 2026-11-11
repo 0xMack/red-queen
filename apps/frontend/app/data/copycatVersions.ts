@@ -128,6 +128,14 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 34.719, icons: 25.797, broad: 28.382 },
     v2: 29.63,
   },
+  {
+    version: 26,
+    change: "Small enclosed parts kept",
+    pr: 109,
+    report: "copycat-small-enclosed-2",
+    heldout: { synthetic: 34.719, icons: 25.938, broad: 28.519 },
+    v2: 29.73,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!
