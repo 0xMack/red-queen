@@ -872,10 +872,78 @@ fn eroded(image: &Image, id: &[usize], pixels: &[usize], steps: usize) -> usize 
         .count()
 }
 
+/// How far (sRGB, 0..255) a pixel may be from a mix of two colours and still be that mix: `BLEND_TOLERANCE`, or this
+/// share of the two colours' distance if more (blur and JPEG move a wide edge's mix off the line more).
+const BLEND_TOLERANCE: f64 = 6.0;
+const BLEND_SHARE_OF_SPAN: f64 = 0.2;
+/// The share of a thin component's pixels that must be mixes of the colours around them for it to be an edge's blend.
+const BLEND_SHARE: f64 = 0.5;
+/// How far (px) around a pixel the colours it might be a mix of are looked for.
+const BLEND_REACH: i64 = 3;
+
+/// Whether a thin component is the anti-aliased blend along an edge rather than a feature of its own: most of its
+/// pixels are a mix `t A + (1 - t) B` of two colours beside them -- the mean colour of each label's solid pixels (all
+/// of whose neighbours share their label) within `BLEND_REACH`, so a part shaded across its width is judged by its
+/// colour where the edge is. A whisker or a seam has a colour of its own.
+fn blended(image: &Image, labels: &[usize], id: &[usize], pixels: &[usize]) -> bool {
+    let (w, h) = (image.width as i64, image.height as i64);
+    let own = id[pixels[0]];
+    let solid = |j: usize| id[j] != own && image.neighbours(j).all(|k| labels[k] == labels[j]);
+    let mixes = pixels
+        .iter()
+        .filter(|&&i| {
+            let (x, y) = ((i as i64) % w, (i as i64) / w);
+            let mut local: Vec<(usize, [f64; 3], usize)> = Vec::new();
+            for dy in -BLEND_REACH..=BLEND_REACH {
+                for dx in -BLEND_REACH..=BLEND_REACH {
+                    let (xx, yy) = (x + dx, y + dy);
+                    if xx < 0 || yy < 0 || xx >= w || yy >= h {
+                        continue;
+                    }
+                    let j = (yy * w + xx) as usize;
+                    if !solid(j) {
+                        continue;
+                    }
+                    let k = match local.iter().position(|(l, _, _)| *l == labels[j]) {
+                        Some(k) => k,
+                        None => {
+                            local.push((labels[j], [0.0; 3], 0));
+                            local.len() - 1
+                        }
+                    };
+                    for (s, &v) in local[k].1.iter_mut().zip(&image.rgb[j]) {
+                        *s += v as f64;
+                    }
+                    local[k].2 += 1;
+                }
+            }
+            let colours: Vec<[f64; 3]> = local.iter().map(|(_, sum, n)| sum.map(|v| v / *n as f64)).collect();
+            let p = image.rgb[i].map(|v| v as f64);
+            colours.iter().enumerate().any(|(a, ca)| {
+                colours[a + 1..].iter().any(|cb| {
+                    let d = [0, 1, 2].map(|c| ca[c] - cb[c]);
+                    let len2 = d.iter().map(|v| v * v).sum::<f64>();
+                    if len2 <= 0.0 {
+                        return false;
+                    }
+                    let t = ([0, 1, 2].map(|c| (p[c] - cb[c]) * d[c]).iter().sum::<f64>() / len2).clamp(0.0, 1.0);
+                    let off2: f64 = (0..3).map(|c| (p[c] - (cb[c] + t * d[c])).powi(2)).sum();
+                    off2 <= BLEND_TOLERANCE.powi(2).max(BLEND_SHARE_OF_SPAN.powi(2) * len2)
+                })
+            })
+        })
+        .count();
+    mixes as f64 >= BLEND_SHARE * pixels.len() as f64
+}
+
 /// Dissolves components that are too small or too thin to be parts: each of their pixels takes the label of the
 /// nearest pixel that stays (a breadth-first flood from what stays). The background where it reaches the image's edge
-/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background.
+/// always stays: a tile's rounded corner leaves it a thin sliver there, which is still the background. On a noiseless
+/// image (σ at its floor) a thin component stays unless it is the anti-aliased blend along an edge (`blended`): a
+/// shoe's inner seam or a cat's whiskers are features, not noise.
 pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Vec<usize> {
+    // on a noiseless image a thin component is a feature unless it is an edge's blend (`blended`)
+    let noiseless = noise_sigma(image) <= SIGMA_FLOOR;
     let mut labels = majority(labels, image.width, image.height);
     labels = majority(&labels, image.width, image.height);
     let (id, members) = components(image, &labels);
@@ -888,7 +956,10 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
                     let (x, y) = (i % w, i / w);
                     x == 0 || y == 0 || x + 1 == w || y + 1 == h
                 });
-            !edge && (pixels.len() < config.min_area || eroded(image, &id, pixels, 1) * 4 < pixels.len())
+            !edge
+                && (pixels.len() < config.min_area
+                    || (eroded(image, &id, pixels, 1) * 4 < pixels.len()
+                        && (!noiseless || blended(image, &labels, &id, pixels))))
         })
         .collect();
     if dissolve.iter().all(|d| *d) {
@@ -2212,6 +2283,25 @@ mod tests {
         assert!(pale >= 2 && paler >= 2 && pale != paler, "{pale} {paler}");
         assert!(distance2(&centres[pale], &image.lab[30 * 64 + 20]).sqrt() < 0.01);
         assert!(distance2(&centres[paler], &image.lab[30 * 64 + 40]).sqrt() < 0.01);
+    }
+
+    #[test]
+    fn a_thin_line_of_its_own_colour_stays_but_an_edges_blend_does_not() {
+        // a shoe: a green body with a 2 px pink seam across it, anti-aliased at its ends; the seam is a feature, the blended rim
+        // around the green is not
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#f5f0e3"/><ellipse cx="32.3" cy="40.2" rx="26.4" ry="12.3" fill="#3e721d"/><rect x="10.5" y="30" width="43.2" height="2" fill="#dd9c7c"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(
+            has_fill(&traced, [0xdd, 0x9c, 0x7c]),
+            "{:?}",
+            traced.shapes.iter().map(|s| s.fill).collect::<Vec<_>>()
+        );
+        // every fill is the green or the seam's (the seam may cut the green in two): no blend of either is a part
+        for shape in &traced.shapes {
+            let near = |c: [u8; 3]| (0..3).all(|k| (shape.fill[k] as i32 - c[k] as i32).abs() <= 3);
+            assert!(near([0x3e, 0x72, 0x1d]) || near([0xdd, 0x9c, 0x7c]), "{:?}", shape.fill);
+        }
     }
 
     #[test]

@@ -1689,9 +1689,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 22 | Polish | #102 | 34.666 | 25.093 | 27.952 |
 | 23 | A point where the outline needs one | #104 | 34.719 | 25.537 | 28.366 |
 | 24 | Pale fills kept apart | #109 | 34.719 | 25.538 | 28.366 |
+| 25 | Thin features kept | #109 | 34.719 | 25.797 | 28.382 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, and v23 and v24 at 29.54. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, and v25 at 29.63. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1812,6 +1813,48 @@ Measured with `copycat.report`, `copycat-pale-fills-2` against `copycat-grow-tur
 
 Single images move a lot (the CD +16.6, the steak +9.3, a `broad` image +5.2); the means little, because only flat
 images at the `clean` severity can change, and pale colours this close to the background are rare. Held-out is flat.
+
+### v25: thin features kept
+
+The worst clean `icons` after v24 lost mostly **thin features**: a shoe's inner seam, a cat's whiskers, an extinguisher's
+valve ring, a motorcycle's struts. `clean_labels` dissolves a component when under a quarter of its pixels survive a
+1 px erosion. On a noisy image that removes speckle; on a noiseless one it also removes every 2 px line. It must still
+remove the anti-aliased rim along every edge, which is just as thin.
+
+**The rule:** on a noiseless image (σ at its floor), a thin component stays unless it is an edge's blend (`blended`):
+at least half its pixels are a mix `t A + (1 - t) B` of two colours beside them, within 6 levels of sRGB or a fifth of
+A-B's distance. A and B are each label's solid pixels (all of whose neighbours share their label) within 3 px. A seam has
+a colour of its own, far off any such line; a rim is on it. Test: `a_thin_line_of_its_own_colour_stays_but_an_edges_blend_does_not`.
+
+Three versions were measured, each a `copycat.report` against `copycat-pale-fills-2`:
+
+| Report | The blend judged against | Share | `icons/train-control` | `synthetic/validate` | `icons/heldout` | Kept |
+|---|---|---|---|---|---|---|
+| `copycat-thin-features` | each label's mean colour | 80% | +0.10 | +0.01 (7 down; `synthetic/train` -0.05) | +0.27 | no |
+| `copycat-thin-features-2` | the colours within 3 px | 80% | +0.17 | -0.01 (8 down) | +0.26 | no |
+| `copycat-thin-features-3` | the colours within 3 px | 50% | **+0.17** | **+0.02** (1 down) | **+0.26** | yes |
+
+- **Against a label's mean colour, shaded parts kept rims.** On `light` images a part's colour drifts across it (the
+  shading), so its edge is a mix of its colour *there*, not of its mean. The extra shapes were faint rims on one side.
+- **At 80%, blurred and compressed edges kept rims.** Blur and JPEG move many of a rim's pixels off the line; at half,
+  none of the train-side rims stayed. A feature's pixels are almost none of them on the line (the shoe's seam is ~60
+  levels off the green-white mix), so half leaves a wide margin.
+- An earlier probe, keeping every thin component and skipping the majority filter on a near-noiseless image (σ under
+  `FLAT_SIGMA`, so `light` too), lost 2.3 dB on `broad`'s clean images: rims everywhere.
+
+Measured with `copycat-thin-features-3` (clean fidelity, dB):
+
+| | before | after | up | down |
+|---|---|---|---|---|
+| `icons/train` | 27.499 | **27.571** | 1 | 0 |
+| `icons/train-control` | 38.251 | **38.422** | 3 | 1 (-0.58) |
+| `synthetic/validate` | 33.345 | **33.363** | 2 | 1 (-0.17) |
+| `broad/train` | 28.798 | **28.818** | 7 | 1 (-0.15) |
+| `synthetic/train`, `synthetic/heldout` | | unchanged | 0 | 0 |
+| `icons/heldout` | 25.538 | **25.797** | 2 | 0 |
+| `broad/heldout` | 28.366 | **28.382** | 2 | 0 |
+
+The shoe gains 16.8 dB clean and 9.2 at `light`; a held-out icon 5.7. `copycat.clean.v2`: 29.54 to 29.63.
 
 ## The page
 

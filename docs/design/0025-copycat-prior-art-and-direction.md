@@ -340,7 +340,8 @@ hence 36.6 on `icons` against 38.2 elsewhere.)
   2. sub-pixel edge error along every outline;
   3. small details dropped (a pen's tip).
   The first was two bugs, now fixed as the tracer's v24 (0022, "v24: pale fills kept apart"): +0.30 dB on
-  `icons/train-control`, held-out flat.
+  `icons/train-control`, held-out flat. The third, as v25 (0022, "v25: thin features kept"): thin components kept on
+  noiseless images unless an edge's blend, +0.17 on `icons/train-control` and +0.26 on `icons/heldout`.
 
 **What this means:** the learned direction (Decision 2) is still where most structure headroom is, but D1 and this test
 change what it should aim at. Its gains will come on clean and light images, not by undoing corruption. So its
