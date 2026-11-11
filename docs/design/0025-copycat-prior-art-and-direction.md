@@ -1,7 +1,8 @@
 # 0025 — Copy Cat: what the prior art says, and learning around the tracer
 
-Status: **proposed** (2026-11-10); D0 run: a perfect denoiser would lift the tracer by 10-15 dB on every train-side group
-(see "D0 results"), so Decision 1 is worth building. A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+Status: **proposed** (2026-11-10). D0 found 10-15 dB of headroom, but D1's first runs (2026-11-11, off the books) showed
+most of it is colour drift and warp, which a pixel denoiser doesn't undo. The part a denoiser can reach is 1-2 dB, and
+the first model already takes most of it (see "D1, first runs"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
 experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
 sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
@@ -239,13 +240,85 @@ Both are scored by `copycat.clean.v2`'s fidelity against the clean SVG.
 - **A first attempt composited the clean render over pure white,** and lost 3-5 dB on clean images: an icon's white parts
   merged with the background, and the tracer dropped them. A denoiser's output must keep a background the tracer can tell
   apart from the subject. So D1's target is the clean pipeline's own image, background included.
+- **Read with care (see D1 below):** most of this ceiling is drift and warp, not noise.
+
+### D1, first runs (off the books, 2026-11-11)
+
+**What was built:** `svgformer.denoise`, a convolutional U-Net (48 channels at full resolution, 4 levels, 7.3M
+parameters).
+- **Training pairs** come from svgformer's own stream, with the artwork share at 0.5.
+- **The target** is the clean subject as premultiplied RGBA, with no background. A clean image's off-white is drawn at
+  random, so a model can't predict it.
+- **For the tracer,** the output is drawn over the off-white farthest from the subject's colours (`background_for`).
+  Through that compositing, the true RGBA scores 46.8 / 36.9 / 46.1, within 0.5 dB of D0, so the choice costs nothing.
+- **Training:** 20k steps at batch 32, L1 loss with edge pixels weighted 5 times, about 20 minutes.
+
+The tracer on the denoiser's output, per train-side group (96 images each):
+
+| Group | All | Clean | Light | Medium | Heavy |
+|---|---|---|---|---|---|
+| `synthetic/validate` | 32.90 → 33.63 | 44.83 → 43.72 | 37.43 → 39.32 | 27.21 → 27.71 | 22.12 → 23.78 |
+| `icons/train` | 27.26 → 26.29 | 38.16 → 32.80 | 31.02 → 31.13 | 22.33 → 22.57 | 17.53 → 18.67 |
+| `broad/train` | 31.16 → 29.51 | 49.14 → 39.81 | 32.68 → 32.93 | 23.59 → 24.54 | 19.22 → 20.78 |
+
+Weighted, 30.44 → 29.81 (−0.63). After 5k steps it was −1.95.
+
+**Why the gain is so much smaller than D0's.** `corrupt.v1` applies its stages in order:
+1. per-part colour drift;
+2. shading;
+3. a smooth warp, a sinusoidal displacement of up to 1.8 px;
+4. blur;
+5. the background, noise, grain and JPEG.
+
+The tracer was run on each image's own corruption cut off after each stage, over the same background as above. These
+are means over the 72 corrupted images per group:
+
+| Group | Severity | Drift | + shading | + warp | + blur | Corrupted input | Denoised |
+|---|---|---|---|---|---|---|---|
+| `synthetic/validate` | light | 44.4 | 44.1 | 40.2 | 39.1 | 37.4 | 39.3 |
+| | medium | 38.0 | 37.0 | 27.9 | 28.0 | 27.2 | 27.7 |
+| | heavy | 31.4 | 31.1 | 23.3 | 23.4 | 22.1 | 23.8 |
+| `icons/train` | light | 36.7 | 36.2 | 33.3 | 32.9 | 31.0 | 31.1 |
+| | medium | 31.8 | 31.0 | 24.0 | 24.0 | 22.3 | 22.6 |
+| | heavy | 27.0 | 25.7 | 20.1 | 19.9 | 17.5 | 18.7 |
+| `broad/train` | light | 42.2 | 41.8 | 35.1 | 34.6 | 32.7 | 32.9 |
+| | medium | 34.6 | 34.1 | 26.0 | 26.0 | 23.6 | 24.5 |
+| | heavy | 28.6 | 27.6 | 21.1 | 20.8 | 19.2 | 20.8 |
+
+- **Drift costs 6-17 dB of D0's headroom, and warp another 3-9.** Background, noise, grain and JPEG together cost 1-2.5
+  dB, the gap between the "+ blur" and "corrupted input" columns.
+- **The denoiser recovers that last part,** reaching or beating the "+ blur" column on medium and heavy. So it is already
+  near the ceiling of what removing noise can give.
+- **D0's headroom was mostly drift and warp.** Both are hard to undo from one image:
+  - a drifted fill is a plausible fill;
+  - a warped edge is a plausible edge, unless the model knows edges should be straight, circles round and colours from a
+    palette.
+  The 5k-to-20k gain was on clean and light images. On heavy it was 0.4 dB, so more steps aren't recovering warp or
+  drift.
+- **The denoiser loses on clean inputs** (−1 to −9 dB). It doesn't reproduce a clean image exactly, and the plain tracer
+  is already near its ceiling there.
+  - With a perfect gate (clean inputs go to the plain tracer, the rest through the denoiser), the weighted score would be
+    31.13, +0.69 over tracer v23.
+  - That's an upper bound: a real gate has to estimate severity from the input.
+
+**What this means for the plan:**
+- **Decision 1, as a pixel denoiser, is worth at most about +0.7 dB.** That is too little to justify the trainer
+  algorithm, the entrant and `corrupt.v2` on its own. Its code stays in `svgformer.denoise`, unregistered.
+- **The remaining headroom is geometric and chromatic priors:**
+  - **warp:** straight edges, true circles and arcs. This is the tracer's job (0022), where fitted primitives would snap
+    a wobbled edge back; or a model's, if it emits primitives rather than pixels;
+  - **drift:** colours. A shared palette across an image's parts is a fair prior, but snapping to a given set's palette
+    would fit `corrupt.v1`, not artwork.
+- **Decision 2 now matters more:** a model that writes shapes, not pixels, is the learned way to bring those priors in.
+- **Before either, measure the headroom first:** run the per-stage table above on the tracer with stronger primitive
+  fitting, the cheapest test of the warp prior.
 
 ## Phases
 
 | Phase | What | Checked by |
 |---|---|---|
 | Q0 | this doc; D0 | review; D0 recorded here |
-| Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard |
+| Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard. **Stopped after the off-the-books runs:** the model and stream are built, and the rest isn't worth +0.7 dB (see "D1, first runs") |
 | Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding | off the books first; then R1 and R2 |
 | Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`) | R3 |
 
