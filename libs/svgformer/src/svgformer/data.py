@@ -43,10 +43,15 @@ def png_to_array(png: bytes) -> np.ndarray:
     return np.asarray(Image.open(io.BytesIO(png)).convert("RGB")).transpose(2, 0, 1).copy()
 
 
-def synthetic_sample(stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> Sample:
+def synthetic_draw(stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> tuple[str, int, str]:
+    """Sample `i` of a stream's `synthetic` before corruption: (clean SVG, corruption seed, severity)."""
     seed = GENERATED_BASE + stream_seed * STREAM_STRIDE + i
     svg, _ = synthetic(seed)
-    severity = random.Random(f"svgformer:{seed}").choice(severities)
+    return svg, seed, random.Random(f"svgformer:{seed}").choice(severities)
+
+
+def synthetic_sample(stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> Sample:
+    svg, seed, severity = synthetic_draw(stream_seed, i, severities)
     pixels, _ = corrupt_pixels(svg, seed, severity)
     image = np.asarray(pixels.convert("RGB")).transpose(2, 0, 1).copy()
     return Sample(image, T.encode(svg, SIZE).tokens, seed, severity)
@@ -86,13 +91,20 @@ class ArtworkPool:
             return json.loads(f.readline())["svg"]
 
 
-def artwork_sample(pool: ArtworkPool, stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> Sample:
-    """Sample `i` of a stream's artwork: a pool icon drawn at random (with replacement) and corrupted afresh, as `icons`
-    and `broad` are, so the same icon is a different image each time it is drawn."""
+def artwork_draw(
+    pool: ArtworkPool, stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES
+) -> tuple[str, int, str]:
+    """Sample `i` of a stream's artwork before corruption: (clean SVG, corruption seed, severity)."""
     seed = ARTWORK_BASE + stream_seed * STREAM_STRIDE + i
     rng = random.Random(f"svgformer-artwork:{seed}")
     svg = Svg(pool.svg(rng.randrange(len(pool)))).canonical()  # canonical: one shape a line, as corrupt.v1 drifts them
-    severity = rng.choice(severities)
+    return svg, seed, rng.choice(severities)
+
+
+def artwork_sample(pool: ArtworkPool, stream_seed: int, i: int, severities: tuple[str, ...] = SEVERITIES) -> Sample:
+    """Sample `i` of a stream's artwork: a pool icon drawn at random (with replacement) and corrupted afresh, as `icons`
+    and `broad` are, so the same icon is a different image each time it is drawn."""
+    svg, seed, severity = artwork_draw(pool, stream_seed, i, severities)
     pixels, _ = corrupt_pixels(svg, seed, severity)
     image = np.asarray(pixels.convert("RGB")).transpose(2, 0, 1).copy()
     return Sample(image, T.encode(svg, SIZE).tokens, seed, severity)
@@ -107,13 +119,30 @@ def mixed_sample(
 ) -> Sample:
     """Sample `i` of the training stream: artwork with probability `artwork_share`, else `synthetic`. With no artwork it
     is exactly `synthetic_sample`, so runs from before artwork was mixed in are reproduced."""
-    if (
+    if is_artwork(stream_seed, i, pool, artwork_share):
+        return artwork_sample(pool, stream_seed, i, severities)
+    return synthetic_sample(stream_seed, i, severities)
+
+
+def is_artwork(stream_seed: int, i: int, pool: ArtworkPool | None, artwork_share: float) -> bool:
+    return (
         pool is not None
         and artwork_share > 0
         and random.Random(f"svgformer-mix:{stream_seed}:{i}").random() < artwork_share
-    ):
-        return artwork_sample(pool, stream_seed, i, severities)
-    return synthetic_sample(stream_seed, i, severities)
+    )
+
+
+def mixed_draw(
+    stream_seed: int,
+    i: int,
+    severities: tuple[str, ...] = SEVERITIES,
+    pool: ArtworkPool | None = None,
+    artwork_share: float = 0.0,
+) -> tuple[str, int, str]:
+    """`mixed_sample`'s choice before corruption: (clean SVG, corruption seed, severity)."""
+    if is_artwork(stream_seed, i, pool, artwork_share):
+        return artwork_draw(pool, stream_seed, i, severities)
+    return synthetic_draw(stream_seed, i, severities)
 
 
 def collate(samples: list[Sample]) -> tuple[np.ndarray, np.ndarray]:
