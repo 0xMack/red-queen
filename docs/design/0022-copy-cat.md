@@ -1688,9 +1688,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 21 | Restored colours | #100 | 32.469 | 24.494 | 26.92 |
 | 22 | Polish | #102 | 34.666 | 25.093 | 27.952 |
 | 23 | A point where the outline needs one | #104 | 34.719 | 25.537 | 28.366 |
+| 24 | Pale fills kept apart | #109 | 34.719 | 25.538 | 28.366 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24 and v23 at 29.54. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, and v23 and v24 at 29.54. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1777,6 +1778,40 @@ at `medium`). Its description is a stand-in, not the tracer's: its background, i
 lead left**: compute the description natively, from the pipeline's own background, noise estimate and `Costs`, and pick by
 it. The judge's `error` already composites the whole render over the background. It costs a trace per candidate, 4-6 times
 the time, in the browser too, so it must win on every set to be worth that.
+
+### v24: pale fills kept apart
+
+Found by [0025](0025-copycat-prior-art-and-direction.md)'s look at where the tracer loses on clean images (the worst
+`icons/train` images at the `clean` severity). Two bugs, both pale flat colours lost near an off-white background.
+- **`enclose` averaged what it took back.** A CD's pale and paler wedges both joined the background (within
+  `background_delta` of it). `enclose` then gave every enclosed background component back as *one* label with one mean
+  colour: two wedge colours became their average (#ccd6dd and #f5f8fa drawn as #e1e7eb). Now, on a near-noiseless image,
+  each component is first divided by its crisp edges into its colours (`colours_of`, as `restore` divides what it takes),
+  and a colour within one deviation of the background stays a hole. Test: `enclosed_pale_colours_are_divided_not_averaged`.
+- **A pale fill nearer another colour than the background was lost.** A steak's pale rim (#ffe8b6) is 0.081 from its
+  background and 0.058 from the darker cream beside it. `segment` forced it into the background; the next k-means pass
+  then gave its pixels to the nearer cream, so `restore` (which takes pale parts back from the background only) never saw
+  them. Now, on a near-noiseless image, a cluster that is one flat fill (`flat_fill`: a core nearly all within 4σ of its
+  centre), more than 4σ from the background, *and* nearer another colour than the background, is not absorbed, as
+  `two_flat_colours` already kept two close colours apart. Test: `a_flat_fill_near_the_background_keeps_its_colour`.
+- **A first version kept every such flat fill apart** (`copycat-pale-fills`, not kept). That lost what `restore` had
+  been giving back: a shuttlecock's white feathers, 0.02 from the background, became an ordinary cluster and weren't
+  drawn (−6.5 dB on that image, −5.9 on a `broad` one). The "nearer another colour" condition confines the change to the
+  case `restore` can't reach.
+
+Measured with `copycat.report`, `copycat-pale-fills-2` against `copycat-grow-turn` (clean fidelity, dB):
+
+| | before | after | up | down |
+|---|---|---|---|---|
+| `icons/train` | 27.297 | **27.499** | 2 | 0 |
+| `icons/train-control` | 37.947 | **38.251** | 4 | 0 |
+| `broad/train` | 28.751 | **28.798** | 3 | 1 (−0.15) |
+| `synthetic` (train, validate, held-out) | | unchanged | 0 | 0 |
+| `icons/heldout` | 25.537 | 25.538 | 0 | 0 |
+| `broad/heldout` | 28.366 | 28.366 | 0 | 0 |
+
+Single images move a lot (the CD +16.6, the steak +9.3, a `broad` image +5.2); the means little, because only flat
+images at the `clean` severity can change, and pale colours this close to the background are rare. Held-out is flat.
 
 ## The page
 

@@ -621,6 +621,28 @@ fn two_flat_colours(image: &Image, labels: &[usize], a: usize, b: usize, centres
         && core_share(image, labels, b) >= FLAT_CORE
 }
 
+/// Whether a cluster is one flat fill on a near-noiseless image, and so a colour of its own however close it is to the
+/// background (a steak's pale rim on an off-white background, nearer the darker cream than the background): it has a
+/// core (`FLAT_CORE`), and nearly all of that core (`FLAT_FILL`) is within `EDGE_SIGMAS` σ of its centre. A band of a
+/// ramp or of a blurred edge spreads wider than that.
+fn flat_fill(image: &Image, labels: &[usize], k: usize, centre: &Lab, sigma: f64) -> bool {
+    let limit = (EDGE_SIGMAS * sigma).powi(2);
+    let (mut total, mut core, mut flat) = (0usize, 0usize, 0usize);
+    for (i, &l) in labels.iter().enumerate() {
+        if l == k {
+            total += 1;
+            if image.neighbours(i).all(|j| labels[j] == k) {
+                core += 1;
+                flat += usize::from(distance2(&image.lab[i], centre) <= limit);
+            }
+        }
+    }
+    core as f64 >= FLAT_CORE * total.max(1) as f64 && flat as f64 >= FLAT_FILL * core.max(1) as f64
+}
+
+/// The share of a cluster's core that must be within `EDGE_SIGMAS` σ of its centre for it to be a flat fill.
+const FLAT_FILL: f64 = 0.9;
+
 pub fn segment(image: &Image, background: &Background, sigma: f64, config: &TraceConfig) -> Segmentation {
     let n = image.lab.len();
     let bg: Vec<Lab> = (0..n).map(|i| background.at_pixel(image, i)).collect();
@@ -713,8 +735,19 @@ pub fn segment(image: &Image, background: &Background, sigma: f64, config: &Trac
                     config.merge_delta
                 };
                 let shorter = added * bits_per_sse < saved;
-                let colours =
-                    a != 0 && sigma < FLAT_SIGMA && two_flat_colours(image, &labels, a, b, &clustering.centres);
+                let colours = sigma < FLAT_SIGMA
+                    && if a == 0 {
+                        // only when another colour is nearer than the background: its pixels would go there, not to
+                        // `restore`, which gives a pale part back only from the background
+                        let nearer = (1..k).any(|c| {
+                            c != b
+                                && n_of[c] > 0
+                                && clustering.centres[c].is_some_and(|cc| distance2(&cc, &cb).sqrt() < delta)
+                        });
+                        nearer && delta > EDGE_SIGMAS * sigma && flat_fill(image, &labels, b, &cb, sigma)
+                    } else {
+                        two_flat_colours(image, &labels, a, b, &clustering.centres)
+                    };
                 let forced = delta < close && !colours;
                 if (forced || shorter) && best.is_none_or(|(d, _, _, _)| delta < d) {
                     best = Some((delta, a, b, a == 0 && !shorter));
@@ -882,7 +915,19 @@ pub fn clean_labels(image: &Image, labels: &[usize], config: &TraceConfig) -> Ve
 /// own, a new label whose centre is its mean. One that is the background's colour stays a hole, and so does one with
 /// too little interior to tell (a gap between parts, blurred by them). The interior's mean has no blurred edge, and
 /// the noise averages away in it, so one deviation is a safe margin.
-pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize], centres: &mut Vec<Lab>) {
+///
+/// On a near-noiseless image a component is first divided by its crisp `edges` into its colours (`colours_of`), as
+/// `restore` divides what it takes: a CD's pale and paler wedges, both close enough to the background to join it, are
+/// two colours, not their average. A colour that is the background's (within one deviation) stays a hole.
+pub fn enclose(
+    image: &Image,
+    background: &[Lab],
+    cut: f64,
+    edges: &[bool],
+    min_area: usize,
+    labels: &mut [usize],
+    centres: &mut Vec<Lab>,
+) {
     let (w, h) = (image.width, image.height);
     let (_, members) = components(image, labels);
     let enclosed: Vec<&Vec<usize>> = members
@@ -896,19 +941,38 @@ pub fn enclose(image: &Image, background: &[Lab], cut: f64, labels: &mut [usize]
         })
         .filter(|pixels| stands_out(image, background, cut, 1.0, pixels))
         .collect();
-    let n: usize = enclosed.iter().map(|p| p.len()).sum();
-    if n == 0 {
-        return;
-    }
-    let label = centres.len();
-    let mut mean = [0.0; 3];
-    for &i in enclosed.iter().flat_map(|p| p.iter()) {
-        for (k, m) in mean.iter_mut().enumerate() {
-            *m += image.lab[i][k] / n as f64;
+    // the components that are one colour share a label, as they always have; a divided one's colours each get their own
+    let mut whole: Vec<usize> = Vec::new();
+    let mut divided: Vec<Vec<usize>> = Vec::new();
+    for pixels in enclosed {
+        let colours = colours_of(image, pixels, edges, cut, min_area);
+        if colours.len() == 1 {
+            whole.extend(pixels);
+            continue;
         }
-        labels[i] = label;
+        for colour in colours {
+            let off = distance2(
+                &core_mean(&colour, edges, |i| image.lab[i]),
+                &core_mean(&colour, edges, |i| background[i]),
+            )
+            .sqrt()
+                / (cut / 6.0);
+            if off > 1.0 {
+                divided.push(colour);
+            }
+        }
     }
-    centres.push(mean);
+    for group in std::iter::once(whole).chain(divided).filter(|g| !g.is_empty()) {
+        let label = centres.len();
+        let mut mean = [0.0; 3];
+        for &i in &group {
+            for (k, m) in mean.iter_mut().enumerate() {
+                *m += image.lab[i][k] / group.len() as f64;
+            }
+            labels[i] = label;
+        }
+        centres.push(mean);
+    }
 }
 
 /// Whether a region's interior -- its pixels `INTERIOR` clear of its edge, clear of the blur it shares with what is
@@ -1845,7 +1909,16 @@ fn run(
     let mut centres = segmentation.centres.clone();
     let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
     let judged = background.judged_cut(&image, sigma);
-    enclose(&image, &per_pixel, judged, &mut labels, &mut centres);
+    let edges = crisp_edges(&image, sigma);
+    enclose(
+        &image,
+        &per_pixel,
+        judged,
+        &edges,
+        config.min_area,
+        &mut labels,
+        &mut centres,
+    );
     restore(
         &image,
         &per_pixel,
@@ -2084,6 +2157,71 @@ mod tests {
     fn close_flat_colours_stay_apart_only_without_noise() {
         assert_eq!(colours_of_two_close_blocks(0), 2);
         assert_eq!(colours_of_two_close_blocks(6), 1);
+    }
+
+    /// A noiseless 64 x 64 image on an off-white background, painted by `colour(x, y)` (None: the background).
+    fn painted(colour: impl Fn(usize, usize) -> Option<[u8; 3]>) -> Vec<u8> {
+        let mut rgba = Vec::new();
+        for y in 0..64 {
+            for x in 0..64 {
+                rgba.extend(colour(x, y).unwrap_or([245, 240, 227]));
+                rgba.push(255);
+            }
+        }
+        rgba
+    }
+
+    fn has_fill(document: &Document, fill: [u8; 3]) -> bool {
+        document
+            .shapes
+            .iter()
+            .any(|s| (0..3).all(|c| (s.fill[c] as i32 - fill[c] as i32).abs() <= 3))
+    }
+
+    #[test]
+    fn enclosed_pale_colours_are_divided_not_averaged() {
+        // a grey frame around a pale and a paler half, both given to the background (a CD's wedges, close enough to an
+        // off-white background to join it): `enclose` takes them back as two colours, not their average
+        let rgba = painted(|x, y| match (x, y) {
+            (12..=51, 12..=51) if !(16..=47).contains(&x) || !(16..=47).contains(&y) => Some([136, 153, 166]),
+            (16..=31, 16..=47) => Some([204, 214, 221]),
+            (32..=47, 16..=47) => Some([245, 248, 250]),
+            _ => None,
+        });
+        let image = Image::from_rgba8(&rgba, 64, 64).unwrap();
+        let sigma = noise_sigma(&image);
+        let background = Background::fit(&image, sigma);
+        let per_pixel: Vec<Lab> = (0..64 * 64).map(|i| background.at_pixel(&image, i)).collect();
+        let frame = |i: usize| {
+            let (x, y) = (i % 64, i / 64);
+            (12..=51).contains(&x) && (12..=51).contains(&y) && !((16..=47).contains(&x) && (16..=47).contains(&y))
+        };
+        let mut labels: Vec<usize> = (0..64 * 64).map(|i| usize::from(frame(i))).collect();
+        let mut centres = vec![[0.0; 3], image.lab[12 * 64 + 12]];
+        let edges = crisp_edges(&image, sigma);
+        enclose(
+            &image,
+            &per_pixel,
+            background.judged_cut(&image, sigma),
+            &edges,
+            30,
+            &mut labels,
+            &mut centres,
+        );
+        let (pale, paler) = (labels[30 * 64 + 20], labels[30 * 64 + 40]);
+        assert!(pale >= 2 && paler >= 2 && pale != paler, "{pale} {paler}");
+        assert!(distance2(&centres[pale], &image.lab[30 * 64 + 20]).sqrt() < 0.01);
+        assert!(distance2(&centres[paler], &image.lab[30 * 64 + 40]).sqrt() < 0.01);
+    }
+
+    #[test]
+    fn a_flat_fill_near_the_background_keeps_its_colour() {
+        // a steak: a pale rim (within background_delta of the pale pink background, and nearer the darker cream), a darker cream and a red, drawn
+        // anti-aliased; on a noiseless image the rim is a flat fill of its own, not the background's
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#fce7f4"/><ellipse cx="32.3" cy="35.7" rx="24.2" ry="16.4" fill="#ffe8b6"/><ellipse cx="32.3" cy="31.4" rx="24.2" ry="15.3" fill="#ffd983"/><ellipse cx="30.6" cy="29.8" rx="17.1" ry="10.2" fill="#a0041e"/></svg>"##;
+        let rgba = Document::parse(svg).unwrap().render().to_rgba8();
+        let traced = trace(&rgba, 64, 64, &TraceConfig::default()).unwrap();
+        assert!(has_fill(&traced, [255, 217, 131]) && has_fill(&traced, [255, 232, 182]));
     }
 
     /// A white image with these `(x0, y0, x1, y1)` boxes in red, its scene, and each box as a part.

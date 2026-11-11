@@ -2,7 +2,8 @@
 
 Status: **proposed** (2026-11-10). D0 found 10-15 dB of headroom, but D1's first runs (2026-11-11, off the books) showed
 most of it is colour drift and warp, which a pixel denoiser doesn't undo. The part a denoiser can reach is 1-2 dB, and
-the first model already takes most of it (see "D1, first runs"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+the first model already takes most of it (see "D1, first runs"). Fitting can't undo the warp either; the headroom left
+is structure on clean and light images ("Can fitting undo the warp?"), where the tracer's v24 came from. A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
 experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
 sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
@@ -310,8 +311,40 @@ are means over the 72 corrupted images per group:
   - **drift:** colours. A shared palette across an image's parts is a fair prior, but snapping to a given set's palette
     would fit `corrupt.v1`, not artwork.
 - **Decision 2 now matters more:** a model that writes shapes, not pixels, is the learned way to bring those priors in.
-- **Before either, measure the headroom first:** run the per-stage table above on the tracer with stronger primitive
-  fitting, the cheapest test of the warp prior.
+- **Before either, measure the headroom first** (done below, "Can fitting undo the warp?").
+
+### Can fitting undo the warp? (off the books, 2026-11-11)
+
+0022 had already tried simpler shapes on noisy images (a cheaper wrong pixel; outlines made to beat primitives by 3-30x).
+Neither paid, because "a simpler shape fitted to the warped input is still the wrong shape". So instead of a sweep, an
+oracle: each image's own warp, alone (no drift, shading, blur or noise), and on it the true SVG, its structure and colours
+exact, with only its numbers fitted (the tracer's polish). That is the best any fit could do.
+
+| Group | Light: tracer / true + polish | Medium | Heavy | Clean (no warp) |
+|---|---|---|---|---|
+| `synthetic/validate` | 41.6 / 44.7 | 28.4 / 29.5 | 24.3 / 25.5 | 44.9 / 60.0 |
+| `icons/train` | 34.8 / 40.6 | 25.2 / 27.1 | 21.4 / 22.7 | 36.6 / 59.9 |
+| `broad/train` | 36.4 / 38.8 | 26.9 / 28.9 | 22.3 / 24.0 | 47.2 / 60.0 |
+
+(60 dB is the score's ceiling. The clean column's inputs are drawn over `background_for`'s background, not the set's,
+hence 36.6 on `icons` against 38.2 elsewhere.)
+
+- **The warp can't be fitted away.** With the exact structure, fitting gains only 1-2 dB over the tracer on medium and
+  heavy. Over a part, a 40-90 px sinusoid is nearly a shift, and a fit puts the part where it was shifted to. Only priors
+  the pixels don't hold (alignment, symmetry, a grid) could undo it, and they would fit `corrupt.v1` as much as artwork.
+- **The headroom left is structure on clean and light images:** 13-23 dB on clean, 2.4-5.8 on light. As shares of each
+  group (a quarter of images are clean), about +5 to +8 dB a group if the structure were exact, most of it on clean images. That is the room for
+  both the tracer and Decision 2.
+- **Where the tracer loses on clean `icons`,** looking at the eight worst images:
+  1. pale colours near the background lost or averaged (a CD's two wedge colours, a steak's rim);
+  2. sub-pixel edge error along every outline;
+  3. small details dropped (a pen's tip).
+  The first was two bugs, now fixed as the tracer's v24 (0022, "v24: pale fills kept apart"): +0.30 dB on
+  `icons/train-control`, held-out flat.
+
+**What this means:** the learned direction (Decision 2) is still where most structure headroom is, but D1 and this test
+change what it should aim at. Its gains will come on clean and light images, not by undoing corruption. So its
+experiments should report clean and light separately, and R1's gate (within 3 dB of the tracer) should be read on them.
 
 ## Phases
 
