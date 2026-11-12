@@ -71,3 +71,15 @@ def test_drawing_only_keeps_shapes_that_improve_the_fit(model):
     assert Svg(drawn).shapes <= 4
     loose = draw(model, [image], "cpu", samples=2, max_shapes=4, verify=False)[0]
     assert Svg(loose).shapes >= Svg(drawn).shapes
+
+
+def test_a_drawing_from_a_base_keeps_it_and_paints_over_it(model):
+    from svgformer.canvas import joined
+
+    base, _ = synthetic(1_000_001)
+    svg, _ = synthetic(1_000_000)
+    assert Svg(joined(base, svg)).shapes == Svg(base).shapes + Svg(svg).shapes
+    image = (Svg(svg).render_rgba8(), SIZE, SIZE)
+    drawn = draw(model, [image], "cpu", samples=1, max_shapes=2, bases=[base], max_shape_tokens=64)[0]
+    assert Svg(base).shapes <= Svg(drawn).shapes <= Svg(base).shapes + 2
+    assert Svg(drawn).canonical().startswith(Svg(base).canonical().rsplit("</svg>", 1)[0].rstrip())

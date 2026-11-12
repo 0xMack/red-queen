@@ -4,7 +4,7 @@ Status: **proposed** (2026-11-10). D0 found 10-15 dB of headroom, but D1's first
 most of it is colour drift and warp, which a pixel denoiser doesn't undo. The part a denoiser can reach is 1-2 dB, and
 the first model already takes most of it (see "D1, first runs"). Fitting can't undo the warp either; the headroom left
 is structure on clean and light images ("Can fitting undo the warp?"), where the tracer's v24 came from. A breakdown of what is left (2026-11-11) found it is
-outline precision, not missing parts: the outline fitter, Q1b, comes before Q2 ("What kind of structure error?"). Q1b's first step is built: tracer v29, knots that carry their own tangents, settled by least squares and priced dearly on noiseless images, took `copycat.clean.v2` from 29.74 to 30.80 (0022, "v29"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+outline precision, not missing parts: the outline fitter, Q1b, comes before Q2 ("What kind of structure error?"). Q1b's first step is built: tracer v29, knots that carry their own tangents, settled by least squares and priced dearly on noiseless images, took `copycat.clean.v2` from 29.74 to 30.80 (0022, "v29"). Q2's first runs (2026-11-12, off the books) stopped it: on artwork the model loops inside one outline, which seeing the canvas between shapes doesn't reach, and from the tracer's drawing it adds nothing ("Q2, first runs"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
 experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
 sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
@@ -395,6 +395,59 @@ coverage differs); "≥ ½ px off" is the same band where they disagree. Colour 
   tracer to the true outlines' 60, about +2 dB on the leaderboard, ten times what v24-v28 gained together; light images'
   outline error (70-90% of theirs) would add some.
 
+### Q2, first runs (off the books, 2026-11-12)
+
+**What was built** (`svgformer.canvas`, `Config.canvas`, `TrainConfig.canvas`/`prefixes`):
+- **The input:** ten channels. They are the target, the canvas drawn over the background the tracer fits, the canvas's
+  alpha, and the residual.
+- **The stream:** a random prefix of the clean SVG's shapes, none to all of them, drawn as the canvas. The target is the
+  next shape, `BOS shape END`, or `BOS END` once nothing is left. `prefixes` takes several prefixes of one corrupted
+  image: corrupting it and fitting its background are 12 of a sample's 16 ms, a prefix's render 0.3.
+- **Decoding:** `generate(one_shape=True)` writes one shape a step. `draw` keeps the candidate that most reduces the
+  misfit against the input, and stops when the greedy candidate is `END` or nothing improves. With `bases` it starts
+  from another entrant's SVG (R2).
+- **Recorded configs:** left-to-right models' configs are unchanged; `canvas` is recorded only when set.
+
+**R1, two runs** (M, artwork share 0.3, greedy with verify, 48 images per train-side group; dB):
+
+| Run | Step | Synthetic | Icons | Broad | Shapes kept (synthetic / icons / broad) |
+|---|---|---|---|---|---|
+| from scratch (batch 64, lr 1e-3) | 2k | 11.7 | 7.3 | 9.1 | 0 / 0 / 0 |
+| | 10k | 11.7 | 9.0 | 10.0 | 0.4 / 0.5 / 0.4 |
+| from 0024's M (`32b4430e`, batch 128, 4 prefixes an image, lr 3e-4) | 2k | 23.6 | 9.0 | 10.5 | 4.6 / 0.3 / 0.3 |
+| | 8k | 25.0 | 9.0 | 11.3 | 4.7 / 0.4 / 0.5 |
+
+Both were stopped once flat. The left-to-right model they started from scores 26.3 / 11.9 / 13.5, and an empty canvas
+about 11.7 / 7.3 / 9.1.
+
+- **From scratch, the model barely reads its input.** With another sample's input, teacher-forced loss on artwork rises
+  from 2.57 to 2.73, against 1.72 to 5.74 for 0024's model. A one-shape sample carries about a tenth of a whole SVG's
+  tokens, so each step teaches less. The warm start fixes synthetic, but not artwork.
+- **On artwork the loop is inside one outline, which the canvas doesn't see.** The greedy first shape runs to the
+  1,024-token cap on 20 of 32 `icons/train` and 26 of 32 `broad/train` images (none of 32 on synthetic). Sampled at
+  0.7, 41 and 22 of 128 do, and the rest run 600-780 tokens. A cut-off shape has no colour (geometry comes first), so it
+  is dropped.
+- **The artwork's shapes are long.** An icon in the training pool has 3 shapes (quartiles 2 and 5), and its longest has
+  198 tokens (third quartile 340). A path has one subpath at the median, so splitting paths into subpaths wouldn't
+  shorten them much. Decoding shape by shape still writes a 200-token outline blind.
+
+**R2: the tracer's v29 SVG as the starting canvas** (48 images a group, all severities):
+- Across 144 images the model added one shape (+0.01 dB on one heavy `icons` image).
+- On clean images it gives `END` a probability of 0.90 (`icons`) and 0.95 (`broad`) at the first step.
+- Of 128 samples per group at temperature 1, 100 and 121 are `END`, and none that draws a shape lowers the misfit.
+
+The tracer's drawing already looks finished to it. That agrees with v29's per-shape benchmark: on `icons/train-control`,
+967 px of misfit in all, 331 of them one undrawn shape and 289 shapes split in pieces; on `broad/train`, 118.
+
+**Conclusions:**
+- **R1's gate isn't met, nor near it.** The model scores 9-11 dB on `icons/train` and `broad/train`, against the
+  tracer's 27-29.
+- **Shape-by-shape feedback doesn't reach the failure.** The failure is inside an outline. Feedback inside one would be
+  a path written segment by segment with its partial outline drawn, which is a different model.
+- **R2 has little to add.** The tracer's isolated shapes are nearly all drawn, and the model doesn't find what is left.
+- **Q2 is stopped after these runs.** The code stays; nothing was registered. Q3 (GRPO) needs a supervised model that
+  reads artwork, so it waits too.
+
 ## Phases
 
 | Phase | What | Checked by |
@@ -402,8 +455,8 @@ coverage differs); "≥ ½ px off" is the same band where they disagree. Colour 
 | Q0 | this doc; D0 | review; D0 recorded here |
 | Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard. **Stopped after the off-the-books runs:** the model and stream are built, and the rest isn't worth +0.7 dB (see "D1, first runs") |
 | Q1b | the tracer's outline fitter: corners, then curves, from the anti-aliased edge ("What kind of structure error?") | the isolated-shape oracle off the books; then `copycat.report` runs as tracer versions (0022). **v29 built** (+1.06 dB); on `icons` the per-shape outline error left is a third of what it was, and most of the rest is parts never drawn |
-| Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding. **After Q1b:** its R2 premise (adding missing parts) is worth under 1 dB on clean images | off the books first; then R1 and R2 |
-| Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`) | R3 |
+| Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding. **Stopped after the off-the-books runs:** the code is built; on `icons/train` and `broad/train` it scores 9-11 dB, and from the tracer's drawing it adds nothing ("Q2, first runs") | off the books first; then R1 and R2 |
+| Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`). **Waits** for a supervised model that reads artwork | R3 |
 
 0024's P6 (a model package and the page) applies to whichever entrant is promoted.
 
