@@ -155,7 +155,7 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
   {
     version: 29,
     change: "Outlines whose knots carry their own tangents",
-    pr: 0,
+    pr: 111,
     report: "copycat-hermite-outlines",
     heldout: { synthetic: 35.599, icons: 27.517, broad: 29.294 },
     v2: 30.8,

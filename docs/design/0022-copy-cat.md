@@ -1693,7 +1693,7 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
 | 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
 | 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
-| 29 | Outlines whose knots carry their own tangents | | 35.599 | 27.517 | 29.294 |
+| 29 | Outlines whose knots carry their own tangents | #111 | 35.599 | 27.517 | 29.294 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
 `copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, v28 at 29.74, and v29 at 30.80. Experiments not kept are labelled against the version they
