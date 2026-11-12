@@ -94,6 +94,12 @@ impl Costs {
         2.0 * self.type_bits + self.coord_bits * (2 * knots + 1) as f64
     }
 
+    /// A smooth path of `knots` knots that carry their own tangents: a shape type, a flag, the count, and five numbers
+    /// a knot.
+    pub fn hermite_bits(&self, knots: usize) -> f64 {
+        2.0 * self.type_bits + self.coord_bits * (5 * knots + 1) as f64
+    }
+
     /// A rounded rectangle: a shape type, its box and its corners' radius.
     pub fn rounded_bits(&self) -> f64 {
         self.type_bits + self.coord_bits * 5.0
@@ -109,6 +115,10 @@ pub struct Fit {
     pub knots: Option<Vec<Point>>,
     /// Whether those knots are drawn by `tight_spline`, not `spline`.
     pub tight: bool,
+    /// Which of those knots are corners (`drawn_spline`); empty if none.
+    pub corners: Vec<bool>,
+    /// For a smooth path whose knots carry their own tangents (`hermite_path`), its knots.
+    pub hermite: Option<Vec<Hermite>>,
     /// For a rounded rectangle, `[x, y, width, height, r]`: `geometry` is its path, and the description is the five.
     pub rounded: Option<[f64; 5]>,
 }
@@ -176,20 +186,81 @@ impl Target<'_> {
             geometry,
             knots: None,
             tight: false,
+            corners: Vec::new(),
+            hermite: None,
             rounded: None,
         }
     }
 
-    /// A smooth closed spline through `knots`: drawn as the cubics they imply, described by the knots alone.
-    fn score_spline(&self, knots: Vec<Point>, tight: bool, costs: &Costs, uncovered: f64) -> Fit {
-        let geometry = if tight { tight_spline(&knots) } else { spline(&knots) };
+    /// A closed spline through `knots`, smooth but at its `corners`: drawn as the cubics they imply, described by the
+    /// knots alone (and, if it has corners, a flag per knot).
+    fn score_spline(&self, knots: Vec<Point>, tight: bool, corners: Vec<bool>, costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = drawn_spline(&knots, tight, &corners);
+        let flags = if corners.contains(&true) {
+            knots.len() as f64
+        } else {
+            0.0
+        };
         Fit {
             misfit_bits: self.misfit_from(&geometry, uncovered) * costs.pixel_bits,
-            model_bits: costs.spline_bits(knots.len()),
+            model_bits: costs.spline_bits(knots.len()) + flags,
             geometry,
             knots: Some(knots),
             tight,
+            corners,
+            hermite: None,
             rounded: None,
+        }
+    }
+
+    /// A smooth path through `knots` that carry their own tangents.
+    /// One that crosses itself is no fit at all: free to bend, it would loop over a hole to carve it out under the
+    /// non-zero rule, which is `with_holes`' to say.
+    fn score_hermite(&self, knots: Vec<Hermite>, costs: &Costs, uncovered: f64) -> Fit {
+        let geometry = hermite_path(&knots);
+        let misfit_bits = if crosses_itself(&geometry) {
+            f64::INFINITY
+        } else {
+            self.misfit_from(&geometry, uncovered) * costs.pixel_bits
+        };
+        Fit {
+            misfit_bits,
+            model_bits: costs.hermite_bits(knots.len()),
+            geometry,
+            knots: None,
+            tight: false,
+            corners: Vec::new(),
+            hermite: Some(knots),
+            rounded: None,
+        }
+    }
+
+    /// `fit` redrawn as a smooth path whose knots carry their own tangents (from its own cubics), refined, if that is
+    /// shorter. A spline's tangents follow from its neighbours, so a long flat arc beside a tight bend takes it many
+    /// knots; with its own tangent and handle lengths, a knot says it at once.
+    ///
+    /// Judged with a wrong pixel `price` times as dear (the caller's to set: on a noiseless image the outline is all
+    /// there is to get right), and returned priced as `costs` says.
+    pub fn smoothed(&self, fit: Fit, costs: &Costs, price: f64) -> Fit {
+        let Some(knots) = hermite_of(&fit.geometry) else {
+            return fit;
+        };
+        if knots.len() < 3 {
+            return fit;
+        }
+        let dear = Costs {
+            pixel_bits: costs.pixel_bits * price,
+            ..*costs
+        };
+        let uncovered = self.uncovered();
+        let smooth = self.refine(self.score_hermite(knots, &dear, uncovered), &dear, uncovered);
+        if smooth.bits() + FITTED_GAIN * costs.outline_gain < fit.model_bits + fit.misfit_bits * price {
+            Fit {
+                misfit_bits: smooth.misfit_bits / price,
+                ..smooth
+            }
+        } else {
+            fit
         }
     }
 
@@ -202,6 +273,8 @@ impl Target<'_> {
             geometry,
             knots: None,
             tight: false,
+            corners: Vec::new(),
+            hermite: None,
             rounded: Some(p),
         }
     }
@@ -333,11 +406,11 @@ impl Target<'_> {
         // before refinement, and the least-squares knots, though closer, can refine to a worse one
         let splines = knot_sets
             .into_iter()
-            .map(|knots| self.score_spline(knots, false, costs, uncovered))
+            .map(|knots| self.score_spline(knots, false, Vec::new(), costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
         let fitted = fitted_knots
             .into_iter()
-            .map(|knots| self.score_spline(knots, false, costs, uncovered))
+            .map(|knots| self.score_spline(knots, false, Vec::new(), costs, uncovered))
             .min_by(|a, b| a.bits().total_cmp(&b.bits()));
         let others = primitives
             .into_iter()
@@ -389,18 +462,35 @@ impl Target<'_> {
             .chain(SPLINE_KNOTS.iter().filter_map(|&k| knots_along(&loop_, k)))
             .chain(FITTED_KNOTS.filter_map(|k| fit_knots(&loop_, to, k)))
             .chain(fit.knots.clone());
-        let Some(tight) = starts
-            .map(|knots| self.score_spline(knots, true, costs, uncovered))
-            .min_by(|a, b| a.bits().total_cmp(&b.bits()))
-        else {
-            return fit;
+        // each start smooth, and with corners where the outline has them
+        let sharp = corners(&loop_, CORNER_SPAN);
+        let marked = |knots: &[Point]| -> Vec<bool> {
+            knots
+                .iter()
+                .map(|&p| sharp.iter().any(|&i| length(sub(loop_[i], p)) < CORNER_REACH))
+                .collect()
         };
-        let tight = self.refine(tight, costs, uncovered);
-        if tight.bits() + FITTED_GAIN * costs.outline_gain < fit.bits() && tight.misfit_bits <= fit.misfit_bits {
-            tight
-        } else {
-            fit
+        let starts: Vec<Vec<Point>> = starts.collect();
+        let shortest = |cornered: bool| {
+            starts
+                .iter()
+                .filter_map(|knots| {
+                    let corners = if cornered { marked(knots) } else { Vec::new() };
+                    (!cornered || corners.contains(&true)).then(|| (knots.clone(), corners))
+                })
+                .map(|(knots, corners)| self.score_spline(knots, true, corners, costs, uncovered))
+                .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+        };
+        // the shortest smooth start and the shortest with corners, each refined, and given corners where they pay
+        let mut best = fit;
+        for start in [shortest(false), shortest(true)].into_iter().flatten() {
+            let tight = self.refine(start, costs, uncovered);
+            let tight = self.cornered(tight, costs, uncovered);
+            if tight.bits() + FITTED_GAIN * costs.outline_gain < best.bits() && tight.misfit_bits <= best.misfit_bits {
+                best = tight;
+            }
         }
+        best
     }
 
     /// `fit` with holes cut in it: each gap the shape covers that is neither the region nor free -- enclosed by the
@@ -479,6 +569,8 @@ impl Target<'_> {
                 geometry,
                 knots: None,
                 tight: false,
+                corners: Vec::new(),
+                hermite: None,
                 rounded: None,
             };
             if candidate.bits() < best.bits() {
@@ -497,6 +589,26 @@ impl Target<'_> {
         film::attempt(&fit);
         let mut fit = self.descend(fit, costs, uncovered);
         loop {
+            if let Some(knots) = &fit.hermite {
+                if knots.len() <= 3 {
+                    break;
+                }
+                let Some(fewer) = (0..knots.len())
+                    .map(|i| self.score_hermite(without_knot(knots, i), costs, uncovered))
+                    .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+                else {
+                    break;
+                };
+                let mark = film::mark();
+                film::step(&fewer);
+                let fewer = self.descend(fewer, costs, uncovered);
+                if fewer.bits() >= fit.bits() + costs.outline_gain {
+                    film::rewind(mark);
+                    break;
+                }
+                fit = fewer;
+                continue;
+            }
             let (points, is_spline) = match (&fit.knots, &fit.geometry) {
                 (Some(knots), _) => (knots, true),
                 (None, Geometry::Polygon(points)) => (points, false),
@@ -510,7 +622,11 @@ impl Target<'_> {
                     let mut rest = points.clone();
                     rest.remove(i);
                     if is_spline {
-                        self.score_spline(rest, fit.tight, costs, uncovered)
+                        let mut corners = fit.corners.clone();
+                        if !corners.is_empty() {
+                            corners.remove(i);
+                        }
+                        self.score_spline(rest, fit.tight, corners, costs, uncovered)
                     } else {
                         self.score(Geometry::Polygon(rest), costs, uncovered)
                     }
@@ -533,16 +649,140 @@ impl Target<'_> {
         fit
     }
 
+    /// A spline's knots made corners (or smooth again) one at a time, whichever shortens it most once settled, while that
+    /// saves `outline_gain`; then refined again, since a corner can say with one knot what took several.
+    fn cornered(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
+        let min_gain = costs.outline_gain.max(1e-9);
+        let mut changed = false;
+        while let Some(knots) = fit.knots.clone() {
+            let flags = if fit.corners.is_empty() {
+                vec![false; knots.len()]
+            } else {
+                fit.corners.clone()
+            };
+            let Some(best) = (0..knots.len())
+                .map(|i| {
+                    let mut f = flags.clone();
+                    f[i] = !f[i];
+                    self.score_spline(knots.clone(), fit.tight, f, costs, uncovered)
+                })
+                .min_by(|a, b| a.bits().total_cmp(&b.bits()))
+            else {
+                break;
+            };
+            let best = self.descend(best, costs, uncovered);
+            if best.bits() >= fit.bits() - min_gain {
+                break;
+            }
+            fit = best;
+            changed = true;
+        }
+        if changed {
+            self.refine(fit, costs, uncovered)
+        } else {
+            fit
+        }
+    }
+
+    /// Each pixel's coverage by `geometry` less the target's (0 where free), over the whole image.
+    fn residuals(&self, geometry: &Geometry) -> Vec<f64> {
+        let shape = Shape {
+            geometry: geometry.clone(),
+            fill: [0, 0, 0],
+            opacity: 1.0,
+            group: None,
+        };
+        let mask = coverage(&shape.outline(), self.width, self.height);
+        let mut r: Vec<f64> = (0..self.visible.len())
+            .map(|i| if self.free[i] { 0.0 } else { -self.visible[i] })
+            .collect();
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                let i = (mask.y0 + my) * self.width + mask.x0 + mx;
+                if !self.free[i] {
+                    r[i] += mask.data[my * mask.width + mx];
+                }
+            }
+        }
+        r
+    }
+
+    /// A Hermite path's knots settled by Levenberg-Marquardt on the pixels' coverage: the misfit is a sum of squares,
+    /// and a knot's numbers pull on each other (a handle's length against its direction, against the next knot's), which
+    /// coordinate descent can only follow in tiny zigzags. The Jacobian is by finite differences, a rasterization a
+    /// number.
+    fn least_squares(&self, mut fit: Fit, knots: Vec<Hermite>, costs: &Costs, uncovered: f64) -> Fit {
+        let mut p: Vec<f64> = knots.iter().flatten().copied().collect();
+        let build = |p: &[f64]| -> Vec<Hermite> { p.chunks(5).map(|c| [c[0], c[1], c[2], c[3], c[4]]).collect() };
+        let n = p.len();
+        let mut lambda = 1e-2;
+        let mut r = self.residuals(&fit.geometry);
+        for _ in 0..LM_ITERATIONS {
+            // only the pixels some number moves matter; the rest add nothing to the normal equations
+            let columns: Vec<Vec<f64>> = (0..n)
+                .map(|k| {
+                    let mut q = p.clone();
+                    q[k] += LM_DELTA;
+                    let moved = self.residuals(&hermite_path(&build(&q)));
+                    moved.iter().zip(&r).map(|(a, b)| (a - b) / LM_DELTA).collect()
+                })
+                .collect();
+            let touched: Vec<usize> = (0..r.len()).filter(|&i| columns.iter().any(|c| c[i] != 0.0)).collect();
+            let mut jtj = vec![vec![0.0; n]; n];
+            let mut jtr = vec![0.0; n];
+            for a in 0..n {
+                for b in a..n {
+                    let v: f64 = touched.iter().map(|&i| columns[a][i] * columns[b][i]).sum();
+                    jtj[a][b] = v;
+                    jtj[b][a] = v;
+                }
+                jtr[a] = touched.iter().map(|&i| columns[a][i] * r[i]).sum();
+            }
+            let mut improved = false;
+            for _ in 0..LM_TRIES {
+                let mut damped = jtj.clone();
+                for (k, row) in damped.iter_mut().enumerate() {
+                    row[k] += lambda * (jtj[k][k] + 1e-6);
+                }
+                let Some(step) = solve_dense(damped, jtr.iter().map(|v| -v).collect()) else {
+                    lambda *= 10.0;
+                    continue;
+                };
+                let q: Vec<f64> = p.iter().zip(&step).map(|(a, d)| a + d.clamp(-2.0, 2.0)).collect();
+                let candidate = self.score_hermite(build(&q), costs, uncovered);
+                if candidate.bits() < fit.bits() - 1e-9 {
+                    let gain = fit.bits() - candidate.bits();
+                    fit = candidate;
+                    film::step(&fit);
+                    p = q;
+                    r = self.residuals(&fit.geometry);
+                    lambda = (lambda / 3.0).max(1e-7);
+                    improved = gain > 1e-3;
+                    break;
+                }
+                lambda *= 10.0;
+            }
+            if !improved {
+                break;
+            }
+        }
+        fit
+    }
+
     /// Each number nudged by 0.5, 0.25 and 0.1 px while that shortens the description (by `outline_gain` bits, for a
     /// polygon's or path's points).
     fn descend(&self, mut fit: Fit, costs: &Costs, uncovered: f64) -> Fit {
-        let mut p = match (&fit.knots, &fit.rounded) {
-            (Some(knots), _) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
-            (_, Some(rounded)) => rounded.to_vec(),
+        let mut p = match (&fit.knots, &fit.rounded, &fit.hermite) {
+            (Some(knots), _, _) => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
+            (_, Some(rounded), _) => rounded.to_vec(),
+            (_, _, Some(knots)) => knots.iter().flatten().copied().collect(),
             _ => params(&fit.geometry),
         };
         let outline = matches!(fit.geometry, Geometry::Polygon(_) | Geometry::Path(_));
         let min_gain = if outline { costs.outline_gain.max(1e-9) } else { 1e-9 };
+        if let Some(knots) = fit.hermite.clone() {
+            return self.least_squares(fit, knots, costs, uncovered);
+        }
         for step in [0.5, 0.25, 0.1] {
             for _round in 0..4 {
                 let mut improved = false;
@@ -551,9 +791,15 @@ impl Target<'_> {
                         let mut q = p.clone();
                         q[k] += sign * step;
                         let candidate = match (&fit.knots, &fit.rounded) {
+                            _ if fit.hermite.is_some() => self.score_hermite(
+                                q.chunks(5).map(|c| [c[0], c[1], c[2], c[3], c[4]]).collect(),
+                                costs,
+                                uncovered,
+                            ),
                             (Some(knots), _) => self.score_spline(
                                 (0..knots.len()).map(|i| (q[2 * i], q[2 * i + 1])).collect(),
                                 fit.tight,
+                                fit.corners.clone(),
                                 costs,
                                 uncovered,
                             ),
@@ -576,6 +822,16 @@ impl Target<'_> {
         fit
     }
 }
+
+/// Levenberg-Marquardt's iterations, tries per iteration, and its finite difference (px).
+const LM_ITERATIONS: usize = 30;
+const LM_TRIES: usize = 6;
+const LM_DELTA: f64 = 0.01;
+
+/// How many points either side `corners` looks along a dense loop, and how near a knot must be to one to start as a
+/// corner (px).
+const CORNER_SPAN: usize = 3;
+const CORNER_REACH: f64 = 1.5;
 
 /// How many knots a spline candidate starts with, spaced evenly along the contour.
 const SPLINE_KNOTS: [usize; 4] = [4, 5, 6, 8];
@@ -779,6 +1035,184 @@ pub fn rounded_rect(p: [f64; 5]) -> Geometry {
         Segment::Cubic((x, y + k), (x + k, y), (x + r, y)),
         Segment::Close,
     ])
+}
+
+/// A knot of a smooth closed path that carries its own tangent: `[x, y, dx, dy, back]` -- where it is, its outgoing
+/// handle's offset, and its incoming handle's length, back along the same line.
+pub type Hermite = [f64; 5];
+
+/// The closed path of cubics through `knots`, each leaving and entering along its knot's own tangent.
+pub fn hermite_path(knots: &[Hermite]) -> Geometry {
+    let k = knots.len();
+    let mut segments = vec![Segment::Move((knots[0][0], knots[0][1]))];
+    for i in 0..k {
+        let (a, b) = (knots[i], knots[(i + 1) % k]);
+        let back = scale(unit((b[2], b[3])), b[4]);
+        segments.push(Segment::Cubic(
+            (a[0] + a[2], a[1] + a[3]),
+            (b[0] - back.0, b[1] - back.1),
+            (b[0], b[1]),
+        ));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
+}
+
+/// A closed path of cubics and lines as knots carrying their own tangents: each joint's two handles turned onto the
+/// line between their directions, keeping their lengths. None for anything else (or a path of more than one loop).
+fn hermite_of(geometry: &Geometry) -> Option<Vec<Hermite>> {
+    let Geometry::Path(segments) = geometry else {
+        return None;
+    };
+    let mut start = None;
+    let mut pieces: Vec<(Point, Point, Point, Point)> = Vec::new();
+    let mut at = (0.0, 0.0);
+    let third = |a: Point, b: Point, t: f64| add(a, scale(sub(b, a), t));
+    for segment in segments {
+        match *segment {
+            Segment::Move(p) => {
+                if start.is_some() {
+                    return None;
+                }
+                start = Some(p);
+                at = p;
+            }
+            Segment::Line(q) => {
+                pieces.push((at, third(at, q, 1.0 / 3.0), third(at, q, 2.0 / 3.0), q));
+                at = q;
+            }
+            Segment::Cubic(c1, c2, q) => {
+                pieces.push((at, c1, c2, q));
+                at = q;
+            }
+            Segment::Quad(..) => return None,
+            Segment::Close => {}
+        }
+    }
+    let first = start?;
+    if length(sub(at, first)) > 1e-6 {
+        pieces.push((at, third(at, first, 1.0 / 3.0), third(at, first, 2.0 / 3.0), first));
+    }
+    let n = pieces.len();
+    if n < 2 {
+        return None;
+    }
+    Some(
+        (0..n)
+            .map(|i| {
+                let (p, c1, _, _) = pieces[i];
+                let (_, _, c2, _) = pieces[(i + n - 1) % n];
+                let (out, back) = (sub(c1, p), sub(p, c2));
+                let mut direction = unit(add(unit(out), unit(back)));
+                if length(direction) == 0.0 {
+                    direction = unit(out);
+                }
+                let out = scale(direction, length(out));
+                [p.0, p.1, out.0, out.1, length(back)]
+            })
+            .collect(),
+    )
+}
+
+/// Whether a shape's flattened outline crosses itself: two edges that aren't neighbours meet.
+pub(crate) fn crosses_itself(geometry: &Geometry) -> bool {
+    let shape = Shape {
+        geometry: geometry.clone(),
+        fill: [0, 0, 0],
+        opacity: 1.0,
+        group: None,
+    };
+    let edges: Vec<(Point, Point)> = shape
+        .outline()
+        .iter()
+        .flat_map(|line| (0..line.len()).map(move |i| (line[i], line[(i + 1) % line.len()])))
+        .filter(|(a, b)| a != b)
+        .collect();
+    let n = edges.len();
+    let cross = |o: Point, a: Point, b: Point| (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0);
+    for i in 0..n {
+        let (a, b) = edges[i];
+        let (lo, hi) = ((a.0.min(b.0), a.1.min(b.1)), (a.0.max(b.0), a.1.max(b.1)));
+        for (j, &(c, d)) in edges.iter().enumerate().skip(i + 2) {
+            if i == 0 && j == n - 1 {
+                continue;
+            }
+            if c.0.max(d.0) < lo.0 || c.0.min(d.0) > hi.0 || c.1.max(d.1) < lo.1 || c.1.min(d.1) > hi.1 {
+                continue;
+            }
+            let (d1, d2) = (cross(a, b, c), cross(a, b, d));
+            let (d3, d4) = (cross(c, d, a), cross(c, d, b));
+            if d1 * d2 < 0.0 && d3 * d4 < 0.0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// `knots` without knot `i`: its neighbours' handles reach across the gap it leaves, lengthened in proportion.
+fn without_knot(knots: &[Hermite], i: usize) -> Vec<Hermite> {
+    let k = knots.len();
+    let (before, gone, after) = ((i + k - 1) % k, knots[i], (i + 1) % k);
+    let chord = |a: Hermite, b: Hermite| length((b[0] - a[0], b[1] - a[1])).max(1e-9);
+    let across = chord(knots[before], knots[after]);
+    let mut out = knots.to_vec();
+    let s = across / chord(knots[before], gone);
+    out[before][2] *= s;
+    out[before][3] *= s;
+    out[after][4] *= across / chord(gone, knots[after]);
+    out.remove(i);
+    out
+}
+
+/// A closed spline through `knots`, drawn by `spline` (or `tight_spline`), except at the knots marked in `corners`
+/// (empty: none), where it turns sharply. There, each side's tangent comes from that side alone: a one-sided difference
+/// over its next two knots, or the chord itself where the next knot is a corner too (so a run of corners is a polygon).
+/// Q1b (docs/design/0025): a drawn outline's corners are where a smooth spline's error lies.
+pub fn drawn_spline(knots: &[Point], tight: bool, corners: &[bool]) -> Geometry {
+    if !corners.contains(&true) {
+        return if tight { tight_spline(knots) } else { spline(knots) };
+    }
+    let k = knots.len();
+    let at = |i: usize| knots[i % k];
+    let corner = |i: usize| corners[i % k];
+    // the handle offsets either side of each knot, as Catmull-Rom's (a third of the tangent, per knot of parameter)
+    let out_of = |i: usize| -> Point {
+        let p = at(i);
+        if !corner(i) {
+            scale(sub(at(i + 1), at(i + k - 1)), 1.0 / 6.0)
+        } else if corner(i + 1) {
+            scale(sub(at(i + 1), p), 1.0 / 3.0)
+        } else {
+            scale(sub(sub(scale(at(i + 1), 4.0), scale(p, 3.0)), at(i + 2)), 1.0 / 6.0)
+        }
+    };
+    let in_of = |i: usize| -> Point {
+        let p = at(i);
+        if !corner(i) {
+            scale(sub(at(i + k - 1), at(i + 1)), 1.0 / 6.0)
+        } else if corner(i + k - 1) {
+            scale(sub(at(i + k - 1), p), 1.0 / 3.0)
+        } else {
+            scale(
+                sub(sub(scale(at(i + k - 1), 4.0), scale(p, 3.0)), at(i + k - 2)),
+                1.0 / 6.0,
+            )
+        }
+    };
+    let mut segments = vec![Segment::Move(knots[0])];
+    for i in 0..k {
+        let (p1, p2) = (at(i), at(i + 1));
+        let (mut a, mut b) = (out_of(i), in_of(i + 1));
+        if tight {
+            let handle = length(sub(p2, p1)) / 3.0;
+            a = scale(unit(a), handle);
+            b = scale(unit(b), handle);
+        }
+        segments.push(Segment::Cubic(add(p1, a), add(p2, b), p2));
+    }
+    segments.push(Segment::Close);
+    Geometry::Path(segments)
 }
 
 /// The closed Catmull-Rom spline through `knots`, as cubics: each knot's tangent is a sixth of the chord between its
@@ -1931,6 +2365,8 @@ mod tests {
             misfit_bits: misfit * costs.pixel_bits,
             knots: None,
             tight: false,
+            corners: Vec::new(),
+            hermite: None,
             rounded: None,
         };
         let outline = fit(230.0, 2.0);
@@ -2022,5 +2458,98 @@ mod tests {
             solve([[2.0, 1.0], [1.0, 3.0]], [3.0, 5.0]).map(|x| x.map(|v| (v * 1e9).round() / 1e9)),
             Some([0.8, 1.4])
         );
+    }
+
+    fn target_of(truth: &Geometry, visible: &mut Vec<f64>) {
+        let mask = coverage(
+            &Shape {
+                geometry: truth.clone(),
+                fill: [0, 0, 0],
+                opacity: 1.0,
+                group: None,
+            }
+            .outline(),
+            128,
+            128,
+        );
+        *visible = vec![0.0; 128 * 128];
+        for my in 0..mask.height {
+            for mx in 0..mask.width {
+                visible[(mask.y0 + my) * 128 + mask.x0 + mx] = mask.data[my * mask.width + mx];
+            }
+        }
+    }
+
+    #[test]
+    fn a_domes_flat_arcs_are_said_by_knots_with_their_own_tangents() {
+        // a real icon's dome: four cubics whose handles are very uneven, so a spline's tangents (from the neighbouring
+        // knots) can't follow it with few knots
+        let truth = Geometry::Path(vec![
+            Segment::Move((124.4, 78.2)),
+            Segment::Cubic((124.4, 103.1), (101.8, 120.9), (64.0, 120.9)),
+            Segment::Cubic((26.2, 120.9), (3.6, 103.1), (3.6, 78.2)),
+            Segment::Cubic((3.6, 78.2), (8.2, 0.0), (64.0, 0.0)),
+            Segment::Cubic((119.8, 0.0), (124.4, 78.2), (124.4, 78.2)),
+            Segment::Close,
+        ]);
+        let mut visible = Vec::new();
+        target_of(&truth, &mut visible);
+        let free = vec![false; 128 * 128];
+        let target = Target {
+            width: 128,
+            height: 128,
+            visible: &visible,
+            free: &free,
+        };
+        let costs = Costs::new(128, 128, 12.0);
+        let fit = target.tightened(target.fit(&costs).unwrap(), &costs);
+        let before = fit.misfit_bits / costs.pixel_bits;
+        assert!(fit.hermite.is_none() && before > 5.0, "{before}");
+        let smooth = target.smoothed(fit, &costs, 64.0);
+        let after = smooth.misfit_bits / costs.pixel_bits;
+        let knots = smooth.hermite.as_ref().map_or(0, |k| k.len());
+        assert!((4..=8).contains(&knots), "{knots} knots");
+        assert!(
+            after < 1.0,
+            "misfit {before} px as a spline, {after} with its own tangents"
+        );
+        // and it is priced as `costs` says, not as it was judged
+        assert!((smooth.misfit_bits - target.misfit(&smooth.geometry) * costs.pixel_bits).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_path_that_crosses_itself_is_caught() {
+        let square = hermite_path(&[
+            [10.0, 10.0, 5.0, 0.0, 5.0],
+            [30.0, 10.0, 0.0, 5.0, 5.0],
+            [30.0, 30.0, -5.0, 0.0, 5.0],
+            [10.0, 30.0, 0.0, -5.0, 5.0],
+        ]);
+        assert!(!crosses_itself(&square));
+        // two corners swapped: a figure of eight
+        let eight = hermite_path(&[
+            [10.0, 10.0, 5.0, 0.0, 5.0],
+            [30.0, 10.0, 0.0, 5.0, 5.0],
+            [10.0, 30.0, 0.0, -5.0, 5.0],
+            [30.0, 30.0, -5.0, 0.0, 5.0],
+        ]);
+        assert!(crosses_itself(&eight));
+    }
+
+    #[test]
+    fn a_spline_with_corners_turns_sharply_only_there() {
+        // a run of corners is a polygon; a smooth knot between two keeps its curve
+        let knots = [(10.0, 10.0), (30.0, 10.0), (30.0, 30.0), (10.0, 30.0)];
+        let Geometry::Path(square) = drawn_spline(&knots, false, &[true; 4]) else {
+            unreachable!()
+        };
+        for segment in &square {
+            if let Segment::Cubic(c1, c2, p) = *segment {
+                let start = knots[(knots.iter().position(|&k| k == p).unwrap() + 3) % 4];
+                assert!(distance_to_segment(c1, start, p) < 1e-9 && distance_to_segment(c2, start, p) < 1e-9);
+            }
+        }
+        assert_eq!(drawn_spline(&knots, false, &[false; 4]), spline(&knots));
+        assert_eq!(drawn_spline(&knots, true, &[]), tight_spline(&knots));
     }
 }

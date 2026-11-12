@@ -66,7 +66,7 @@ from evaluator.registry import protocol
 # The MDL tracer's version: one more for every change kept, each listed in apps/frontend/app/data/copycatVersions.ts
 # (which the Learn case study draws). Its entrant id stays `baseline:structured`, so the leaderboard holds only the
 # current version; the record notes the version and the commit it was scored at.
-MDL_TRACER_VERSION = 28
+MDL_TRACER_VERSION = 29
 
 # key -> (label, description, how it runs: the tracer and its settings)
 VTRACER_DEFAULTS: dict[str, Any] = {"colormode": "color", "hierarchical": "stacked", "mode": "spline"}
@@ -118,7 +118,8 @@ ENTRANTS: dict[str, tuple[str, str, dict[str, Any]]] = {
             "Copy Cat's minimum-description-length tracer: noise and background estimated, an OKLab palette merged by "
             "description length, cleaned labels, parts ordered by how much of each other they cover, holes cut, and "
             "each part fitted with its shortest shape (circle, ellipse, rect, rounded rect, polygon, smooth spline or "
-            "Bezier path), hidden parts completed; then every shape polished against the whole image, adding a point "
+            "Bezier path), hidden parts completed, its final outline redrawn with knots that carry their own "
+            "tangents where that is shorter; then every shape polished against the whole image, adding a point "
             "only where the error it saves pays for it. Transparent, one group per shape."
         ),
         {"tracer": "structured"},
