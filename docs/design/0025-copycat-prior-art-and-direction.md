@@ -3,7 +3,8 @@
 Status: **proposed** (2026-11-10). D0 found 10-15 dB of headroom, but D1's first runs (2026-11-11, off the books) showed
 most of it is colour drift and warp, which a pixel denoiser doesn't undo. The part a denoiser can reach is 1-2 dB, and
 the first model already takes most of it (see "D1, first runs"). Fitting can't undo the warp either; the headroom left
-is structure on clean and light images ("Can fitting undo the warp?"), where the tracer's v24 came from. A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+is structure on clean and light images ("Can fitting undo the warp?"), where the tracer's v24 came from. A breakdown of what is left (2026-11-11) found it is
+outline precision, not missing parts: the outline fitter, Q1b, comes before Q2 ("What kind of structure error?"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
 experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
 sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
@@ -346,6 +347,53 @@ hence 36.6 on `icons` against 38.2 elsewhere.)
 **What this means:** the learned direction (Decision 2) is still where most structure headroom is, but D1 and this test
 change what it should aim at. Its gains will come on clean and light images, not by undoing corruption. So its
 experiments should report clean and light separately, and R1's gate (within 3 dB of the tracer) should be read on them.
+(Revised below: the headroom is mostly outline precision, not structure.)
+
+### What kind of structure error? (off the books, 2026-11-11)
+
+After the tracer's v24-v28 (0022), the leaderboard moved 29.54 to 29.74, and the clean losses left looked like one-image
+cases. Before building Q2, this asks what the clean and light error *is*, since Q2's hybrid (R2: start from the tracer's
+render and add what it missed) only helps if it is missing parts.
+
+**The breakdown.** Every pixel is owned by the topmost shape covering it, in the true SVG and in the tracer's (v28); each
+traced shape is matched to the true shape it mostly shows, and a true shape is *found* if its matches own half its
+visible pixels. Each pixel's error then goes to one kind, and the score is recomputed with that kind removed:
+
+| Group | Sev. | Fidelity | Sub-pixel edge | Edge ≥ ½ px off | Missing part | Colour | Wrong part |
+|---|---|---|---|---|---|---|---|
+| `icons/train-control` | clean | 38.44 | 57% (+4.5 dB) | 34% (+2.0) | 7% (+0.5) | 1% | 0 |
+| `icons/train` | light | 31.33 | 40% (+2.4) | 36% (+2.0) | 9% (+0.7) | 14% (+0.9) | 0 |
+| `broad/train` | clean | 42.79 | 58% (+4.2) | 28% (+1.7) | 8% (+0.7) | 1% | 0 |
+| `broad/train` | light | 30.80 | 46% (+3.1) | 26% (+1.5) | 15% (+1.1) | 13% (+0.8) | 0 |
+| `synthetic/validate` | clean | 47.38 | 63% (+4.4) | 27% (+1.6) | 2% (+0.1) | 0 | 0 |
+| `synthetic/validate` | light | 35.83 | 53% (+3.5) | 36% (+2.1) | 1% | 11% (+0.6) | 0 |
+
+"Sub-pixel" is within ~1.5 px of a true boundary where both maps agree which shape is there (only the anti-aliased
+coverage differs); "≥ ½ px off" is the same band where they disagree. Colour on `light` is mostly the corruption's drift.
+
+- **About 90% of clean error is along outlines; missing parts are 2-8%.** Typical clean icons are structurally right
+  (same shapes, same fills) with a thin line of error along every outline.
+- **The polish isn't the limit.** Polishing the tracer's output a second time gains 0.6-0.9 dB (48 clean images per
+  group). Turning every straight segment into a cubic (same nodes, free to bend), then polishing, gains 0.05 more.
+- **The tracer draws lines where the designs have curves**: curve share of path segments 0.49 against the true 0.69 on
+  `icons`, 0.43 against 0.63 on `broad` (0.67 against 0.74 on `synthetic`, where it scores best), and twice as many
+  circles and ellipses as the designs (262 against 113 on clean `icons`). Free to bend, the same nodes still don't fit: a
+  node in the wrong place is a local optimum the polish can't leave.
+- **The fitter itself is the limit.** An oracle with perfect segmentation (the tracer on each true shape alone, its whole
+  outline visible on a contrasting background, assembled in the true order with the true fills, then polished) reaches
+  only 40.9 on clean `icons` (the tracer 38.2) and 49.9 on `broad` (48.2). The true outlines, polished, are 60.
+
+**What this means:**
+- **The clean headroom is the outline fitter, 10-19 dB of it,** not segmentation, occlusion or missing parts (about 2 dB
+  between them). Turning a region into an outline is a classical problem (corner detection, then curve fitting, as
+  Potrace and Schneider's algorithm do it, and here with the anti-aliased edge's sub-pixel information too). The
+  isolated-shape oracle is a fast benchmark for it: no segmentation, and the answer is known.
+- **R2's premise is weak.** Adding what the tracer missed reaches the 2-8% that is missing parts: under 1 dB on clean
+  images. A learned model's outlines go through the same polish, and its tokens alone round-trip clean `icons` at 45.2
+  (0024 E0), so Q2 wouldn't beat a good fitter at outline precision either.
+- **Estimated gain:** clean images are a quarter of each set. If a better fitter took clean images halfway from the
+  tracer to the true outlines' 60, about +2 dB on the leaderboard, ten times what v24-v28 gained together; light images'
+  outline error (70-90% of theirs) would add some.
 
 ## Phases
 
@@ -353,7 +401,8 @@ experiments should report clean and light separately, and R1's gate (within 3 dB
 |---|---|---|
 | Q0 | this doc; D0 | review; D0 recorded here |
 | Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard. **Stopped after the off-the-books runs:** the model and stream are built, and the rest isn't worth +0.7 dB (see "D1, first runs") |
-| Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding | off the books first; then R1 and R2 |
+| Q1b | the tracer's outline fitter: corners, then curves, from the anti-aliased edge ("What kind of structure error?") | the isolated-shape oracle off the books; then `copycat.report` runs as tracer versions (0022) |
+| Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding. **After Q1b:** its R2 premise (adding missing parts) is worth under 1 dB on clean images | off the books first; then R1 and R2 |
 | Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`) | R3 |
 
 0024's P6 (a model package and the page) applies to whichever entrant is promoted.

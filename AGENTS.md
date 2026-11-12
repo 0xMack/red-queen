@@ -23,7 +23,7 @@ one trace format and one viewer for watching very different algorithms refine; 0
 encoder-decoder transformer (PyTorch, `libs/svgformer`) trained on generated images and openly licensed icon sets and
 illustrations writes the SVG as tokens, then RL (GRPO) against the rendered result; phases 2-3 built: on the leaderboard paired with the tracer, but it doesn't
 transfer to real artwork); 0025: Copy Cat, prior art and direction (proposed) -- a survey of image-to-SVG work and the
-next steps it sets: a learned denoiser in front of the MDL tracer, then a svgformer that sees its own canvas — read the relevant one before an
+next steps it sets (the denoiser, built, worth under 1 dB; then the tracer's outline fitter, where most clean error is; then a svgformer that sees its own canvas) — read the relevant one before an
 architectural change that might conflict with a decision already made.
 
 ## Layout
