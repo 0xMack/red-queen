@@ -270,6 +270,7 @@ fn with_log(f: impl FnOnce(&mut Log)) {
 
 fn kind_of(fit: &Fit) -> &'static str {
     match (&fit.knots, &fit.rounded, &fit.geometry) {
+        _ if fit.hermite.is_some() => "smooth path",
         (Some(_), _, _) if fit.tight => "tight spline",
         (Some(_), _, _) => "spline",
         (_, Some(_), _) => "rounded rect",
@@ -435,6 +436,8 @@ mod tests {
             misfit_bits: 0.0,
             knots: None,
             tight: false,
+            corners: Vec::new(),
+            hermite: None,
             rounded: None,
         };
         attempt(&fit(1.0));

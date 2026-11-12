@@ -161,6 +161,8 @@ pub fn noise_sigma(image: &Image) -> f64 {
 
 /// 8-bit quantization's noise σ in OKLab, about: no image's estimate goes lower.
 const SIGMA_FLOOR: f64 = 0.002;
+/// How much dearer a wrong pixel is when a noiseless image's part is given its final, smooth outline (Q1b, docs/design/0025).
+const OUTLINE_PRICE: f64 = 64.0;
 
 /// What a point the polish adds to a spline or polygon must save (`copycat_polish`'s growth), as a share of its two
 /// coordinates' bits in pixel-error bits. The description length alone (1.0) let almost no point in: an outline is
@@ -1509,7 +1511,8 @@ impl Scene<'_> {
             .fit_visible(costs)
             .filter(|as_seen| as_seen.bits() + VISIBLE_PIXELS * costs.pixel_bits < fit.bits())
             .unwrap_or(fit);
-        target.with_holes(target.tightened(fit, costs), costs)
+        let price = if costs.outline_gain == 0.0 { OUTLINE_PRICE } else { 1.0 };
+        target.with_holes(target.smoothed(target.tightened(fit, costs), costs, price), costs)
     }
 
     fn bits(&self, parts: &[&Part], above: &[&Part], costs: &Costs) -> f64 {
@@ -2606,6 +2609,8 @@ mod tests {
             misfit_bits: 0.0,
             knots: None,
             tight: false,
+            corners: Vec::new(),
+            hermite: None,
             rounded: None,
         });
         assert!(film_log::take().attempts.is_empty());

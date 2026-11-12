@@ -4,7 +4,7 @@ Status: **proposed** (2026-11-10). D0 found 10-15 dB of headroom, but D1's first
 most of it is colour drift and warp, which a pixel denoiser doesn't undo. The part a denoiser can reach is 1-2 dB, and
 the first model already takes most of it (see "D1, first runs"). Fitting can't undo the warp either; the headroom left
 is structure on clean and light images ("Can fitting undo the warp?"), where the tracer's v24 came from. A breakdown of what is left (2026-11-11) found it is
-outline precision, not missing parts: the outline fitter, Q1b, comes before Q2 ("What kind of structure error?"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
+outline precision, not missing parts: the outline fitter, Q1b, comes before Q2 ("What kind of structure error?"). Q1b's first step is built: tracer v29, knots that carry their own tangents, settled by least squares and priced dearly on noiseless images, took `copycat.clean.v2` from 29.74 to 30.80 (0022, "v29"). A survey of image-to-SVG work, read against what [0024](0024-copycat-learned-inverse.md)'s
 experiments showed, and the direction it sets: a learned denoiser in front of the MDL tracer first, then a svgformer that
 sees what it has drawn. It replaces 0024's next steps (an L-scale run, then RL); 0024's model, tokens, data and runs stay.
 Relates to: [0022](0022-copy-cat.md) (the task, the sets, `copycat.clean.v2`, the MDL tracer),
@@ -401,7 +401,7 @@ coverage differs); "≥ ½ px off" is the same band where they disagree. Colour 
 |---|---|---|
 | Q0 | this doc; D0 | review; D0 recorded here |
 | Q1 | the denoiser: model, stream, trainer algorithm (`copycat.denoise`), entrant; `corrupt.v2` | off the books first; then D1 as registered runs; the leaderboard. **Stopped after the off-the-books runs:** the model and stream are built, and the rest isn't worth +0.7 dB (see "D1, first runs") |
-| Q1b | the tracer's outline fitter: corners, then curves, from the anti-aliased edge ("What kind of structure error?") | the isolated-shape oracle off the books; then `copycat.report` runs as tracer versions (0022) |
+| Q1b | the tracer's outline fitter: corners, then curves, from the anti-aliased edge ("What kind of structure error?") | the isolated-shape oracle off the books; then `copycat.report` runs as tracer versions (0022). **v29 built** (+1.06 dB); on `icons` the per-shape outline error left is a third of what it was, and most of the rest is parts never drawn |
 | Q2 | canvas-conditioned svgformer: prefix stream, model, render-and-verify decoding. **After Q1b:** its R2 premise (adding missing parts) is worth under 1 dB on clean images | off the books first; then R1 and R2 |
 | Q3 | GRPO with a per-shape reward (0024's `copycat.grpo`) | R3 |
 

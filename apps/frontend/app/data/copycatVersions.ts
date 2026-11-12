@@ -152,6 +152,14 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 34.719, icons: 25.95, broad: 28.549 },
     v2: 29.74,
   },
+  {
+    version: 29,
+    change: "Outlines whose knots carry their own tangents",
+    pr: 111,
+    report: "copycat-hermite-outlines",
+    heldout: { synthetic: 35.599, icons: 27.517, broad: 29.294 },
+    v2: 30.8,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!

@@ -1693,9 +1693,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 26 | Small enclosed parts kept | #109 | 34.719 | 25.938 | 28.519 |
 | 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
 | 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
+| 29 | Outlines whose knots carry their own tangents | #111 | 35.599 | 27.517 | 29.294 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, and v28 at 29.74. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, v28 at 29.74, and v29 at 30.80. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1942,6 +1943,56 @@ After v27 the worst `light` images were far below the ~30 dB a `light` image usu
 Measured with `copycat-thin-near-noiseless` against `copycat-joined-or-apart`: no image down. The mosquito gains 7.9 dB,
 three `broad/train` images 0.4-1.3, a held-out `broad` image 3.6 (`broad/heldout` 28.519 to 28.549).
 `copycat.clean.v2`: 29.73 to 29.74.
+
+### v29: outlines whose knots carry their own tangents
+
+docs/design/0025's breakdown put most clean error on outlines, at sub-pixel edges. Drawing each true shape of a clean image
+alone and tracing it (off the books, 48 images a set) puts it on curved paths. On `icons` they had 1,019 px of squared
+misfit in all, and every other kind of shape almost none. The shapes behind it are long, flat arcs beside a tight bend:
+a dome, a shield. Their true cubics' handles are very uneven. A spline's tangent comes from its neighbouring knots, so
+7 knots still miss a dome by 12 px. Schneider's fit from the marching-squares contour does worse: 89 segments at a
+0.1 px tolerance still miss by 0.9 px. They were not corners: corner knots were tried first (`drawn_spline`, kept,
+because they pay a little), but the dome's and the shield's joints are smooth.
+
+**The fit** (`Target::smoothed`, after `tightened`): the part's final outline is redrawn with knots that carry their
+own tangent, `[x, y, dx, dy, back]` (`hermite_path`: the outgoing handle's offset, and the incoming handle's length
+along the same line). Five numbers a knot, so a dome needs 4 or 5 knots. They are settled by Levenberg-Marquardt on
+every pixel's coverage, with a Jacobian by finite differences (a rasterization a number). Coordinate descent can't
+follow a handle's length against its direction against the next knot's; its 0.1 px steps are also too coarse. A uniform
+0.1 px offset along a 300 px outline is already 3 px of misfit. Then a knot is dropped while that is shorter, as for
+splines. A path that crosses itself is no fit: free to bend, it would loop over a ring's hole to carve it out under the
+non-zero rule, which is `with_holes`'s job. Polish moves the same five numbers per knot, with the same guard
+(`Form::Hermite`).
+
+**The price.** At 12 bits a wrong pixel, the shortest description of the shield is 3 knots and 3 px of misfit. On a
+noiseless image that is the wrong trade: a pixel's misfit there is all signal, so the honest price is far higher. The
+final outline is judged with a wrong pixel `OUTLINE_PRICE` times as dear when `outline_gain` is 0 (σ at its floor), and
+only there, not in segmentation, joins or cuts (pricing the whole pipeline higher was tried before and added turning).
+Tests: `a_domes_flat_arcs_are_said_by_knots_with_their_own_tangents`, `a_path_that_crosses_itself_is_caught`.
+
+Tuned off the books, every train-side image against `copycat-thin-near-noiseless` (clean / all severities, dB):
+
+| `OUTLINE_PRICE` | `icons/train` | `icons/train-control` | `broad/train` | `synthetic/validate` |
+|---|---|---|---|---|
+| 1 | +0.16 / +0.02 | +0.33 | +0.19 / +0.07 | +0.38 / +0.10 |
+| 4 | +1.38 / +0.35 | +1.20 | +0.83 / +0.23 | +1.16 / +0.35 |
+| 16 | +2.77 / +0.71 | +2.59 | +1.93 / +0.51 | +3.48 / +0.98 |
+| **64** | **+3.32 / +0.85** | **+3.05** | **+2.16 / +0.57** | **+4.54 / +1.25** |
+
+Measured with `copycat-hermite-outlines` (clean fidelity, held-out):
+
+| Set | clean | light | all |
+|---|---|---|---|
+| `synthetic/heldout` | 52.76 to 56.07 | 35.56 to 35.80 | 34.719 to 35.599 |
+| `icons/heldout` | 36.76 to 42.51 | 30.09 to 30.61 | 25.950 to 27.517 |
+| `broad/heldout` | 41.98 to 44.72 | 29.71 to 30.04 | 28.549 to 29.294 |
+
+`copycat.clean.v2`: 29.74 to 30.80, the largest step since polish (v22). `light` gains too: most `light` images are at
+the noise floor. Turning stays near the true SVGs' (median ratio, clean: `icons` 0.71 to 0.94, `broad` 0.98 to 1.12)
+and the tracer draws fewer nodes (`icons/heldout` 72 to 66 a image). It is about 20% slower (32 `icons/train` images:
+5.4 to 6.5 s each). Not yet looked at: the worst losers, two `broad/train` images down 5.7 dB and one held-out 2.7.
+On `icons`, the outline error left is about a third what it was, and most of the rest is parts never drawn: dots under
+`min_area`, and rings `shapes_of` cuts in pieces.
 
 ## The page
 

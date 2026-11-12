@@ -5,7 +5,7 @@
 //! SVG draws.
 
 use crate::copycat::{Geometry, Segment, Shape};
-use crate::copycat_fit::{params, rounded_rect, spline, tight_spline, with_params, Fit};
+use crate::copycat_fit::{crosses_itself, drawn_spline, hermite_path, params, rounded_rect, with_params, Fit, Hermite};
 use crate::raster::{Mask, Point};
 
 /// Step sizes (px), coarse to fine: the coarse ones catch a shape fitted a pixel off, the fine ones settle its edge.
@@ -39,13 +39,22 @@ pub fn srgb(lab: [f64; 3]) -> [f64; 3] {
     })
 }
 
+/// A grown shape: the error it saves, its points and their corners, and how it draws.
+type Grown = (f64, Vec<Point>, Vec<bool>, Shape, Mask);
+
 /// The numbers a shape was fitted in, so polishing moves what the fit chose: a spline's knots (its curve stays as
 /// smooth as the spline is), a rounded rectangle's five, or the geometry's own numbers.
 #[derive(Clone, Debug)]
 pub enum Form {
     Plain,
-    Knots { knots: Vec<Point>, tight: bool },
+    Knots {
+        knots: Vec<Point>,
+        tight: bool,
+        corners: Vec<bool>,
+    },
     Rounded([f64; 5]),
+    /// A smooth path whose knots carry their own tangents: polished by its knots' five numbers, never crossing itself.
+    Hermite(Vec<Hermite>),
 }
 
 impl Form {
@@ -54,9 +63,13 @@ impl Form {
             (Some(knots), _) => Form::Knots {
                 knots: knots.clone(),
                 tight: fit.tight,
+                corners: fit.corners.clone(),
             },
             (_, Some(p)) => Form::Rounded(p),
-            _ => Form::Plain,
+            _ => match &fit.hermite {
+                Some(knots) => Form::Hermite(knots.clone()),
+                None => Form::Plain,
+            },
         }
     }
 
@@ -64,6 +77,7 @@ impl Form {
         match self {
             Form::Knots { knots, .. } => knots.iter().flat_map(|&(x, y)| [x, y]).collect(),
             Form::Rounded(p) => p.to_vec(),
+            Form::Hermite(knots) => knots.iter().flatten().copied().collect(),
             Form::Plain => params(geometry),
         }
     }
@@ -72,6 +86,7 @@ impl Form {
         match self {
             Form::Knots { knots, .. } => (0..2 * knots.len()).map(|k| vec![k]).collect(),
             Form::Rounded(_) => (0..5).map(|k| vec![k]).collect(),
+            Form::Hermite(knots) => (0..5 * knots.len()).map(|k| vec![k]).collect(),
             Form::Plain => moves(geometry),
         }
     }
@@ -79,14 +94,24 @@ impl Form {
     /// The form and geometry with `p` for its numbers.
     fn with(&self, geometry: &Geometry, p: &[f64]) -> (Form, Geometry) {
         match self {
-            Form::Knots { tight, .. } => {
+            Form::Knots { tight, corners, .. } => {
                 let knots: Vec<Point> = (0..p.len() / 2).map(|i| (p[2 * i], p[2 * i + 1])).collect();
-                let g = if *tight { tight_spline(&knots) } else { spline(&knots) };
-                (Form::Knots { knots, tight: *tight }, g)
+                let g = drawn_spline(&knots, *tight, corners);
+                let form = Form::Knots {
+                    knots,
+                    tight: *tight,
+                    corners: corners.clone(),
+                };
+                (form, g)
             }
             Form::Rounded(_) => {
                 let q = [p[0], p[1], p[2], p[3], p[4]];
                 (Form::Rounded(q), rounded_rect(q))
+            }
+            Form::Hermite(_) => {
+                let knots: Vec<Hermite> = p.chunks(5).map(|c| [c[0], c[1], c[2], c[3], c[4]]).collect();
+                let g = hermite_path(&knots);
+                (Form::Hermite(knots), g)
             }
             Form::Plain => (Form::Plain, with_params(geometry, p)),
         }
@@ -310,6 +335,9 @@ impl Judge<'_> {
                                 p[i] += sign * step;
                             }
                             let (form, geometry) = forms[k].with(&shapes[k].geometry, &p);
+                            if matches!(form, Form::Hermite(_)) && crosses_itself(&geometry) {
+                                continue;
+                            }
                             let moved = Shape {
                                 geometry,
                                 ..shapes[k].clone()
@@ -349,9 +377,9 @@ impl Judge<'_> {
         for k in 0..shapes.len() {
             progress(k as f64 / shapes.len() as f64);
             // the points, how they're drawn (a spline's tightness, or None for a polygon), and each gap's midpoint
-            while let Some((points, tight)) = match (&forms[k], &shapes[k].geometry) {
-                (Form::Knots { knots, tight }, _) => Some((knots.clone(), Some(*tight))),
-                (Form::Plain, Geometry::Polygon(corners)) => Some((corners.clone(), None)),
+            while let Some((points, tight, corners)) = match (&forms[k], &shapes[k].geometry) {
+                (Form::Knots { knots, tight, corners }, _) => Some((knots.clone(), Some(*tight), corners.clone())),
+                (Form::Plain, Geometry::Polygon(corners)) => Some((corners.clone(), None, Vec::new())),
                 _ => None,
             } {
                 if points.len() >= MAX_POINTS {
@@ -383,10 +411,17 @@ impl Judge<'_> {
                 let turned = shapes[k].turning();
                 // the error a candidate saves (negative), with what its added turning costs
                 let total = |delta: f64, shape: &Shape| delta + self.turn_price * contrast * (shape.turning() - turned);
-                let draw = |points: &[Point]| {
+                // a new point is smooth
+                let flags = |i: usize| -> Vec<bool> {
+                    let mut f = corners.clone();
+                    if !f.is_empty() {
+                        f.insert(i + 1, false);
+                    }
+                    f
+                };
+                let draw = |points: &[Point], flags: &[bool]| {
                     let geometry = match tight {
-                        Some(true) => tight_spline(points),
-                        Some(false) => spline(points),
+                        Some(tight) => drawn_spline(points, tight, flags),
                         None => Geometry::Polygon(points.to_vec()),
                     };
                     let shape = Shape {
@@ -396,11 +431,12 @@ impl Judge<'_> {
                     let mask = shape.mask(w, h);
                     (shape, mask)
                 };
-                let mut best: Option<(f64, Vec<Point>, Shape, Mask)> = None;
+                let mut best: Option<Grown> = None;
                 for (i, &mid) in mids.iter().enumerate() {
                     let mut more = points.clone();
                     more.insert(i + 1, mid);
-                    let (mut shape, mut mask) = draw(&more);
+                    let more_flags = flags(i);
+                    let (mut shape, mut mask) = draw(&more, &more_flags);
                     let mut saved = total(self.delta(masks, fills, k, &mask), &shape);
                     for step in GROW_STEPS {
                         for _round in 0..ROUNDS {
@@ -413,7 +449,7 @@ impl Judge<'_> {
                                     } else {
                                         tried[i + 1].1 += sign * step;
                                     }
-                                    let (s, m) = draw(&tried);
+                                    let (s, m) = draw(&tried, &more_flags);
                                     let d = total(self.delta(masks, fills, k, &m), &s);
                                     if d < saved - 1e-9 {
                                         (more, shape, mask, saved) = (tried, s, m, d);
@@ -428,12 +464,18 @@ impl Judge<'_> {
                         }
                     }
                     if saved < -price && best.as_ref().is_none_or(|b| saved < b.0) {
-                        best = Some((saved, more, shape, mask));
+                        best = Some((saved, more, more_flags, shape, mask));
                     }
                 }
-                let Some((_, points, shape, mask)) = best else { break };
+                let Some((_, points, corners, shape, mask)) = best else {
+                    break;
+                };
                 forms[k] = match tight {
-                    Some(tight) => Form::Knots { knots: points, tight },
+                    Some(tight) => Form::Knots {
+                        knots: points,
+                        tight,
+                        corners,
+                    },
                     None => Form::Plain,
                 };
                 shapes[k] = shape;
@@ -449,6 +491,7 @@ impl Judge<'_> {
 mod tests {
     use super::*;
     use crate::copycat::Document;
+    use crate::copycat_fit::spline;
 
     const ORANGE: [u8; 3] = [230, 120, 30];
 
@@ -540,6 +583,7 @@ mod tests {
         let mut forms = [Form::Knots {
             knots: off,
             tight: false,
+            corners: Vec::new(),
         }];
         let before = error(&truth, &start);
         polished(&truth, &mut start, &mut forms);
@@ -569,6 +613,7 @@ mod tests {
         let form = Form::Knots {
             knots: few,
             tight: false,
+            corners: Vec::new(),
         };
         let mut fixed = ([start.clone()], [form.clone()]);
         polished(&truth, &mut fixed.0, &mut fixed.1);
@@ -627,6 +672,7 @@ mod tests {
             [Form::Knots {
                 knots: few,
                 tight: false,
+                corners: Vec::new(),
             }],
         );
         polished_priced(2.0, 2.0, &[shape(spline(&star))], &mut grown.0, &mut grown.1);
