@@ -88,9 +88,11 @@ def generate(
     temperature: float = 0.0,
     generator: torch.Generator | None = None,
     no_repeat: bool = False,
+    one_shape: bool = False,
 ) -> list[list[int]]:
     """Token sequences (BOS ... END, or cut off at `max_tokens`) for images (B, 3, H, W) in [0, 1]. With `no_repeat`, a
-    path segment may not go nowhere or repeat one of the few before it (`_Segments`)."""
+        path segment may not go nowhere or repeat one of the few before it (`_Segments`). With `one_shape`, a sequence is one
+    shape and END, or END alone (`svgformer.canvas`: a step of drawing shape by shape)."""
     max_tokens = min(max_tokens or model.config.max_tokens, model.config.max_tokens)
     device = images.device
     b = images.shape[0]
@@ -104,6 +106,10 @@ def generate(
     for position in range(max_tokens - 1):
         logits = model.step(token, position, memories, caches).float()
         allowed = np.stack([_PAD_ONLY if done[i] else grammar.mask(states[i]) for i in range(b)])
+        if one_shape:
+            for i in range(b):
+                if not done[i] and len(sequences[i]) > 1 and states[i].kind in ("shape", "style"):
+                    allowed[i] = _ONE_SHAPE_END[states[i].kind]
         if segments is not None:
             for i in range(b):
                 if done[i]:
@@ -131,6 +137,13 @@ def generate(
         if all(done):
             break
     return sequences
+
+
+_STYLE_OR_END = np.zeros(T.VOCAB, dtype=bool)
+_STYLE_OR_END[list(grammar.OPACITIES | {T.END})] = True
+_END_ONLY = np.zeros(T.VOCAB, dtype=bool)
+_END_ONLY[T.END] = True
+_ONE_SHAPE_END = {"style": _STYLE_OR_END, "shape": _END_ONLY}  # after a whole shape: its opacity, then END
 
 
 def to_images(rgb8: np.ndarray, device: torch.device | str) -> torch.Tensor:

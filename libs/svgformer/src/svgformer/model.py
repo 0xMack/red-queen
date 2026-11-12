@@ -40,13 +40,23 @@ class Config:
     # The output logits in fp32 even under bf16 autocast: 1,280 coordinate logits that differ in the last bits of a
     # bf16 product (0024 E1: fp32 training beat bf16 by 0.8 dB).
     fp32_head: bool = False
+    # The encoder reads the canvas drawn so far as well as the target (`svgformer.canvas`, docs/design/0025 Decision 2):
+    # ten input channels, and the decoder writes one shape at a time.
+    canvas: bool = False
+
+    @property
+    def channels(self) -> int:
+        return 10 if self.canvas else 3
 
     @property
     def patches(self) -> int:
         return (self.size // self.patch) ** 2
 
     def to_dict(self) -> dict[str, int]:
-        return asdict(self)
+        out = asdict(self)
+        if not self.canvas:
+            del out["canvas"]  # left-to-right models' recorded configs, from before the canvas, are unchanged
+        return out
 
 
 def fourier(v: Tensor, k: int) -> Tensor:
@@ -139,7 +149,7 @@ class SvgFormer(nn.Module):
     def __init__(self, config: Config):
         super().__init__()
         c = self.config = config
-        self.patch_embed = nn.Linear(3 * c.patch * c.patch, c.d)
+        self.patch_embed = nn.Linear(c.channels * c.patch * c.patch, c.d)
         self.patch_pos = nn.Parameter(torch.zeros(1, c.patches, c.d))
         self.encoder = nn.ModuleList(EncoderBlock(c) for _ in range(c.encoder_layers))
         self.encoder_norm = nn.LayerNorm(c.d)
@@ -187,11 +197,11 @@ class SvgFormer(nn.Module):
         return model.eval()
 
     def encode(self, images: Tensor) -> Tensor:
-        """images: (B, 3, H, W) in [0, 1] -> patch tokens (B, patches, d)."""
+        """images: (B, channels, H, W) in [0, 1] -> patch tokens (B, patches, d)."""
         c = self.config
         b = images.shape[0]
-        x = images.unfold(2, c.patch, c.patch).unfold(3, c.patch, c.patch)  # (B, 3, h, w, p, p)
-        x = x.permute(0, 2, 3, 1, 4, 5).reshape(b, c.patches, 3 * c.patch * c.patch)
+        x = images.unfold(2, c.patch, c.patch).unfold(3, c.patch, c.patch)  # (B, channels, h, w, p, p)
+        x = x.permute(0, 2, 3, 1, 4, 5).reshape(b, c.patches, c.channels * c.patch * c.patch)
         x = self.patch_embed(x * 2 - 1) + self.patch_pos
         if self.patch_in is not None:
             x = x + self.patch_in(self.patch_basis)

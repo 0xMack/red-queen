@@ -23,6 +23,7 @@ from arena.copycat import Target, score
 from arena.copycat_sets import SEVERITIES
 
 from svgformer import tokens as T
+from svgformer.canvas import draw, prefix_sample
 from svgformer.data import ArtworkPool, collate, mixed_sample, png_to_array
 from svgformer.decode import generate, to_images
 from svgformer.model import SIZES, Config, SvgFormer
@@ -43,19 +44,21 @@ class SyntheticBatches(torch.utils.data.IterableDataset):
         start: int = 0,
         pool: ArtworkPool | None = None,
         artwork_share: float = 0.0,
+        canvas: bool = False,
     ):
         self.stream_seed, self.batch, self.max_tokens, self.severities, self.start = (
             stream_seed, batch, max_tokens, severities, start,
         )  # fmt: skip
-        self.pool, self.artwork_share = pool, artwork_share
+        self.pool, self.artwork_share, self.canvas = pool, artwork_share, canvas
 
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
         worker, workers = (info.id, info.num_workers) if info else (0, 1)
         k = self.start + worker
         while True:
+            sample = prefix_sample if self.canvas else mixed_sample
             samples = [
-                mixed_sample(self.stream_seed, k * self.batch + j, self.severities, self.pool, self.artwork_share)
+                sample(self.stream_seed, k * self.batch + j, self.severities, self.pool, self.artwork_share)
                 for j in range(self.batch)
             ]
             rgb8, tokens = collate([s for s in samples if len(s.tokens) <= self.max_tokens])
@@ -83,10 +86,13 @@ class TrainConfig:
     fp32_head: bool = False
     artwork: str | None = None  # svgformer.build's icons.jsonl (docs/design/0024 E2)
     artwork_share: float = 0.0  # the fraction of training samples drawn from it
+    canvas: bool = False  # see the canvas, write one shape a sample (`svgformer.canvas`, docs/design/0025 Decision 2)
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
         out["severities"] = list(self.severities)
+        if not self.canvas:
+            del out["canvas"]  # left-to-right runs' recorded configs, from before the canvas, are unchanged
         return out
 
 
@@ -114,6 +120,7 @@ def model_config(cfg: TrainConfig) -> Config:
         number_features=cfg.number_features,
         patch_features=cfg.patch_features,
         fp32_head=cfg.fp32_head,
+        canvas=cfg.canvas,
     )
 
 
@@ -173,7 +180,13 @@ def train(
         pool = ArtworkPool.load(cfg.artwork, model.config.max_tokens)
     loader = torch.utils.data.DataLoader(
         SyntheticBatches(
-            cfg.seed, cfg.batch, model.config.max_tokens, cfg.severities, pool=pool, artwork_share=cfg.artwork_share
+            cfg.seed,
+            cfg.batch,
+            model.config.max_tokens,
+            cfg.severities,
+            pool=pool,
+            artwork_share=cfg.artwork_share,
+            canvas=cfg.canvas,
         ),
         batch_size=None,
         num_workers=cfg.workers,
@@ -219,8 +232,11 @@ def evaluate(
     batch: int = 100,
     precision: str = "bf16",
 ) -> dict[str, Any]:
-    """Greedy, grammar-constrained SVGs for every target, scored as `copycat.clean.v2` scores an entrant."""
+    """Greedy, grammar-constrained SVGs for every target, scored as `copycat.clean.v2` scores an entrant. A canvas model
+    draws shape by shape, greedily, keeping a shape only if it improves the fit (`svgformer.canvas.draw`)."""
     model.eval()
+    if model.config.canvas:
+        return _evaluate_canvas(model, targets, device, batch, precision)
     autocast = str(device).startswith("cuda") and precision == "bf16"
     rows, lengths, finished = [], [], 0
     for start in range(0, len(targets), batch):
@@ -244,5 +260,31 @@ def evaluate(
         "shape_ratio": statistics.fmean(r["shape_ratio"] for r in rows),
         "finished": finished / len(rows),
         "tokens": statistics.fmean(lengths),
+        "rows": rows,
+    }
+
+
+def _evaluate_canvas(
+    model: SvgFormer, targets: list[Target], device: torch.device | str, batch: int, precision: str
+) -> dict[str, Any]:
+    rows, shapes = [], []
+    for start in range(0, len(targets), batch):
+        chunk = targets[start : start + batch]
+        svgs = draw(model, [(t.rgba8(), t.width, t.height) for t in chunk], device, precision=precision)
+        for target, svg in zip(chunk, svgs, strict=True):
+            rows.append(score(target, svg))
+            shapes.append(svg.count("<g"))
+    by_severity = {
+        s: statistics.fmean(r["fidelity"] for r in rows if r["severity"] == s)
+        for s in SEVERITIES
+        if any(r["severity"] == s for r in rows)
+    }
+    return {
+        "fidelity": statistics.fmean(r["fidelity"] for r in rows),
+        "by_severity": by_severity,
+        "layer_recovery": statistics.fmean(r["layer_recovery"] for r in rows),
+        "shape_ratio": statistics.fmean(r["shape_ratio"] for r in rows),
+        "finished": 1.0,
+        "tokens": statistics.fmean(shapes),  # shapes drawn, for a canvas model
         "rows": rows,
     }
