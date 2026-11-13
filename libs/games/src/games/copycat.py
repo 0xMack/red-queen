@@ -137,3 +137,46 @@ def trace(
             seed,
         )
     )
+
+
+def stages(
+    rgba: bytes,
+    width: int,
+    height: int,
+    *,
+    colors: int = 16,
+    merge_delta: float = 0.08,
+    background_delta: float = 0.1,
+    pixel_bits: float = 12.0,
+    edge_bits: float = 2.0,
+    min_area: int = 30,
+    outline_gain: float = 12.0,
+    seed: int = 0,
+) -> dict:
+    """`trace`'s stages, for diagnosis: `sigma` (noise), `gradient` (whether the background is one), `background` (its
+    OKLab colour at the corners: top-left, top-right, bottom-left, bottom-right) and `cut` (how far from it still counts
+    as it), `clustered` and `labels` (each pixel's label after clustering and after cleaning; 0 is the background),
+    `palette` (each label's fill) and `svg`."""
+    sigma, gradient, corners, cut, clustered, labels, palette, document = _native.copycat_stages(
+        rgba,
+        width,
+        height,
+        colors,
+        merge_delta,
+        background_delta,
+        pixel_bits,
+        edge_bits,
+        min_area,
+        outline_gain,
+        seed,
+    )
+    return {
+        "sigma": sigma,
+        "gradient": gradient,
+        "background": corners,
+        "cut": cut,
+        "clustered": clustered,
+        "labels": labels,
+        "palette": palette,
+        "svg": Svg._wrap(document),
+    }

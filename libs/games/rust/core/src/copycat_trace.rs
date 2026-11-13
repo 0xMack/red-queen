@@ -135,6 +135,12 @@ impl Image {
     }
 }
 
+/// TEMPORARY: a setting from the environment, for off-the-books sweeps.
+/// The pixels the tracer works from: `rgba` with the chroma a JPEG halved restored (`copycat_chroma`).
+fn chroma(rgba: &[u8], width: usize, height: usize) -> Vec<u8> {
+    crate::copycat_chroma::restore(rgba, width, height)
+}
+
 fn median(mut values: Vec<f64>) -> f64 {
     if values.is_empty() {
         return 0.0;
@@ -192,6 +198,18 @@ pub struct Background {
 }
 
 impl Background {
+    /// How far apart (OKLab) the background's colours are across the image: the widest gap between its corners.
+    pub fn span(&self) -> f64 {
+        let corners = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].map(|(x, y)| self.at(x, y));
+        let mut widest: f64 = 0.0;
+        for a in 0..4 {
+            for b in a + 1..4 {
+                widest = widest.max(distance2(&corners[a], &corners[b]).sqrt());
+            }
+        }
+        widest
+    }
+
     pub fn at(&self, x: f64, y: f64) -> Lab {
         let c = &self.coefficients;
         [0, 1, 2].map(|k| c[k][0] + c[k][1] * x + c[k][2] * y)
@@ -235,6 +253,12 @@ impl Background {
     /// and kept if it explains three of the four. A gradient the border doesn't bear out (`gradient_holds`) gives way
     /// to one colour, if two corners and much of the border share it.
     pub fn fit(image: &Image, sigma: f64) -> Background {
+        Background::fit_within(image, sigma, f64::INFINITY)
+    }
+
+    /// `fit`, with no cut wider than `max_cut`: the hypothesis that what the border's spread calls background is
+    /// partly subject (`MAX_CUT`).
+    pub fn fit_within(image: &Image, sigma: f64, max_cut: f64) -> Background {
         let (w, h) = (image.width, image.height);
         let border: Vec<usize> = (0..w * h)
             .filter(|&i| {
@@ -250,7 +274,7 @@ impl Background {
                     .collect()
             })
             .collect();
-        let from_border = Background::robust(image, &border, &border, sigma);
+        let from_border = Background::robust(image, &border, &border, sigma, max_cut);
         // started from the three corners that agree best: one may be a speck of clutter or a tile's blurred edge
         let mean = |c: &Vec<usize>| [0, 1, 2].map(|k| c.iter().map(|&i| image.lab[i][k]).sum::<f64>() / c.len() as f64);
         let means: Vec<Lab> = corners.iter().map(mean).collect();
@@ -262,7 +286,7 @@ impl Background {
             .filter(|&k| k != odd)
             .flat_map(|k| corners[k].clone())
             .collect();
-        let from_corners = Background::robust(image, &border, &start, sigma);
+        let from_corners = Background::robust(image, &border, &start, sigma, max_cut);
         // judged by how much the background varies about a gradient through the corners -- tight even under a
         // gradient background -- and the corner fit may miss one corner (a speck of clutter, a tile's blurred edge)
         let cut = if from_corners.cut.is_finite() {
@@ -279,7 +303,12 @@ impl Background {
         };
         // judged by the corner fit's cut: when the subject covers most of the border, the border's own is wide enough
         // to let a gradient from the background into the subject hold
-        if !fit.gradient || fit.gradient_holds(image, &border, fit.cut.min(cut)) {
+        let holds = if fit.gradient {
+            fit.gradient_holds(image, &border, fit.cut.min(cut))
+        } else {
+            fit.explained(image, &corners, cut) + 1 >= corners.len()
+        };
+        if holds {
             return fit;
         }
         // Two colours, not a gradient: a subject on one edge, the background on the other. That needs two corners of
@@ -303,7 +332,7 @@ impl Background {
             .find_map(|pair| {
                 let (a, b, ..) = *pair;
                 let start: Vec<usize> = corners[a].iter().chain(&corners[b]).copied().collect();
-                let flat = Background::flat_from(image, &border, &start, sigma);
+                let flat = Background::flat_from(image, &border, &start, sigma, max_cut);
                 let flat = Background {
                     cut: flat.cut.min(span(pair) / 2.0),
                     ..flat
@@ -350,14 +379,14 @@ impl Background {
     }
 
     /// A flat background from `start`: the border pixels within 3 robust deviations of it, refitted, twice.
-    fn flat_from(image: &Image, border: &[usize], start: &[usize], sigma: f64) -> Background {
+    fn flat_from(image: &Image, border: &[usize], start: &[usize], sigma: f64, max_cut: f64) -> Background {
         let mut fit = Background::least_squares(image, start, false);
         let mut kept = start.to_vec();
         let mut cut = 6.0 * sigma;
         for _ in 0..2 {
             let deviation = |i: usize| distance2(&image.lab[i], &fit.at_pixel(image, i)).sqrt();
             let spread = median(kept.iter().map(|&i| deviation(i)).collect());
-            cut = 3.0 * spread.max(sigma) * 2.0;
+            cut = (3.0 * spread.max(sigma) * 2.0).min(max_cut);
             let within: Vec<usize> = border.iter().copied().filter(|&i| deviation(i) <= cut).collect();
             if within.len() < 8 {
                 break;
@@ -368,6 +397,23 @@ impl Background {
         Background { cut, ..fit }
     }
 }
+
+/// The widest a background gradient's colours may differ across the image (OKLab): a generated image's "empty"
+/// background is soft. A steeper one is a subject along the border (sky above, grass below) that the border's fit ran a
+/// ramp through, and that ramp passes the subject's own colours, so it took the subject for background.
+const GRADIENT_SPAN: f64 = 0.15;
+
+/// The widest cut a second background hypothesis allows (OKLab): a soft or noisy background's border pixels spread
+/// less, so a wider cut than this is often a subject along the border pulling the fit toward itself (and then taken
+/// for background). Measured on the training groups: capping every image's cut helped the ones that lost a subject by
+/// about 1.4 dB and cost others about as much, so the capped trace is a second hypothesis, judged against the image.
+const MAX_CUT: f64 = 0.08;
+
+/// How much nearer the image (dB) the capped hypothesis's drawing must be. Faint clutter is in the image too, so
+/// drawing it as shapes brings a drawing nearer: by a little for specks, by more for a large blob, by most for the subject
+/// itself. Measured on the training groups: at 0.5 dB the swaps cost `synthetic` (its clutter) 0.08 dB; at 2 dB one image
+/// of 200 there swaps, and `icons` and `broad` keep nearly all of the gain.
+const CAPPED_MARGIN: f64 = 2.0;
 
 /// How much of the border in the middle of a gradient must be explained by it.
 const GRADIENT_MIDDLE: f64 = 0.25;
@@ -392,7 +438,7 @@ impl Background {
     /// twice. From the whole border, the deviation is the border's from the flat fit. From the corners, it is the kept
     /// pixels' own from the gradient fit: a tile filling most of the border would otherwise set it, and a gradient
     /// background widen it.
-    fn robust(image: &Image, border: &[usize], start: &[usize], sigma: f64) -> Robust {
+    fn robust(image: &Image, border: &[usize], start: &[usize], sigma: f64, max_cut: f64) -> Robust {
         let mut state = Robust {
             kept: start.to_vec(),
             flat: Background::least_squares(image, start, false),
@@ -409,7 +455,7 @@ impl Background {
             } else {
                 median(state.kept.iter().map(|&i| deviation(i)).collect())
             };
-            let cut = 3.0 * spread.max(sigma) * 2.0;
+            let cut = (3.0 * spread.max(sigma) * 2.0).min(max_cut);
             let kept: Vec<usize> = border
                 .iter()
                 .zip(&deviations)
@@ -433,16 +479,7 @@ impl Background {
 impl Robust {
     /// How many corners' means are within `cut` of the fit (flat or gradient, whichever is chosen).
     fn explained(&self, image: &Image, corners: &[Vec<usize>], sigma: f64, cut: f64) -> usize {
-        let fit = self.choose(image, sigma);
-        corners
-            .iter()
-            .filter(|corner| {
-                let n = corner.len() as f64;
-                let mean = [0, 1, 2].map(|k| corner.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n);
-                let expected = [0, 1, 2].map(|k| corner.iter().map(|&i| fit.at_pixel(image, i)[k]).sum::<f64>() / n);
-                distance2(&mean, &expected).sqrt() <= cut
-            })
-            .count()
+        self.choose(image, sigma).explained(image, corners, cut)
     }
 
     /// The gradient if its 6 more numbers (at about 12 bits each) are paid for by the residual it removes.
@@ -456,7 +493,11 @@ impl Robust {
                 .sum::<f64>()
         };
         let saved = (sse(&fits.0) - sse(&fits.1)) / (2.0 * sigma * sigma * std::f64::consts::LN_2);
-        let fit = if saved > 6.0 * 12.0 { fits.1 } else { fits.0 };
+        let fit = if saved > 6.0 * 12.0 && fits.1.span() <= GRADIENT_SPAN {
+            fits.1
+        } else {
+            fits.0
+        };
         Background {
             cut: if self.cut.is_finite() { self.cut } else { 6.0 * sigma },
             ..fit
@@ -465,6 +506,19 @@ impl Robust {
 }
 
 impl Background {
+    /// How many corners' means are within `cut` of this background.
+    fn explained(&self, image: &Image, corners: &[Vec<usize>], cut: f64) -> usize {
+        corners
+            .iter()
+            .filter(|corner| {
+                let n = corner.len() as f64;
+                let mean = [0, 1, 2].map(|k| corner.iter().map(|&i| image.lab[i][k]).sum::<f64>() / n);
+                let expected = [0, 1, 2].map(|k| corner.iter().map(|&i| self.at_pixel(image, i)[k]).sum::<f64>() / n);
+                distance2(&mean, &expected).sqrt() <= cut
+            })
+            .count()
+    }
+
     fn least_squares(image: &Image, pixels: &[usize], gradient: bool) -> Background {
         let mut coefficients = [[0.0; 3]; 3];
         let n = pixels.len().max(1) as f64;
@@ -1967,6 +2021,9 @@ pub struct Stages {
     pub sigma: f64,
     /// Whether the background was fitted as a gradient (else a constant).
     pub gradient: bool,
+    /// The background fitted: its colour (OKLab) at the corners (top-left, top-right, bottom-left, bottom-right), and
+    /// the cut it is judged by (`judged_cut`).
+    pub background: ([Lab; 4], f64),
     /// Per pixel, its k-means label after merging (0 = the background), before the labels were cleaned.
     pub clustered: Vec<usize>,
     /// Per pixel, its label after cleaning: what the parts are cut from.
@@ -1995,7 +2052,7 @@ pub fn polish_document(rgba: &[u8], width: usize, height: usize, document: &Docu
     if document.shapes.iter().any(|s| s.opacity < 1.0) {
         return Err("polish composites opaque shapes only".into());
     }
-    let image = Image::from_rgba8(rgba, width, height)?;
+    let image = Image::from_rgba8(&chroma(rgba, width, height), width, height)?;
     let sigma = noise_sigma(&image);
     let background = Background::fit(&image, sigma);
     let under: Vec<[f64; 3]> = (0..width * height)
@@ -2019,7 +2076,7 @@ pub fn polish_document(rgba: &[u8], width: usize, height: usize, document: &Docu
 /// The background `trace` and `polish_document` fit under an image (straight RGBA8), as opaque RGBA8: what a
 /// transparent-backed SVG is composited over to judge it against that image.
 pub fn fitted_background(rgba: &[u8], width: usize, height: usize) -> Result<Vec<u8>, String> {
-    let image = Image::from_rgba8(rgba, width, height)?;
+    let image = Image::from_rgba8(&chroma(rgba, width, height), width, height)?;
     let background = Background::fit(&image, noise_sigma(&image));
     let mut out = Vec::with_capacity(width * height * 4);
     for i in 0..width * height {
@@ -2075,20 +2132,65 @@ fn run(
     width: usize,
     height: usize,
     config: &TraceConfig,
-    mut film: Option<&mut Film>,
+    film: Option<&mut Film>,
 ) -> Result<Stages, String> {
-    let image = Image::from_rgba8(rgba, width, height)?;
+    let image = Image::from_rgba8(&chroma(rgba, width, height), width, height)?;
     let sigma = noise_sigma(&image);
-    let background = Background::fit(&image, sigma);
-    let segmentation = segment(&image, &background, sigma, config);
+    let fitted = Background::fit(&image, sigma);
+    if fitted.cut <= MAX_CUT {
+        return Ok(draw(&image, sigma, fitted, config, film));
+    }
+    // two hypotheses: the border's spread is the background's own, or partly subject's. Each is drawn, and the capped
+    // one kept only if its drawing (over its own background) is clearly nearer the image.
+    let capped = Background::fit_within(&image, sigma, MAX_CUT);
+    let wide = draw(&image, sigma, fitted, config, None);
+    let narrow = draw(&image, sigma, capped, config, None);
+    let (stages, background) =
+        if likeness(&image, &narrow.document, &capped) > likeness(&image, &wide.document, &fitted) + CAPPED_MARGIN {
+            (narrow, capped)
+        } else {
+            (wide, fitted)
+        };
+    Ok(match film {
+        None => stages,
+        Some(film) => draw(&image, sigma, background, config, Some(film)),
+    })
+}
+
+/// How near a drawing over `background` is to the image: PSNR (dB) in sRGB.
+fn likeness(image: &Image, document: &Document, background: &Background) -> f64 {
+    let canvas = document.render();
+    let mut sum = 0.0;
+    for (i, c) in image.rgb.iter().enumerate() {
+        let under = crate::copycat_polish::srgb(background.at_pixel(image, i));
+        let a = canvas.data[4 * i + 3];
+        for k in 0..3 {
+            let drawn = canvas.data[4 * i + k] + (1.0 - a) * under[k].clamp(0.0, 1.0);
+            sum += (drawn - c[k] as f64 / 255.0).powi(2);
+        }
+    }
+    let mse = sum / (3 * image.rgb.len()) as f64;
+    -10.0 * mse.max(1e-10).log10()
+}
+
+/// `run` for one background.
+fn draw(
+    image: &Image,
+    sigma: f64,
+    background: Background,
+    config: &TraceConfig,
+    mut film: Option<&mut Film>,
+) -> Stages {
+    let (width, height) = (image.width, image.height);
+    let segmentation = segment(image, &background, sigma, config);
     tell(&mut film, SEGMENTED);
-    let mut labels = clean_labels(&image, &segmentation.labels, config);
+    let mut labels = clean_labels(image, &segmentation.labels, config);
     let mut centres = segmentation.centres.clone();
-    let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(&image, i)).collect();
-    let judged = background.judged_cut(&image, sigma);
-    let edges = crisp_edges(&image, sigma);
+    let per_pixel: Vec<Lab> = (0..width * height).map(|i| background.at_pixel(image, i)).collect();
+    let judged = background.judged_cut(image, sigma);
+    let edges = crisp_edges(image, sigma);
     enclose(
-        &image,
+        image,
         &per_pixel,
         judged,
         &edges,
@@ -2097,7 +2199,7 @@ fn run(
         &mut centres,
     );
     restore(
-        &image,
+        image,
         &per_pixel,
         judged,
         sigma,
@@ -2107,7 +2209,7 @@ fn run(
         &mut centres,
     );
     let scene = Scene {
-        image: &image,
+        image,
         labels,
         centres,
         background: per_pixel,
@@ -2115,10 +2217,10 @@ fn run(
     tell(&mut film, CLEANED);
     let mut costs = Costs::new(width, height, config.pixel_bits);
     costs.outline_gain = config.outline_gain * (sigma - SIGMA_FLOOR) * 1000.0;
-    let mut parts = parts(&image, &scene.labels);
+    let mut parts = parts(image, &scene.labels);
     let completed = join(&scene, &mut parts, &costs);
     tell(&mut film, JOINED);
-    let order = order(&image, &parts, &completed);
+    let order = order(image, &parts, &completed);
     let mut shapes = Vec::new();
     let mut forms = Vec::new();
     let mut groups = Vec::new();
@@ -2228,10 +2330,14 @@ fn run(
         }
         film.report(1.0);
     }
-    Ok(Stages {
+    Stages {
         sigma,
         gradient: background.gradient,
-        palette: fills(&image, &scene.labels),
+        background: (
+            [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].map(|(x, y)| background.at(x, y)),
+            judged,
+        ),
+        palette: fills(image, &scene.labels),
         clustered: segmentation.labels,
         labels: scene.labels,
         document: Document {
@@ -2240,7 +2346,7 @@ fn run(
             groups,
             shapes,
         },
-    })
+    }
 }
 
 #[cfg(test)]
@@ -3097,5 +3203,31 @@ mod tests {
         let background = Background::fit(&image, sigma);
         assert!(!background.gradient);
         assert!(distance2(&background.at(0.5, 0.5), &oklab([245, 240, 230])) < 1e-8);
+    }
+
+    /// The capped hypothesis: however wide the border's spread, the cut stays within `MAX_CUT`, and the background is
+    /// still the pale colour at the corners, not pulled toward a subject along three of the edges.
+    #[test]
+    fn a_capped_background_keeps_its_cut_and_its_colour() {
+        let (w, h) = (64usize, 64usize);
+        let along = |x: usize, y: usize| {
+            let inside = |v: usize| (8..56).contains(&v);
+            (x < 30 && inside(y)) || (y >= 40 && inside(x)) || (x >= 50 && inside(y))
+        };
+        let rgba: Vec<u8> = (0..w * h)
+            .flat_map(|i| {
+                if along(i % w, i / w) {
+                    [236u8, 186, 60, 255]
+                } else {
+                    [238, 228, 236, 255]
+                }
+            })
+            .collect();
+        let image = Image::from_rgba8(&rgba, w, h).unwrap();
+        let sigma = noise_sigma(&image);
+        let capped = Background::fit_within(&image, sigma, MAX_CUT);
+        assert!(capped.cut <= MAX_CUT);
+        let pale = oklab([238, 228, 236]);
+        assert!(distance2(&capped.at_pixel(&image, 0), &pale).sqrt() < 0.01);
     }
 }

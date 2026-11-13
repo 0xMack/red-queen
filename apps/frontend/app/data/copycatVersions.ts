@@ -160,6 +160,14 @@ export const COPYCAT_VERSIONS: CopyCatVersion[] = [
     heldout: { synthetic: 35.599, icons: 27.517, broad: 29.294 },
     v2: 30.8,
   },
+  {
+    version: 30,
+    change: "JPEG's chroma restored; a subject along the border kept",
+    pr: 0,
+    report: "copycat-chroma-background",
+    heldout: { synthetic: 35.624, icons: 29.114, broad: 29.974 },
+    v2: 31.57,
+  },
 ]
 
 export const latestCopyCatVersion = COPYCAT_VERSIONS.at(-1)!
