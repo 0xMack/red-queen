@@ -1694,7 +1694,7 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
 | 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
 | 29 | Outlines whose knots carry their own tangents | #111 | 35.599 | 27.517 | 29.294 |
-| 30 | JPEG's chroma restored; a subject along the border kept | #0 | 35.624 | 29.114 | 29.974 |
+| 30 | JPEG's chroma restored; a subject along the border kept | #113 | 35.624 | 29.114 | 29.974 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
 `copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, v28 at 29.74, v29 at 30.80, and v30 at 31.57. Experiments not kept are labelled against the version they
