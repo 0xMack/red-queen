@@ -4,7 +4,7 @@ import struct
 
 import pytest
 
-from games.copycat import Svg, background, hill_climb, layer_recovery, polish, trace
+from games.copycat import Svg, background, hill_climb, layer_recovery, polish, stages, trace
 
 TWO_PARTS = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 8">'
@@ -74,6 +74,19 @@ def test_the_structured_pipeline_recovers_the_parts():
     assert traced.render_rgba8()[3] == 0  # the background is transparent
     with pytest.raises(ValueError):
         trace(b"\0" * 12, 64, 32)
+
+
+def test_stages_show_what_the_pipeline_made():
+    clean = Svg(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32"><rect x="6" y="6" width="24" height="20" '
+        'fill="#d03030"/><circle cx="44" cy="16" r="11" fill="#2050c0"/></svg>'
+    )
+    pixels = _over_white(clean)
+    s = stages(pixels, 64, 32)
+    assert s["svg"].canonical() == trace(pixels, 64, 32).canonical()
+    assert not s["gradient"] and len(s["background"]) == 4 and s["cut"] > 0
+    assert len(s["labels"]) == len(s["clustered"]) == 64 * 32
+    assert s["labels"][0] == 0 and s["labels"][16 * 64 + 16] != 0 and len(s["palette"]) == 3
 
 
 def _over_white(svg: Svg) -> bytes:

@@ -1694,9 +1694,10 @@ bottom corners (v20, `broad` 26.845 -> 26.928).
 | 27 | Joins undone when the pieces say it far more briefly | #109 | 34.719 | 25.950 | 28.519 |
 | 28 | Thin features kept on near-noiseless images | #109 | 34.719 | 25.950 | 28.549 |
 | 29 | Outlines whose knots carry their own tangents | #111 | 35.599 | 27.517 | 29.294 |
+| 30 | JPEG's chroma restored; a subject along the border kept | #113 | 35.624 | 29.114 | 29.974 |
 
 `icons` was first scored on v6, unchanged, when the set arrived (#79); `broad` on v18, in the PR that added the set (#97).
-`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, v28 at 29.74, and v29 at 30.80. Experiments not kept are labelled against the version they
+`copycat.clean.v2` scored v21 at 27.96, v22 at 29.24, v23 and v24 at 29.54, v25 at 29.63, v26 and v27 at 29.73, v28 at 29.74, v29 at 30.80, and v30 at 31.57. Experiments not kept are labelled against the version they
 started from (e.g. "v22 + point growth, price 0.02"); their reports already name their baseline. Older versions were not
 re-scored on `copycat.clean.v2`: that would mean running each commit again, and nothing here needs it.
 
@@ -1993,6 +1994,64 @@ and the tracer draws fewer nodes (`icons/heldout` 72 to 66 a image). It is about
 5.4 to 6.5 s each). Not yet looked at: the worst losers, two `broad/train` images down 5.7 dB and one held-out 2.7.
 On `icons`, the outline error left is about a third what it was, and most of the rest is parts never drawn: dots under
 `min_area`, and rings `shapes_of` cuts in pieces.
+
+### v30: JPEG's chroma restored, and a subject along the border kept
+
+Two of the losses left after v29 were not outlines. Both were found by cutting `corrupt.v1` into its stages and tracing
+each (off the books, train-side groups).
+
+**JPEG's chroma.** Tracing a `light` image saved at 4:4:4 instead of the corruption's 4:2:0, at the same quality,
+recovered nearly all of what JPEG costs: 1.2 to 2.1 dB a set. So the cost is the chroma kept at half resolution, not
+the quantization. It isn't a soft edge here and there. It tips structural choices: a sun's ring lost its hole, a
+hexagon became a circle, a white `$` became pale yellow. Recolouring every shape from its eroded interior won back
+only 0.2-0.4 dB.
+
+`copycat_chroma::restore` runs before anything else. Under flat colours, chroma is locally linear in luma, exactly so
+where two colours meet. So in each 5 x 5 window the decoded chroma is regressed on luma degraded as the chroma was: 2x2
+means, then libjpeg's triangle upsampling. The fit is then applied to the sharp luma. On an image that never went
+through 4:2:0, that regression would smear edges where two colours have the same luma: unguarded, it cost clean images
+up to 7 dB. So it runs only on chroma that shows the upsampler's signature, and only as strongly as it shows it:
+
+- `subsampled`: the filter makes each pair of output samples from three input samples in fixed proportions, so an
+  input sample read from either neighbouring pair agrees. Its residual at that phase, against the same test half a
+  sample off: about 1 for full-resolution chroma, 0.25 for `light`.
+- `blurrier`: chroma's 1 px against 2 px difference energy, over luma's. A clean image whose edges fall between pixel
+  pairs passes the first test (a 2 px stripe on even rows reads 0.36), but its chroma is as sharp as its luma.
+
+Together they pass no clean training image, and nearly every JPEG one. Window 5 x 5 and ridge 1e-4; 3 x 3, 7 x 7 and a
+wider ridge were all worse.
+
+**A subject along the border.** On corrupted artwork, 5 of 32 `icons/train` medium images and 13 of 32 heavy ones lost
+over 15% of their subject to the background (alpha IoU under 0.85). So did 24 and 32 of 124 on `broad/train`. A subject
+touching much of the border pulls the border's fit toward itself. Its spread, and so the cut, grows several times over
+(0.4 to 0.97 OKLab against a usual 0.03), and then the subject is within the cut. Capping the cut at 0.08
+(`Background::fit_within`) rescued those images by about 1.4 dB. On every image it was neutral: on others it turned soft
+clutter, and pale parts the wide cut had restored, into mistakes.
+
+So a cut wider than `MAX_CUT` makes a second hypothesis. The image is traced under both, and the capped trace is kept
+only if its drawing, over its own background, is `CAPPED_MARGIN` (2 dB) nearer the image. Clutter is in the image too,
+so drawing it brings a trace nearer, but less than drawing the subject. At a 0.5 dB margin the swaps cost `synthetic`
+0.08 dB (its clutter); at 2 dB one image in 200 there swaps. Even an oracle choosing among every hypothesis tried
+(caps 0.05, 0.08, 0.12, a median-started fit) would gain only 0.38 dB on the train side, so this is most of what the
+background was worth. Two smaller changes came with it, both neutral on their own: a gradient whose corners differ by
+more than 0.15 (`GRADIENT_SPAN`) is a subject on the border, not a background, and a flat fit that misses the corners
+falls through to the two-colour test, as a gradient that doesn't hold did.
+
+Off the books, every train-side image against `copycat-hermite-outlines` (all severities, dB): chroma alone `synthetic`
++0.15, `icons` +0.42, `broad` +0.14; with the second hypothesis +0.12, +0.55, +0.33. Clean images: unchanged.
+
+Measured with `copycat-chroma-background` (clean fidelity, held-out):
+
+| Set | light | medium | heavy | all |
+|---|---|---|---|---|
+| `synthetic/heldout` | 35.80 to 36.11 | 27.49 to 27.21 | 23.04 to 23.10 | 35.599 to 35.624 |
+| `icons/heldout` | 30.61 to 31.79 | 20.28 to 23.59 | 16.66 to 18.56 | 27.517 to 29.114 |
+| `broad/heldout` | 30.04 to 32.25 | 23.68 to 23.67 | 18.74 to 19.26 | 29.294 to 29.974 |
+
+`copycat.clean.v2`: 30.80 to 31.57. Up 54, down 23 held-out images. It is slower: a third to a half of corrupted images
+trace twice (32 `icons/train` images: 9.8 s each, against 6.5 s timed for v29, though not on the same run).
+Not yet looked at: `synthetic/heldout` medium is down 0.28 dB, and in `synthetic/validate` one image loses 13 dB to a
+clutter blob the capped hypothesis drew.
 
 ## The page
 

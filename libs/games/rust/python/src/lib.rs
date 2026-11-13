@@ -11,7 +11,7 @@ use redqueen_games::checkers::{Board, Checkers, Piece, Square};
 use redqueen_games::checkers_strategies::Strategy;
 use redqueen_games::copycat::{layer_recovery, Document, Geometry};
 use redqueen_games::copycat_climb::{hill_climb, ClimbConfig};
-use redqueen_games::copycat_trace::{fitted_background, polish_document, trace, TraceConfig};
+use redqueen_games::copycat_trace::{fitted_background, polish_document, stages, trace, TraceConfig};
 use redqueen_games::nets::{GraphNet, Net, Network};
 use redqueen_games::pcg::Pcg32 as CorePcg32;
 use redqueen_games::reach1d::Reach1D;
@@ -743,6 +743,60 @@ fn copycat_trace(
     Ok(CopyCatDocument { inner })
 }
 
+/// The structured pipeline's stages, for diagnosis: (noise σ, whether the background is a gradient, its OKLab colour at
+/// the four corners, its judged cut, each pixel's label after clustering and after cleaning (0 is the background), each
+/// label's fill, the SVG).
+#[pyfunction]
+#[pyo3(signature = (rgba, width, height, colors, merge_delta, background_delta, pixel_bits, edge_bits, min_area, outline_gain, seed))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn copycat_stages(
+    py: Python<'_>,
+    rgba: Vec<u8>,
+    width: usize,
+    height: usize,
+    colors: usize,
+    merge_delta: f64,
+    background_delta: f64,
+    pixel_bits: f64,
+    edge_bits: f64,
+    min_area: usize,
+    outline_gain: f64,
+    seed: u64,
+) -> PyResult<(
+    f64,
+    bool,
+    [[f64; 3]; 4],
+    f64,
+    Vec<usize>,
+    Vec<usize>,
+    Vec<[u8; 3]>,
+    CopyCatDocument,
+)> {
+    let config = TraceConfig {
+        colors,
+        merge_delta,
+        background_delta,
+        pixel_bits,
+        edge_bits,
+        min_area,
+        outline_gain,
+        seed,
+    };
+    let s = py
+        .detach(|| stages(&rgba, width, height, &config))
+        .map_err(PyValueError::new_err)?;
+    Ok((
+        s.sigma,
+        s.gradient,
+        s.background.0,
+        s.background.1,
+        s.clustered,
+        s.labels,
+        s.palette,
+        CopyCatDocument { inner: s.document },
+    ))
+}
+
 #[pyfunction]
 fn copycat_polish(
     py: Python<'_>,
@@ -787,6 +841,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(copycat_layer_recovery, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_hill_climb, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_trace, m)?)?;
+    m.add_function(wrap_pyfunction!(copycat_stages, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_polish, m)?)?;
     m.add_function(wrap_pyfunction!(copycat_background, m)?)?;
     Ok(())

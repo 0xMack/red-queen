@@ -8,6 +8,7 @@ pub mod baselines;
 pub mod checkers;
 pub mod checkers_strategies;
 pub mod copycat;
+pub mod copycat_chroma;
 pub mod copycat_climb;
 pub mod copycat_film;
 pub mod copycat_fit;
